@@ -29,8 +29,8 @@ export default function BottomNav() {
 
   if (authState === "AUTHENTICATED" && user && user.role !== "user") {
     return <View style={{ flexDirection: "row", justifyContent: "space-around", padding: 16, paddingBottom: bottomInset + 12, backgroundColor: "white" }}>
-      <TouchableOpacity accessibilityRole="button" onPress={() => router.replace("/search")}><Text style={{ color: "#047857", fontWeight: "700" }}>Marketplace</Text></TouchableOpacity>
-      <TouchableOpacity accessibilityRole="button" onPress={() => router.push(dashboardRoutes[user.role])}><Text style={{ color: "#047857", fontWeight: "700" }}>Profile / Dashboard</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" onPress={() => router.replace("/search")}><Text style={{ color: "#111111", fontWeight: "700" }}>Marketplace</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" onPress={() => router.push(dashboardRoutes[user.role])}><Text style={{ color: "#111111", fontWeight: "700" }}>Profile / Dashboard</Text></TouchableOpacity>
     </View>;
   }
 
@@ -59,7 +59,7 @@ export default function BottomNav() {
               <MaterialIcons
                 name="home"
                 size={22}
-                color={isHomeActive ? "#059669" : "#64748B"}
+                color={isHomeActive ? "#111111" : "#64748B"}
               />
               <Text style={[styles.dockLabel, isHomeActive && styles.dockLabelActive]}>
                 {language === "hi" ? "होम" : "Home"}
@@ -76,7 +76,7 @@ export default function BottomNav() {
               <MaterialIcons
                 name="favorite-border"
                 size={21}
-                color={isSavedActive ? "#059669" : "#64748B"}
+                color={isSavedActive ? "#111111" : "#64748B"}
               />
               <Text style={[styles.dockLabel, isSavedActive && styles.dockLabelActive]}>
                 {language === "hi" ? "सहेजे गए" : "Saved"}
@@ -99,7 +99,7 @@ export default function BottomNav() {
               <View style={styles.dockPostBtn}>
                 <MaterialIcons name="add" size={22} color="#FFFFFF" />
               </View>
-              <Text style={[styles.dockLabel, { color: "#065F46", fontWeight: "700" }]}>
+              <Text style={[styles.dockLabel, { color: "#284B68", fontWeight: "700" }]}>
                 {language === "hi" ? "पोस्ट" : "Post"}
               </Text>
             </TouchableOpacity>
@@ -113,7 +113,7 @@ export default function BottomNav() {
               <MaterialIcons
                 name="chat-bubble-outline"
                 size={20}
-                color={isMessagesActive ? "#059669" : "#64748B"}
+                color={isMessagesActive ? "#111111" : "#64748B"}
               />
               <Text style={[styles.dockLabel, isMessagesActive && styles.dockLabelActive]}>
                 {language === "hi" ? "संदेश" : "Messages"}
@@ -136,7 +136,7 @@ export default function BottomNav() {
               <MaterialIcons
                 name="person-outline"
                 size={22}
-                color={isProfileActive ? "#059669" : "#64748B"}
+                color={isProfileActive ? "#111111" : "#64748B"}
               />
               <Text style={[styles.dockLabel, isProfileActive && styles.dockLabelActive]}>
                 {language === "hi" ? "प्रोफ़ाइल" : "Profile"}
@@ -163,14 +163,14 @@ export default function BottomNav() {
     <View style={[styles.mobileWrapper, { paddingBottom: bottomInset }]}>
       <View style={styles.mobileContainer}>
         <TouchableOpacity style={styles.tab} onPress={() => router.replace("/search")} activeOpacity={0.7}>
-          <MaterialIcons name="home" size={22} color={isHomeActive ? "#059669" : "#64748B"} />
+          <MaterialIcons name="home" size={22} color={isHomeActive ? "#111111" : "#64748B"} />
           <Text style={[styles.label, isHomeActive && styles.activeLabel]}>
             {language === "hi" ? "होम" : "Home"}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.tab} onPress={() => router.push("/saved")} activeOpacity={0.7}>
-          <MaterialIcons name="favorite-border" size={22} color={isSavedActive ? "#059669" : "#64748B"} />
+          <MaterialIcons name="favorite-border" size={22} color={isSavedActive ? "#111111" : "#64748B"} />
           <Text style={[styles.label, isSavedActive && styles.activeLabel]}>
             {language === "hi" ? "सहेजे गए" : "Saved"}
           </Text>
@@ -190,13 +190,13 @@ export default function BottomNav() {
           <View style={styles.dockPostBtn}>
             <MaterialIcons name="add" size={20} color="#FFFFFF" />
           </View>
-          <Text style={[styles.label, { color: "#065F46", fontWeight: "700" }]}>
+          <Text style={[styles.label, { color: "#284B68", fontWeight: "700" }]}>
             {language === "hi" ? "पोस्ट" : "Post"}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.tab} onPress={() => router.push("/messages")} activeOpacity={0.7}>
-          <MaterialIcons name="chat-bubble-outline" size={22} color={isMessagesActive ? "#059669" : "#64748B"} />
+          <MaterialIcons name="chat-bubble-outline" size={22} color={isMessagesActive ? "#111111" : "#64748B"} />
           <Text style={[styles.label, isMessagesActive && styles.activeLabel]}>
             {language === "hi" ? "संदेश" : "Messages"}
           </Text>
@@ -213,7 +213,7 @@ export default function BottomNav() {
           }}
           activeOpacity={0.7}
         >
-          <MaterialIcons name="person-outline" size={22} color={isProfileActive ? "#059669" : "#64748B"} />
+          <MaterialIcons name="person-outline" size={22} color={isProfileActive ? "#111111" : "#64748B"} />
           <Text style={[styles.label, isProfileActive && styles.activeLabel]}>
             {language === "hi" ? "प्रोफ़ाइल" : "Profile"}
           </Text>
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
     lineHeight: 13,
   },
   dockLabelActive: {
-    color: "#059669",
+    color: "#111111",
     fontWeight: "700",
   },
   dockActiveBar: {
@@ -291,17 +291,17 @@ const styles = StyleSheet.create({
     bottom: -4,
     width: 20,
     height: 2.5,
-    backgroundColor: "#059669",
+    backgroundColor: "#111111",
     borderRadius: 2,
   },
   dockPostBtn: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: "#0B4D3C",
+    backgroundColor: "#111111",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#0B4D3C",
+    shadowColor: "#111111",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   activeLabel: {
-    color: "#059669",
+    color: "#111111",
     fontWeight: "800",
   },
 });

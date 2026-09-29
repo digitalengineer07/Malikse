@@ -1,80 +1,99 @@
 import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter, type Href } from "expo-router";
 import { useAuthStore } from "../src/store/authStore";
 import type { UserRole } from "../src/types/auth.types";
 import { authService } from "../src/services/authService";
+import AppHeader from "./AppHeader";
 
 type Section = { title: string; description: string; route?: Href };
+const icons: React.ComponentProps<typeof MaterialIcons>["name"][] = ["space-dashboard", "fact-check", "home-work", "add-home-work", "folder-open", "swap-horiz"];
 
 export default function RoleDashboard({ role, title, subtitle, sections }: {
-  role: UserRole;
-  title: string;
-  subtitle: string;
-  sections: Section[];
+  role: UserRole; title: string; subtitle: string; sections: Section[];
 }) {
   const router = useRouter();
   const { user, authState } = useAuthStore();
+  const { width } = useWindowDimensions();
+  const compact = width < 680;
+  const cardWidth = compact ? "100%" : width < 1000 ? "48%" : "31.8%";
 
   if (authState !== "AUTHENTICATED" || user?.role !== role) {
-    return (
-      <View style={styles.screen}>
-        <Text style={styles.title}>Sign in as {role}</Text>
-        <Text style={styles.subtitle}>This dashboard is available to the {role} role.</Text>
-        <TouchableOpacity style={styles.button} onPress={() => router.replace("/login")}>
-          <Text style={styles.buttonText}>Go to sign in</Text>
-        </TouchableOpacity>
-      </View>
-    );
+    return <View style={styles.screen}><AppHeader showNavLinks={false} showPostPropertyBtn={false} showHomeButton />
+      <View style={styles.accessPanel}><View style={styles.iconBox}><MaterialIcons name="lock-outline" size={28} color="#294B65" /></View>
+        <Text style={styles.title}>Sign in as {role}</Text><Text style={styles.subtitle}>This dashboard is available to the {role} role.</Text>
+        <TouchableOpacity accessibilityRole="button" style={styles.darkButton} onPress={() => router.replace("/login")}><Text style={styles.darkLabel}>Go to sign in</Text><MaterialIcons name="arrow-forward" size={18} color="white" /></TouchableOpacity>
+      </View></View>;
   }
 
-  return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.eyebrow}>MALIKSE · {role.toUpperCase()}</Text>
-      <Text style={styles.title}>{title}</Text>
+  return <View style={styles.screen}>
+    <AppHeader showNavLinks={false} showPostPropertyBtn={false} showHomeButton />
+    <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]}>
+      <View style={styles.topline}><Text style={styles.eyebrow}>MALIKSE / YOUR WORKSPACE</Text><View style={styles.rolePill}><View style={styles.roleDot} /><Text style={styles.roleText}>{role}</Text></View></View>
+      <Text accessibilityRole="header" style={[styles.title, compact && styles.titleCompact]}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
-      <Text style={styles.welcome}>Welcome, {user.name}</Text>
-      <TouchableOpacity accessibilityRole="button" style={styles.link} onPress={() => router.replace("/search")}>
-        <Text style={styles.linkText}>← Verified properties</Text>
-      </TouchableOpacity>
-      <View style={styles.grid}>
-        {sections.map((section) => (
-          <TouchableOpacity
-            key={section.title}
-            style={styles.card}
-            disabled={!section.route}
-            onPress={() => section.route && router.push(section.route)}
-          >
-            <Text style={styles.cardTitle}>{section.title}</Text>
-            <Text style={styles.cardDescription}>{section.description}</Text>
-            <Text style={styles.cardAction}>{section.route ? "Open →" : "Coming later"}</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={[styles.hero, compact && styles.heroCompact]}>
+        <View style={styles.heroCopy}><View style={styles.welcomeRow}><View style={styles.avatar}><Text style={styles.avatarText}>{user.name?.charAt(0).toUpperCase()}</Text></View><Text style={styles.welcome}>Welcome, {user.name}</Text></View>
+          <Text style={styles.heroTitle}>Your next step,{"\n"}all in one place.</Text>
+          <Text style={styles.heroDescription}>Your properties, your people, and the tools you need to move forward.</Text>
+          <TouchableOpacity accessibilityRole="button" style={styles.whiteButton} onPress={() => router.replace("/search")}><Text style={styles.whiteLabel}>Explore verified properties</Text><MaterialIcons name="north-east" size={18} color="#111827" /></TouchableOpacity>
+        </View>
+        <View style={[styles.heroVisual, compact && styles.heroVisualCompact]}><Image source={require("../assets/saved_villa_house.jpg")} style={styles.heroImage} accessibilityLabel="Modern home illustration" resizeMode="cover" /><View style={styles.glassCaption}><MaterialIcons name="verified-user" size={20} color="#FFFFFF" /><View style={{ flex: 1 }}><Text style={styles.captionTitle}>A place for what’s next.</Text><Text style={styles.captionText}>Your Land. A Safer Future.</Text></View></View></View>
       </View>
-      <TouchableOpacity accessibilityRole="button" style={styles.link} onPress={() => router.push("/profile")}>
-        <Text style={styles.linkText}>My profile</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.link} onPress={() => { authService.logout().finally(() => router.replace("/login")); }}>
-        <Text style={styles.linkText}>Sign out</Text>
-      </TouchableOpacity>
+      <View style={styles.sectionHeading}><View><Text style={styles.eyebrow}>YOUR TOOLS</Text><Text accessibilityRole="header" style={styles.sectionTitle}>Make your next move.</Text></View><Text style={styles.sectionNote}>Built around your role</Text></View>
+      <View style={styles.grid}>{sections.map((section, index) => <TouchableOpacity key={section.title} accessibilityRole="button" accessibilityState={{ disabled: !section.route }} style={[styles.card, { width: cardWidth }, index === 0 && styles.primaryCard, !section.route && styles.disabledCard]} disabled={!section.route} onPress={() => section.route && router.push(section.route)}>
+        <View style={styles.cardTop}><View style={[styles.iconBox, index === 0 && styles.primaryIcon]}><MaterialIcons name={icons[index % icons.length]} size={24} color={index === 0 ? "#FFFFFF" : "#416980"} /></View><Text style={styles.cardIndex}>{String(index + 1).padStart(2, "0")}</Text></View>
+        <Text style={styles.cardTitle}>{section.title}</Text><Text style={styles.cardDescription}>{section.description}</Text>
+        <View style={styles.cardBottom}><Text style={styles.cardAction}>{section.route ? "Open workspace" : "Coming later"}</Text><View style={styles.arrowCircle}><MaterialIcons name={section.route ? "north-east" : "schedule"} size={18} color="#111827" /></View></View>
+      </TouchableOpacity>)}</View>
+      <View style={[styles.accountBar, compact && styles.accountCompact]}><View style={styles.accountIdentity}><View style={styles.accountIcon}><MaterialIcons name="person-outline" size={24} color="#345A76" /></View><View><Text style={styles.accountTitle}>Your account</Text><Text style={styles.accountDescription}>Profile details and session settings</Text></View></View>
+        <View style={styles.accountActions}><TouchableOpacity accessibilityRole="button" style={styles.profileButton} onPress={() => router.push("/profile")}><Text style={styles.whiteLabel}>My profile</Text><MaterialIcons name="north-east" size={15} color="#111827" /></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.signOut} onPress={() => { authService.logout().finally(() => router.replace("/login")); }}><Text style={styles.signOutLabel}>Sign out</Text></TouchableOpacity></View>
+      </View>
     </ScrollView>
-  );
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#F5F8F6", padding: 20 },
-  content: { width: "100%", maxWidth: 960, alignSelf: "center", paddingBottom: 40 },
-  eyebrow: { color: "#047857", fontWeight: "800", marginTop: 20, letterSpacing: 1 },
-  title: { fontSize: 30, fontWeight: "800", color: "#10251B", marginTop: 14 },
-  subtitle: { fontSize: 15, color: "#53645B", marginTop: 8, lineHeight: 22 },
-  welcome: { fontSize: 17, fontWeight: "600", color: "#244536", marginTop: 24, marginBottom: 12 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  card: { width: "100%", maxWidth: 300, minHeight: 150, borderWidth: 1, borderColor: "#D7E6DC", borderRadius: 14, backgroundColor: "white", padding: 18 },
-  cardTitle: { fontSize: 17, fontWeight: "700", color: "#10251B" },
-  cardDescription: { fontSize: 13, color: "#607269", lineHeight: 19, marginTop: 8, flex: 1 },
-  cardAction: { color: "#047857", fontWeight: "700", marginTop: 12 },
-  button: { backgroundColor: "#047857", borderRadius: 10, padding: 14, marginTop: 20 },
-  buttonText: { color: "white", fontWeight: "700", textAlign: "center" },
-  link: { paddingVertical: 20, alignSelf: "flex-start" },
-  linkText: { color: "#52655A", fontWeight: "700" },
+  screen: { flex: 1, backgroundColor: "#FFFFFF" },
+  content: { width: "100%", maxWidth: 1200, alignSelf: "center", paddingHorizontal: 32, paddingTop: 32, paddingBottom: 44 },
+  contentCompact: { paddingHorizontal: 20, paddingTop: 22 },
+  topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 18 },
+  eyebrow: { color: "#6B8295", fontSize: 10, fontWeight: "600", letterSpacing: 1.6 },
+  rolePill: { flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: "#EDF6FC", borderRadius: 20 },
+  roleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#6AA0C3" }, roleText: { textTransform: "capitalize", color: "#38556E", fontSize: 11, fontWeight: "600" },
+  title: { color: "#101622", fontSize: 38, fontWeight: "800", letterSpacing: -1.3 }, titleCompact: { fontSize: 30 },
+  subtitle: { color: "#6A7785", fontSize: 13, lineHeight: 22, marginTop: 9, maxWidth: 700 },
+  hero: { marginTop: 30, marginBottom: 42, borderRadius: 32, backgroundColor: "#EAF4FC", padding: 12, flexDirection: "row", overflow: "hidden" },
+  heroCompact: { flexDirection: "column", borderRadius: 28 },
+  heroCopy: { flex: 1, padding: 24, gap: 17 }, welcomeRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  avatar: { backgroundColor: "#FFFFFF", height: 35, width: 35, borderRadius: 18, alignItems: "center", justifyContent: "center" }, avatarText: { fontSize: 13, color: "#224561", fontWeight: "700" },
+  welcome: { fontSize: 12, color: "#436079", flexShrink: 1 },
+  heroTitle: { fontSize: 35, lineHeight: 40, fontWeight: "700", letterSpacing: -1.2, color: "#111827" },
+  heroDescription: { color: "#61768A", fontSize: 12, lineHeight: 21, maxWidth: 310 },
+  whiteButton: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 16, paddingVertical: 14, paddingHorizontal: 19, backgroundColor: "#FFFFFF", borderRadius: 30, marginTop: 4 },
+  whiteLabel: { color: "#111827", fontSize: 12, fontWeight: "600" },
+  heroVisual: { flex: 0.85, minHeight: 300, borderRadius: 25, overflow: "hidden", backgroundColor: "#AECBDC" },
+  heroVisualCompact: { flex: undefined, minHeight: 220 }, heroImage: { width: "100%", height: "100%", position: "absolute" },
+  glassCaption: { position: "absolute", bottom: 14, left: 14, right: 14, padding: 17, backgroundColor: "#182F4AC9", borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 12 },
+  captionTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" }, captionText: { color: "#DBE8F2", fontSize: 10, marginTop: 5 },
+  sectionHeading: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 15, marginBottom: 23 },
+  sectionTitle: { color: "#111827", fontWeight: "700", fontSize: 24, letterSpacing: -0.7, marginTop: 9 }, sectionNote: { color: "#7C8D9D", fontSize: 10, flexShrink: 1 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 18 },
+  card: { minHeight: 250, borderRadius: 28, padding: 24, backgroundColor: "#F3F8FC", borderWidth: 1, borderColor: "#EBF1F6" },
+  primaryCard: { backgroundColor: "#DFEEFA", borderColor: "#DFEEFA" }, disabledCard: { backgroundColor: "#F7F8FA" },
+  cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 23 },
+  iconBox: { width: 46, height: 46, borderRadius: 23, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }, primaryIcon: { backgroundColor: "#142131" },
+  cardIndex: { color: "#7F97AA", fontSize: 11 }, cardTitle: { fontSize: 19, fontWeight: "700", letterSpacing: -0.4, color: "#142131", lineHeight: 25 },
+  cardDescription: { color: "#657A8E", fontSize: 12, lineHeight: 20, marginTop: 10, flex: 1 },
+  cardBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 22 },
+  cardAction: { color: "#233E54", fontSize: 11, fontWeight: "600" }, arrowCircle: { width: 33, height: 33, borderRadius: 17, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
+  accountBar: { marginTop: 35, flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 23, borderWidth: 1, borderColor: "#E8EFF5", borderRadius: 26, gap: 20 },
+  accountCompact: { flexDirection: "column", alignItems: "stretch" }, accountIdentity: { flexDirection: "row", alignItems: "center", gap: 13 },
+  accountIcon: { width: 43, height: 43, borderRadius: 22, backgroundColor: "#EFF6FC", alignItems: "center", justifyContent: "center" },
+  accountTitle: { fontSize: 15, fontWeight: "600", color: "#142131" }, accountDescription: { fontSize: 11, color: "#788B9D", marginTop: 5 },
+  accountActions: { flexDirection: "row", alignItems: "center", gap: 20 }, profileButton: { flexDirection: "row", alignItems: "center", gap: 16, backgroundColor: "#EFF6FC", borderRadius: 24, paddingHorizontal: 18, paddingVertical: 12 },
+  signOut: { padding: 10 }, signOutLabel: { fontSize: 12, color: "#6C7B88" },
+  accessPanel: { width: "100%", maxWidth: 550, alignSelf: "center", padding: 30, marginTop: 40, gap: 15 },
+  darkButton: { backgroundColor: "#111827", borderRadius: 28, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 15 }, darkLabel: { color: "#FFFFFF", fontSize: 13, fontWeight: "600" },
 });

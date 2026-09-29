@@ -36,12 +36,12 @@ export default function DemoKycScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, padding: 24, backgroundColor: "#F5F8F6" },
-  title: { fontSize: 28, fontWeight: "800", color: "#10251B", marginTop: 40 },
+    screen: { flex: 1, padding: 24, backgroundColor: "#FFFFFF" },
+    title: { fontSize: 28, fontWeight: "800", color: "#111827", marginTop: 40 },
   description: { color: "#53645B", fontSize: 15, lineHeight: 23, marginTop: 16, maxWidth: 550 },
-  status: { color: "#047857", fontWeight: "700", marginTop: 28 },
+    status: { color: "#416980", fontWeight: "700", marginTop: 28 },
   error: { color: "#B91C1C", marginTop: 16 },
-  button: { backgroundColor: "#047857", padding: 15, borderRadius: 10, marginTop: 20, alignSelf: "flex-start" },
+    button: { backgroundColor: "#111827", padding: 15, borderRadius: 26, marginTop: 20, alignSelf: "flex-start" },
   buttonText: { color: "white", fontWeight: "700" },
-  link: { color: "#047857", marginTop: 24, fontWeight: "700" },
+    link: { color: "#416980", marginTop: 24, fontWeight: "700" },
 });

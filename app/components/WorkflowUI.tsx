@@ -1,10 +1,10 @@
 import React from "react";
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, type StyleProp, type ViewStyle, type TextStyle } from "react-native";
 import AppHeader from "./AppHeader";
 
-export function WorkflowScreen({ title, children }: { title: string; children: React.ReactNode }) {
-  return <View style={{ flex: 1, backgroundColor: "#F5F8F6" }}><AppHeader showNavLinks={false} showPostPropertyBtn={false} showHomeButton />
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ui.content}><Text style={ui.title}>{title}</Text>{children}</ScrollView>
+export function WorkflowScreen({ title, children, contentStyle, titleStyle, backgroundColor = "#FFFFFF" }: { title: string; children: React.ReactNode; contentStyle?: StyleProp<ViewStyle>; titleStyle?: StyleProp<TextStyle>; backgroundColor?: string }) {
+  return <View style={{ flex: 1, backgroundColor }}><AppHeader showNavLinks={false} showPostPropertyBtn={false} showHomeButton />
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[ui.content, contentStyle]}><Text accessibilityRole="header" style={[ui.title, titleStyle]}>{title}</Text>{children}</ScrollView>
   </View>;
 }
 export function Action({ title, onPress, disabled, secondary = false }: { title: string; onPress: () => void; disabled?: boolean; secondary?: boolean }) {
@@ -18,17 +18,17 @@ export function Check({ label, checked, onPress }: { label: string; checked: boo
 }
 export const ui = StyleSheet.create({
   content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 20, paddingBottom: 48, gap: 16 },
-  title: { color: "#10251B", fontSize: 28, fontWeight: "800" },
-  heading: { color: "#10251B", fontSize: 19, fontWeight: "700" },
-  text: { color: "#244536", fontSize: 15, lineHeight: 23 },
-  muted: { color: "#607269", lineHeight: 22 },
+  title: { color: "#111827", fontSize: 28, fontWeight: "800" },
+  heading: { color: "#111827", fontSize: 19, fontWeight: "700" },
+  text: { color: "#3E566B", fontSize: 15, lineHeight: 23 },
+  muted: { color: "#6B7E90", lineHeight: 22 },
   error: { color: "#B91C1C", lineHeight: 22 },
-  card: { backgroundColor: "white", borderRadius: 12, borderWidth: 1, borderColor: "#D7E6DC", padding: 18, gap: 12 },
+  card: { backgroundColor: "#F3F8FC", borderRadius: 24, borderWidth: 1, borderColor: "#E3EEF6", padding: 20, gap: 12 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 10, alignItems: "center" },
-  button: { backgroundColor: "#047857", padding: 14, borderRadius: 9, alignSelf: "flex-start" },
-  secondary: { backgroundColor: "#E5F3EA" },
+  button: { backgroundColor: "#111827", padding: 14, borderRadius: 24, alignSelf: "flex-start" },
+  secondary: { backgroundColor: "#EAF4FC" },
   buttonText: { color: "white", fontWeight: "700" },
-  label: { color: "#244536", fontWeight: "600" },
-  input: { borderWidth: 1, borderColor: "#BBD1C3", backgroundColor: "white", borderRadius: 8, padding: 12, color: "#10251B", fontSize: 16, minHeight: 46 },
+  label: { color: "#3E566B", fontWeight: "600" },
+  input: { borderWidth: 1, borderColor: "#D3E3EE", backgroundColor: "white", borderRadius: 14, padding: 12, color: "#111827", fontSize: 16, minHeight: 46 },
   check: { paddingVertical: 10 },
 });

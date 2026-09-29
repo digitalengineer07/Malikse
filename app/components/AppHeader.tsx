@@ -152,12 +152,12 @@ export default function AppHeader({
                 styles.navLink,
                 isMyListingsActive
                   ? {
-                      backgroundColor: "#ECFDF5",
+                      backgroundColor: "#EFF7FD",
                       borderRadius: 9999,
                       paddingHorizontal: 12,
                       paddingVertical: 5,
                       borderWidth: 1,
-                      borderColor: "#A7F3D0",
+                      borderColor: "#D5E9F8",
                     }
                   : null,
               ]}
@@ -167,7 +167,7 @@ export default function AppHeader({
               <Text
                 style={[
                   styles.navLinkText,
-                  isMyListingsActive && { color: "#065F46", fontWeight: "700" },
+                  isMyListingsActive && { color: "#284B68", fontWeight: "700" },
                 ]}
               >
                 {t(language, "nav_my_listings") || "My Listings"}
@@ -180,12 +180,12 @@ export default function AppHeader({
                 styles.navLink,
                 isSavedActive
                   ? {
-                      backgroundColor: "#ECFDF5",
+                      backgroundColor: "#EFF7FD",
                       borderRadius: 9999,
                       paddingHorizontal: 12,
                       paddingVertical: 5,
                       borderWidth: 1,
-                      borderColor: "#A7F3D0",
+                      borderColor: "#D5E9F8",
                     }
                   : null,
               ]}
@@ -195,13 +195,13 @@ export default function AppHeader({
               <MaterialIcons
                 name={isSavedActive ? "favorite" : "favorite-border"}
                 size={15}
-                color={isSavedActive ? "#059669" : "#475569"}
+                color={isSavedActive ? "#111111" : "#475569"}
                 style={{ marginRight: 4 }}
               />
               <Text
                 style={[
                   styles.navLinkText,
-                  isSavedActive && { color: "#065F46", fontWeight: "700" },
+                  isSavedActive && { color: "#284B68", fontWeight: "700" },
                 ]}
               >
                 {t(language, "nav_saved_plots") || "Saved"}
@@ -214,12 +214,12 @@ export default function AppHeader({
                 styles.navLink,
                 isMessagesActive
                   ? {
-                      backgroundColor: "#ECFDF5",
+                      backgroundColor: "#EFF7FD",
                       borderRadius: 9999,
                       paddingHorizontal: 12,
                       paddingVertical: 5,
                       borderWidth: 1,
-                      borderColor: "#A7F3D0",
+                      borderColor: "#D5E9F8",
                     }
                   : null,
               ]}
@@ -229,14 +229,14 @@ export default function AppHeader({
               <Text
                 style={[
                   styles.navLinkText,
-                  isMessagesActive && { color: "#065F46", fontWeight: "700" },
+                  isMessagesActive && { color: "#284B68", fontWeight: "700" },
                 ]}
               >
                 {t(language, "nav_messages") || "Messages"}
               </Text>
               <View
                 style={{
-                  backgroundColor: "#059669",
+                  backgroundColor: "#111111",
                   borderRadius: 9999,
                   paddingHorizontal: 6,
                   paddingVertical: 1,
@@ -253,12 +253,12 @@ export default function AppHeader({
                 styles.navLink,
                 isInsightsActive
                   ? {
-                      backgroundColor: "#ECFDF5",
+                      backgroundColor: "#EFF7FD",
                       borderRadius: 9999,
                       paddingHorizontal: 12,
                       paddingVertical: 5,
                       borderWidth: 1,
-                      borderColor: "#A7F3D0",
+                      borderColor: "#D5E9F8",
                     }
                   : null,
               ]}
@@ -268,7 +268,7 @@ export default function AppHeader({
               <Text
                 style={[
                   styles.navLinkText,
-                  isInsightsActive && { color: "#065F46", fontWeight: "700" },
+                  isInsightsActive && { color: "#284B68", fontWeight: "700" },
                 ]}
               >
                 {t(language, "nav_insights") || "Insights"}
@@ -292,7 +292,7 @@ export default function AppHeader({
               }}
               activeOpacity={0.85}
             >
-              <MaterialIcons name="add" size={17} color="#065F46" />
+              <MaterialIcons name="add" size={17} color="#284B68" />
               <Text style={styles.postPropertyBtnText}>
                 {t(language, "post_land_free") || "Post Land (Free)"}
               </Text>
@@ -336,7 +336,7 @@ export default function AppHeader({
                   <Text style={styles.userProfileName} numberOfLines={1}>
                     {displayName}
                   </Text>
-                  <MaterialIcons name="keyboard-arrow-down" size={17} color="#065F46" />
+                  <MaterialIcons name="keyboard-arrow-down" size={17} color="#284B68" />
                 </>
               )}
             </TouchableOpacity>
@@ -390,18 +390,18 @@ const styles = StyleSheet.create({
   backButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E6F4EA",
+    backgroundColor: "#EAF4FC",
     paddingVertical: 6,
     paddingHorizontal: 14,
     borderRadius: 9999,
     borderWidth: 1.5,
-    borderColor: "#A7F3D0",
+    borderColor: "#D5E9F8",
     gap: 5,
   },
   backText: {
     fontSize: 12.5,
     fontWeight: "800",
-    color: "#065F46",
+    color: "#284B68",
   },
   /* Left Brand */
   brandRow: {
@@ -413,10 +413,10 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: "#059669",
+    backgroundColor: "#111111",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#059669",
+    shadowColor: "#111111",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 5,
@@ -476,7 +476,7 @@ const styles = StyleSheet.create({
     color: "#475569",
   },
   navLinkTextActive: {
-    color: "#0B4D3C",
+    color: "#111111",
     fontWeight: "700",
   },
   activeIndicator: {
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 3,
-    backgroundColor: "#0B4D3C",
+    backgroundColor: "#111111",
     borderRadius: 2,
   },
 
@@ -539,13 +539,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "#E6F4EA",
+    backgroundColor: "#EAF4FC",
     height: 36,
     paddingHorizontal: 12,
     borderRadius: 9999,
     borderWidth: 1.5,
-    borderColor: "#A7F3D0",
-    shadowColor: "#059669",
+    borderColor: "#D5E9F8",
+    shadowColor: "#111111",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 4,
@@ -553,7 +553,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   postPropertyBtnText: {
-    color: "#065F46",
+    color: "#284B68",
     fontSize: 12,
     fontWeight: "800",
     lineHeight: 15,
@@ -562,23 +562,23 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 9999,
-    backgroundColor: "#E6F4EA",
+    backgroundColor: "#EAF4FC",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1.5,
-    borderColor: "#A7F3D0",
+    borderColor: "#D5E9F8",
   },
   langBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E6F4EA",
+    backgroundColor: "#EAF4FC",
     paddingHorizontal: 6,
     height: 36,
     width: 94,
     justifyContent: "center",
     borderRadius: 9999,
     borderWidth: 1.5,
-    borderColor: "#A7F3D0",
+    borderColor: "#D5E9F8",
     gap: 5,
   },
   langBtnMobile: {
@@ -590,13 +590,13 @@ const styles = StyleSheet.create({
   langSymbol: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#065F46",
+    color: "#284B68",
     lineHeight: 15,
   },
   langText: {
     fontSize: 12,
     fontWeight: "800",
-    color: "#065F46",
+    color: "#284B68",
     lineHeight: 15,
   },
   userProfilePill: {
@@ -606,9 +606,9 @@ const styles = StyleSheet.create({
     height: 36,
     paddingHorizontal: 8,
     borderRadius: 9999,
-    backgroundColor: "#E6F4EA",
+    backgroundColor: "#EAF4FC",
     borderWidth: 1.5,
-    borderColor: "#A7F3D0",
+    borderColor: "#D5E9F8",
     justifyContent: "center",
   },
   userProfilePillMobile: {
@@ -620,7 +620,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#065F46",
+    backgroundColor: "#284B68",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -632,7 +632,7 @@ const styles = StyleSheet.create({
   userProfileName: {
     fontSize: 12.5,
     fontWeight: "800",
-    color: "#065F46",
+    color: "#284B68",
     maxWidth: 130,
   },
 });
