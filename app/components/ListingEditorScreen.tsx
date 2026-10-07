@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Text, View } from "react-native";
+import { ActivityIndicator, Image, Platform, Text, View } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import * as Location from "expo-location";
@@ -32,6 +32,7 @@ export default function ListingEditorScreen() {
   const [negotiable, setNegotiable] = useState(true);
   const [hasLoan, setHasLoan] = useState(false);
   const [hasDispute, setHasDispute] = useState(false);
+  const [photoFiles, setPhotoFiles] = useState<DocumentPicker.DocumentPickerAsset[]>([]);
   const [picked, setPicked] = useState<Picked[]>([]);
   const [existingDocs, setExistingDocs] = useState<any[]>([]);
   const submitting = useRef(false);
@@ -74,9 +75,18 @@ export default function ListingEditorScreen() {
     return "";
   };
   const next = () => {
-    const message = validate(step === 2);
+    const message = validate(step === 2) || (step === 2 && !form.photos.trim() && !photoFiles.length ? "Add at least one property photo." : "");
     setError(message);
     if (!message) setStep(value => value + 1);
+  };
+  const pickPhotos = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: ["image/jpeg", "image/png", "image/webp"], multiple: true, copyToCacheDirectory: true });
+      if (result.canceled) return;
+      if (result.assets.some(asset => (asset.size || 0) > 10 * 1024 * 1024)) { setError("Each photo must be under 10 MB."); return; }
+      if (form.photos.split("\n").filter(Boolean).length + photoFiles.length + result.assets.length > 10) { setError("Choose up to 10 photos."); return; }
+      setPhotoFiles(previous => [...previous, ...result.assets]); setError("");
+    } catch { setError("Could not select photos. Please try again."); }
   };
   const pick = async () => {
     try {
@@ -86,7 +96,7 @@ export default function ListingEditorScreen() {
   };
   const submit = async () => {
     if (submitting.current) return;
-    const message = validate(true);
+    const message = validate(true) || (!form.photos.trim() && !photoFiles.length ? "Add at least one property photo." : "");
     if (message || !consent) { setError(message || "Accept the seller declaration."); return; }
     submitting.current = true; setBusy(true); setError("");
     try {
@@ -94,6 +104,12 @@ export default function ListingEditorScreen() {
       let savedId = propertyId;
       if (savedId) await propertyService.updateProperty(savedId, data);
       else { const property = await propertyService.createProperty(data); savedId = property._id || property.id; setPropertyId(savedId); }
+      for (const asset of photoFiles) {
+        const file: any = Platform.OS === "web" ? asset.file || new File([await (await fetch(asset.uri)).blob()], asset.name, { type: asset.mimeType }) : { uri: asset.uri, name: asset.name, type: asset.mimeType || "image/jpeg" };
+        const result = await propertyService.uploadPhoto(savedId!, file, asset.name);
+        setForm(previous => ({ ...previous, photos: [previous.photos, result.url].filter(Boolean).join("\n") }));
+        setPhotoFiles(previous => previous.filter(item => item !== asset));
+      }
       for (const document of picked) {
         const { asset } = document;
         const file: any = Platform.OS === "web" ? asset.file || new File([await (await fetch(asset.uri)).blob()], asset.name, { type: asset.mimeType }) : { uri: asset.uri, name: asset.name, type: asset.mimeType || "application/octet-stream" };
@@ -144,7 +160,11 @@ export default function ListingEditorScreen() {
         <Action title="Use current GPS location" secondary disabled={busy} onPress={locate} />
         {field("lat", "Latitude *", true)}{field("lng", "Longitude *", true)}
         {field("boundary", "Boundary description", false, true)}{field("roadWidth", "Road width (feet)", true)}
-        {field("photos", "Property photo URLs (optional, one per line)", false, true)}
+        <Text style={ui.heading}>Property photos *</Text>
+        <Text style={ui.muted}>Add 1–10 JPEG, PNG or WebP photos, up to 10 MB each. The first photo is your listing cover. Photos are publicly visible after upload; do not include private documents.</Text>
+        <View style={ui.row}>{form.photos.split("\n").filter(Boolean).map((uri, index) => <View key={uri} style={{ gap: 6 }}><Image source={{ uri }} style={{ width: 130, height: 100, borderRadius: 14 }} /><Text style={ui.muted}>{index === 0 ? "Cover photo" : "Uploaded"}</Text><Action title="Remove photo" secondary disabled={busy} onPress={() => change("photos", form.photos.split("\n").filter(value => value !== uri).join("\n"))} /></View>)}
+        {photoFiles.map((asset, index) => <View key={`${asset.uri}-${index}`} style={{ gap: 6 }}><Image source={{ uri: asset.uri }} style={{ width: 130, height: 100, borderRadius: 14 }} /><Text style={ui.muted}>{!form.photos && index === 0 ? "Cover photo" : "Ready to upload"}</Text><Action title="Remove photo" secondary disabled={busy} onPress={() => setPhotoFiles(previous => previous.filter((_, i) => i !== index))} /></View>)}</View>
+        <Action title="Upload property photos" secondary disabled={busy} onPress={pickPhotos} />
         {field("videos", "Video / drone footage URLs (optional, one per line)", false, true)}
       </View>}
       {step === 3 && <View style={ui.card}>

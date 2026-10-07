@@ -1,11 +1,11 @@
+import { premiumStyles } from "../constants/typography";
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Platform, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { WorkflowScreen } from "./WorkflowUI";
-import { propertyService } from "../src/services/propertyService";
-import type { Property, PropertySearchFilters, PropertyType } from "../src/types/property.types";
+import type { PropertyType } from "../src/types/property.types";
 import { useAuthStore } from "../src/store/authStore";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 
@@ -15,14 +15,7 @@ const propertyTypes: { value: PropertyType | undefined; label: string }[] = [
   { value: "shop", label: "Shops" }, { value: "office", label: "Offices" },
 ];
 
-function PropertyPhoto({ uri, title }: { uri?: string; title: string }) {
-  const [failed, setFailed] = useState(false);
-  if (!uri || failed) return <View style={styles.missingPhoto}>
-    <MaterialIcons name="image-not-supported" size={36} color="#86A4BA" />
-    <Text style={styles.missingPhotoText}>{failed ? "Property photo unavailable" : "No property photo uploaded"}</Text>
-  </View>;
-  return <Image source={{ uri }} accessibilityLabel={title} style={styles.photo} resizeMode="cover" onError={() => setFailed(true)} />;
-}
+
 
 export default function MarketplaceScreen() {
   const router = useRouter();
@@ -31,29 +24,19 @@ export default function MarketplaceScreen() {
   const compact = width < 650;
   const columns = width >= 1050 ? 3 : width >= 650 ? 2 : 1;
   const contentWidth = Math.min(width, 1200) - (compact ? 40 : 64);
-  const cardWidth = (contentWidth - (columns - 1) * 22) / columns;
-  const [properties, setProperties] = useState<Property[]>([]);
+  const cardWidth = columns === 3 ? "31.8%" : columns === 2 ? "48%" : "100%";
   const [query, setQuery] = useState("");
-  const [type, setType] = useState<PropertyType | undefined>();
   const [min, setMin] = useState("");
   const [max, setMax] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [filters, setFilters] = useState<PropertySearchFilters>({});
   const [validationError, setValidationError] = useState("");
   const [showBudget, setShowBudget] = useState(false);
-  useFocusEffect(useCallback(() => {
-    let active = true;
-    setLoading(true); setError("");
-    propertyService.searchProperties(filters).then(data => { if (active) setProperties(data); }).catch(() => { if (active) { setProperties([]); setError("Could not load properties. Please retry."); } }).finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [filters]));
-  const search = (nextType = type) => {
-    if ((min && (!Number.isFinite(Number(min)) || Number(min) < 0)) || (max && (!Number.isFinite(Number(max)) || Number(max) < 0)) || (min && max && Number(min) > Number(max))) { setValidationError("Enter a valid price range. Minimum price must not exceed maximum price."); return; }
+
+  const search = () => {
+    if ((min && (!Number.isFinite(Number(min)) || Number(min) < 0)) || (max && (!Number.isFinite(Number(max)) || Number(max) < 0)) || (min && max && Number(min) > Number(max))) { setValidationError("Enter a valid price range."); return; }
     setValidationError("");
-    setFilters({ location: query.trim() || undefined, type: nextType, budgetMin: min ? Number(min) : undefined, budgetMax: max ? Number(max) : undefined });
+    router.push({ pathname: '/home', params: { query: query.trim() || undefined, min: min || undefined, max: max || undefined } });
   };
-  return <WorkflowScreen title="Explore Your Next Move" backgroundColor="#FFFFFF" contentStyle={[styles.content, compact && styles.contentCompact]} titleStyle={[styles.title, compact && styles.titleCompact]}>
+  return <WorkflowScreen title={"Find your\nperfect place."} backgroundColor="#FFFFFF" contentStyle={[styles.content, compact && styles.contentCompact]} titleStyle={[styles.title, compact && styles.titleCompact]}>
     <Text style={styles.intro}>Land to build on. A place to call home. Discover verified properties with MalikSe.</Text>
     <View style={styles.searchPanel}>
       <View style={styles.searchBar}>
@@ -68,49 +51,19 @@ export default function MarketplaceScreen() {
         <TouchableOpacity accessibilityRole="button" onPress={() => search()} style={styles.applyButton}><Text style={styles.buttonLabel}>Apply budget</Text></TouchableOpacity>
       </View>}
       {!!validationError && <Text accessibilityRole="alert" style={styles.errorText}>{validationError}</Text>}
-      {!showBudget && (filters.budgetMin !== undefined || filters.budgetMax !== undefined) && <Text style={styles.disclaimer}>Budget: ₹{(filters.budgetMin || 0).toLocaleString("en-IN")} – {filters.budgetMax !== undefined ? `₹${filters.budgetMax.toLocaleString("en-IN")}` : "Any maximum"}</Text>}
-      <View style={styles.typeRow}>{propertyTypes.map(({ value, label }) => <TouchableOpacity key={value || "all"} accessibilityRole="button" accessibilityState={{ selected: type === value }} onPress={() => { setType(value); if (value === undefined) { setValidationError(""); setFilters(current => ({ ...current, type: undefined })); } else search(value); }} style={[styles.typePill, type === value && styles.activePill]}>
-        <Text style={[styles.typeLabel, type === value && styles.activeLabel]}>{label}</Text>
-      </TouchableOpacity>)}</View>
+      {!showBudget && !!(min || max) && <Text style={styles.disclaimer}>Budget: ₹{Number(min || 0).toLocaleString("en-IN")} – {max ? `₹${Number(max).toLocaleString("en-IN")}` : "Any maximum"}</Text>}
     </View>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.collectionGrid, !compact && { width: "100%" }]} style={styles.collections}>
       {[
         { title: 'Land & possibility', subtitle: 'A place to build your vision.', type: 'land' as const, image: require('../assets/saved_plot_land.jpg') },
         { title: 'A home of your own', subtitle: 'Space for your next chapter.', type: 'house' as const, image: require('../assets/saved_villa_house.jpg') },
         { title: 'Find your everyday', subtitle: 'Explore flats for your next move.', type: 'flat' as const, image: require('../assets/my_listings_hero_bg.png') },
-      ].map(item => <TouchableOpacity key={item.type} accessibilityRole="button" accessibilityLabel={`Browse ${item.type} properties`} onPress={() => { setType(item.type); search(item.type); }} activeOpacity={0.9} style={[styles.collectionCard, compact ? { width: contentWidth * 0.87 } : { flex: 1 }]}>
+      ].map(item => <TouchableOpacity key={item.type} accessibilityRole="button" accessibilityLabel={`Browse ${item.type} properties`} onPress={() => { router.push({ pathname: '/home', params: { type: item.type } }); }} activeOpacity={0.9} style={[styles.collectionCard, compact ? { width: contentWidth * 0.87 } : { flex: 1 }]}>
         <Image source={item.image} style={styles.collectionImage} resizeMode="cover" />
-        <Svg pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFill}><Defs><LinearGradient id={`shade-${item.type}`} x1="0" y1="0" x2="0" y2="1"><Stop offset="35%" stopColor="#071524" stopOpacity="0" /><Stop offset="100%" stopColor="#071524" stopOpacity="0.9" /></LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#shade-${item.type})`} /></Svg><View style={styles.collectionContent}><Text style={styles.collectionTitle}>{item.title}</Text><Text style={styles.collectionSubtitle}>{item.subtitle}</Text><View style={styles.collectionButton}><Text style={styles.sellerButtonText}>Explore {item.type === 'house' ? 'houses' : item.type === 'flat' ? 'flats' : 'land'}</Text><MaterialIcons name="north-east" size={15} color="#111827" /></View></View>
+        <Svg pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFill}><Defs><LinearGradient id={`shade-${item.type}`} x1="0" y1="0" x2="0" y2="1"><Stop offset="35%" stopColor="#071524" stopOpacity="0" /><Stop offset="100%" stopColor="#071524" stopOpacity="0.9" /></LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#shade-${item.type})`} /></Svg><View style={[styles.collectionContent, Platform.OS === "web" && { backdropFilter: "blur(18px)" } as any]}><Text style={styles.collectionTitle}>{item.title}</Text><Text style={styles.collectionSubtitle}>{item.subtitle}</Text><View style={styles.collectionButton}><Text style={styles.sellerButtonText}>Explore {item.type === 'house' ? 'houses' : item.type === 'flat' ? 'flats' : 'land'}</Text><MaterialIcons name="north-east" size={15} color="#111827" /></View></View>
       </TouchableOpacity>)}
     </ScrollView>
-    <View style={styles.resultsHeading}><Text accessibilityRole="header" style={styles.sectionTitle}>Properties for you</Text>{!loading && !error && <Text accessibilityLiveRegion="polite" style={styles.resultCount}>{properties.length} {properties.length === 1 ? "property" : "properties"}</Text>}</View>
-    {loading ? <View style={styles.statePanel}><ActivityIndicator color="#111111" /><Text accessibilityLiveRegion="polite" style={styles.stateDescription}>Loading verified properties…</Text></View> : error ? <View style={styles.statePanel}>
-      <MaterialIcons name="cloud-off" size={36} color="#7A96AD" /><Text accessibilityRole="alert" style={styles.errorText}>{error}</Text>
-      <TouchableOpacity accessibilityRole="button" onPress={() => setFilters({ ...filters })} style={styles.retryButton}><Text style={styles.retryLabel}>Try again</Text></TouchableOpacity>
-    </View> : properties.length === 0 ? <View style={styles.statePanel}>
-      <View style={styles.emptyIcon}><MaterialIcons name="home-work" size={34} color="#668BA8" /></View>
-      <Text style={styles.stateTitle}>No verified properties match your search yet.</Text>
-      <Text style={styles.stateDescription}>Try another location, property type, or budget. Listings appear here after both review stages are approved.</Text>
-    </View> : <View style={styles.propertyGrid}>{properties.map(property => {
-      const title = property.title || `${property.type} in ${property.location.district}`;
-      const openProperty = () => router.push(`/property/${property._id || property.id}`);
-      return <View key={property._id || property.id} style={[styles.propertyCard, { width: cardWidth }]}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel={`View ${title}`} onPress={openProperty} activeOpacity={0.9} style={styles.photoWrap}>
-          <PropertyPhoto key={property.media?.photos?.[0] || "missing"} uri={property.media?.photos?.[0]} title={title} />
-          <View style={styles.photoBadge}><MaterialIcons name="verified-user" size={13} color="#376887" /><Text style={styles.badgeText}>Verified</Text></View>
-        </TouchableOpacity>
-        <View style={styles.cardBody}>
-          <Text style={styles.propertyType}>{property.type}</Text>
-          <Text accessibilityRole="header" style={styles.propertyTitle}>{title}</Text>
-          <View style={styles.locationRow}><MaterialIcons name="location-on" size={15} color="#74889B" /><Text style={styles.locationText}>{property.location.district}, {property.location.state}</Text></View>
-          <Text style={styles.price}>₹{property.price.toLocaleString("en-IN")}</Text>
-          <View style={styles.detailsRow}>{property.sellableArea != null && <Text style={styles.detailText}>{property.sellableArea.toLocaleString("en-IN")} sq.ft</Text>}{typeof property.negotiable === "boolean" && <Text style={styles.detailText}>{property.negotiable ? "Negotiable" : "Fixed price"}</Text>}</View>
-          <Text style={styles.approvalText}>Advisor approved · Verifier approved</Text>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`View property: ${title}`} style={styles.detailsButton} onPress={openProperty}><Text style={styles.buttonLabel}>View property</Text><MaterialIcons name="north-east" size={16} color="white" /></TouchableOpacity>
-        </View>
-      </View>;
-    })}</View>}
-    <Text style={styles.disclaimer}>Only Advisor- and Verifier-approved listings are published. Verification is not a guarantee of legal title.</Text>
+    <Text style={[styles.disclaimer, { marginTop: 20 }]}>Only Advisor- and Verifier-approved listings are published. Verification is not a guarantee of legal title.</Text>
     <View style={[styles.sellerSection, compact && styles.sellerCompact]}>
       <View style={styles.sellerCopy}><Text style={styles.eyebrow}>YOUR PROPERTY. YOUR NEXT CHAPTER.</Text><Text accessibilityRole="header" style={styles.sellerTitle}>A clearer way to{ "\n" }sell your property.</Text><Text style={styles.sellerText}>From your first draft to final review, keep every step of your listing in one place.</Text>
         <View style={styles.sellerPoints}>{["Add your property details and location", "Submit for Advisor and Verifier review", "Track progress and respond to corrections"].map(label => <View key={label} style={styles.sellerPoint}><MaterialIcons name="check-circle-outline" size={16} color="#537B9D" /><Text style={styles.sellerText}>{label}</Text></View>)}</View>
@@ -127,14 +80,14 @@ export default function MarketplaceScreen() {
   </WorkflowScreen>;
 }
 
-const styles = StyleSheet.create({
-  content: { maxWidth: 1200, paddingHorizontal: 32, paddingTop: 44, paddingBottom: 64, gap: 0 },
+const styles = premiumStyles({
+  content: { maxWidth: 1200, paddingHorizontal: 32, paddingTop: 54, paddingBottom: 64, gap: 0 },
   contentCompact: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 36 },
-  title: { textAlign: "center", fontSize: 40, lineHeight: 48, fontWeight: "800", letterSpacing: -1.2, color: "#111111" },
-  titleCompact: { fontSize: 30, lineHeight: 38 },
-  intro: { textAlign: "center", color: "#6C7885", fontSize: 13, lineHeight: 21, marginTop: 12, maxWidth: 600, alignSelf: "center" },
+  title: { textAlign: "center", fontSize: 58, lineHeight: 66, fontWeight: "600", letterSpacing: -2.2, color: "#111111" },
+  titleCompact: { fontSize: 38, lineHeight: 45, letterSpacing: -1.4 },
+  intro: { textAlign: "center", color: "#6C7885", fontSize: 14, lineHeight: 24, marginTop: 18, maxWidth: 600, alignSelf: "center" },
   disclaimer: { textAlign: "center", color: "#738396", fontSize: 11, lineHeight: 18, marginTop: 7 },
-  searchPanel: { marginTop: 30, marginBottom: 48, gap: 24 },
+  searchPanel: { marginTop: 28, marginBottom: 32, gap: 24 },
   typeRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 10 },
   typePill: { borderWidth: 1, borderColor: "#DCE5EC", borderRadius: 30, paddingVertical: 11, paddingHorizontal: 24, backgroundColor: "#FFFFFF" },
   activePill: { backgroundColor: "#111111", borderColor: "#111111" },
@@ -146,7 +99,7 @@ const styles = StyleSheet.create({
   searchButton: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "#111111" },
   buttonLabel: { color: "#FFFFFF", fontSize: 12, fontWeight: "600" },
   resultsHeading: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 23 },
-  sectionTitle: { fontSize: 25, letterSpacing: -0.6, color: "#111111", fontWeight: "600", flexShrink: 1 },
+  sectionTitle: { fontSize: 29, letterSpacing: -1, color: "#111111", fontWeight: "600", flexShrink: 1 },
   resultCount: { fontSize: 12, color: "#718295" },
   propertyGrid: { flexDirection: "row", flexWrap: "wrap", gap: 22 },
   propertyCard: { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E5EDF4", borderRadius: 30, overflow: "hidden" },
@@ -156,12 +109,12 @@ const styles = StyleSheet.create({
   missingPhotoText: { fontSize: 12, color: "#657F95" },
   photoBadge: { position: "absolute", left: 16, top: 16, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 7, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#EDF7FF" },
   badgeText: { color: "#376887", fontSize: 10, fontWeight: "600" },
-  cardBody: { padding: 22, gap: 10, backgroundColor: "#F1F7FC", borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -24 },
+  cardBody: { padding: 22, gap: 10, backgroundColor: "#F4F8FB", borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -24 },
   propertyType: { textTransform: "uppercase", fontSize: 10, letterSpacing: 1.5, color: "#74889B" },
-  propertyTitle: { fontSize: 19, fontWeight: "600", color: "#111111", lineHeight: 25 },
+  propertyTitle: { fontSize: 22, fontWeight: "600", color: "#111111", lineHeight: 29 },
   locationRow: { flexDirection: "row", gap: 4, alignItems: "center" },
   locationText: { fontSize: 12, color: "#718295", flex: 1, lineHeight: 18 },
-  price: { color: "#111111", fontSize: 21, fontWeight: "600", marginTop: 6 },
+  price: { color: "#111111", fontSize: 26, fontWeight: "600", letterSpacing: -0.8, marginTop: 6 },
   detailsRow: { flexDirection: "row", flexWrap: "wrap", gap: 18 },
   detailText: { color: "#6B7E90", fontSize: 12 },
   approvalText: { fontSize: 10, color: "#547B98", lineHeight: 16, marginTop: 3 },
@@ -197,9 +150,9 @@ const styles = StyleSheet.create({
   journeyCard: { flex: 1, backgroundColor: '#EFF7FD', borderRadius: 30, padding: 25, gap: 15 }, journeyTitle: { color: '#111111', fontSize: 19, fontWeight: '600' },
   journeyAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
   collections: { marginBottom: 52, flexGrow: 0 }, collectionGrid: { gap: 18 },
-  collectionCard: { height: 360, borderRadius: 32, overflow: 'hidden', backgroundColor: '#DCEFFB' },
+  collectionCard: { height: 395, borderRadius: 30, overflow: 'hidden', backgroundColor: '#DCEFFB' },
   collectionImage: { width: '100%', height: '100%' }, collectionShade: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 147, backgroundColor: '#102333C9' },
-  collectionContent: { position: 'absolute', left: 14, right: 14, bottom: 14, gap: 9, padding: 18, borderRadius: 25, backgroundColor: '#24476085' },
-  collectionTitle: { color: '#FFFFFF', fontSize: 23, fontWeight: '700', letterSpacing: -0.5 },
+  collectionContent: { position: 'absolute', left: 14, right: 14, bottom: 14, gap: 9, padding: 18, borderRadius: 25, backgroundColor: '#142B3CCC', borderWidth: 1, borderColor: '#FFFFFF40' },
+  collectionTitle: { color: '#FFFFFF', fontSize: 25, lineHeight: 31, fontWeight: '600', letterSpacing: -0.8 },
   collectionSubtitle: { color: '#D9E8F4', fontSize: 11 }, collectionButton: { marginTop: 10, backgroundColor: '#FFFFFF', borderRadius: 24, paddingVertical: 12, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 });

@@ -31,32 +31,7 @@ interface SavedPropertyItem {
   image: string;
 }
 
-const DUMMY_SAVED_PROPERTIES: SavedPropertyItem[] = [
-  {
-    id: "prop_1",
-    title: "Prime Commercial Plot on Main Bailey Road",
-    price: "₹85.00 Lakh",
-    location: "Danapur, Patna, Bihar",
-    area: "2400 sq.ft",
-    roadWidth: "30 ft Road",
-    facing: "East Facing",
-    type: "LAND",
-    photosCount: 8,
-    image: "https://images.unsplash.com/photo-1524813686514-a57563d77965?w=800&q=80",
-  },
-  {
-    id: "prop_2",
-    title: "Residential Land for Modern Villa",
-    price: "₹42.00 Lakh",
-    location: "Pikta, Patna, Bihar",
-    area: "1500 sq.ft",
-    roadWidth: "20 ft Road",
-    facing: "West Facing",
-    type: "LAND",
-    photosCount: 6,
-    image: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80",
-  },
-];
+const SAVED_PROPERTIES: SavedPropertyItem[] = [];
 
 export default function SavedScreen() {
   const router = useRouter();
@@ -66,7 +41,7 @@ export default function SavedScreen() {
 
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [savedList, setSavedList] = useState<SavedPropertyItem[]>(DUMMY_SAVED_PROPERTIES);
+  const [savedList, setSavedList] = useState<SavedPropertyItem[]>(SAVED_PROPERTIES);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const handleRemove = (id: string) => {
@@ -93,6 +68,7 @@ export default function SavedScreen() {
         showPostPropertyBtn={true}
       />
 
+      <Text style={{ color: "#47647A", backgroundColor: "#EDF6FC", padding: 16 }}>Saved properties is coming soon. Your saved collection will appear here when this feature is available.</Text>
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* ================= 2. HERO BANNER ================= */}
         <View style={styles.heroWrapper}>

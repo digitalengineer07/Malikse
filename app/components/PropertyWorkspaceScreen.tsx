@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Image, Linking, Text, View } from "react-native";
+import { ActivityIndicator, Image, Linking, Modal, ScrollView, Text, View } from "react-native";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { Action, Check, Field, ui, WorkflowScreen } from "./WorkflowUI";
@@ -8,8 +8,10 @@ import { actorId, Listing, statusLabels, workflowService } from "../src/services
 import { documentService } from "../src/services/documentService";
 import api from "../src/services/authService";
 import MiniMapPreview from "./MiniMapPreview";
+import PublicPropertyDetails from "./PublicPropertyDetails";
 import OfferSheet from "./OfferSheet";
 import { dealService } from "../src/services/dealService";
+import { AppTheme } from "../constants/theme";
 
 const checks: Record<string, string> = { ownership: "Ownership information reviewed", location: "Property location reviewed", boundaries: "Boundaries and access reviewed", area: "Property area reviewed", disclosures: "Loans, disputes and possession reviewed", documentsReviewed: "Available documents reviewed (uploads are optional)", advisorReport: "Advisor report and inspection reviewed" };
 
@@ -73,10 +75,23 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
   };
   const canReview = !publicView && property && ((user?.role === "advisor" && property.status === "pending" && actorId(property.assignedAdvisorId) === user.id) || (user?.role === "verifier" && property.status === "advisor_verified" && actorId(property.assignedVerifierId) === user.id));
   const keys = Object.keys(checks).filter(key => user?.role === "verifier" || key !== "advisorReport");
+  if (publicView && !loading && property) return <PublicPropertyDetails property={property} canOffer={!user || user.role === "user"} onOffer={() => {
+    if (!user || authState !== "AUTHENTICATED") router.push("/login");
+    else if (!user.demoKycComplete) router.push("/kyc");
+    else setShowOffer(true);
+  }}>
+    {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}
+    {showOffer && <Modal transparent animationType="slide" onRequestClose={() => setShowOffer(false)}><View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "#10233470" }}><ScrollView style={{ maxHeight: "85%", width: "100%", maxWidth: 650, alignSelf: "center", backgroundColor: "white", borderTopLeftRadius: 28, borderTopRightRadius: 28 }}><OfferSheet propertyId={id} askingPrice={property.price} onCancel={() => setShowOffer(false)} onSubmit={async amount => {
+      setError("");
+      try { await dealService.sendOffer(id, amount); setShowOffer(false); setOfferResult("Your offer was submitted."); }
+      catch (cause: any) { setError(cause.response?.data?.message || "Could not submit offer"); }
+    }} /></ScrollView></View></Modal>}
+    {!!offerResult && <Text style={ui.text}>{offerResult}</Text>}
+  </PublicPropertyDetails>;
   return <WorkflowScreen title={publicView ? "Property details" : "Verification workspace"}>
     <Action title="Refresh" secondary onPress={() => setRevision(value => value + 1)} disabled={busy} />
     {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}
-    {loading && <ActivityIndicator color="#047857" />}
+    {loading && <ActivityIndicator color={AppTheme.colors.primary} />}
     {!loading && property && <>
       <View style={ui.card}>
         <Text style={ui.heading}>{property.title || `${property.type} in ${property.location.district}`}</Text>

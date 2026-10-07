@@ -1,4 +1,6 @@
 import { Router } from "express";
+import multer from "multer";
+import { storePropertyPhoto, discardPropertyPhoto } from "../services/propertyPhotos";
 import { isValidObjectId } from "mongoose";
 import { Property } from "../models/Property.model";
 import { User } from "../models/User.model";
@@ -6,6 +8,7 @@ import { authGuard, roleGuard } from "../middleware/auth.middleware";
 import { availableStaff, canReadProperty, historyEvent, listingFields, publicFields, transition, validateListing } from "../services/propertyWorkflow";
 
 const router = Router();
+const photoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 router.param("id", (_req, res, next, id) => isValidObjectId(id) ? next() : res.status(400).json({ message: "Invalid property ID" }));
 
 router.get("/search", async (req, res) => {
@@ -86,10 +89,35 @@ router.post("/:id/submit", authGuard, roleGuard("user"), async (req: any, res) =
     if (req.body.consent !== true) return res.status(400).json({ message: "Accept the seller declaration before submitting" });
     const error = validateListing(property);
     if (error) return res.status(400).json({ message: error });
+    if (!property.media?.photos?.length) return res.status(400).json({ message: "Upload at least one property photo before submitting" });
     const advisorId = property.assignedAdvisorId || await availableStaff("advisor");
     const result = await transition(property, { status: "pending", assignedAdvisorId: advisorId || null, assignedVerifierId: null, advisorReview: null, verifierReview: null, rejectionReason: "", badges: { identityVerified: false, documentsChecked: false, siteVisited: false, lawyerReviewed: false, fullyVerified: false } }, historyEvent(req.user, property.status, "pending", "submitted", { assignedAdvisorId: advisorId, consent: true }));
     if (!result) return res.status(409).json({ message: "Property changed. Reload and try again" });
     res.json(result);
   } catch (error: any) { res.status(400).json({ message: error.message }); }
+});
+router.post("/:id/photos", authGuard, roleGuard("user"), async (req: any, res, next) => {
+  try {
+    const property = await Property.findOne({ _id: req.params.id, ownerId: req.user.id, status: { $in: ["draft", "correction_required"] } });
+    if (!property) return res.status(403).json({ message: "Upload photos only to your draft or correction request" });
+    next();
+  } catch { res.status(500).json({ message: "Could not check property access" }); }
+}, (req: any, res) => {
+  photoUpload.single("file")(req, res, async error => {
+    if (error) return res.status(400).json({ message: "Choose one image under 10 MB" });
+    let filename: string | undefined;
+    let retained = false;
+    try {
+      if (!req.file) return res.status(400).json({ message: "Select a photo to upload" });
+      filename = await storePropertyPhoto(req.file.buffer);
+      const origin = process.env.PUBLIC_API_URL || `${req.protocol}://${req.get("host")}`;
+      const url = `${origin.replace(/\/$/, "")}/property-photos/${filename}`;
+      const property = await Property.findOneAndUpdate({ _id: req.params.id, ownerId: req.user.id, status: { $in: ["draft", "correction_required"] }, "media.photos.9": { $exists: false } }, { $push: { "media.photos": url }, $inc: { __v: 1 } }, { new: true });
+      if (!property) return res.status(409).json({ message: "Property changed or already has 10 photos. Reload and try again." });
+      retained = true;
+      res.status(201).json({ url });
+    } catch (cause: any) { res.status(400).json({ message: cause.message || "Could not upload photo" }); }
+    finally { if (filename && !retained) await discardPropertyPhoto(filename); }
+  });
 });
 export default router;

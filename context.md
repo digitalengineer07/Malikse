@@ -190,3 +190,14 @@ npm --prefix server run test:workflow
 - The user interface is a functional workflow skeleton rather than a complete visual design.
 - The standalone `website` application has not been built; only its folder is reserved.
 - Real OTP delivery, payments, legal-title verification, and production media storage are not part of the current implementation.
+
+## Verified home and public browsing UI
+
+- `/home` is the entry destination after the opening screen and authentication. `/search` remains available for filtering.
+- Home uses the public verified-property endpoint, with a Leaflet overview map on web. Price markers open full listings; property cards open a slide-up preview first.
+- Property photos come from the backend. Missing photos are explicitly labeled; no substitute listing data is created.
+- The public detail screen presents photos, price, area, disclosures, parcel map and the existing offer workflow. Private reviewer screens retain their existing workflow.
+- The top header contains static branding and the language toggle. Saved is accessed from the user dashboard, not the bottom navigation.
+- The dashboard has an architectural hero and bottom navigation. Its hero image is decorative.
+- Saved-property routes no longer show seeded dummy listings. Account saving has no backend endpoint yet, and this limitation is shown in the UI.
+- The home overview map is web-only, consistent with the existing parcel-map implementation. Native displays a fallback and listing cards.

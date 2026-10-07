@@ -10,20 +10,21 @@ const tintColorDark = '#fff';
 
 export const AppTheme = {
   colors: {
-    primary: '#059669', // Emerald Green
-    primaryDark: '#064E3B',
-    primaryLight: '#D1FAE5',
-    accent: '#2563EB', // Royal Blue
-    accentLight: '#EFF6FF',
-    background: '#F8FAFC',
-    card: '#FFFFFF',
-    cardBorder: '#E2E8F0',
-    text: '#0F172A',
+    primary: '#4A90E2', // Soft Blue
+    primaryDark: '#357ABD',
+    primaryLight: '#D0E3F5',
+    accent: '#63B3ED', // Lighter Blue
+    accentLight: '#EBF8FF',
+    background: '#E8F0F8', // Soft Blue tinted background
+    card: 'rgba(255, 255, 255, 0.65)', // Glassmorphism base
+    cardSolid: '#FFFFFF',
+    cardBorder: 'rgba(255, 255, 255, 0.8)',
+    text: '#1E293B',
     textSecondary: '#475569',
     textMuted: '#94A3B8',
     white: '#FFFFFF',
-    border: '#E2E8F0',
-    divider: '#F1F5F9',
+    border: 'rgba(255, 255, 255, 0.5)',
+    divider: 'rgba(255, 255, 255, 0.4)',
     success: '#10B981',
     successBg: '#ECFDF5',
     warning: '#F59E0B',
@@ -32,33 +33,40 @@ export const AppTheme = {
     dangerBg: '#FEF2F2',
     // 4-stage Verification Badges
     badgeIdentity: '#10B981',
-    badgeDocument: '#0284C7',
+    badgeDocument: '#3B82F6',
     badgeSite: '#8B5CF6',
-    badgeLawyer: '#D97706',
+    badgeLawyer: '#F59E0B',
   },
   shadows: {
     soft: {
-      shadowColor: '#0F172A',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 8,
-      elevation: 2,
+      shadowColor: '#314E6B', // Soft blueish shadow
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.05,
+      shadowRadius: 10,
+      elevation: 3,
     },
     card: {
-      shadowColor: '#0F172A',
-      shadowOffset: { width: 0, height: 4 },
+      shadowColor: '#314E6B',
+      shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.08,
-      shadowRadius: 14,
-      elevation: 4,
+      shadowRadius: 16,
+      elevation: 5,
     },
     float: {
-      shadowColor: '#0F172A',
-      shadowOffset: { width: 0, height: 8 },
+      shadowColor: '#314E6B',
+      shadowOffset: { width: 0, height: 12 },
       shadowOpacity: 0.12,
-      shadowRadius: 20,
-      elevation: 8,
+      shadowRadius: 24,
+      elevation: 10,
     },
   },
+  glass: Platform.select({
+    web: {
+      backdropFilter: 'blur(16px)',
+      WebkitBackdropFilter: 'blur(16px)',
+    },
+    default: {},
+  }),
   radius: {
     sm: 8,
     md: 12,

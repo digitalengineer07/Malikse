@@ -9,7 +9,7 @@ export default function UserDashboard() {
     subtitle="Buy and sell from one account. The KYC step is a demo placeholder."
     sections={[
       { title: "Browse properties", description: "Search public, published listings without signing in.", route: "/search" },
-      { title: "Wishlist", description: "Your saved properties.", route: "/saved" },
+      { title: "Saved properties", description: "Your saved properties.", route: "/saved" },
       { title: "KYC (demo)", description: isKycDone ? "Demo step completed." : "Mark the demo KYC step complete before listing or making an offer.", route: "/kyc" },
       { title: "List a property", description: "Create a listing. Ownership documents are optional at this stage.", route: isKycDone ? "/listing/create" : "/kyc" },
       { title: "My listings", description: "Track your properties and their verification status.", route: "/my-properties" },

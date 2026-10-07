@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Platform } from "react-native";
@@ -24,6 +25,12 @@ if (Platform.OS === "web" && typeof window !== "undefined") {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    PoppinsRegular: require("../assets/fonts/Poppins-Regular.ttf"),
+    PoppinsMedium: require("../assets/fonts/Poppins-Medium.ttf"),
+    PoppinsSemiBold: require("../assets/fonts/Poppins-SemiBold.ttf"),
+    PoppinsBold: require("../assets/fonts/Poppins-Bold.ttf"),
+  });
   const [showOpeningScreen, setShowOpeningScreen] = useState(true);
 
   useEffect(() => {
@@ -33,6 +40,8 @@ export default function RootLayout() {
       if (useAuthStore.getState().accessToken) authService.getMe().catch(() => {});
     });
   }, []);
+
+  if (!fontsLoaded && !fontError) return null;
 
   return (
     <SafeAreaProvider>

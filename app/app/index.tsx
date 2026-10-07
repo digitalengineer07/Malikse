@@ -48,7 +48,7 @@ export default function AppOpeningScreen() {
     if (isNavigating) return;
     setIsNavigating(true);
     await useAuthStore.getState().hydrateSession();
-    router.replace("/search");
+    router.replace("/home");
   };
 
   useEffect(() => {

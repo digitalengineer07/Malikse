@@ -13,12 +13,6 @@ interface PropertyCardProps {
   isSaved?: boolean;
 }
 
-const FALLBACK_IMAGES = [
-  "https://images.unsplash.com/photo-1524813686514-a57563d77965?w=800&q=80",
-  "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80",
-  "https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?w=800&q=80",
-];
-
 export default function PropertyCard({ property, onSave, isSaved }: PropertyCardProps) {
   const router = useRouter();
   const { language } = useLanguageStore();
@@ -35,7 +29,6 @@ export default function PropertyCard({ property, onSave, isSaved }: PropertyCard
     ? `₹${(rawPrice / 100000).toFixed(2)} ${lakhText}` 
     : `₹${rawPrice.toLocaleString("en-IN")}`;
 
-  const imageUri = property.media?.photos?.[0] || property.image || FALLBACK_IMAGES[0];
   const isVerified = property.status === "verified" || property.verified === true;
   const locationStr = typeof property.location === "string" 
     ? property.location 
@@ -56,7 +49,7 @@ export default function PropertyCard({ property, onSave, isSaved }: PropertyCard
     >
       {/* Property Image Header */}
       <View style={styles.imageContainer}>
-        <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover" />
+        {property.media?.photos?.[0] ? <Image source={{ uri: property.media.photos[0] }} accessibilityLabel="Property photo" style={styles.image} resizeMode="cover" /> : <Text>No property photo uploaded</Text>}
         <View style={styles.imageOverlay} />
 
         {/* Verification Status Badge */}
@@ -152,7 +145,7 @@ export default function PropertyCard({ property, onSave, isSaved }: PropertyCard
 
           <View style={styles.viewBtn}>
             <Text style={styles.viewBtnText}>{t(language, "view_details") || "View Details"}</Text>
-            <MaterialIcons name="arrow-forward" size={15} color="#065F46" />
+            <MaterialIcons name="arrow-forward" size={15} color={AppTheme.colors.primaryDark} />
           </View>
         </View>
       </View>
@@ -313,16 +306,16 @@ const styles = StyleSheet.create({
   viewBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E6F4EA",
+    backgroundColor: AppTheme.colors.primaryLight,
     paddingHorizontal: 15,
     paddingVertical: 7,
     borderRadius: 9999,
     borderWidth: 1.5,
-    borderColor: "#A7F3D0",
+    borderColor: AppTheme.colors.primary,
     gap: 6,
   },
   viewBtnText: {
-    color: "#065F46",
+    color: AppTheme.colors.primaryDark,
     fontSize: 12.5,
     fontWeight: "800",
   },

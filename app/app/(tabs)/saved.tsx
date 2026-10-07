@@ -20,8 +20,6 @@ import { useLanguageStore } from "../../src/store/languageStore";
 import { t } from "../../src/i18n/translations";
 
 const heroScenicImg = require("../../assets/saved_hero_scenic.jpg");
-const plotLandImg = require("../../assets/saved_plot_land.jpg");
-const villaHouseImg = require("../../assets/saved_villa_house.jpg");
 
 interface SavedPropertyItem {
   id: string;
@@ -37,34 +35,7 @@ interface SavedPropertyItem {
   isSaved: boolean;
 }
 
-const INITIAL_SAVED_PROPERTIES: SavedPropertyItem[] = [
-  {
-    id: "prop_1",
-    title: "Prime Land Plot in Patna, Bihar",
-    location: "Danapur, Patna, Bihar",
-    area: "2400 sq.ft (1.76 Kattha)",
-    price: "₹45.00 Lakh",
-    priceNum: 4500000,
-    pricePerSqFt: "₹1,875 / sq.ft",
-    typeBadge: "Land",
-    category: "land",
-    image: plotLandImg,
-    isSaved: true,
-  },
-  {
-    id: "prop_2",
-    title: "Modern Villa in Boring Road",
-    location: "Patna, Bihar",
-    area: "3200 sq.ft",
-    price: "₹1.25 Crore",
-    priceNum: 12500000,
-    pricePerSqFt: "₹3,906 / sq.ft",
-    typeBadge: "Residential",
-    category: "flats",
-    image: villaHouseImg,
-    isSaved: true,
-  },
-];
+const SAVED_PROPERTIES: SavedPropertyItem[] = [];
 
 interface CategoryItem {
   id: string;
@@ -89,7 +60,7 @@ export default function SavedScreen() {
 
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [savedList, setSavedList] = useState<SavedPropertyItem[]>(INITIAL_SAVED_PROPERTIES);
+  const [savedList, setSavedList] = useState<SavedPropertyItem[]>(SAVED_PROPERTIES);
   const [sortBy, setSortBy] = useState<"recent" | "price_asc" | "price_desc">("recent");
   const [sortModalVisible, setSortModalVisible] = useState<boolean>(false);
   const [selectedPropertyMenu, setSelectedPropertyMenu] = useState<SavedPropertyItem | null>(null);
@@ -159,6 +130,7 @@ export default function SavedScreen() {
         showPostPropertyBtn={true}
       />
 
+      <Text style={{ color: "#47647A", backgroundColor: "#EDF6FC", padding: 16 }}>Saved properties is coming soon. Your saved collection will appear here when this feature is available.</Text>
       <ScrollView
         contentContainerStyle={[
           styles.scrollContainer,

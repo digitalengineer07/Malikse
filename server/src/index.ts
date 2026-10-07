@@ -10,6 +10,7 @@ import documentRoutes from "./routes/document.routes";
 import dealRoutes from "./routes/deal.routes";
 import advisorRoutes from "./routes/advisor.routes";
 import adminRoutes from "./routes/admin.routes";
+import { photoDirectory } from "./services/propertyPhotos";
 
 dotenv.config();
 
@@ -20,7 +21,34 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({ origin: "*", credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+import fs from "fs";
+import path from "path";
 
+// Only public property photography is served here, never ownership documents.
+app.get("/property-photos/:filename", async (req, res, next) => {
+  try {
+    const filename = req.params.filename;
+    if (mongoose.connection.readyState === 1) {
+      const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db!, { bucketName: "photos" });
+      const files = await bucket.find({ filename }).toArray();
+      if (files.length > 0) {
+        const file = files[0];
+        res.setHeader("Content-Type", file.contentType || "image/jpeg");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        return bucket.openDownloadStream(file._id).pipe(res);
+      }
+    }
+    // Fallback to local disk
+    const localPath = path.join(photoDirectory, filename);
+    if (fs.existsSync(localPath)) {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      return res.sendFile(localPath);
+    }
+    res.status(404).send("File not found");
+  } catch (error) {
+    res.status(500).send("Error fetching photo");
+  }
+});
 // Ownership documents are served only through authorized, expiring document links.
 
 // ── Routes ────────────────────────────────────────────────────────────────────

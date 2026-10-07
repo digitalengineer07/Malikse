@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import Svg, { Path, Rect, Defs, LinearGradient, Stop } from "react-native-svg";
+import { AppTheme } from "../constants/theme";
 
 // Exact scenic image: lake, mountains, house, green leaves
 const scenicBgImg = require("../assets/messages_hero_scenic.jpg");
@@ -123,7 +124,7 @@ export default function AppOpeningScreen({ onFinish }: AppOpeningScreenProps) {
           <Svg width="88" height="14" viewBox="0 0 88 14" style={styles.cursiveSwoosh}>
             <Path
               d="M 2 4 Q 44 14 86 2"
-              stroke="#059669"
+              stroke={AppTheme.colors.primary}
               strokeWidth="2.5"
               strokeLinecap="round"
               fill="none"
@@ -192,7 +193,7 @@ export default function AppOpeningScreen({ onFinish }: AppOpeningScreenProps) {
             {/* Pillar 1: Buy Smarter */}
             <View style={styles.pillarItem}>
               <View style={styles.pillarIconBox}>
-                <MaterialIcons name="home" size={19} color="#059669" />
+                <MaterialIcons name="home" size={19} color={AppTheme.colors.primary} />
               </View>
               <Text style={styles.pillarLabel}>Buy Smarter</Text>
             </View>
@@ -203,7 +204,7 @@ export default function AppOpeningScreen({ onFinish }: AppOpeningScreenProps) {
             {/* Pillar 2: Deal Safer */}
             <View style={styles.pillarItem}>
               <View style={styles.pillarIconBox}>
-                <MaterialIcons name="verified-user" size={18} color="#059669" />
+                <MaterialIcons name="verified-user" size={18} color={AppTheme.colors.primary} />
               </View>
               <Text style={styles.pillarLabel}>Deal Safer</Text>
             </View>
@@ -214,7 +215,7 @@ export default function AppOpeningScreen({ onFinish }: AppOpeningScreenProps) {
             {/* Pillar 3: Grow Together */}
             <View style={styles.pillarItem}>
               <View style={styles.pillarIconBox}>
-                <MaterialIcons name="groups" size={19} color="#059669" />
+                <MaterialIcons name="groups" size={19} color={AppTheme.colors.primary} />
               </View>
               <Text style={styles.pillarLabel}>Grow Together</Text>
             </View>
@@ -284,7 +285,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#047857",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#047857",
+    shadowColor: AppTheme.colors.primaryDark,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.32,
     shadowRadius: 12,
@@ -321,16 +322,16 @@ const styles = StyleSheet.create({
     width: 230,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "rgba(167, 243, 208, 0.45)",
+    backgroundColor: AppTheme.colors.primaryLight,
     overflow: "hidden",
     position: "relative",
     borderWidth: 0.5,
-    borderColor: "rgba(167, 243, 208, 0.6)",
+    borderColor: "rgba(255,255,255,0.6)",
   },
   loadingBarProgress: {
     height: "100%",
     borderRadius: 4,
-    backgroundColor: "#059669",
+    backgroundColor: AppTheme.colors.primary,
   },
   loadingStatusText: {
     fontSize: 12.5,
@@ -356,13 +357,13 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#059669",
+    backgroundColor: AppTheme.colors.primary,
   },
   dotInactive: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "rgba(167, 243, 208, 0.7)",
+    backgroundColor: AppTheme.colors.primaryLight,
   },
 
   /* 3 Pillars Feature Row */

@@ -1,6 +1,7 @@
+import { premiumStyles } from "../constants/typography";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Platform, useWindowDimensions } from "react-native";
+import { View, Text, TouchableOpacity, Platform, useWindowDimensions } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,14 +23,14 @@ export default function BottomNav() {
   const { authState, user } = useAuthStore();
   const { language } = useLanguageStore();
 
-  const isHomeActive = pathname === "/search" || pathname === "/";
-  const isSavedActive = pathname === "/saved";
+  const isHomeActive = pathname === "/home" || pathname === "/";
+  const isSearchActive = pathname === "/search";
   const isMessagesActive = pathname === "/messages";
   const isProfileActive = pathname === "/profile";
 
   if (authState === "AUTHENTICATED" && user && user.role !== "user") {
     return <View style={{ flexDirection: "row", justifyContent: "space-around", padding: 16, paddingBottom: bottomInset + 12, backgroundColor: "white" }}>
-      <TouchableOpacity accessibilityRole="button" onPress={() => router.replace("/search")}><Text style={{ color: "#111111", fontWeight: "700" }}>Marketplace</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" onPress={() => router.replace("/home")}><Text style={{ color: "#111111", fontWeight: "700" }}>Marketplace</Text></TouchableOpacity>
       <TouchableOpacity accessibilityRole="button" onPress={() => router.push(dashboardRoutes[user.role])}><Text style={{ color: "#111111", fontWeight: "700" }}>Profile / Dashboard</Text></TouchableOpacity>
     </View>;
   }
@@ -53,7 +54,7 @@ export default function BottomNav() {
             {/* Home */}
             <TouchableOpacity
               style={styles.dockItem}
-              onPress={() => router.replace("/search")}
+              onPress={() => router.replace("/home")}
               activeOpacity={0.8}
             >
               <MaterialIcons
@@ -67,21 +68,21 @@ export default function BottomNav() {
               {isHomeActive && <View style={styles.dockActiveBar} />}
             </TouchableOpacity>
 
-            {/* Saved */}
+            {/* Search */}
             <TouchableOpacity
               style={styles.dockItem}
-              onPress={() => router.push("/saved")}
+              onPress={() => router.replace("/search")}
               activeOpacity={0.8}
             >
               <MaterialIcons
-                name="favorite-border"
-                size={21}
-                color={isSavedActive ? "#111111" : "#64748B"}
+                name="search"
+                size={22}
+                color={isSearchActive ? "#111111" : "#64748B"}
               />
-              <Text style={[styles.dockLabel, isSavedActive && styles.dockLabelActive]}>
-                {language === "hi" ? "सहेजे गए" : "Saved"}
+              <Text style={[styles.dockLabel, isSearchActive && styles.dockLabelActive]}>
+                {language === "hi" ? "खोज" : "Search"}
               </Text>
-              {isSavedActive && <View style={styles.dockActiveBar} />}
+              {isSearchActive && <View style={styles.dockActiveBar} />}
             </TouchableOpacity>
 
             {/* Post (Elevated Green Plus) */}
@@ -162,17 +163,17 @@ export default function BottomNav() {
   return (
     <View style={[styles.mobileWrapper, { paddingBottom: bottomInset }]}>
       <View style={styles.mobileContainer}>
-        <TouchableOpacity style={styles.tab} onPress={() => router.replace("/search")} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.tab} onPress={() => router.replace("/home")} activeOpacity={0.7}>
           <MaterialIcons name="home" size={22} color={isHomeActive ? "#111111" : "#64748B"} />
           <Text style={[styles.label, isHomeActive && styles.activeLabel]}>
             {language === "hi" ? "होम" : "Home"}
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.tab} onPress={() => router.push("/saved")} activeOpacity={0.7}>
-          <MaterialIcons name="favorite-border" size={22} color={isSavedActive ? "#111111" : "#64748B"} />
-          <Text style={[styles.label, isSavedActive && styles.activeLabel]}>
-            {language === "hi" ? "सहेजे गए" : "Saved"}
+        <TouchableOpacity style={styles.tab} onPress={() => router.replace("/search")} activeOpacity={0.7}>
+          <MaterialIcons name="search" size={22} color={isSearchActive ? "#111111" : "#64748B"} />
+          <Text style={[styles.label, isSearchActive && styles.activeLabel]}>
+            {language === "hi" ? "खोज" : "Search"}
           </Text>
         </TouchableOpacity>
 
@@ -223,7 +224,7 @@ export default function BottomNav() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = premiumStyles({
   /* Web Desktop Floating Dock Layout */
   webWrapper: {
     backgroundColor: "transparent",

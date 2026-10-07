@@ -48,7 +48,7 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
       await (register
         ? authService.register(name.trim(), mobile.trim(), password, email.trim().toLowerCase() || undefined)
         : authService.login(mobile.trim(), password));
-      router.replace("/search");
+      router.replace("/home");
     } catch (cause: any) {
       setError(cause?.response?.data?.message || label("Unable to connect. Please try again.", "कनेक्ट नहीं हो सका। फिर से कोशिश करें।"));
     } finally {
@@ -64,7 +64,7 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.topBar}>
-          <TouchableOpacity accessibilityRole="button" onPress={() => router.replace("/search")}>
+          <TouchableOpacity accessibilityRole="button" onPress={() => router.replace("/home")}>
             <Text style={styles.link}>← {label("Marketplace", "मार्केटप्लेस")}</Text>
           </TouchableOpacity>
           <TouchableOpacity accessibilityRole="button" onPress={toggleLanguage}>
