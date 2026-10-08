@@ -35,14 +35,17 @@ export default function RootLayout() {
     PoppinsBold: require("../assets/fonts/Poppins-Bold.ttf"),
   });
   const [showOpeningScreen, setShowOpeningScreen] = useState(true);
+  const hydrated = useAuthStore(state => state.hydrated);
 
   useEffect(() => {
-    // Hide native splash screen immediately so our opening UI renders
-    SplashScreen.hideAsync().catch(() => {});
     useAuthStore.getState().hydrateSession().then(() => {
       if (useAuthStore.getState().accessToken) authService.getMe().catch(() => {});
     });
   }, []);
+
+  useEffect(() => {
+    if (fontsLoaded || fontError) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded, fontError]);
 
   if (!fontsLoaded && !fontError) return null;
 
@@ -66,7 +69,7 @@ export default function RootLayout() {
 
       {/* Opening screen with active loading bar */}
       {showOpeningScreen && (
-        <AppOpeningScreen onFinish={() => setShowOpeningScreen(false)} />
+        <AppOpeningScreen ready={hydrated} onFinish={() => setShowOpeningScreen(false)} />
       )}
     </SafeAreaProvider>
   );
