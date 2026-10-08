@@ -10,16 +10,16 @@ import {
   Modal,
   Platform,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
-import Svg, { Rect, Defs, LinearGradient, Stop } from "react-native-svg";
 import AppHeader from "../../components/AppHeader";
 import { useLanguageStore } from "../../src/store/languageStore";
 import { t } from "../../src/i18n/translations";
+import { useAuthStore } from "../../src/store/authStore";
+import { inquiryService, InquiryData } from "../../src/services/inquiryService";
 
-// Top container background: 2nd uploaded scenic image
-const heroScenicImg = require("../../assets/messages_hero_scenic.jpg");
 
 interface MessageItem {
   id: string;
@@ -59,238 +59,7 @@ interface Conversation {
   messages: MessageItem[];
 }
 
-const INITIAL_CONVERSATIONS: Conversation[] = [
-  {
-    id: "c1",
-    name: "Ramesh Kumar (Verified Owner)",
-    role: "Verified Owner",
-    roleType: "owner",
-    avatarLetter: "R",
-    avatarColor: "#0D9488",
-    verified: true,
-    property: "Plot on Main Bailey Road, Patna",
-    lastMsg: "I have shared the latest circle office mutation receipt.",
-    time: "10:30 AM",
-    timestampNum: 1726808400000,
-    unread: true,
-    tag1: {
-      label: "Document Shared",
-      icon: "description",
-      color: "#065F46",
-      bg: "#ECFDF5",
-      border: "#A7F3D0",
-    },
-    tag2: {
-      label: "Verified Owner",
-      icon: "verified-user",
-      color: "#065F46",
-      bg: "#ECFDF5",
-      border: "#A7F3D0",
-    },
-    messages: [
-      {
-        id: "m1",
-        sender: "them",
-        text: "Namaste! Thank you for inquiring about my 2400 sq.ft plot on Main Bailey Road.",
-        time: "10:15 AM",
-      },
-      {
-        id: "m2",
-        sender: "them",
-        text: "I have shared the latest circle office mutation receipt.",
-        time: "10:30 AM",
-        attachment: {
-          title: "Circle_Office_Mutation_Receipt_2026.pdf",
-          type: "document",
-          size: "1.4 MB",
-        },
-      },
-    ],
-  },
-  {
-    id: "c2",
-    name: "Amit Singh (MalikSe Advisor)",
-    role: "MalikSe Advisor",
-    roleType: "advisor",
-    avatarLetter: "A",
-    avatarColor: "#2563EB",
-    verified: true,
-    property: "Site Inspection Task #402",
-    lastMsg: "GPS geo-boundary survey report has been uploaded.",
-    time: "Yesterday",
-    timestampNum: 1726722000000,
-    unread: false,
-    tag1: {
-      label: "Report Shared",
-      icon: "description",
-      color: "#1D4ED8",
-      bg: "#EFF6FF",
-      border: "#BFDBFE",
-    },
-    tag2: {
-      label: "Advisor",
-      icon: "verified-user",
-      color: "#1D4ED8",
-      bg: "#EFF6FF",
-      border: "#BFDBFE",
-    },
-    messages: [
-      {
-        id: "m1",
-        sender: "them",
-        text: "Hello Nikhil! The on-ground physical inspection for your Danapur plot #402 was completed yesterday morning.",
-        time: "Yesterday, 3:20 PM",
-      },
-      {
-        id: "m2",
-        sender: "them",
-        text: "GPS geo-boundary survey report has been uploaded.",
-        time: "Yesterday, 4:05 PM",
-        attachment: {
-          title: "GPS_GeoBoundary_Survey_Report_402.pdf",
-          type: "report",
-          size: "3.2 MB",
-        },
-      },
-    ],
-  },
-  {
-    id: "c3",
-    name: "Suresh Prasad (Buyer)",
-    role: "Buyer",
-    roleType: "buyer",
-    avatarLetter: "S",
-    avatarColor: "#B45309",
-    verified: true,
-    property: "Residential Land in Bihta",
-    lastMsg: "Token offer of ₹30 Lakh submitted for owner review.",
-    time: "16 Sep",
-    timestampNum: 1726462800000,
-    unread: false,
-    tag1: {
-      label: "Offer Submitted",
-      icon: "payments",
-      color: "#065F46",
-      bg: "#ECFDF5",
-      border: "#A7F3D0",
-    },
-    tag2: {
-      label: "Buyer",
-      icon: "person",
-      color: "#C2410C",
-      bg: "#FFF7ED",
-      border: "#FED7AA",
-    },
-    messages: [
-      {
-        id: "m1",
-        sender: "them",
-        text: "Hello sir, I visited the Bihta plot location with my family and we really liked the boundary demarcation.",
-        time: "16 Sep, 11:10 AM",
-      },
-      {
-        id: "m2",
-        sender: "them",
-        text: "Token offer of ₹30 Lakh submitted for owner review.",
-        time: "16 Sep, 2:45 PM",
-        attachment: {
-          title: "Token_Offer_Letter_30_Lakh.pdf",
-          type: "offer",
-          size: "Token Advance: ₹50,000",
-        },
-      },
-    ],
-  },
-  {
-    id: "c4",
-    name: "Priya Verma (Interested Buyer)",
-    role: "Interested Buyer",
-    roleType: "buyer",
-    avatarLetter: "P",
-    avatarColor: "#7C3AED",
-    verified: false,
-    property: "Plot in Danapur",
-    lastMsg: "Can you share the latest price and available size details?",
-    time: "14 Sep",
-    timestampNum: 1726290000000,
-    unread: false,
-    tag1: {
-      label: "Price Query",
-      icon: "help",
-      color: "#6D28D9",
-      bg: "#F5F3FF",
-      border: "#DDD6FE",
-    },
-    tag2: {
-      label: "Buyer",
-      icon: "person",
-      color: "#C2410C",
-      bg: "#FFF7ED",
-      border: "#FED7AA",
-    },
-    messages: [
-      {
-        id: "m1",
-        sender: "them",
-        text: "Namaste! I saw your Danapur property listing and was interested in knowing more details.",
-        time: "14 Sep, 10:00 AM",
-      },
-      {
-        id: "m2",
-        sender: "them",
-        text: "Can you share the latest price and available size details?",
-        time: "14 Sep, 10:05 AM",
-      },
-    ],
-  },
-  {
-    id: "c5",
-    name: "Manish Tiwari (Owner)",
-    role: "Owner",
-    roleType: "owner",
-    avatarLetter: "M",
-    avatarColor: "#0D9488",
-    verified: false,
-    property: "Commercial Plot – Bailey Road",
-    lastMsg: "Site photos and documents are attached.",
-    time: "12 Sep",
-    timestampNum: 1726117200000,
-    unread: false,
-    tag1: {
-      label: "Documents",
-      icon: "description",
-      color: "#065F46",
-      bg: "#ECFDF5",
-      border: "#A7F3D0",
-    },
-    tag2: {
-      label: "Owner",
-      icon: "home",
-      color: "#1D4ED8",
-      bg: "#EFF6FF",
-      border: "#BFDBFE",
-    },
-    messages: [
-      {
-        id: "m1",
-        sender: "them",
-        text: "Hello! Here are the commercial land details as requested.",
-        time: "12 Sep, 3:15 PM",
-      },
-      {
-        id: "m2",
-        sender: "them",
-        text: "Site photos and documents are attached.",
-        time: "12 Sep, 3:20 PM",
-        attachment: {
-          title: "Site_Photos_Commercial_Bailey.pdf",
-          type: "document",
-          size: "4.8 MB",
-        },
-      },
-    ],
-  },
-];
+// Removed hardcoded INITIAL_CONVERSATIONS
 
 export default function MessagesScreenMobile() {
   const router = useRouter();
@@ -311,15 +80,109 @@ export default function MessagesScreenMobile() {
     }
   }, []);
 
-  const [conversations, setConversations] = useState<Conversation[]>(INITIAL_CONVERSATIONS);
+  const user = useAuthStore(state => state.user);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"all" | "unread" | "archived">("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [sortOption, setSortOption] = useState<"latest" | "oldest">("latest");
   const [showSortModal, setShowSortModal] = useState<boolean>(false);
 
-  // Active chat state for full conversation modal
   const [selectedChat, setSelectedChat] = useState<Conversation | null>(null);
   const [replyText, setReplyText] = useState<string>("");
+
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    
+    const fetchInquiries = () => Promise.all([
+      inquiryService.getSentInquiries().catch(() => [] as InquiryData[]),
+      inquiryService.getReceivedInquiries().catch(() => [] as InquiryData[])
+    ]).then(([sent, received]) => {
+      if (!active) return;
+      const all = [...sent, ...received];
+      const mapped = all.map(i => {
+        const buyerIdStr = typeof i.buyerId === "object" && i.buyerId !== null ? i.buyerId._id : i.buyerId;
+        const sellerIdStr = typeof i.sellerId === "object" && i.sellerId !== null ? i.sellerId._id : i.sellerId;
+        const isBuyer = buyerIdStr === user.id;
+        
+        const otherPerson = isBuyer ? i.sellerId : i.buyerId;
+        const otherName = otherPerson?.name || "Unknown User";
+        const isOffer = !!i.offerAmount;
+        
+        return {
+          id: i._id,
+          name: otherName,
+          role: isBuyer ? "Owner" : "Buyer",
+          roleType: isBuyer ? "owner" : "buyer",
+          avatarLetter: otherName.charAt(0).toUpperCase(),
+          avatarColor: isBuyer ? "#0D9488" : "#C2410C",
+          verified: false,
+          property: i.propertyId?.title || "Property Listing",
+          lastMsg: isOffer ? `Offer of ₹${i.offerAmount?.toLocaleString("en-IN")} submitted` : i.message,
+          time: new Date(i.createdAt).toLocaleDateString(),
+          timestampNum: new Date(i.createdAt).getTime(),
+          unread: false,
+          tag1: isOffer ? {
+            label: "Offer Submitted",
+            icon: "payments",
+            color: "#065F46",
+            bg: "#ECFDF5",
+            border: "#A7F3D0",
+          } : {
+            label: "Inquiry",
+            icon: "help",
+            color: "#6D28D9",
+            bg: "#F5F3FF",
+            border: "#DDD6FE",
+          },
+          tag2: {
+            label: isBuyer ? "Owner" : "Buyer",
+            icon: "person",
+            color: "#C2410C",
+            bg: "#FFF7ED",
+            border: "#FED7AA",
+          },
+          messages: [
+            {
+              id: i._id + "_m1",
+              sender: isBuyer ? "me" : "them",
+              text: i.message,
+              time: new Date(i.createdAt).toLocaleString(),
+            },
+            ...(isOffer ? [{
+              id: i._id + "_m2",
+              sender: isBuyer ? "me" : "them" as const,
+              text: `Offer of ₹${i.offerAmount?.toLocaleString("en-IN")} submitted for review.`,
+              time: new Date(i.createdAt).toLocaleString(),
+            }] : []),
+            ...(i.messages?.map(m => ({
+              id: m._id,
+              sender: m.senderId === user.id ? "me" : "them" as const,
+              text: m.text,
+              time: new Date(m.createdAt).toLocaleString(),
+            })) || [])
+          ]
+        } as Conversation;
+      });
+      setConversations(mapped);
+      setLoading(false);
+      
+      setSelectedChat(prev => {
+        if (!prev) return prev;
+        const updatedChat = mapped.find(c => c.id === prev.id);
+        return updatedChat || prev;
+      });
+    });
+
+    fetchInquiries();
+    const intervalId = setInterval(fetchInquiries, 5000);
+
+    return () => { active = false; clearInterval(intervalId); };
+  }, [user, selectedChat?.id]);
 
   // Unread count
   const unreadCount = useMemo(() => {
@@ -370,29 +233,37 @@ export default function MessagesScreenMobile() {
     }
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!replyText.trim() || !selectedChat) return;
 
-    const newMsg: MessageItem = {
-      id: `m_${Date.now()}`,
-      sender: "me",
-      text: replyText.trim(),
-      time: "Just now",
-    };
-
-    const updated = {
-      ...selectedChat,
-      messages: [...selectedChat.messages, newMsg],
-      lastMsg: replyText.trim(),
-      time: "Just now",
-      timestampNum: Date.now(),
-    };
-
-    setSelectedChat(updated);
-    setConversations((prev) =>
-      prev.map((item) => (item.id === selectedChat.id ? updated : item))
-    );
+    const currentText = replyText.trim();
     setReplyText("");
+
+    try {
+      await inquiryService.sendMessage(selectedChat.id, currentText);
+      // Let the polling handle the refresh, but we can do an optimistic update
+      const newMsg: MessageItem = {
+        id: `m_${Date.now()}`,
+        sender: "me",
+        text: currentText,
+        time: "Just now",
+      };
+
+      const updated = {
+        ...selectedChat,
+        messages: [...selectedChat.messages, newMsg],
+        lastMsg: currentText,
+        time: "Just now",
+        timestampNum: Date.now(),
+      };
+
+      setSelectedChat(updated);
+      setConversations((prev) =>
+        prev.map((item) => (item.id === selectedChat.id ? updated : item))
+      );
+    } catch (err) {
+      console.error("Failed to send message", err);
+    }
   };
 
   return (
@@ -411,28 +282,6 @@ export default function MessagesScreenMobile() {
       >
         {/* ================= 2. HERO BANNER (TOP CONTAINER) ================= */}
         <View style={styles.heroCard}>
-          {/* Scenic Background Image — fills 100% of the container */}
-          <Image
-            source={heroScenicImg}
-            style={styles.heroBackground}
-            resizeMode="cover"
-          />
-
-          {/* Seamless Soft Gradient Mist on Left for pristine text contrast */}
-          <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            <Svg width="100%" height="100%">
-              <Defs>
-                <LinearGradient id="heroGradient" x1="0" y1="0" x2="1" y2="0">
-                  <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.88" />
-                  <Stop offset="36%" stopColor="#FFFFFF" stopOpacity="0.72" />
-                  <Stop offset="58%" stopColor="#FFFFFF" stopOpacity="0.25" />
-                  <Stop offset="78%" stopColor="#FFFFFF" stopOpacity="0.0" />
-                </LinearGradient>
-              </Defs>
-              <Rect width="100%" height="100%" fill="url(#heroGradient)" />
-            </Svg>
-          </View>
-
           {/* Content Layer (Overlays) */}
           <View style={styles.heroContentLayer} pointerEvents="box-none">
             {/* Top Row: Direct Messages title on left + Cursive Script on right */}
@@ -579,7 +428,9 @@ export default function MessagesScreenMobile() {
 
         {/* ================= 5. MESSAGE LIST CARDS ================= */}
         <View style={styles.messagesList}>
-          {filteredConversations.length === 0 ? (
+          {loading ? (
+            <ActivityIndicator size="large" color="#059669" style={{ marginVertical: 40 }} />
+          ) : filteredConversations.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="mail-outline" size={44} color="#94A3B8" />
               <Text style={styles.emptyTitle}>No messages found</Text>
@@ -949,7 +800,7 @@ export default function MessagesScreenMobile() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "transparent",
   },
   scrollContainer: {
     paddingBottom: 24,
@@ -971,7 +822,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: "transparent",
   },
   heroBackground: {
     position: "absolute",
@@ -1094,7 +945,7 @@ const styles = StyleSheet.create({
   searchBar: {
     flex: 1,
     height: 42,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "transparent",
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -1111,7 +962,7 @@ const styles = StyleSheet.create({
   },
   sortButton: {
     height: 42,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -1149,7 +1000,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   tabBtnActive: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
@@ -1188,7 +1039,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
@@ -1311,7 +1162,7 @@ const styles = StyleSheet.create({
 
   /* Empty State */
   emptyState: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 16,
     padding: 36,
     alignItems: "center",
@@ -1344,7 +1195,7 @@ const styles = StyleSheet.create({
   sortModalBox: {
     width: "100%",
     maxWidth: 320,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 16,
     padding: 18,
     shadowColor: "#000",
@@ -1384,12 +1235,12 @@ const styles = StyleSheet.create({
   /* ================= CHAT MODAL ================= */
   chatModalContainer: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "transparent",
   },
   chatHeader: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     paddingTop: Platform.OS === "ios" ? 50 : 16,
     paddingBottom: 14,
     paddingHorizontal: 16,
@@ -1485,7 +1336,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   msgBubbleThem: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: "#E2E8F0",
     borderBottomLeftRadius: 4,
@@ -1516,7 +1367,7 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.7)",
   },
   attachmentCard: {
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "transparent",
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -1550,7 +1401,7 @@ const styles = StyleSheet.create({
   chatComposer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderTopWidth: 1,
@@ -1564,7 +1415,7 @@ const styles = StyleSheet.create({
   composerInput: {
     flex: 1,
     maxHeight: 90,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "transparent",
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 8,

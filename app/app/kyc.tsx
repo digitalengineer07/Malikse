@@ -36,7 +36,7 @@ export default function DemoKycScreen() {
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, padding: 24, backgroundColor: "#FFFFFF" },
+    screen: { flex: 1, padding: 24, backgroundColor: "transparent" },
     title: { fontSize: 28, fontWeight: "800", color: "#111827", marginTop: 40 },
   description: { color: "#53645B", fontSize: 15, lineHeight: 23, marginTop: 16, maxWidth: 550 },
     status: { color: "#416980", fontWeight: "700", marginTop: 28 },

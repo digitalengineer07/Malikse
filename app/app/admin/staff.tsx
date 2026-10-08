@@ -87,7 +87,7 @@ export default function ManageStaffScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#F5F8F6" },
+  screen: { flex: 1, backgroundColor: "transparent" },
   content: { width: "100%", maxWidth: 760, alignSelf: "center", padding: 24, paddingBottom: 60 },
   link: { color: "#047857", fontWeight: "700", marginBottom: 14 },
   title: { fontSize: 27, fontWeight: "800", color: "#10251B", marginBottom: 8 },

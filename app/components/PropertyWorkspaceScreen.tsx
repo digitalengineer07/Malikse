@@ -11,6 +11,8 @@ import MiniMapPreview from "./MiniMapPreview";
 import PublicPropertyDetails from "./PublicPropertyDetails";
 import OfferSheet from "./OfferSheet";
 import { dealService } from "../src/services/dealService";
+import { inquiryService } from "../src/services/inquiryService";
+import { userService } from "../src/services/userService";
 import { AppTheme } from "../constants/theme";
 
 const checks: Record<string, string> = { ownership: "Ownership information reviewed", location: "Property location reviewed", boundaries: "Boundaries and access reviewed", area: "Property area reviewed", disclosures: "Loans, disputes and possession reviewed", documentsReviewed: "Available documents reviewed (uploads are optional)", advisorReport: "Advisor report and inspection reviewed" };
@@ -33,6 +35,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
   const [revision, setRevision] = useState(0);
   const [showOffer, setShowOffer] = useState(false);
   const [offerResult, setOfferResult] = useState("");
+  const [isSaved, setIsSaved] = useState(false);
   useFocusEffect(useCallback(() => {
     let active = true;
     if (!publicView && authState !== "AUTHENTICATED") return;
@@ -46,6 +49,9 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
           const documents = await documentService.getDocuments(id);
           if (active) setDocs(documents);
           if (user?.role === "admin") { const response = await api.get("/admin/staff"); if (active) setStaff(response.data); }
+        } else if (authState === "AUTHENTICATED" && user) {
+          const wishlist = await userService.getWishlist();
+          if (active) setIsSaved(wishlist.some(p => p._id === id));
         }
       } catch (cause: any) { if (active) setError(cause.response?.data?.message || "Could not load property"); }
       finally { if (active) setLoading(false); }
@@ -75,7 +81,15 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
   };
   const canReview = !publicView && property && ((user?.role === "advisor" && property.status === "pending" && actorId(property.assignedAdvisorId) === user.id) || (user?.role === "verifier" && property.status === "advisor_verified" && actorId(property.assignedVerifierId) === user.id));
   const keys = Object.keys(checks).filter(key => user?.role === "verifier" || key !== "advisorReport");
-  if (publicView && !loading && property) return <PublicPropertyDetails property={property} canOffer={!user || user.role === "user"} onOffer={() => {
+  if (publicView && !loading && property) return <PublicPropertyDetails property={property} isSaved={isSaved} onToggleSave={async () => {
+    if (!user || authState !== "AUTHENTICATED") return router.push("/login");
+    const previous = isSaved;
+    setIsSaved(!previous);
+    try {
+      const res = await userService.toggleWishlist(id);
+      setIsSaved(res.isWishlisted);
+    } catch { setIsSaved(previous); }
+  }} canOffer={!user || user.role === "user"} onOffer={() => {
     if (!user || authState !== "AUTHENTICATED") router.push("/login");
     else if (!user.demoKycComplete) router.push("/kyc");
     else setShowOffer(true);
@@ -83,8 +97,8 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
     {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}
     {showOffer && <Modal transparent animationType="slide" onRequestClose={() => setShowOffer(false)}><View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "#10233470" }}><ScrollView style={{ maxHeight: "85%", width: "100%", maxWidth: 650, alignSelf: "center", backgroundColor: "white", borderTopLeftRadius: 28, borderTopRightRadius: 28 }}><OfferSheet propertyId={id} askingPrice={property.price} onCancel={() => setShowOffer(false)} onSubmit={async amount => {
       setError("");
-      try { await dealService.sendOffer(id, amount); setShowOffer(false); setOfferResult("Your offer was submitted."); }
-      catch (cause: any) { setError(cause.response?.data?.message || "Could not submit offer"); }
+      try { await inquiryService.submitInquiry({ propertyId: id, message: "I would like to make an offer.", offerAmount: amount }); setShowOffer(false); setOfferResult("Your offer was submitted."); }
+      catch (cause: any) { setError(cause.response?.data?.error || "Could not submit offer"); }
     }} /></ScrollView></View></Modal>}
     {!!offerResult && <Text style={ui.text}>{offerResult}</Text>}
   </PublicPropertyDetails>;
@@ -116,8 +130,8 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
         }} />}
         {publicView && showOffer && <OfferSheet propertyId={id} askingPrice={property.price} onCancel={() => setShowOffer(false)} onSubmit={async amount => {
           setError("");
-          try { await dealService.sendOffer(id, amount); setShowOffer(false); setOfferResult("Your offer was submitted."); }
-          catch (cause: any) { setError(cause.response?.data?.message || "Could not submit offer"); }
+          try { await inquiryService.submitInquiry({ propertyId: id, message: "I would like to make an offer.", offerAmount: amount }); setShowOffer(false); setOfferResult("Your offer was submitted."); }
+          catch (cause: any) { setError(cause.response?.data?.error || "Could not submit offer"); }
         }} />}
         {!!offerResult && <Text style={ui.text}>{offerResult}</Text>}
       </View>

@@ -1,3 +1,4 @@
+import AppBackground from "./AppBackground";
 import React, { useEffect, useRef, useState } from "react";
 import {
   View,
@@ -9,11 +10,9 @@ import {
   Pressable,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import Svg, { Path, Rect, Defs, LinearGradient, Stop } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
 import { AppTheme } from "../constants/theme";
 
-// Exact scenic image: lake, mountains, house, green leaves
-const scenicBgImg = require("../assets/messages_hero_scenic.jpg");
 
 interface AppOpeningScreenProps {
   onFinish?: () => void;
@@ -93,28 +92,7 @@ export default function AppOpeningScreen({ onFinish }: AppOpeningScreenProps) {
   return (
     <Animated.View style={[styles.overlayContainer, { opacity: fadeAnim }]}>
       <Pressable style={styles.pressableContainer} onPress={finishAndDismiss}>
-        {/* 1. Full Screen Scenic Background Image */}
-        <Image
-          source={scenicBgImg}
-          style={styles.backgroundImage}
-          resizeMode="cover"
-        />
-
-        {/* 2. Soft center-top mist overlay so brand and text pop with great contrast */}
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Svg width="100%" height="100%">
-            <Defs>
-              <LinearGradient id="openingMistOverlay" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.50" />
-                <Stop offset="26%" stopColor="#FFFFFF" stopOpacity="0.70" />
-                <Stop offset="48%" stopColor="#FFFFFF" stopOpacity="0.45" />
-                <Stop offset="68%" stopColor="#FFFFFF" stopOpacity="0.08" />
-                <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.0" />
-              </LinearGradient>
-            </Defs>
-            <Rect width="100%" height="100%" fill="url(#openingMistOverlay)" />
-          </Svg>
-        </View>
+        <AppBackground />
 
         {/* 3. Top-Right Cursive Handwriting with Green Curved Swoosh */}
         <View style={styles.topRightCursiveWrap}>
@@ -230,12 +208,12 @@ const styles = StyleSheet.create({
   overlayContainer: {
     ...StyleSheet.absoluteFill,
     zIndex: 99999,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
   },
   pressableContainer: {
     flex: 1,
     position: "relative",
-    backgroundColor: "#E2E8F0",
+    backgroundColor: "transparent",
     overflow: "hidden",
   },
   backgroundImage: {

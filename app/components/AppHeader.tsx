@@ -50,7 +50,7 @@ export default function AppHeader(_props: AppHeaderProps) {
   </View>;
 }
 const styles = premiumStyles({
-  header: { backgroundColor: "white", paddingBottom: 14, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: "#EDF2F6" },
+  header: { backgroundColor: "transparent", paddingBottom: 14, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: "#EDF2F6" },
   row: { width: "100%", maxWidth: 1200, alignSelf: "center", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   leftGroup: { flexDirection: "row", alignItems: "center", gap: 14 },
   backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#F2F6F9", alignItems: "center", justifyContent: "center" },

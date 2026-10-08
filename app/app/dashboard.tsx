@@ -13,7 +13,7 @@ export default function UserDashboard() {
       { title: "KYC (demo)", description: isKycDone ? "Demo step completed." : "Mark the demo KYC step complete before listing or making an offer.", route: "/kyc" },
       { title: "List a property", description: "Create a listing. Ownership documents are optional at this stage.", route: isKycDone ? "/listing/create" : "/kyc" },
       { title: "My listings", description: "Track your properties and their verification status.", route: "/my-properties" },
-      { title: "Offers and transactions", description: "Deal tracking workspace to be built later." },
+      { title: "Offers and transactions", description: "Manage your inquiries and offers.", route: "/messages" },
     ]}
   />;
 }

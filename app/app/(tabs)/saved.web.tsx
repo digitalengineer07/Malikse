@@ -15,8 +15,9 @@ import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import AppHeader from "../../components/AppHeader";
 import { useLanguageStore } from "../../src/store/languageStore";
 import { t } from "../../src/i18n/translations";
+import { useAuthStore } from "../../src/store/authStore";
+import { userService } from "../../src/services/userService";
 
-const heroBgImg = require("../../assets/marketplace_hero_bg.png");
 
 interface SavedPropertyItem {
   id: string;
@@ -27,11 +28,9 @@ interface SavedPropertyItem {
   roadWidth: string;
   facing: string;
   type: string;
-  photosCount: number;
-  image: string;
+  typeBadge: string;
+  category: "land" | "plots" | "flats" | "commercial" | "agricultural";
 }
-
-const SAVED_PROPERTIES: SavedPropertyItem[] = [];
 
 export default function SavedScreen() {
   const router = useRouter();
@@ -41,14 +40,67 @@ export default function SavedScreen() {
 
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [savedList, setSavedList] = useState<SavedPropertyItem[]>(SAVED_PROPERTIES);
+  const [savedList, setSavedList] = useState<SavedPropertyItem[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [loading, setLoading] = useState(true);
+  const user = useAuthStore(state => state.user);
 
-  const handleRemove = (id: string) => {
-    setSavedList((prev) => prev.filter((item) => item.id !== id));
+  React.useEffect(() => {
+    let active = true;
+    if (!user) {
+      setSavedList([]);
+      setLoading(false);
+      return;
+    }
+    
+    userService.getWishlist()
+      .then(properties => {
+        if (!active) return;
+        const mapped: SavedPropertyItem[] = (properties || []).filter(p => p && p.location).map(p => ({
+          id: p._id || p.id,
+          title: p.title || `${p.type} in ${p.location?.district || "Unknown"}`,
+          location: `${p.location?.district || "Unknown"}, ${p.location?.state || "Unknown"}`,
+          area: p.sellableArea ? `${p.sellableArea} sq.ft` : "Area not provided",
+          price: `₹${(p.price || 0).toLocaleString("en-IN")}`,
+          roadWidth: p.roadWidth || "Not provided",
+          facing: "Any",
+          type: p.type || "property",
+          typeBadge: (p.type || "property").toUpperCase(),
+          category: p.type === "land" ? "land" : p.type === "house" || p.type === "flat" ? "flats" : "commercial",
+          image: p.media?.photos?.[0] ? { uri: p.media.photos[0] } : undefined,
+        }));
+        setSavedList(mapped);
+      })
+      .catch(console.error)
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+      
+    return () => { active = false; };
+  }, [user]);
+
+  const handleRemove = async (id: string) => {
+    try {
+      await userService.toggleWishlist(id);
+      setSavedList((prev) => prev.filter((item) => item.id !== id));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
+  const countsByCategory = React.useMemo(() => {
+    return {
+      all: savedList.length,
+      land: savedList.filter((item) => item.category === "land").length,
+      plots: savedList.filter((item) => item.category === "plots").length,
+      flats: savedList.filter((item) => item.category === "flats").length,
+      commercial: savedList.filter((item) => item.category === "commercial").length,
+      agricultural: savedList.filter((item) => item.category === "agricultural").length,
+    };
+  }, [savedList]);
+
   const filteredList = savedList.filter((item) => {
+    if (activeCategory !== "all" && item.category !== activeCategory) return false;
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -67,20 +119,12 @@ export default function SavedScreen() {
         showLanguageToggle={true}
         showPostPropertyBtn={true}
       />
-
-      <Text style={{ color: "#47647A", backgroundColor: "#EDF6FC", padding: 16 }}>Saved properties is coming soon. Your saved collection will appear here when this feature is available.</Text>
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* ================= 2. HERO BANNER ================= */}
         <View style={styles.heroWrapper}>
           <View style={styles.heroCard}>
             {/* Background Landscape Photo (Matching home page aesthetic) */}
-            <Image
-              source={heroBgImg}
-              style={styles.heroBackground}
-              resizeMode="cover"
-            />
             {/* Soft Translucent Light Gradient Overlay */}
-            <View style={styles.heroOverlay} />
 
             {/* Left Content Column */}
             <View style={styles.heroLeftContent}>
@@ -158,7 +202,7 @@ export default function SavedScreen() {
                   {t(language, "saved_cat_land") || "Land"}
                 </Text>
                 <View style={styles.countPillMuted}>
-                  <Text style={styles.countPillMutedText}>2</Text>
+                  <Text style={styles.countPillMutedText}>{countsByCategory.land}</Text>
                 </View>
               </TouchableOpacity>
 
@@ -177,7 +221,7 @@ export default function SavedScreen() {
                   {t(language, "saved_cat_plots") || "Plots"}
                 </Text>
                 <View style={styles.countPillMuted}>
-                  <Text style={styles.countPillMutedText}>0</Text>
+                  <Text style={styles.countPillMutedText}>{countsByCategory.plots}</Text>
                 </View>
               </TouchableOpacity>
 
@@ -196,7 +240,7 @@ export default function SavedScreen() {
                   {t(language, "saved_cat_flats") || "Flats & Houses"}
                 </Text>
                 <View style={styles.countPillMuted}>
-                  <Text style={styles.countPillMutedText}>0</Text>
+                  <Text style={styles.countPillMutedText}>{countsByCategory.flats}</Text>
                 </View>
               </TouchableOpacity>
 
@@ -215,7 +259,7 @@ export default function SavedScreen() {
                   {t(language, "saved_cat_commercial") || "Commercial"}
                 </Text>
                 <View style={styles.countPillMuted}>
-                  <Text style={styles.countPillMutedText}>0</Text>
+                  <Text style={styles.countPillMutedText}>{countsByCategory.commercial}</Text>
                 </View>
               </TouchableOpacity>
 
@@ -234,7 +278,7 @@ export default function SavedScreen() {
                   {t(language, "saved_cat_agri") || "Agricultural"}
                 </Text>
                 <View style={styles.countPillMuted}>
-                  <Text style={styles.countPillMutedText}>0</Text>
+                  <Text style={styles.countPillMutedText}>{countsByCategory.agricultural}</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -379,7 +423,7 @@ export default function SavedScreen() {
                   >
                     {/* Left: Photographic Slider Half */}
                     <View style={[styles.photoSliderWrap, isDesktop && styles.photoSliderWrapDesktop]}>
-                      <Image source={{ uri: item.image }} style={styles.propertyImg} resizeMode="cover" />
+                      <Image source={item.image as any} style={styles.propertyImg} resizeMode="cover" />
 
                       {/* Top-Left: Verified Owner Pill */}
                       <View style={styles.verifiedOwnerBadge}>
@@ -420,7 +464,7 @@ export default function SavedScreen() {
                       {/* Bottom-Right Overlays (Total photos) */}
                       <View style={styles.bottomRightOverlay}>
                         <MaterialIcons name="photo-library" size={11} color="#FFFFFF" />
-                        <Text style={styles.bottomRightText}>/ {item.photosCount}</Text>
+                        <Text style={styles.bottomRightText}>/ 1</Text>
                       </View>
                     </View>
 
@@ -602,7 +646,7 @@ export default function SavedScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "transparent",
   },
   scrollContainer: {
     paddingBottom: 40,
@@ -630,7 +674,7 @@ const styles = StyleSheet.create({
   },
   heroOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(255, 255, 255, 0.42)",
+    backgroundColor: "transparent",
   },
   heroLeftContent: {
     maxWidth: 420,
@@ -730,7 +774,7 @@ const styles = StyleSheet.create({
     width: 240,
   },
   categoryCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -850,7 +894,7 @@ const styles = StyleSheet.create({
     minWidth: 240,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
     borderRadius: 8,
     height: 40,
     paddingHorizontal: 12,
@@ -868,9 +912,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(255, 255, 255, 0.7)",
     borderRadius: 8,
     height: 40,
     paddingHorizontal: 12,
@@ -889,7 +933,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 6,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "transparent",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -902,10 +946,11 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   propertyCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    backdropFilter: "none",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(255, 255, 255, 0.8)",
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -1081,7 +1126,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: "#E2E8F0",
     paddingVertical: 4,
@@ -1192,7 +1237,7 @@ const styles = StyleSheet.create({
 
   /* BOTTOM CALLOUT BANNER */
   bottomBanner: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -1254,7 +1299,7 @@ const styles = StyleSheet.create({
 
   /* EMPTY STATE */
   emptyCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",

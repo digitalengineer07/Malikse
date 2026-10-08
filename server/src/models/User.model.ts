@@ -10,6 +10,7 @@ export interface IUser extends Document {
   isVerifiedIdentity: boolean;
   demoKycComplete: boolean;
   refreshTokenHash?: string;
+  wishlist: mongoose.Types.ObjectId[];
   createdAt: Date;
 }
 
@@ -28,6 +29,7 @@ const UserSchema = new Schema<IUser>(
     isVerifiedIdentity: { type: Boolean, default: false },
     demoKycComplete: { type: Boolean, default: false },
     refreshTokenHash: { type: String },
+    wishlist: { type: [Schema.Types.ObjectId], ref: "Property", default: [] },
   },
   { timestamps: true }
 );

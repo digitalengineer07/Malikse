@@ -4,6 +4,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, Platform, useWindowDimensions } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
@@ -29,7 +30,7 @@ export default function BottomNav() {
   const isProfileActive = pathname === "/profile";
 
   if (authState === "AUTHENTICATED" && user && user.role !== "user") {
-    return <View style={{ flexDirection: "row", justifyContent: "space-around", padding: 16, paddingBottom: bottomInset + 12, backgroundColor: "white" }}>
+    return <View style={{ flexDirection: "row", justifyContent: "space-around", padding: 16, paddingBottom: bottomInset + 12, backgroundColor: "transparent" }}>
       <TouchableOpacity accessibilityRole="button" onPress={() => router.replace("/home")}><Text style={{ color: "#111111", fontWeight: "700" }}>Marketplace</Text></TouchableOpacity>
       <TouchableOpacity accessibilityRole="button" onPress={() => router.push(dashboardRoutes[user.role])}><Text style={{ color: "#111111", fontWeight: "700" }}>Profile / Dashboard</Text></TouchableOpacity>
     </View>;
@@ -50,7 +51,7 @@ export default function BottomNav() {
           </View>
 
           {/* Center Floating Dock */}
-          <View style={styles.floatingDock}>
+          <BlurView intensity={70} tint="light" style={styles.floatingDock}>
             {/* Home */}
             <TouchableOpacity
               style={styles.dockItem}
@@ -144,7 +145,7 @@ export default function BottomNav() {
               </Text>
               {isProfileActive && <View style={styles.dockActiveBar} />}
             </TouchableOpacity>
-          </View>
+          </BlurView>
 
           {/* Right Watermark: Cursive Signature */}
           <View style={styles.rightWatermark}>
@@ -161,20 +162,26 @@ export default function BottomNav() {
 
   // Mobile navigation
   return (
-    <View style={[styles.mobileWrapper, { paddingBottom: bottomInset }]}>
-      <View style={styles.mobileContainer}>
+    <View style={[styles.mobileWrapper, { paddingBottom: bottomInset + 16 }]} pointerEvents="box-none">
+      <BlurView intensity={70} tint="light" style={styles.glassFloatingNav}>
         <TouchableOpacity style={styles.tab} onPress={() => router.replace("/home")} activeOpacity={0.7}>
-          <MaterialIcons name="home" size={22} color={isHomeActive ? "#111111" : "#64748B"} />
-          <Text style={[styles.label, isHomeActive && styles.activeLabel]}>
-            {language === "hi" ? "होम" : "Home"}
-          </Text>
+          {isHomeActive ? (
+            <View style={[styles.activeBubble, { transform: [{ scale: 1.15 }] }]}>
+              <MaterialIcons name="home" size={24} color="#000000" />
+            </View>
+          ) : (
+            <MaterialIcons name="home" size={22} color="#000000" />
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.tab} onPress={() => router.replace("/search")} activeOpacity={0.7}>
-          <MaterialIcons name="search" size={22} color={isSearchActive ? "#111111" : "#64748B"} />
-          <Text style={[styles.label, isSearchActive && styles.activeLabel]}>
-            {language === "hi" ? "खोज" : "Search"}
-          </Text>
+          {isSearchActive ? (
+            <View style={[styles.activeBubble, { transform: [{ scale: 1.15 }] }]}>
+              <MaterialIcons name="search" size={24} color="#000000" />
+            </View>
+          ) : (
+            <MaterialIcons name="search" size={22} color="#000000" />
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -188,19 +195,19 @@ export default function BottomNav() {
           }}
           activeOpacity={0.7}
         >
-          <View style={styles.dockPostBtn}>
-            <MaterialIcons name="add" size={20} color="#FFFFFF" />
+          <View style={styles.centerPostBtn}>
+            <MaterialIcons name="add" size={24} color="#000000" />
           </View>
-          <Text style={[styles.label, { color: "#284B68", fontWeight: "700" }]}>
-            {language === "hi" ? "पोस्ट" : "Post"}
-          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.tab} onPress={() => router.push("/messages")} activeOpacity={0.7}>
-          <MaterialIcons name="chat-bubble-outline" size={22} color={isMessagesActive ? "#111111" : "#64748B"} />
-          <Text style={[styles.label, isMessagesActive && styles.activeLabel]}>
-            {language === "hi" ? "संदेश" : "Messages"}
-          </Text>
+          {isMessagesActive ? (
+            <View style={[styles.activeBubble, { transform: [{ scale: 1.15 }] }]}>
+              <MaterialIcons name="chat-bubble" size={24} color="#000000" />
+            </View>
+          ) : (
+            <MaterialIcons name="chat-bubble-outline" size={22} color="#000000" />
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -214,12 +221,15 @@ export default function BottomNav() {
           }}
           activeOpacity={0.7}
         >
-          <MaterialIcons name="person-outline" size={22} color={isProfileActive ? "#111111" : "#64748B"} />
-          <Text style={[styles.label, isProfileActive && styles.activeLabel]}>
-            {language === "hi" ? "प्रोफ़ाइल" : "Profile"}
-          </Text>
+          {isProfileActive ? (
+            <View style={[styles.activeBubble, { transform: [{ scale: 1.15 }] }]}>
+              <MaterialIcons name="person" size={24} color="#000000" />
+            </View>
+          ) : (
+            <MaterialIcons name="person-outline" size={22} color="#000000" />
+          )}
         </TouchableOpacity>
-      </View>
+      </BlurView>
     </View>
   );
 }
@@ -256,7 +266,7 @@ const styles = premiumStyles({
   floatingDock: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     borderRadius: 9999,
     paddingHorizontal: 20,
     paddingVertical: 8,
@@ -325,40 +335,63 @@ const styles = premiumStyles({
 
   /* Mobile Bottom Tab Bar */
   mobileWrapper: {
-    backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  mobileContainer: {
-    flexDirection: "row",
-    height: 54,
-    paddingTop: 4,
-    paddingBottom: 2,
-    maxWidth: 600,
-    width: "100%",
-    alignSelf: "center",
-    justifyContent: "space-around",
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     alignItems: "center",
+    justifyContent: "flex-end",
+    pointerEvents: "box-none",
+    zIndex: 999,
+  },
+  glassFloatingNav: {
+    flexDirection: "row",
+    height: 64,
+    width: "90%",
+    maxWidth: 400,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
   },
   tab: {
     flex: 1,
+    height: "100%",
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 2,
   },
-  label: {
-    fontSize: 10.5,
-    color: "#64748B",
-    marginTop: 2,
-    fontWeight: "600",
+  activeBubble: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "transparent",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  activeLabel: {
-    color: "#111111",
-    fontWeight: "800",
+  centerPostBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });

@@ -11,11 +11,9 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
-import Svg, { Path, Rect, Defs, LinearGradient, Stop } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
 import { useAuthStore } from "../src/store/authStore";
 
-// The exact scenic image uploaded before (mountains, lake, modern house)
-const scenicBgImg = require("../assets/messages_hero_scenic.jpg");
 
 export default function AppOpeningScreen() {
   const router = useRouter();
@@ -89,29 +87,6 @@ export default function AppOpeningScreen() {
 
   return (
     <Pressable style={styles.container} onPress={handleNavigate}>
-      {/* 1. Full Screen Scenic Background Image */}
-      <Image
-        source={scenicBgImg}
-        style={styles.backgroundImage}
-        resizeMode="cover"
-      />
-
-      {/* 2. Soft center-top mist overlay so brand and text pop with great contrast */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Svg width="100%" height="100%">
-          <Defs>
-            <LinearGradient id="openingMist" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.45" />
-              <Stop offset="25%" stopColor="#FFFFFF" stopOpacity="0.65" />
-              <Stop offset="48%" stopColor="#FFFFFF" stopOpacity="0.40" />
-              <Stop offset="68%" stopColor="#FFFFFF" stopOpacity="0.08" />
-              <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.0" />
-            </LinearGradient>
-          </Defs>
-          <Rect width="100%" height="100%" fill="url(#openingMist)" />
-        </Svg>
-      </View>
-
       {/* 3. Top-Right Cursive Handwriting with Green Curved Swoosh */}
       <View style={styles.topRightCursiveWrap}>
         <Text style={styles.topRightCursiveText}>
@@ -225,7 +200,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     position: "relative",
-    backgroundColor: "#E2E8F0",
+    backgroundColor: "transparent",
     overflow: "hidden",
   },
   backgroundImage: {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,12 +14,13 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
-import Svg, { Path, Rect, Defs, LinearGradient, Stop } from "react-native-svg";
+import Svg, { Path, Rect } from "react-native-svg";
 import AppHeader from "../../components/AppHeader";
 import { useLanguageStore } from "../../src/store/languageStore";
 import { t } from "../../src/i18n/translations";
+import { userService } from "../../src/services/userService";
+import { useAuthStore } from "../../src/store/authStore";
 
-const heroScenicImg = require("../../assets/saved_hero_scenic.jpg");
 
 interface SavedPropertyItem {
   id: string;
@@ -60,34 +61,80 @@ export default function SavedScreen() {
 
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [savedList, setSavedList] = useState<SavedPropertyItem[]>(SAVED_PROPERTIES);
+  const [savedList, setSavedList] = useState<SavedPropertyItem[]>([]);
   const [sortBy, setSortBy] = useState<"recent" | "price_asc" | "price_desc">("recent");
   const [sortModalVisible, setSortModalVisible] = useState<boolean>(false);
   const [selectedPropertyMenu, setSelectedPropertyMenu] = useState<SavedPropertyItem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const user = useAuthStore(state => state.user);
+
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setSavedList([]);
+      setLoading(false);
+      return;
+    }
+    
+    userService.getWishlist()
+      .then(properties => {
+        if (!active) return;
+        const mapped: SavedPropertyItem[] = (properties || []).filter(p => p && p.location).map(p => ({
+          id: p._id || p.id,
+          title: p.title || `${p.type} in ${p.location?.district || "Unknown"}`,
+          location: `${p.location?.district || "Unknown"}, ${p.location?.state || "Unknown"}`,
+          area: p.sellableArea ? `${p.sellableArea} sq.ft` : "Area not provided",
+          price: `₹${(p.price || 0).toLocaleString("en-IN")}`,
+          priceNum: p.price || 0,
+          pricePerSqFt: p.sellableArea && p.price ? `₹${(p.price / p.sellableArea).toFixed(0)}/sq.ft` : "",
+          typeBadge: (p.type || "property").toUpperCase(),
+          category: p.type === "land" ? "land" : p.type === "house" || p.type === "flat" ? "flats" : "commercial",
+          image: p.media?.photos?.[0] ? { uri: p.media.photos[0] } : undefined,
+          isSaved: true
+        }));
+        setSavedList(mapped);
+      })
+      .catch(console.error)
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+      
+    return () => { active = false; };
+  }, [user]);
 
   // Toggle saved status
-  const handleToggleHeart = (id: string) => {
-    setSavedList((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, isSaved: !item.isSaved } : item
-      )
-    );
+  const handleToggleHeart = async (id: string) => {
+    try {
+      await userService.toggleWishlist(id);
+      setSavedList((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, isSaved: !item.isSaved } : item
+        )
+      );
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const handleRemove = (id: string) => {
-    setSavedList((prev) => prev.filter((item) => item.id !== id));
-    setSelectedPropertyMenu(null);
+  const handleRemove = async (id: string) => {
+    try {
+      await userService.toggleWishlist(id);
+      setSavedList((prev) => prev.filter((item) => item.id !== id));
+      setSelectedPropertyMenu(null);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   // Category counts
   const countsByCategory = useMemo(() => {
     const counts: Record<string, number> = {
       all: savedList.filter((item) => item.isSaved).length,
-      land: 2,
-      plots: 0,
-      flats: 0,
-      commercial: 0,
-      agricultural: 0,
+      land: savedList.filter((item) => item.isSaved && item.category === "land").length,
+      plots: savedList.filter((item) => item.isSaved && item.category === "plots").length,
+      flats: savedList.filter((item) => item.isSaved && item.category === "flats").length,
+      commercial: savedList.filter((item) => item.isSaved && item.category === "commercial").length,
+      agricultural: savedList.filter((item) => item.isSaved && item.category === "agricultural").length,
     };
     return counts;
   }, [savedList]);
@@ -130,7 +177,6 @@ export default function SavedScreen() {
         showPostPropertyBtn={true}
       />
 
-      <Text style={{ color: "#47647A", backgroundColor: "#EDF6FC", padding: 16 }}>Saved properties is coming soon. Your saved collection will appear here when this feature is available.</Text>
       <ScrollView
         contentContainerStyle={[
           styles.scrollContainer,
@@ -141,28 +187,6 @@ export default function SavedScreen() {
         <View style={[styles.mainWrapper, isDesktop && styles.mainWrapperDesktop]}>
           {/* ================= 2. TOP HERO BANNER ================= */}
           <View style={styles.heroCard}>
-            {/* Background Landscape Photo (The 2nd user uploaded image) */}
-            <Image
-              source={heroScenicImg}
-              style={styles.heroBackground}
-              resizeMode="cover"
-            />
-
-            {/* Seamless Soft Gradient Mist on Left (eliminates any harsh vertical cut-off lines) */}
-            <View style={StyleSheet.absoluteFill} pointerEvents="none">
-              <Svg width="100%" height="100%">
-                <Defs>
-                  <LinearGradient id="heroGradient" x1="0" y1="0" x2="1" y2="0">
-                    <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.88" />
-                    <Stop offset="32%" stopColor="#FFFFFF" stopOpacity="0.70" />
-                    <Stop offset="56%" stopColor="#FFFFFF" stopOpacity="0.22" />
-                    <Stop offset="76%" stopColor="#FFFFFF" stopOpacity="0.0" />
-                  </LinearGradient>
-                </Defs>
-                <Rect width="100%" height="100%" fill="url(#heroGradient)" />
-              </Svg>
-            </View>
-
             {/* Content Layer (Overlays) */}
             <View style={styles.heroContentLayer} pointerEvents="box-none">
               {/* Top-Left: Tilted Cursive Script */}
@@ -628,7 +652,7 @@ export default function SavedScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "transparent",
   },
   scrollContainer: {
     paddingBottom: 40,
@@ -717,7 +741,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -800,7 +824,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 98,
     borderRadius: 16,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: "#E2E8F0",
     alignItems: "center",
@@ -853,7 +877,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#DCFCE7",
   },
   categoryBadgeZero: {
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "transparent",
   },
   categoryBadgeText: {
     fontSize: 10.5,
@@ -934,7 +958,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "transparent",
     borderRadius: 13,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -952,7 +976,7 @@ const styles = StyleSheet.create({
   sortButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 13,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -980,7 +1004,7 @@ const styles = StyleSheet.create({
     flexDirection: "column",
   },
   propertyCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#F1F5F9",
@@ -1015,7 +1039,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -1178,7 +1202,7 @@ const styles = StyleSheet.create({
 
   /* ================= EMPTY STATE ================= */
   emptyCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -1223,7 +1247,7 @@ const styles = StyleSheet.create({
   modalCard: {
     width: "100%",
     maxWidth: 320,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 18,
     padding: 20,
     shadowColor: "#000",

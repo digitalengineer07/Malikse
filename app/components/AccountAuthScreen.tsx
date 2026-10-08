@@ -117,7 +117,7 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#FFFFFF" },
+  screen: { flex: 1, backgroundColor: "transparent" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   content: { flexGrow: 1, paddingHorizontal: 20, alignItems: "center" },
   topBar: { width: "100%", maxWidth: 520, flexDirection: "row", justifyContent: "space-between", marginBottom: 24, gap: 16 },

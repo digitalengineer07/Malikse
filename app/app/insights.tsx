@@ -761,7 +761,7 @@ export default function InsightsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "transparent",
   },
   scrollContainer: {
     paddingBottom: 68,

@@ -10,14 +10,16 @@ import {
   useWindowDimensions,
   Platform,
   Modal,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import AppHeader from "../../components/AppHeader";
 import { useLanguageStore } from "../../src/store/languageStore";
 import { t } from "../../src/i18n/translations";
+import { useAuthStore } from "../../src/store/authStore";
+import { inquiryService, InquiryData } from "../../src/services/inquiryService";
 
-const heroBgImg = require("../../assets/my_listings_hero_bg.png");
 
 interface MessageItem {
   id: string;
@@ -48,160 +50,115 @@ interface Conversation {
   messages: MessageItem[];
 }
 
-const INITIAL_CONVERSATIONS: Conversation[] = [
-  {
-    id: "c1",
-    name: "Ramesh Kumar (Verified Owner)",
-    role: "Verified Owner",
-    roleType: "owner",
-    avatarLetter: "R",
-    avatarColor: "#059669",
-    verified: true,
-    property: "Plot on Main Bailey Road, Patna",
-    lastMsg: "I have shared the latest circle office mutation receipt.",
-    time: "10:30 AM",
-    unread: true,
-    tag1: {
-      label: "Document Shared",
-      icon: "description",
-      color: "#065F46",
-      bg: "#F0FDF4",
-      border: "#BBF7D0",
-    },
-    tag2: {
-      label: "Verified Owner",
-      icon: "verified-user",
-      color: "#065F46",
-      bg: "#ECFDF5",
-      border: "#A7F3D0",
-    },
-    messages: [
-      {
-        id: "m1",
-        sender: "them",
-        text: "Namaste! Thank you for inquiring about my 2400 sq.ft plot on Main Bailey Road.",
-        time: "10:15 AM",
-      },
-      {
-        id: "m2",
-        sender: "them",
-        text: "I have shared the latest circle office mutation receipt.",
-        time: "10:30 AM",
-        attachment: {
-          title: "Circle_Office_Mutation_Receipt_2026.pdf",
-          type: "document",
-          size: "1.4 MB",
-        },
-      },
-    ],
-  },
-  {
-    id: "c2",
-    name: "Amit Singh (MalikSe Advisor)",
-    role: "MalikSe Advisor",
-    roleType: "advisor",
-    avatarLetter: "A",
-    avatarColor: "#2563EB",
-    verified: true,
-    property: "Site Inspection Task #402",
-    lastMsg: "GPS geo-boundary survey report has been uploaded.",
-    time: "Yesterday",
-    unread: false,
-    tag1: {
-      label: "Report Shared",
-      icon: "description",
-      color: "#1D4ED8",
-      bg: "#EFF6FF",
-      border: "#BFDBFE",
-    },
-    tag2: {
-      label: "Advisor",
-      icon: "verified-user",
-      color: "#0284C7",
-      bg: "#F0F9FF",
-      border: "#BAE6FD",
-    },
-    messages: [
-      {
-        id: "m1",
-        sender: "them",
-        text: "Hello Nikhil! The on-ground physical inspection for your Danapur plot #402 was completed this morning.",
-        time: "Yesterday, 3:20 PM",
-      },
-      {
-        id: "m2",
-        sender: "them",
-        text: "GPS geo-boundary survey report has been uploaded.",
-        time: "Yesterday, 4:05 PM",
-        attachment: {
-          title: "GPS_GeoBoundary_Survey_Report_402.pdf",
-          type: "report",
-          size: "3.2 MB",
-        },
-      },
-    ],
-  },
-  {
-    id: "c3",
-    name: "Suresh Prasad (Buyer)",
-    role: "Buyer",
-    roleType: "buyer",
-    avatarLetter: "S",
-    avatarColor: "#B45309",
-    verified: true,
-    property: "Residential Land in Bihta",
-    lastMsg: "Token offer of ₹30 Lakh submitted for owner review.",
-    time: "16 Sep",
-    unread: false,
-    tag1: {
-      label: "Offer Submitted",
-      icon: "payments",
-      color: "#065F46",
-      bg: "#F0FDF4",
-      border: "#BBF7D0",
-    },
-    tag2: {
-      label: "Buyer",
-      icon: "person",
-      color: "#C2410C",
-      bg: "#FFF7ED",
-      border: "#FED7AA",
-    },
-    messages: [
-      {
-        id: "m1",
-        sender: "them",
-        text: "Hello sir, I visited the Bihta plot location yesterday with my family and we really liked the boundary.",
-        time: "16 Sep, 11:10 AM",
-      },
-      {
-        id: "m2",
-        sender: "them",
-        text: "Token offer of ₹30 Lakh submitted for owner review.",
-        time: "16 Sep, 2:45 PM",
-        attachment: {
-          title: "Token_Offer_Letter_30_Lakh.pdf",
-          type: "offer",
-          size: "Token Advance: ₹50,000",
-        },
-      },
-    ],
-  },
-];
+// Removed hardcoded INITIAL_CONVERSATIONS
 
 export default function MessagesScreen() {
   const router = useRouter();
   const { language } = useLanguageStore();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 900;
+  const user = useAuthStore(state => state.user);
 
-  const [conversations, setConversations] = useState<Conversation[]>(INITIAL_CONVERSATIONS);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<"all" | "unread" | "buyers" | "agents" | "advisors" | "archived">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<"latest" | "oldest">("latest");
   const [selectedChat, setSelectedChat] = useState<Conversation | null>(null);
   const [replyText, setReplyText] = useState("");
   const [showSupportModal, setShowSupportModal] = useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    
+    const fetchInquiries = () => Promise.all([
+      inquiryService.getSentInquiries().catch(() => [] as InquiryData[]),
+      inquiryService.getReceivedInquiries().catch(() => [] as InquiryData[])
+    ]).then(([sent, received]) => {
+      if (!active) return;
+      const all = [...sent, ...received];
+      const mapped = all.map(i => {
+        const buyerIdStr = typeof i.buyerId === "object" && i.buyerId !== null ? i.buyerId._id : i.buyerId;
+        const sellerIdStr = typeof i.sellerId === "object" && i.sellerId !== null ? i.sellerId._id : i.sellerId;
+        const isBuyer = buyerIdStr === user.id;
+        
+        const otherPerson = isBuyer ? i.sellerId : i.buyerId;
+        const otherName = otherPerson?.name || "Unknown User";
+        const isOffer = !!i.offerAmount;
+        
+        return {
+          id: i._id,
+          name: otherName,
+          role: isBuyer ? "Owner" : "Buyer",
+          roleType: isBuyer ? "owner" : "buyer",
+          avatarLetter: otherName.charAt(0).toUpperCase(),
+          avatarColor: isBuyer ? "#0D9488" : "#C2410C",
+          verified: false,
+          property: i.propertyId?.title || "Property Listing",
+          lastMsg: isOffer ? `Offer of ₹${i.offerAmount?.toLocaleString("en-IN")} submitted` : i.message,
+          time: new Date(i.createdAt).toLocaleDateString(),
+          unread: false,
+          tag1: isOffer ? {
+            label: "Offer",
+            icon: "payments",
+            color: "#065F46",
+            bg: "#ECFDF5",
+            border: "#A7F3D0",
+          } : {
+            label: "Inquiry",
+            icon: "help",
+            color: "#6D28D9",
+            bg: "#F5F3FF",
+            border: "#DDD6FE",
+          },
+          tag2: {
+            label: isBuyer ? "Owner" : "Buyer",
+            icon: "person",
+            color: "#C2410C",
+            bg: "#FFF7ED",
+            border: "#FED7AA",
+          },
+          messages: [
+            {
+              id: i._id + "_m1",
+              sender: isBuyer ? "me" : "them",
+              text: i.message,
+              time: new Date(i.createdAt).toLocaleString(),
+            },
+            ...(isOffer ? [{
+              id: i._id + "_m2",
+              sender: isBuyer ? "me" : "them" as const,
+              text: `Offer of ₹${i.offerAmount?.toLocaleString("en-IN")} submitted for review.`,
+              time: new Date(i.createdAt).toLocaleString(),
+            }] : []),
+            ...(i.messages?.map(m => ({
+              id: m._id,
+              sender: m.senderId === user.id ? "me" : "them" as const,
+              text: m.text,
+              time: new Date(m.createdAt).toLocaleString(),
+            })) || [])
+          ]
+        } as Conversation;
+      });
+      setConversations(mapped);
+      setLoading(false);
+      
+      setSelectedChat(prev => {
+        if (!prev) return prev;
+        const updatedChat = mapped.find(c => c.id === prev.id);
+        return updatedChat || prev;
+      });
+    });
+
+    fetchInquiries();
+    const intervalId = setInterval(fetchInquiries, 5000);
+
+    return () => { active = false; clearInterval(intervalId); };
+  }, [user, selectedChat?.id]);
 
   // Filter conversations
   const filteredConversations = conversations.filter((c) => {
@@ -231,28 +188,36 @@ export default function MessagesScreen() {
     );
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!replyText.trim() || !selectedChat) return;
 
-    const newMsg: MessageItem = {
-      id: `m_${Date.now()}`,
-      sender: "me",
-      text: replyText.trim(),
-      time: "Just now",
-    };
-
-    const updated = {
-      ...selectedChat,
-      messages: [...selectedChat.messages, newMsg],
-      lastMsg: replyText.trim(),
-      time: "Just now",
-    };
-
-    setSelectedChat(updated);
-    setConversations((prev) =>
-      prev.map((item) => (item.id === selectedChat.id ? updated : item))
-    );
+    const currentText = replyText.trim();
     setReplyText("");
+
+    try {
+      await inquiryService.sendMessage(selectedChat.id, currentText);
+      // Let the polling handle the refresh, but we can do an optimistic update
+      const newMsg: MessageItem = {
+        id: `m_${Date.now()}`,
+        sender: "me",
+        text: currentText,
+        time: "Just now",
+      };
+
+      const updated = {
+        ...selectedChat,
+        messages: [...selectedChat.messages, newMsg],
+        lastMsg: currentText,
+        time: "Just now",
+      };
+
+      setSelectedChat(updated);
+      setConversations((prev) =>
+        prev.map((item) => (item.id === selectedChat.id ? updated : item))
+      );
+    } catch (err) {
+      console.error("Failed to send message", err);
+    }
   };
 
   return (
@@ -590,95 +555,6 @@ export default function MessagesScreen() {
 
           {/* ================= 2. RIGHT MAIN CONTENT AREA ================= */}
           <View style={styles.mainContent}>
-            {/* Scenic Hero Header Banner (Direct Messages) */}
-            <View style={styles.heroBannerCard}>
-              <Image
-                source={heroBgImg}
-                style={styles.heroBannerBackground}
-                resizeMode="cover"
-              />
-              <View style={styles.heroBannerOverlay} />
-
-              {/* Left Column: Direct Messages & Subtitle & 3 Badges */}
-              <View style={styles.heroLeftCol}>
-                <Text style={styles.heroMainTitle}>
-                  {language === "hi" ? "प्रत्यक्ष संदेश" : "Direct Messages"}
-                </Text>
-                <Text style={styles.heroSubtitle}>
-                  {language === "hi"
-                    ? "सहमति-आधारित सुरक्षित बातचीत"
-                    : "Consent-gated secure conversations"}
-                </Text>
-
-                {/* 3 Security Feature Pills */}
-                <View style={styles.heroPillsRow}>
-                  {/* Pill 1: Protected by OTP */}
-                  <View style={styles.heroPillCard}>
-                    <View style={styles.heroPillIconCircle}>
-                      <MaterialIcons name="lock" size={14} color="#065F46" />
-                    </View>
-                    <View>
-                      <Text style={styles.heroPillTitle}>
-                        {language === "hi" ? "ओटीपी से सुरक्षित" : "Protected by OTP"}
-                      </Text>
-                      <Text style={styles.heroPillSub}>
-                        {language === "hi" ? "संपर्क विवरण सुरक्षित हैं" : "Your contact details stay safe"}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Pill 2: No Spam */}
-                  <View style={styles.heroPillCard}>
-                    <View style={styles.heroPillIconCircle}>
-                      <MaterialIcons name="verified-user" size={14} color="#065F46" />
-                    </View>
-                    <View>
-                      <Text style={styles.heroPillTitle}>
-                        {language === "hi" ? "कोई स्पैम नहीं" : "No Spam"}
-                      </Text>
-                      <Text style={styles.heroPillSub}>
-                        {language === "hi" ? "केवल वास्तविक खरीदार और दलाल" : "Only genuine buyers & brokers"}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Pill 3: Trusted Platform */}
-                  <View style={styles.heroPillCard}>
-                    <View style={styles.heroPillIconCircle}>
-                      <MaterialIcons name="handshake" size={14} color="#065F46" />
-                    </View>
-                    <View>
-                      <Text style={styles.heroPillTitle}>
-                        {language === "hi" ? "विश्वसनीय मंच" : "Trusted Platform"}
-                      </Text>
-                      <Text style={styles.heroPillSub}>
-                        {language === "hi" ? "केवल सत्यापित उपयोगकर्ता" : "Verified users only"}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-
-              {/* Center Cursive Script */}
-              {isDesktop && (
-                <View style={styles.heroCursiveBox}>
-                  <Text style={styles.heroCursiveText}>
-                    Safe Conversations{"\n"}
-                    <Text style={styles.heroCursiveUnderline}>Stronger Deals</Text>
-                  </Text>
-                </View>
-              )}
-
-              {/* Right Floating Quote Card */}
-              {isDesktop && (
-                <View style={styles.heroQuoteCard}>
-                  <Text style={styles.heroQuoteMark}>“</Text>
-                  <Text style={styles.heroQuoteText}>
-                    Genuine people.{"\n"}Real opportunities.”
-                  </Text>
-                </View>
-              )}
-            </View>
 
             {/* Search & Sort Controls Row */}
             <View style={styles.searchSortRow}>
@@ -721,7 +597,9 @@ export default function MessagesScreen() {
 
             {/* Conversations List */}
             <View style={styles.conversationsContainer}>
-              {filteredConversations.length === 0 ? (
+              {loading ? (
+                <ActivityIndicator size="large" color="#059669" style={{ marginVertical: 40 }} />
+              ) : filteredConversations.length === 0 ? (
                 <View style={styles.emptyCard}>
                   <MaterialIcons name="chat-bubble-outline" size={44} color="#94A3B8" />
                   <Text style={styles.emptyHeading}>
@@ -1107,7 +985,7 @@ export default function MessagesScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "transparent",
   },
   scrollContainer: {
     paddingBottom: 48,
@@ -1186,7 +1064,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   sidebarBadge: {
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "transparent",
     paddingHorizontal: 8,
     paddingVertical: 1,
     borderRadius: 9999,
@@ -1243,7 +1121,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderWidth: 1.2,
     borderColor: "#059669",
     paddingVertical: 6,
@@ -1319,7 +1197,7 @@ const styles = StyleSheet.create({
           "linear-gradient(90deg, rgba(230, 245, 238, 0.94) 0%, rgba(230, 245, 238, 0.88) 35%, rgba(230, 245, 238, 0.35) 65%, transparent 90%)",
       } as any,
       default: {
-        backgroundColor: "rgba(230, 245, 238, 0.4)",
+        backgroundColor: "transparent",
       },
     }),
   },
@@ -1443,7 +1321,7 @@ const styles = StyleSheet.create({
   searchBarWrap: {
     flex: 1,
     height: 44,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -1462,7 +1340,7 @@ const styles = StyleSheet.create({
   },
   sortDropdownBtn: {
     height: 44,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -1485,7 +1363,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   conversationCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -1643,7 +1521,7 @@ const styles = StyleSheet.create({
 
   /* Empty State */
   emptyCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -1675,7 +1553,7 @@ const styles = StyleSheet.create({
   chatModalCard: {
     width: "100%",
     height: "85%",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 20,
     overflow: "hidden",
     display: "flex",
@@ -1697,7 +1575,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
   },
   chatModalHeaderLeft: {
     flexDirection: "row",
@@ -1713,13 +1591,13 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "transparent",
     justifyContent: "center",
     alignItems: "center",
   },
   chatMessagesScroll: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "transparent",
   },
   chatMessagesContent: {
     padding: 20,
@@ -1759,7 +1637,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   messageBubbleThem: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: "#E2E8F0",
     borderTopLeftRadius: 4,
@@ -1824,21 +1702,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     gap: 10,
   },
   chatAttachBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "transparent",
     justifyContent: "center",
     alignItems: "center",
   },
   chatTextInput: {
     flex: 1,
     height: 42,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: "#E2E8F0",
     borderRadius: 21,
@@ -1865,7 +1743,7 @@ const styles = StyleSheet.create({
   supportModalCard: {
     width: "100%",
     maxWidth: 520,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: 20,
     padding: 24,
     gap: 16,
@@ -1898,7 +1776,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "transparent",
   },
   supportOptionText: {
     fontSize: 13,

@@ -36,7 +36,7 @@ export default function MarketplaceScreen() {
     setValidationError("");
     router.push({ pathname: '/home', params: { query: query.trim() || undefined, min: min || undefined, max: max || undefined } });
   };
-  return <WorkflowScreen title={"Find your\nperfect place."} backgroundColor="#FFFFFF" contentStyle={[styles.content, compact && styles.contentCompact]} titleStyle={[styles.title, compact && styles.titleCompact]}>
+  return <WorkflowScreen title={"Find your\nperfect place."} contentStyle={[styles.content, compact && styles.contentCompact]} titleStyle={[styles.title, compact && styles.titleCompact]}>
     <Text style={styles.intro}>Land to build on. A place to call home. Discover verified properties with MalikSe.</Text>
     <View style={styles.searchPanel}>
       <View style={styles.searchBar}>
@@ -60,7 +60,7 @@ export default function MarketplaceScreen() {
         { title: 'Find your everyday', subtitle: 'Explore flats for your next move.', type: 'flat' as const, image: require('../assets/my_listings_hero_bg.png') },
       ].map(item => <TouchableOpacity key={item.type} accessibilityRole="button" accessibilityLabel={`Browse ${item.type} properties`} onPress={() => { router.push({ pathname: '/home', params: { type: item.type } }); }} activeOpacity={0.9} style={[styles.collectionCard, compact ? { width: contentWidth * 0.87 } : { flex: 1 }]}>
         <Image source={item.image} style={styles.collectionImage} resizeMode="cover" />
-        <Svg pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFill}><Defs><LinearGradient id={`shade-${item.type}`} x1="0" y1="0" x2="0" y2="1"><Stop offset="35%" stopColor="#071524" stopOpacity="0" /><Stop offset="100%" stopColor="#071524" stopOpacity="0.9" /></LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#shade-${item.type})`} /></Svg><View style={[styles.collectionContent, Platform.OS === "web" && { backdropFilter: "blur(18px)" } as any]}><Text style={styles.collectionTitle}>{item.title}</Text><Text style={styles.collectionSubtitle}>{item.subtitle}</Text><View style={styles.collectionButton}><Text style={styles.sellerButtonText}>Explore {item.type === 'house' ? 'houses' : item.type === 'flat' ? 'flats' : 'land'}</Text><MaterialIcons name="north-east" size={15} color="#111827" /></View></View>
+        <Svg pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFill}><Defs><LinearGradient id={`shade-${item.type}`} x1="0" y1="0" x2="0" y2="1"><Stop offset="35%" stopColor="#071524" stopOpacity="0" /><Stop offset="100%" stopColor="#071524" stopOpacity="0.9" /></LinearGradient></Defs><Rect width="100%" height="100%" fill={`url(#shade-${item.type})`} /></Svg><View style={[styles.collectionContent, Platform.OS === "web" && { backdropFilter: "none" } as any]}><Text style={styles.collectionTitle}>{item.title}</Text><Text style={styles.collectionSubtitle}>{item.subtitle}</Text><View style={styles.collectionButton}><Text style={styles.sellerButtonText}>Explore {item.type === 'house' ? 'houses' : item.type === 'flat' ? 'flats' : 'land'}</Text><MaterialIcons name="north-east" size={15} color="#111827" /></View></View>
       </TouchableOpacity>)}
     </ScrollView>
     <Text style={[styles.disclaimer, { marginTop: 20 }]}>Only Advisor- and Verifier-approved listings are published. Verification is not a guarantee of legal title.</Text>
@@ -89,11 +89,11 @@ const styles = premiumStyles({
   disclaimer: { textAlign: "center", color: "#738396", fontSize: 11, lineHeight: 18, marginTop: 7 },
   searchPanel: { marginTop: 28, marginBottom: 32, gap: 24 },
   typeRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 10 },
-  typePill: { borderWidth: 1, borderColor: "#DCE5EC", borderRadius: 30, paddingVertical: 11, paddingHorizontal: 24, backgroundColor: "#FFFFFF" },
+  typePill: { borderWidth: 1, borderColor: "#DCE5EC", borderRadius: 30, paddingVertical: 11, paddingHorizontal: 24, backgroundColor: "transparent" },
   activePill: { backgroundColor: "#111111", borderColor: "#111111" },
   typeLabel: { color: "#617184", fontSize: 12, fontWeight: "500" },
   activeLabel: { color: "#FFFFFF" },
-  fields: { flexDirection: "row", alignItems: "flex-end", gap: 16, padding: 22, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E3E8DF", borderRadius: 20 },
+  fields: { flexDirection: "row", alignItems: "flex-end", gap: 16, padding: 22, backgroundColor: "transparent", borderWidth: 1, borderColor: "#E3E8DF", borderRadius: 20 },
   fieldsCompact: { flexDirection: "column", alignItems: "stretch", padding: 18 },
   locationField: { flex: 1.6 }, priceField: { flex: 1 },
   searchButton: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "#111111" },
@@ -102,7 +102,7 @@ const styles = premiumStyles({
   sectionTitle: { fontSize: 29, letterSpacing: -1, color: "#111111", fontWeight: "600", flexShrink: 1 },
   resultCount: { fontSize: 12, color: "#718295" },
   propertyGrid: { flexDirection: "row", flexWrap: "wrap", gap: 22 },
-  propertyCard: { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E5EDF4", borderRadius: 30, overflow: "hidden" },
+  propertyCard: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#E5EDF4", borderRadius: 30, overflow: "hidden" },
   photoWrap: { height: 270, backgroundColor: "#E9F3FC" },
   photo: { width: "100%", height: "100%" },
   missingPhoto: { flex: 1, justifyContent: "center", alignItems: "center", gap: 12, backgroundColor: "#EDF6FD" },
@@ -132,7 +132,7 @@ const styles = premiumStyles({
   budgetActive: { backgroundColor: '#D9EAF7' },
   budgetPanel: { width: '100%', maxWidth: 660, alignSelf: 'center', padding: 18, borderRadius: 20, backgroundColor: '#F1F7FC', flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' },
   budgetField: { flex: 1, minWidth: 110, gap: 8 }, budgetLabel: { fontSize: 11, color: '#52657A' },
-  budgetInput: { padding: 12, backgroundColor: '#FFFFFF', borderRadius: 12, color: '#111111', fontSize: 13 },
+  budgetInput: { padding: 12, backgroundColor: "transparent", borderRadius: 12, color: '#111111', fontSize: 13 },
   applyButton: { padding: 13, borderRadius: 20, backgroundColor: '#111111' },
   sellerSection: { flexDirection: 'row', gap: 50, marginTop: 65, marginBottom: 65, alignItems: 'center' },
   sellerCompact: { flexDirection: 'column', alignItems: 'stretch', gap: 26, marginTop: 45, marginBottom: 45 },
@@ -154,5 +154,5 @@ const styles = premiumStyles({
   collectionImage: { width: '100%', height: '100%' }, collectionShade: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 147, backgroundColor: '#102333C9' },
   collectionContent: { position: 'absolute', left: 14, right: 14, bottom: 14, gap: 9, padding: 18, borderRadius: 25, backgroundColor: '#142B3CCC', borderWidth: 1, borderColor: '#FFFFFF40' },
   collectionTitle: { color: '#FFFFFF', fontSize: 25, lineHeight: 31, fontWeight: '600', letterSpacing: -0.8 },
-  collectionSubtitle: { color: '#D9E8F4', fontSize: 11 }, collectionButton: { marginTop: 10, backgroundColor: '#FFFFFF', borderRadius: 24, paddingVertical: 12, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  collectionSubtitle: { color: '#D9E8F4', fontSize: 11 }, collectionButton: { marginTop: 10, backgroundColor: "transparent", borderRadius: 24, paddingVertical: 12, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 });

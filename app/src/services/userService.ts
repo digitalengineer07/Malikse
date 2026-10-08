@@ -1,0 +1,29 @@
+import api from "./authService";
+import type { Property } from "../types/property.types";
+
+export const userService = {
+  async getProfile(): Promise<any> {
+    const res = await api.get("/users/profile");
+    return res.data;
+  },
+
+  async updateProfile(data: { name?: string; email?: string }): Promise<any> {
+    const res = await api.put("/users/profile", data);
+    return res.data;
+  },
+
+  async getMyProperties(): Promise<Property[]> {
+    const res = await api.get("/users/my-properties");
+    return res.data;
+  },
+
+  async getWishlist(): Promise<Property[]> {
+    const res = await api.get("/users/wishlist");
+    return res.data;
+  },
+
+  async toggleWishlist(propertyId: string): Promise<{ success: boolean; isWishlisted: boolean }> {
+    const res = await api.post(`/users/wishlist/${propertyId}`);
+    return res.data;
+  }
+};

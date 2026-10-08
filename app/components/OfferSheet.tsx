@@ -63,7 +63,7 @@ export default function OfferSheet({ askingPrice, onSubmit, onCancel }: OfferShe
 const styles = StyleSheet.create({
   container: {
     padding: 20,
-    backgroundColor: "#fff",
+    backgroundColor: "transparent",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
   },

@@ -15,8 +15,8 @@ export const AppTheme = {
     primaryLight: '#D0E3F5',
     accent: '#63B3ED', // Lighter Blue
     accentLight: '#EBF8FF',
-    background: '#E8F0F8', // Soft Blue tinted background
-    card: 'rgba(255, 255, 255, 0.65)', // Glassmorphism base
+    background: 'transparent', // Make screens transparent for shared gradient background
+    card: '#FFFFFF',
     cardSolid: '#FFFFFF',
     cardBorder: 'rgba(255, 255, 255, 0.8)',
     text: '#1E293B',
@@ -60,13 +60,7 @@ export const AppTheme = {
       elevation: 10,
     },
   },
-  glass: Platform.select({
-    web: {
-      backdropFilter: 'blur(16px)',
-      WebkitBackdropFilter: 'blur(16px)',
-    },
-    default: {},
-  }),
+  glass: {},
   radius: {
     sm: 8,
     md: 12,
@@ -79,7 +73,7 @@ export const AppTheme = {
 export const Colors = {
   light: {
     text: '#0F172A',
-    background: '#F8FAFC',
+    background: 'transparent',
     tint: '#059669',
     icon: '#64748B',
     tabIconDefault: '#94A3B8',
@@ -87,7 +81,7 @@ export const Colors = {
   },
   dark: {
     text: '#ECEDEE',
-    background: '#151718',
+    background: 'transparent',
     tint: tintColorDark,
     icon: '#9BA1A6',
     tabIconDefault: '#9BA1A6',

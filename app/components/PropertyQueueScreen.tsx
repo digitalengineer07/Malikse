@@ -55,7 +55,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
           <MaterialIcons name={dropdownOpen ? "arrow-drop-up" : "arrow-drop-down"} size={22} color="#111827" />
         </TouchableOpacity>
         {dropdownOpen && (
-          <View style={[localStyles.dropdownMenu, Platform.OS === "web" && { backdropFilter: "blur(18px)" } as any]}>
+          <View style={[localStyles.dropdownMenu, Platform.OS === "web" && { backdropFilter: "none" } as any]}>
             {filterOptions.map(status => (
               <TouchableOpacity key={status} onPress={() => { setFilter(status); setDropdownOpen(false); }} style={[localStyles.dropdownItem, filter === status && localStyles.dropdownItemActive]}>
                 <Text style={[localStyles.dropdownItemText, filter === status && localStyles.dropdownItemTextActive]}>{status === "all" ? "All" : statusLabels[status]}</Text>

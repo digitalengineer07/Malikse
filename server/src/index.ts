@@ -10,6 +10,8 @@ import documentRoutes from "./routes/document.routes";
 import dealRoutes from "./routes/deal.routes";
 import advisorRoutes from "./routes/advisor.routes";
 import adminRoutes from "./routes/admin.routes";
+import userRoutes from "./routes/user.routes";
+import inquiryRoutes from "./routes/inquiry.routes";
 import { photoDirectory } from "./services/propertyPhotos";
 
 dotenv.config();
@@ -58,6 +60,8 @@ app.use("/documents", documentRoutes);
 app.use("/deals", dealRoutes);
 app.use("/verification", advisorRoutes);
 app.use("/admin", adminRoutes);
+app.use("/users", userRoutes);
+app.use("/inquiries", inquiryRoutes);
 
 // Health check
 app.get("/health", (_req, res) => res.json({ status: "ok", service: "MalikSe API" }));

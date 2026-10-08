@@ -1,3 +1,4 @@
+import { renderAppScreen } from "../components/AppScreen";
 import React, { useState, useEffect } from "react";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
@@ -9,6 +10,8 @@ import "react-native-reanimated";
 import AppOpeningScreen from "../components/AppOpeningScreen";
 import { useAuthStore } from "../src/store/authStore";
 import { authService } from "../src/services/authService";
+
+import AppBackground from "../components/AppBackground";
 
 // Prevent native splash screen from auto hiding before JS initializes
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -34,7 +37,7 @@ export default function RootLayout() {
   const [showOpeningScreen, setShowOpeningScreen] = useState(true);
 
   useEffect(() => {
-    // Hide native splash screen immediately so our scenic opening UI renders
+    // Hide native splash screen immediately so our opening UI renders
     SplashScreen.hideAsync().catch(() => {});
     useAuthStore.getState().hydrateSession().then(() => {
       if (useAuthStore.getState().accessToken) authService.getMe().catch(() => {});
@@ -44,8 +47,9 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <SafeAreaProvider>
-      <Stack screenOptions={{ headerShown: false }}>
+    <SafeAreaProvider style={{ flex: 1, backgroundColor: "#F4F6F9" }}>
+      <AppBackground />
+      <Stack screenLayout={renderAppScreen} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "transparent" } }}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="property/[id]" options={{ headerShown: false }} />
@@ -60,7 +64,7 @@ export default function RootLayout() {
       </Stack>
       <StatusBar style="dark" />
 
-      {/* Opening Screen with Scenic Image & Active Loading Bar */}
+      {/* Opening screen with active loading bar */}
       {showOpeningScreen && (
         <AppOpeningScreen onFinish={() => setShowOpeningScreen(false)} />
       )}
