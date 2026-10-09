@@ -45,9 +45,7 @@ export default function VerifiedHomeScreen() {
   return <View style={s.screen}>
     <AppHeader />
     <ScrollView contentContainerStyle={{ paddingBottom: 45 }}>
-    <View style={[s.mapContainer, { width: "100%", height: 500, borderRadius: 0, marginTop: 0 }]}>
-      <VerifiedPropertyMap properties={properties} onSelect={openProperty} />
-    </View>
+
     <View style={[s.content, width < 600 && { paddingHorizontal: 18 }]}>
     <View style={[s.headingRow, { marginTop: 36, marginBottom: 16 }]}><View><Text style={s.eyebrow}>A PLACE FOR YOUR NEXT CHAPTER</Text><Text style={s.sectionTitle}>Explore our properties</Text></View><Text style={s.count}>{properties.length} available</Text></View>
     
@@ -58,43 +56,29 @@ export default function VerifiedHomeScreen() {
         </TouchableOpacity>
       ))}
     </View>
-    {loading ? <ActivityIndicator style={{ padding: 30 }} color="#284B68" /> : error ? <View style={s.empty}><Text accessibilityRole="alert" style={s.note}>{error}</Text><TouchableOpacity accessibilityRole="button" onPress={() => setRevision(v => v + 1)} style={s.button}><Text style={s.buttonText}>Try again</Text></TouchableOpacity></View> : properties.length === 0 ? <View style={s.empty}><MaterialIcons name="home-work" size={36} color="#56768E" /><Text style={s.sectionTitle}>More places are on the way</Text><Text style={s.note}>Properties will appear here after Advisor and Verifier approval.</Text></View> : <View style={s.sectionsContainer}>
-      {propertyTypes.filter(pt => pt.value !== undefined && (type === undefined || type === pt.value)).map(pt => {
-        const typeProperties = properties.filter(p => p.type === pt.value);
-        if (typeProperties.length === 0) return null;
-        return (
-          <View key={pt.value} style={s.typeSection}>
-            <View style={s.typeSectionHeader}>
-              <Text style={s.typeSectionTitle}>{pt.label}</Text>
-              <Text style={s.typeSectionCount}>{typeProperties.length} available</Text>
+    {loading ? <ActivityIndicator style={{ padding: 30 }} color="#284B68" /> : error ? <View style={s.empty}><Text accessibilityRole="alert" style={s.note}>{error}</Text><TouchableOpacity accessibilityRole="button" onPress={() => setRevision(v => v + 1)} style={s.button}><Text style={s.buttonText}>Try again</Text></TouchableOpacity></View> : properties.length === 0 ? <View style={s.empty}><MaterialIcons name="home-work" size={36} color="#56768E" /><Text style={s.sectionTitle}>More places are on the way</Text><Text style={s.note}>Properties will appear here after Advisor and Verifier approval.</Text></View> : <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 16 }}>
+      {properties.filter(p => type === undefined || p.type === type).map(property => (
+        <TouchableOpacity key={property._id || property.id} accessibilityRole="button" onPress={() => setSelected(property)} activeOpacity={0.9} style={[s.cardWrapper, { width: width < 800 ? "100%" : 460, marginBottom: 12 }]}>
+          <View style={s.cardBlur}>
+            {/* Left Side Image */}
+            <View style={s.cardImageContainer}>
+              {property.media?.photos?.[0] ? <Image source={{ uri: property.media.photos[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <View style={s.noPhoto} />}
+              {/* Top Left Badge inside image */}
+              <View style={s.imageBadge}><Text style={s.imageBadgeText}>{property.type.toUpperCase()}</Text></View>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.horizontalScrollContent}>
-              {typeProperties.map(property => (
-                <TouchableOpacity key={property._id || property.id} accessibilityRole="button" onPress={() => setSelected(property)} activeOpacity={0.9} style={[s.cardWrapper, { width: width < 800 ? width * 0.85 : 460 }]}>
-                  <View style={s.cardBlur}>
-                    {/* Left Side Image */}
-                    <View style={s.cardImageContainer}>
-                      {property.media?.photos?.[0] ? <Image source={{ uri: property.media.photos[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <View style={s.noPhoto} />}
-                      {/* Top Left Badge inside image */}
-                      <View style={s.imageBadge}><Text style={s.imageBadgeText}>{property.type.toUpperCase()}</Text></View>
-                    </View>
-                    {/* Right Side Content */}
-                    <View style={s.cardContent}>
-                      <View style={s.cardHeader}>
-                        <Text style={s.cardTitle} numberOfLines={1}>{property.title || `${property.type} in ${property.location.district}`}</Text>
-                        <TouchableOpacity style={s.heartBtn}><MaterialIcons name="favorite-border" size={18} color="#4A5568" /></TouchableOpacity>
-                      </View>
-                      <Text style={s.cardPriceRow}><Text style={s.priceText}>{priceOf(property)}</Text> <Text style={s.locationText}>| {property.location.district}, {property.location.state}</Text></Text>
-                      <Text style={s.cardSpecs}>{property.sellableArea ? `${property.sellableArea.toLocaleString("en-IN")} sq ft` : "Area not provided"} | {property.negotiable ? "Negotiable" : "Fixed price"}</Text>
-                      
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            {/* Right Side Content */}
+            <View style={s.cardContent}>
+              <View style={s.cardHeader}>
+                <Text style={s.cardTitle} numberOfLines={1}>{property.title || `${property.type} in ${property.location.district}`}</Text>
+                <TouchableOpacity style={s.heartBtn}><MaterialIcons name="favorite-border" size={18} color="#4A5568" /></TouchableOpacity>
+              </View>
+              <Text style={s.cardPriceRow}><Text style={s.priceText}>{priceOf(property)}</Text> <Text style={s.locationText}>| {property.location.district}, {property.location.state}</Text></Text>
+              <Text style={s.cardSpecs}>{property.sellableArea ? `${property.sellableArea.toLocaleString("en-IN")} sq ft` : "Area not provided"} | {property.negotiable ? "Negotiable" : "Fixed price"}</Text>
+              
+            </View>
           </View>
-        );
-      })}
+        </TouchableOpacity>
+      ))}
     </View>}
     </View>
   </ScrollView>

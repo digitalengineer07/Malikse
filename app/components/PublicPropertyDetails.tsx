@@ -1,12 +1,13 @@
 import { premiumStyles } from "../constants/typography";
 import React, { useState } from "react";
-import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View, Modal } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Listing } from "../src/services/workflowService";
 import AppHeader from "./AppHeader";
 import MiniMapPreview from "./MiniMapPreview";
+import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import { AppTheme } from "../constants/theme";
 
 export default function PublicPropertyDetails({ property: p, onOffer, canOffer, isSaved, onToggleSave, children }: { property: Listing; onOffer: () => void; canOffer: boolean; isSaved?: boolean; onToggleSave?: () => void; children: React.ReactNode }) {
@@ -15,6 +16,7 @@ export default function PublicPropertyDetails({ property: p, onOffer, canOffer, 
   const insets = useSafeAreaInsets();
   const [photo, setPhoto] = useState(0);
   const [linkError, setLinkError] = useState("");
+  const [mapExpanded, setMapExpanded] = useState(false);
   const photos = (p.media?.photos || []).map(uri => ({ uri }));
   const openLink = (url: string) => { Linking.openURL(url).catch(() => setLinkError("Could not open this link. Please try again.")); };
   const facts = [["Total sq.ft", p.totalArea != null ? p.totalArea.toLocaleString("en-IN") : "—"], ["Sellable sq.ft", p.sellableArea != null ? p.sellableArea.toLocaleString("en-IN") : "—"], ["Type", p.type], ["Price terms", p.negotiable ? "Flexible" : "Fixed"]];
@@ -26,12 +28,22 @@ export default function PublicPropertyDetails({ property: p, onOffer, canOffer, 
     <View style={s.description}><Text style={s.body}>{p.description || "The owner has not added a description yet."}</Text></View>
     <View style={s.section}><Text style={s.heading}>Land & access</Text><Text style={s.body}>Boundary: {p.boundary || "Not provided"}</Text><Text style={s.body}>Road width: {p.roadWidth ?? "Not provided"}</Text><Text style={s.body}>Block: {p.location.block || "Not provided"} · Mauza: {p.location.mauza || "Not provided"}</Text></View>
     <View style={s.section}><Text style={s.heading}>Owner disclosures</Text><View style={s.disclosures}>{[["Existing loan", p.disclosures?.hasLoan], ["Reported dispute", p.disclosures?.hasDispute]].map(([label, value]) => <View key={String(label)} style={s.disclosure}><Text style={s.body}>{label}</Text><Text style={s.label}>{value == null ? "Not provided" : value ? "Yes" : "No"}</Text></View>)}<View style={s.disclosure}><Text style={s.body}>Possession</Text><Text style={s.label}>{p.disclosures?.possessionStatus || "Not provided"}</Text></View></View></View>
-    <View style={s.section}><Text style={s.heading}>The location</Text><MiniMapPreview property={{ id: p._id, type: p.type, status: p.status, price: p.price, location: p.location, parcelPoints: p.parcelPoints }} /><TouchableOpacity accessibilityRole="button" style={s.back} onPress={() => openLink(`https://www.google.com/maps/search/?api=1&query=${p.location.lat},${p.location.lng}`)}><MaterialIcons name="map" size={19} color="#27465E" /><Text style={s.label}>Open location in maps</Text></TouchableOpacity></View>
+    <View style={s.section}><Text style={s.heading}>The location</Text><TouchableOpacity activeOpacity={0.9} onPress={() => setMapExpanded(true)}><View pointerEvents="none"><MiniMapPreview property={{ id: p._id, type: p.type, status: p.status, price: p.price, location: p.location, parcelPoints: p.parcelPoints }} /></View></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={s.back} onPress={() => openLink(`https://www.google.com/maps/search/?api=1&query=${p.location.lat},${p.location.lng}`)}><MaterialIcons name="map" size={19} color="#27465E" /><Text style={s.label}>Open location in maps</Text></TouchableOpacity></View>
     {p.media?.videos?.map((url, index) => <TouchableOpacity key={url} accessibilityRole="button" style={s.back} onPress={() => openLink(url)}><MaterialIcons name="play-circle-outline" size={23} /><Text style={s.label}>View property video {index + 1}</Text></TouchableOpacity>)}
     <View style={s.verification}><MaterialIcons name="verified-user" size={24} color="#315975" /><View style={{ flex: 1 }}><Text style={s.label}>Reviewed by an Advisor and a Verifier</Text><Text style={s.small}>Verification is not a guarantee of legal title. KYC is currently a demo.</Text></View></View>
     {!!linkError && <Text accessibilityRole="alert" style={{ color: "#B91C1C" }}>{linkError}</Text>}{children}
     </View>
-  </ScrollView>{canOffer && <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 15) }]}><View style={s.footerInner}><TouchableOpacity accessibilityRole="button" style={[s.offer, s.secondaryOffer]} onPress={() => openLink(`https://www.google.com/maps/search/?api=1&query=${p.location.lat},${p.location.lng}`)}><MaterialIcons name="directions" size={19} color="white" /><Text style={s.offerLabel}>Directions</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" onPress={onOffer} style={s.offer}><MaterialIcons name="chat-bubble-outline" size={18} color="white" /><Text style={s.offerLabel}>Make an offer</Text></TouchableOpacity></View></View>}</View></View>;
+  </ScrollView>{canOffer && <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 15) }]}><View style={s.footerInner}><TouchableOpacity accessibilityRole="button" style={[s.offer, s.secondaryOffer]} onPress={() => openLink(`https://www.google.com/maps/search/?api=1&query=${p.location.lat},${p.location.lng}`)}><MaterialIcons name="directions" size={19} color="white" /><Text style={s.offerLabel}>Directions</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" onPress={onOffer} style={s.offer}><MaterialIcons name="chat-bubble-outline" size={18} color="white" /><Text style={s.offerLabel}>Make an offer</Text></TouchableOpacity></View></View>}
+  
+  <Modal visible={mapExpanded} transparent animationType="fade" onRequestClose={() => setMapExpanded(false)}>
+    <View style={StyleSheet.absoluteFill}>
+      <VerifiedPropertyMap properties={[p]} onSelect={() => {}} />
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close map" onPress={() => setMapExpanded(false)} style={[s.closeMapBtn, { top: Math.max(insets.top, 20) }]}>
+        <MaterialIcons name="close" size={24} color="#172333" />
+      </TouchableOpacity>
+    </View>
+  </Modal>
+  </View></View>;
 }
 const s = premiumStyles({
   screen: { flex: 1, backgroundColor: AppTheme.colors.background },
@@ -42,6 +54,7 @@ const s = premiumStyles({
   photo: { overflow: "hidden", backgroundColor: AppTheme.colors.primaryLight },
   placeholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   imageBack: { position: "absolute", left: 21, top: 21, width: 42, height: 42, borderRadius: 21, backgroundColor: AppTheme.colors.card, borderWidth: 1, borderColor: AppTheme.colors.border, alignItems: "center", justifyContent: "center", ...AppTheme.glass },
+  closeMapBtn: { position: "absolute", left: 20, width: 46, height: 46, borderRadius: 23, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center", ...AppTheme.shadows.medium, ...AppTheme.glass },
   badge: { position: "absolute", top: 21, right: 21, backgroundColor: AppTheme.colors.card, padding: 11, borderRadius: 24, flexDirection: "row", alignItems: "center", gap: 6, ...AppTheme.glass },
   saveBtn: { position: "absolute", top: 21, right: 155, backgroundColor: AppTheme.colors.card, width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", ...AppTheme.glass },
   photoControls: { position: "absolute", bottom: 16, right: 18, flexDirection: "row", backgroundColor: AppTheme.colors.card, alignItems: "center", gap: 10, borderRadius: 24, padding: 4, ...AppTheme.glass }, photoArrow: { padding: 6 },

@@ -16,7 +16,7 @@ export default function MiniMapPreview({ property }: { property: Property }) {
     import("leaflet").then(module => {
       if (!active || !container.current) return;
       const L = module.default || module;
-      map = L.map(container.current, { zoomControl: false, scrollWheelZoom: false, maxZoom: 20 });
+      map = L.map(container.current, { zoomControl: false, maxZoom: 20, scrollWheelZoom: true });
       addParcelBaseLayer(L, map);
       if (points && points.length >= 3) {
         const polygon = L.polygon(points.map(point => [point.lat, point.lng]), parcelStyle).addTo(map);

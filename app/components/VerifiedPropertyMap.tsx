@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Platform, View, Text, StyleSheet } from "react-native";
 import type { Property } from "../src/types/property.types";
+import { addParcelBaseLayer, hasParcelBoundary, parcelStyle } from "../src/utils/parcelMap";
 
 export default function VerifiedPropertyMap({ properties, onSelect }: { properties: Property[]; onSelect: (property: Property) => void }) {
   const container = useRef<HTMLDivElement>(null);
@@ -13,13 +14,26 @@ export default function VerifiedPropertyMap({ properties, onSelect }: { properti
     import("leaflet").then(module => {
       if (!active || !container.current) return;
       const L = module.default || module;
-      map = L.map(container.current, { scrollWheelZoom: false }).setView([25.6, 85.1], 7);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19 }).addTo(map);
+      map = L.map(container.current, { scrollWheelZoom: true }).setView([25.6, 85.1], 7);
+      
+      // Use satellite base layer if viewing a single property (popup from details), else use OSM for marketplace.
+      if (properties.length === 1 && hasParcelBoundary(properties[0].parcelPoints)) {
+        addParcelBaseLayer(L, map);
+      } else {
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19 }).addTo(map);
+      }
+      
       const points: [number, number][] = [];
       properties.forEach(property => {
         const { lat, lng } = property.location;
         if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
         points.push([lat, lng]);
+        
+        if (hasParcelBoundary(property.parcelPoints)) {
+          const polyPoints = property.parcelPoints!.map(p => [p.lat, p.lng] as [number, number]);
+          L.polygon(polyPoints, parcelStyle).addTo(map!).on("click", () => onSelect(property));
+          polyPoints.forEach(p => points.push(p));
+        }
         const label = document.createElement("div");
         label.innerHTML = `<div style="background: #1A365D; color: white; padding: 6px 12px; border-radius: 20px; font-weight: 700; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 2px solid rgba(255,255,255,0.8); font-size: 13px;">₹${(property.price / 100000).toFixed(1)}L</div>
         <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #1A365D; margin: -2px auto 0 auto; position: relative; z-index: 1;"></div>
@@ -29,7 +43,7 @@ export default function VerifiedPropertyMap({ properties, onSelect }: { properti
           if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(property); }
         });
       });
-      if (points.length) map.fitBounds(L.latLngBounds(points), { padding: [65, 65], maxZoom: 14 });
+      if (points.length) map.fitBounds(L.latLngBounds(points), { padding: [65, 65], maxZoom: properties.length === 1 ? 19 : 14 });
       resize = new ResizeObserver(() => map?.invalidateSize());
       resize.observe(container.current);
     }).catch(() => { if (active) setFailed(true); });

@@ -45,7 +45,7 @@ export default function AppHeader(_props: AppHeaderProps) {
         )}
         <View><Text style={styles.brand}>✳ MalikSe</Text><Text style={styles.caption}>YOUR LAND. A SAFER FUTURE.</Text></View>
       </View>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Toggle language" onPress={toggleLanguage} style={styles.language}><Text style={styles.label}>文A  {language === "en" ? "हिंदी" : "English"}</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Toggle language" onPress={toggleLanguage} style={styles.language}><Text style={styles.label}>{language === "en" ? "HI" : "EN"}</Text></TouchableOpacity>
     </View>
   </View>;
 }
