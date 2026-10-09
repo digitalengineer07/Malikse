@@ -155,8 +155,8 @@ export default function ListingEditorScreen() {
         {field("possessionStatus", "Possession details")}
       </View>}
       {step === 2 && <View style={ui.card}>
-        <Text style={ui.muted}>Draw the boundary on web, or enter the property GPS coordinates. Use current location only while at the property.</Text>
-        {Platform.OS === "web" && <View style={{ minHeight: 550 }}><MapParcelPicker initialPoints={points} onParcelChange={onParcelChange} areaSqFt={form.totalArea} /></View>}
+        <Text style={ui.muted}>Draw the boundary on the map, or enter the property GPS coordinates. Use current location only while at the property.</Text>
+        <View style={{ minHeight: Platform.OS === "web" ? 550 : 460 }}><MapParcelPicker initialPoints={points} onParcelChange={onParcelChange} areaSqFt={form.totalArea} /></View>
         <Action title="Use current GPS location" secondary disabled={busy} onPress={locate} />
         {field("lat", "Latitude *", true)}{field("lng", "Longitude *", true)}
         {field("boundary", "Boundary description", false, true)}{field("roadWidth", "Road width (feet)", true)}
