@@ -11,6 +11,8 @@ export interface IUser extends Document {
   demoKycComplete: boolean;
   refreshTokenHash?: string;
   wishlist: mongoose.Types.ObjectId[];
+  isSuspended: boolean;
+  isActive: boolean;
   createdAt: Date;
 }
 
@@ -30,6 +32,8 @@ const UserSchema = new Schema<IUser>(
     demoKycComplete: { type: Boolean, default: false },
     refreshTokenHash: { type: String },
     wishlist: { type: [Schema.Types.ObjectId], ref: "Property", default: [] },
+    isSuspended: { type: Boolean, default: false },
+    isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

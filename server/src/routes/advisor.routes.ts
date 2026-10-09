@@ -13,9 +13,17 @@ router.get("/my-tasks", async (req: any, res) => {
     const advisor = req.user.role === "advisor";
     const field = advisor ? "assignedAdvisorId" : "assignedVerifierId";
     const pending = advisor ? "pending" : "advisor_verified";
-    const assigned = await Property.find({ [field]: req.user.id }).populate("ownerId", "name mobile").sort("-updatedAt");
+
+    // Exclude suspended users
+    const { User } = require("../models/User.model");
+    const suspendedUsers = await User.find({ isSuspended: true }).select('_id');
+    const suspendedUserIds = suspendedUsers.map((u: any) => u._id);
+    const filter: any = {};
+    if (suspendedUserIds.length > 0) filter.ownerId = { $nin: suspendedUserIds };
+
+    const assigned = await Property.find({ [field]: req.user.id, ...filter }).populate("ownerId", "name mobile").sort("-updatedAt");
     // Unassigned work exposes only a summary until an authorized reviewer claims it.
-    const unassigned = await Property.find({ [field]: null, status: pending }).select("title type location status totalArea price createdAt").sort("createdAt");
+    const unassigned = await Property.find({ [field]: null, status: pending, ...filter }).select("title type location status totalArea price createdAt").sort("createdAt");
     res.json([...assigned, ...unassigned]);
   } catch (error: any) { res.status(500).json({ message: error.message }); }
 });

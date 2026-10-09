@@ -24,9 +24,15 @@ export async function authGuard(req: AuthRequest, res: Response, next: NextFunct
     if (typeof decoded.id !== "string" || !/^[a-f0-9]{24}$/i.test(decoded.id)) {
       return res.status(401).json({ message: "Invalid account session" });
     }
-    const user = await User.findById(decoded.id).select("role passwordHash");
+    const user = await User.findById(decoded.id).select("role passwordHash isSuspended isActive");
     if (!user?.passwordHash) {
       return res.status(401).json({ message: "Please sign in with your account credentials" });
+    }
+    if (user.isSuspended) {
+      return res.status(403).json({ message: "Your account has been suspended by the administrator." });
+    }
+    if (user.isActive === false) {
+      return res.status(403).json({ message: "Your staff account has been deactivated." });
     }
     req.user = { id: user._id.toString(), role: user.role };
     next();

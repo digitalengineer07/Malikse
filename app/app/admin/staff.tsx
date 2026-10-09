@@ -17,6 +17,10 @@ export default function ManageStaffScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  
+  const [selectedStaff, setSelectedStaff] = useState<any>(null);
+  const [workload, setWorkload] = useState<any>({ assigned: [], history: [] });
+  const [loadingWorkload, setLoadingWorkload] = useState(false);
 
   useEffect(() => {
     if (authState !== "AUTHENTICATED" || user?.role !== "admin") return;
@@ -49,12 +53,39 @@ export default function ManageStaffScreen() {
     }
   };
 
+  const toggleStatus = async (staffMember: StaffAccount) => {
+    try {
+      await adminService.toggleStaffStatus(staffMember.id);
+      setStaff(staff.map(s => s.id === staffMember.id ? { ...s, isActive: !s.isActive } : s));
+    } catch (e: any) {
+      setError(e.response?.data?.message || "Failed to toggle status");
+    }
+  };
+
+  const viewWorkload = async (staffMember: StaffAccount) => {
+    if (selectedStaff?.id === staffMember.id) {
+      setSelectedStaff(null);
+      return;
+    }
+    setSelectedStaff(staffMember);
+    setLoadingWorkload(true);
+    try {
+      const data = await adminService.getStaffWorkload(staffMember.id);
+      setWorkload(data);
+    } catch (e) {
+      console.error(e);
+      setWorkload({ assigned: [], history: [] });
+    } finally {
+      setLoadingWorkload(false);
+    }
+  };
+
   if (authState !== "AUTHENTICATED" || user?.role !== "admin") {
     return <View style={styles.screen}><Text style={styles.title}>Admin sign in required</Text><TouchableOpacity onPress={() => router.replace("/login")}><Text style={styles.link}>Go to sign in</Text></TouchableOpacity></View>;
   }
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-    <TouchableOpacity onPress={() => router.back()}><Text style={styles.link}>← Admin dashboard</Text></TouchableOpacity>
+    <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/admin/dashboard")}><Text style={styles.link}>← Admin dashboard</Text></TouchableOpacity>
     <Text style={styles.title}>Manage Advisors and Verifiers</Text>
     <Text style={styles.description}>Create a staff account, then give the person their mobile number and password through your own secure channel.</Text>
     <View style={styles.card}>
@@ -79,8 +110,40 @@ export default function ManageStaffScreen() {
     <Text style={styles.heading}>Staff accounts</Text>
     {loading ? <ActivityIndicator color="#047857" /> : staff.length === 0 ? <Text style={styles.description}>No Advisors or Verifiers yet.</Text> : staff.map((person) =>
       <View style={styles.staffRow} key={person.id}>
-        <Text style={styles.staffName}>{person.name} · {person.role}</Text>
-        <Text style={styles.staffDetail}>{person.mobile}{person.email ? ` · ${person.email}` : ""}</Text>
+        <TouchableOpacity style={styles.staffHeader} onPress={() => viewWorkload(person)}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.staffName, person.isActive === false && { color: "#B91C1C", textDecorationLine: "line-through" }]}>{person.name} · {person.role}</Text>
+            <Text style={styles.staffDetail}>{person.mobile}{person.email ? ` · ${person.email}` : ""}</Text>
+            {person.isActive === false && <Text style={{ color: "#B91C1C", fontSize: 12, fontWeight: "600", marginTop: 4 }}>[DEACTIVATED]</Text>}
+          </View>
+          <MaterialIcons name={selectedStaff?.id === person.id ? "expand-less" : "expand-more"} size={24} color="#53645B" />
+        </TouchableOpacity>
+        
+        {selectedStaff?.id === person.id && (
+          <View style={{ padding: 18, backgroundColor: "#F7FBF9", borderTopWidth: 1, borderTopColor: "#D7E6DC" }}>
+            <Text style={{ fontSize: 14, fontWeight: "700", color: "#10251B", marginBottom: 12 }}>Currently Assigned</Text>
+            {loadingWorkload ? <ActivityIndicator color="#047857" /> : workload.assigned.length === 0 ? <Text style={styles.description}>No properties currently assigned.</Text> : workload.assigned.map((prop: any) => (
+              <TouchableOpacity key={`a_${prop._id}`} style={styles.propRow} onPress={() => router.push({ pathname: "/property/[id]", params: { id: prop._id } })}>
+                <View><Text style={{ color: "#10251B", fontWeight: "600" }}>{prop.title}</Text><Text style={{ color: "#53645B", fontSize: 12 }}>Status: {prop.status}</Text></View>
+                <MaterialIcons name="chevron-right" size={20} color="#53645B" />
+              </TouchableOpacity>
+            ))}
+
+            <Text style={{ fontSize: 14, fontWeight: "700", color: "#10251B", marginTop: 24, marginBottom: 12 }}>Verification History</Text>
+            {loadingWorkload ? <ActivityIndicator color="#047857" /> : workload.history.length === 0 ? <Text style={styles.description}>No history yet.</Text> : workload.history.map((prop: any) => (
+              <TouchableOpacity key={`h_${prop._id}`} style={styles.propRow} onPress={() => router.push({ pathname: "/property/[id]", params: { id: prop._id } })}>
+                <View><Text style={{ color: "#10251B", fontWeight: "600" }}>{prop.title}</Text><Text style={{ color: "#53645B", fontSize: 12 }}>Current Status: {prop.status}</Text></View>
+                <MaterialIcons name="chevron-right" size={20} color="#53645B" />
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity style={{ marginTop: 20, padding: 12, backgroundColor: person.isActive === false ? "#F3F4F6" : "#FEF2F2", borderRadius: 8, alignItems: "center" }} onPress={() => toggleStatus(person)}>
+              <Text style={{ color: person.isActive === false ? "#374151" : "#B91C1C", fontWeight: "700" }}>
+                {person.isActive === false ? "Re-activate Account" : "Deactivate Account"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     )}
   </ScrollView>;
@@ -105,7 +168,9 @@ const styles = StyleSheet.create({
   buttonText: { color: "white", textAlign: "center", fontWeight: "700" },
   error: { color: "#B91C1C", marginTop: 12 },
   success: { color: "#047857", marginTop: 12 },
-  staffRow: { backgroundColor: "white", borderWidth: 1, borderColor: "#D7E6DC", borderRadius: 10, padding: 14, marginBottom: 8 },
+  staffRow: { backgroundColor: "white", borderWidth: 1, borderColor: "#D7E6DC", borderRadius: 10, overflow: "hidden", marginBottom: 8 },
+  staffHeader: { padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   staffName: { color: "#10251B", fontWeight: "700", textTransform: "capitalize" },
   staffDetail: { color: "#53645B", marginTop: 4 },
+  propRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "white", padding: 12, borderRadius: 8, borderWidth: 1, borderColor: "#E8F1EC", marginBottom: 8 },
 });

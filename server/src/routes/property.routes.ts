@@ -26,6 +26,14 @@ router.get("/search", async (req, res) => {
       if ((min !== undefined && (!Number.isFinite(Number(min)) || Number(min) < 0)) || (max !== undefined && (!Number.isFinite(Number(max)) || Number(max) < 0))) return res.status(400).json({ message: "Invalid price filter" });
       query.price = { ...(min !== undefined ? { $gte: Number(min) } : {}), ...(max !== undefined ? { $lte: Number(max) } : {}) };
     }
+    
+    // Exclude suspended users
+    const suspendedUsers = await User.find({ isSuspended: true }).select('_id');
+    const suspendedUserIds = suspendedUsers.map(u => u._id);
+    if (suspendedUserIds.length > 0) {
+      query.ownerId = { $nin: suspendedUserIds };
+    }
+
     res.json(await Property.find(query).select(publicFields).sort("-createdAt"));
   } catch (error: any) { res.status(400).json({ message: error.message }); }
 });
@@ -47,7 +55,15 @@ router.get("/:id/workspace", authGuard, async (req: any, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
-    const property = await Property.findOne({ _id: req.params.id, status: "verified", "badges.fullyVerified": true, "advisorReview.decision": "approve", "verifierReview.decision": "approve" }).select(publicFields);
+    const suspendedUsers = await User.find({ isSuspended: true }).select('_id');
+    const suspendedUserIds = suspendedUsers.map(u => u._id);
+    
+    const query: any = { _id: req.params.id, status: "verified", "badges.fullyVerified": true, "advisorReview.decision": "approve", "verifierReview.decision": "approve" };
+    if (suspendedUserIds.length > 0) {
+      query.ownerId = { $nin: suspendedUserIds };
+    }
+
+    const property = await Property.findOne(query).select(publicFields);
     if (!property) return res.status(404).json({ message: "Published property not found" });
     res.json(property);
   } catch (error: any) { res.status(400).json({ message: error.message }); }

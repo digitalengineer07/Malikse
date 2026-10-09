@@ -1,9 +1,10 @@
-import { Router } from "express";
-import { User } from "../models/User.model";
-import { Property } from "../models/Property.model";
-import { Deal } from "../models/Deal.model";
-import { authGuard, roleGuard } from "../middleware/auth.middleware";
 import bcrypt from "bcryptjs";
+import { Router } from "express";
+import { authGuard, roleGuard } from "../middleware/auth.middleware";
+import { Deal } from "../models/Deal.model";
+import { Inquiry } from "../models/Inquiry.model";
+import { Property } from "../models/Property.model";
+import { User } from "../models/User.model";
 import { historyEvent, transition } from "../services/propertyWorkflow";
 
 const router = Router();
@@ -27,11 +28,11 @@ router.post("/properties/:id/assign", authGuard, roleGuard("admin"), async (req:
 router.get("/staff", authGuard, roleGuard("admin"), async (_req, res) => {
   try {
     const staff = await User.find({ role: { $in: ["advisor", "verifier"] }, passwordHash: { $exists: true, $ne: "" } })
-      .select("name mobile email role createdAt")
+      .select("name mobile email role isActive createdAt")
       .sort({ createdAt: -1 });
     res.json(staff.map((person) => ({
       id: person._id.toString(), name: person.name, mobile: person.mobile,
-      email: person.email, role: person.role, createdAt: person.createdAt,
+      email: person.email, role: person.role, isActive: person.isActive, createdAt: person.createdAt,
     })));
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -65,7 +66,7 @@ router.post("/staff", authGuard, roleGuard("admin"), async (req, res) => {
     });
     res.status(201).json({
       id: person._id.toString(), name: person.name, mobile: person.mobile,
-      email: person.email, role: person.role, createdAt: person.createdAt,
+      email: person.email, role: person.role, isActive: person.isActive, createdAt: person.createdAt,
     });
   } catch (error: any) {
     if (error.code === 11000) return res.status(409).json({ message: "Mobile number already registered" });
@@ -80,16 +81,16 @@ router.get("/dashboard/summary", authGuard, roleGuard("admin"), async (req, res)
     const totalAdvisors = await User.countDocuments({ role: "advisor" });
     const totalVerifiers = await User.countDocuments({ role: "verifier" });
     const totalProperties = await Property.countDocuments();
-    
+
     const pendingProperties = await Property.countDocuments({ status: "pending" });
     const draftProperties = await Property.countDocuments({ status: "draft" });
     const verifierPending = await Property.countDocuments({ status: "advisor_verified" });
     const corrections = await Property.countDocuments({ status: "correction_required" });
     const verifiedProperties = await Property.countDocuments({ status: "verified" });
     const rejectedProperties = await Property.countDocuments({ status: "rejected" });
-    
+
     const activeDeals = await Deal.countDocuments({ status: { $nin: ["completed", "cancelled", "rejected"] } });
-    
+
     // Sum total commissions for completed deals
     const completedDeals = await Deal.find({ status: "completed" });
     const commissionEarned = completedDeals.reduce((sum, deal) => sum + (deal.commissionAmount * 2), 0); // Both sides
@@ -109,9 +110,104 @@ router.get("/dashboard/summary", authGuard, roleGuard("admin"), async (req, res)
 router.get("/properties", authGuard, roleGuard("admin"), async (req, res) => {
   try {
     const { status } = req.query;
-    const query = status ? { status } : {};
+    const query: any = status ? { status } : {};
+
+    // Exclude suspended users
+    const suspendedUsers = await User.find({ isSuspended: true }).select('_id');
+    const suspendedUserIds = suspendedUsers.map(u => u._id);
+    if (suspendedUserIds.length > 0) {
+      query.ownerId = { $nin: suspendedUserIds };
+    }
+
     const properties = await Property.find(query).populate("ownerId", "name mobile").sort("-createdAt");
     res.json(properties);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET /admin/users
+router.get("/users", authGuard, roleGuard("admin"), async (req, res) => {
+  try {
+    const users = await User.find({ role: "user" })
+      .select("name mobile email role createdAt isVerifiedIdentity demoKycComplete isSuspended")
+      .sort({ createdAt: -1 });
+    res.json(users);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET /admin/users/:userId/properties
+router.get("/users/:userId/properties", authGuard, roleGuard("admin"), async (req, res) => {
+  try {
+    const properties = await Property.find({ ownerId: req.params.userId }).sort("-createdAt");
+    res.json(properties);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Toggle user suspension
+router.put("/users/:userId/suspend", authGuard, roleGuard("admin"), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId);
+    if (!user || user.role !== "user") return res.status(404).json({ message: "User not found" });
+    console.log("before " + user.isSuspended);
+
+    user.isSuspended = !user.isSuspended;
+
+    console.log("before save" + user.isSuspended);
+    await user.save();
+    console.log("after save" + user.isSuspended);
+    res.json(user);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Toggle staff active status
+router.put("/staff/:staffId/status", authGuard, roleGuard("admin"), async (req, res) => {
+  try {
+    const staff = await User.findById(req.params.staffId);
+    if (!staff || !["advisor", "verifier"].includes(staff.role)) return res.status(404).json({ message: "Staff not found" });
+    staff.isActive = !staff.isActive;
+    await staff.save();
+    res.json(staff);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get user transactions
+router.get("/users/:userId/transactions", authGuard, roleGuard("admin"), async (req, res) => {
+  try {
+    const inquiries = await Inquiry.find({ $or: [{ buyerId: req.params.userId }, { sellerId: req.params.userId }] }).populate("propertyId", "title price type location");
+    const deals = await Deal.find({ $or: [{ buyerId: req.params.userId }, { sellerId: req.params.userId }] }).populate("propertyId", "title price type location");
+    res.json({ inquiries, deals });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get staff workload
+router.get("/staff/:staffId/workload", authGuard, roleGuard("admin"), async (req, res) => {
+  try {
+    const staffId = req.params.staffId;
+    const assignedProps = await Property.find({ $or: [{ assignedAdvisorId: staffId }, { assignedVerifierId: staffId }] }).select("title status createdAt location");
+    const verifiedHistory = await Property.find({ "history.userId": staffId }).select("title status createdAt location");
+    res.json({ assigned: assignedProps, history: verifiedHistory });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get property audit
+router.get("/properties/:propertyId/audit", authGuard, roleGuard("admin"), async (req, res) => {
+  try {
+    const prop = await Property.findById(req.params.propertyId).populate("history.userId", "name role").select("history documents");
+    if (!prop) return res.status(404).json({ message: "Property not found" });
+    res.json(prop);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
