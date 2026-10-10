@@ -26,7 +26,13 @@ export const adminService = {
   },
   async getUserProperties(userId: string): Promise<any[]> {
     const response = await api.get(`/admin/users/${userId}/properties`);
-    return response.data;
+    return response.data.map((p: any) => ({
+      ...p,
+      media: p.media ? {
+        ...p.media,
+        photos: p.media.photos?.map((photo: string) => photo.replace("http://malikse.onrender.com", "https://malikse.onrender.com"))
+      } : p.media
+    }));
   },
   async suspendUser(userId: string): Promise<any> {
     const response = await api.put(`/admin/users/${userId}/suspend`);

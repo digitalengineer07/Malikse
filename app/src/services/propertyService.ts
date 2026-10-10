@@ -17,17 +17,33 @@ export const propertyService = {
 
   async getMyProperties(): Promise<Property[]> {
     const res = await api.get("/properties/mine");
-    return res.data;
+    return res.data.map((p: any) => ({
+      ...p,
+      media: p.media ? {
+        ...p.media,
+        photos: p.media.photos?.map((photo: string) => photo.replace("http://malikse.onrender.com", "https://malikse.onrender.com"))
+      } : p.media
+    }));
   },
 
   async searchProperties(filters: PropertySearchFilters): Promise<Property[]> {
     const res = await api.get("/properties/search", { params: filters });
-    return res.data;
+    return res.data.map((p: any) => ({
+      ...p,
+      media: p.media ? {
+        ...p.media,
+        photos: p.media.photos?.map((photo: string) => photo.replace("http://malikse.onrender.com", "https://malikse.onrender.com"))
+      } : p.media
+    }));
   },
 
   async getPropertyById(id: string): Promise<Property> {
     const res = await api.get(`/properties/${id}`);
-    return res.data;
+    const p = res.data;
+    if (p.media && p.media.photos) {
+      p.media.photos = p.media.photos.map((photo: string) => photo.replace("http://malikse.onrender.com", "https://malikse.onrender.com"));
+    }
+    return p;
   },
 
   async updateProperty(id: string, data: Partial<Property>): Promise<Property> {
