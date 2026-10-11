@@ -2,8 +2,8 @@
   "expo": {
     "name": "MalikSe",
     "slug": "malikse",
-    "version": "1.0.0",
-    "orientation": "portrait",
+    "version": "2.1.0",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "malikse",
     "userInterfaceStyle": "automatic",
@@ -16,7 +16,8 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.devoxa.malikse"
+      "package": "com.devoxa.malikse",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "output": "single",

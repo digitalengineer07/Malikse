@@ -22,10 +22,16 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
   
   useFocusEffect(useCallback(() => {
     let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     if (user?.role !== role || authState !== "AUTHENTICATED") return;
     setLoading(true); setError("");
-    workflowService.queue(role).then(data => { if (active) setProperties(data); }).catch((cause) => { if (active) { setProperties([]); setError(cause.response?.data?.message || "Could not load properties"); } }).finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    const refresh = () => workflowService.queue(role).then(data => {
+      if (!active) return;
+      setProperties(data);
+      if (data.some(property => property.status === "queued")) timer = setTimeout(refresh, 3000);
+    }).catch((cause) => { if (active) { setProperties([]); setError(cause.response?.data?.message || "Could not load properties"); } }).finally(() => { if (active) setLoading(false); });
+    void refresh();
+    return () => { active = false; clearTimeout(timer); };
   // Refresh on account changes and explicit reloads, even when the role is unchanged.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.role, authState, role, revision]));
@@ -39,7 +45,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
     finally { setBusy(false); }
   };
   const filtered = properties.filter(property => filter === "all" || property.status === filter);
-  const filterOptions = ["all", "draft", "pending", "advisor_verified", "correction_required", "rejected", "verified"].filter(status => role === "user" || role === "admin" || status !== "draft");
+  const filterOptions = ["all", "draft", "queued", "pending", "advisor_verified", "correction_required", "rejected", "verified"].filter(status => role === "user" || role === "admin" || !["draft", "queued"].includes(status));
   
   return <WorkflowScreen title={role === "user" ? "My listings" : role === "admin" ? "Property verification tracking" : `${role === "advisor" ? "Advisor" : "Verifier"} review queue`}>
     <View style={[ui.row, { justifyContent: "space-between", zIndex: 10 }]}>

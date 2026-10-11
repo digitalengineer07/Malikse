@@ -6,7 +6,7 @@ export interface AuthRequest extends Request {
   user?: { id: string; role: string };
 }
 
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || "dev_access_secret";
+import { ACCESS_SECRET } from "../services/security";
 
 /**
  * Verifies the Bearer JWT in the Authorization header.

@@ -10,7 +10,6 @@ import api from "../src/services/authService";
 import MiniMapPreview from "./MiniMapPreview";
 import PublicPropertyDetails from "./PublicPropertyDetails";
 import OfferSheet from "./OfferSheet";
-import { dealService } from "../src/services/dealService";
 import { inquiryService } from "../src/services/inquiryService";
 import { userService } from "../src/services/userService";
 import { AppTheme } from "../constants/theme";
@@ -97,8 +96,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
     {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}
     {showOffer && <Modal transparent animationType="slide" onRequestClose={() => setShowOffer(false)}><View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "#10233470" }}><ScrollView style={{ maxHeight: "85%", width: "100%", maxWidth: 650, alignSelf: "center", backgroundColor: "white", borderTopLeftRadius: 28, borderTopRightRadius: 28 }}><OfferSheet propertyId={id} askingPrice={property.price} onCancel={() => setShowOffer(false)} onSubmit={async amount => {
       setError("");
-      try { await inquiryService.submitInquiry({ propertyId: id, message: "I would like to make an offer.", offerAmount: amount }); setShowOffer(false); setOfferResult("Your offer was submitted."); }
-      catch (cause: any) { setError(cause.response?.data?.error || "Could not submit offer"); }
+      await inquiryService.submitInquiry({ propertyId: id, message: "I would like to make an offer.", offerAmount: amount }); setShowOffer(false); setOfferResult("Your offer was submitted.");
     }} /></ScrollView></View></Modal>}
     {!!offerResult && <Text style={ui.text}>{offerResult}</Text>}
   </PublicPropertyDetails>;
@@ -130,8 +128,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
         }} />}
         {publicView && showOffer && <OfferSheet propertyId={id} askingPrice={property.price} onCancel={() => setShowOffer(false)} onSubmit={async amount => {
           setError("");
-          try { await inquiryService.submitInquiry({ propertyId: id, message: "I would like to make an offer.", offerAmount: amount }); setShowOffer(false); setOfferResult("Your offer was submitted."); }
-          catch (cause: any) { setError(cause.response?.data?.error || "Could not submit offer"); }
+          await inquiryService.submitInquiry({ propertyId: id, message: "I would like to make an offer.", offerAmount: amount }); setShowOffer(false); setOfferResult("Your offer was submitted.");
         }} />}
         {!!offerResult && <Text style={ui.text}>{offerResult}</Text>}
       </View>
@@ -165,15 +162,16 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
           {(() => {
             const missing: string[] = [];
             if (keys.some(key => !checklist[key])) missing.push("tick all checklist items");
+            if (notes.trim().length < 5) missing.push("add at least 5 characters of report notes");
             if (signature.trim().length < 2) missing.push("enter your full name as signature");
             if (missing.length > 0) return <Text style={ui.muted}>To approve: {missing.join(" · ")}.</Text>;
             return <Text style={ui.muted}>All set — pick an action below.</Text>;
           })()}
-          <View style={ui.row}>{(["approve", "correction", "reject"] as const).map(decision => <Action key={decision} title={decision === "approve" ? user?.role === "advisor" ? "Approve → Verifier" : "Approve and publish" : decision === "correction" ? "Request corrections" : "Reject"} disabled={busy || signature.trim().length < 2 || (decision !== "approve" && notes.trim().length < 5) || (decision === "approve" && keys.some(key => !checklist[key]))} secondary={decision !== "approve"} onPress={() => run(() => workflowService.review(id, { decision, notes, signature, checklist, gpsCheckIn: gps }))} />)}</View>
+          <View style={ui.row}>{(["approve", "correction", "reject"] as const).map(decision => <Action key={decision} title={decision === "approve" ? user?.role === "advisor" ? "Approve → Verifier" : "Approve and publish" : decision === "correction" ? "Request corrections" : "Reject"} disabled={busy || signature.trim().length < 2 || notes.trim().length < 5 || (decision === "approve" && keys.some(key => !checklist[key]))} secondary={decision !== "approve"} onPress={() => run(() => workflowService.review(id, { decision, notes, signature, checklist, gpsCheckIn: gps }))} />)}</View>
         </View>}
         {user?.role === "admin" && ["pending", "advisor_verified"].includes(property.status) && <View style={ui.card}>
           <Text style={ui.heading}>Assign / reassign reviewer</Text>
-          {!staff.some(person => person.role === (property.status === "pending" ? "advisor" : "verifier")) && <Text style={ui.muted}>Create an account for this reviewer role first.</Text>}
+          {!staff.some(person => person.isActive !== false && person.role === (property.status === "pending" ? "advisor" : "verifier")) && <Text style={ui.muted}>Create an account for this reviewer role first.</Text>}
           {staff.filter(person => person.role === (property.status === "pending" ? "advisor" : "verifier")).map(person => <Action key={person.id} title={`${person.name} (${person.mobile})`} secondary disabled={busy} onPress={() => run(() => workflowService.assign(id, person.id))} />)}
           <Action title="Manage staff accounts" secondary onPress={() => router.push("/admin/staff")} />
         </View>}

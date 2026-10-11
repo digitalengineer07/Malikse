@@ -1,6 +1,7 @@
 export type MapPoint = { lat: number; lng: number };
 export type MapPin = MapPoint & { id: string; label: string; title: string };
-export type NativeMapOptions = { pins?: MapPin[]; points?: MapPoint[]; editable?: boolean };
+export type MapFocus = MapPoint & { zoom: number };
+export type NativeMapOptions = { pins?: MapPin[]; points?: MapPoint[]; editable?: boolean; focus?: MapFocus };
 
 export function validMapPoint(point: MapPoint): boolean {
   return !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
@@ -16,7 +17,7 @@ function send(type,payload){window.ReactNativeWebView && window.ReactNativeWebVi
 </script><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="send('error')"></script><script>
 try {
 const data=${data};
-const map=L.map('map',{scrollWheelZoom:false}).setView([25.6,85.1],7);
+const map=L.map('map',{scrollWheelZoom:false,zoomControl:false}).setView([25.6,85.1],7);
 const tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
 let loaded=false;
 tiles.on('tileload',()=>{if(!loaded){loaded=true;send('ready');}});
@@ -39,7 +40,8 @@ data.pins.forEach(pin=>{
  bounds.push([pin.lat,pin.lng]);
 });
 points.forEach(p=>bounds.push([p.lat,p.lng]));
-if(bounds.length)map.fitBounds(bounds,{padding:[50,50],maxZoom:points.length?18:14});
+if(data.focus && Number.isFinite(data.focus.lat) && Number.isFinite(data.focus.lng) && Math.abs(data.focus.lat)<=90 && Math.abs(data.focus.lng)<=180 && Number.isFinite(data.focus.zoom))map.setView([data.focus.lat,data.focus.lng],Math.max(1,Math.min(19,data.focus.zoom)));
+else if(bounds.length)map.fitBounds(bounds,{padding:[50,50],maxZoom:points.length?18:14});
 if(data.editable){
  const tools=document.createElement('div');tools.className='tools';
  function button(label,action){const b=document.createElement('button');b.textContent=label;b.onclick=action;tools.appendChild(b);return b;}

@@ -5,16 +5,18 @@ import { nativeMapHtml, validMapPoint, type NativeMapOptions, type MapPoint } fr
 
 export default function NativeLeafletMap({ options, onSelect, onPoints }: { options: NativeMapOptions; onSelect?: (id: string) => void; onPoints?: (points: MapPoint[]) => void }) {
   const html = useMemo(() => nativeMapHtml(options), [options]);
-  const source = useMemo(() => ({ html, baseUrl: "https://malikse.local/" }), [html]);
   const [attempt, setAttempt] = useState(0);
+  return <NativeMapContent key={html + attempt} html={html} options={options} onSelect={onSelect} onPoints={onPoints} retry={() => setAttempt(value => value + 1)} />;
+}
+function NativeMapContent({ html, options, onSelect, onPoints, retry }: { html: string; options: NativeMapOptions; onSelect?: (id: string) => void; onPoints?: (points: MapPoint[]) => void; retry: () => void }) {
+  const source = useMemo(() => ({ html, baseUrl: "https://malikse.local/" }), [html]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   useEffect(() => {
-    setStatus("loading");
     const timeout = setTimeout(() => setStatus(current => current === "loading" ? "error" : current), 20000);
     return () => clearTimeout(timeout);
-  }, [html, attempt]);
+  }, []);
   return <View style={styles.container}>
-    <WebView key={attempt} source={source} originWhitelist={["*"]} javaScriptEnabled scrollEnabled={false} nestedScrollEnabled style={styles.webview}
+    <WebView source={source} originWhitelist={["*"]} javaScriptEnabled scrollEnabled={false} nestedScrollEnabled style={styles.webview}
       onShouldStartLoadWithRequest={request => {
         if (request.url === "about:blank" || request.url === "https://malikse.local/") return true;
         if (request.url.startsWith("https://www.openstreetmap.org/")) Linking.openURL(request.url).catch(() => {});
@@ -31,7 +33,7 @@ export default function NativeLeafletMap({ options, onSelect, onPoints }: { opti
         } catch { /* Ignore invalid bridge messages. */ }
       }} />
     {status !== "ready" && <View style={styles.overlay}>
-      {status === "loading" ? <><ActivityIndicator color="#1A365D" /><Text style={styles.text}>Loading map…</Text></> : <><Text style={styles.text}>Map could not load. Check your internet connection and try again.</Text><TouchableOpacity accessibilityRole="button" style={styles.retry} onPress={() => setAttempt(value => value + 1)}><Text style={styles.retryText}>Retry map</Text></TouchableOpacity></>}
+      {status === "loading" ? <><ActivityIndicator color="#1A365D" /><Text style={styles.text}>Loading map…</Text></> : <><Text style={styles.text}>Map could not load. Check your internet connection and try again.</Text><TouchableOpacity accessibilityRole="button" style={styles.retry} onPress={retry}><Text style={styles.retryText}>Retry map</Text></TouchableOpacity></>}
     </View>}
   </View>;
 }

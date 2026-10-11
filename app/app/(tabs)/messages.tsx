@@ -1,22 +1,26 @@
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import ExpandableSearch from "../../components/ExpandableSearch";
+import FrostedChatBackground from "../../components/FrostedChatBackground";
+import { AppTheme } from "../../constants/theme";
+import TextInput from "../../components/FormInput";
 import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   ScrollView,
-  TextInput,
   Modal,
   Platform,
   KeyboardAvoidingView,
   ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { Redirect, useFocusEffect } from "expo-router";
+import type { UserProfile } from "../../src/types/auth.types";
+import { inquiryActivity } from "../../src/utils/inquiryActivity";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import AppHeader from "../../components/AppHeader";
 import { useLanguageStore } from "../../src/store/languageStore";
-import { t } from "../../src/i18n/translations";
 import { useAuthStore } from "../../src/store/authStore";
 import { inquiryService, InquiryData } from "../../src/services/inquiryService";
 
@@ -43,6 +47,7 @@ interface TagItem {
 
 interface Conversation {
   id: string;
+  activityAt: string;
   name: string;
   role: string;
   roleType: "owner" | "advisor" | "buyer";
@@ -61,8 +66,15 @@ interface Conversation {
 
 // Removed hardcoded INITIAL_CONVERSATIONS
 
-export default function MessagesScreenMobile() {
-  const router = useRouter();
+export default function MessagesScreen() {
+  const { user, authState, hydrated } = useAuthStore();
+  if (!hydrated) return <ActivityIndicator />;
+  if (!user || authState !== "AUTHENTICATED") return <Redirect href="/login" />;
+  return <MessagesContent key={user.id} user={user} />;
+}
+
+function MessagesContent({ user }: { user: UserProfile }) {
+  const chatInsets = useSafeAreaInsets();
   const { language } = useLanguageStore();
 
   // Inject Google Fonts for authentic cursive script on web
@@ -80,7 +92,6 @@ export default function MessagesScreenMobile() {
     }
   }, []);
 
-  const user = useAuthStore(state => state.user);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"all" | "unread" | "archived">("all");
@@ -91,12 +102,8 @@ export default function MessagesScreenMobile() {
   const [selectedChat, setSelectedChat] = useState<Conversation | null>(null);
   const [replyText, setReplyText] = useState<string>("");
 
-  useEffect(() => {
+  useFocusEffect(React.useCallback(() => {
     let active = true;
-    if (!user) {
-      setLoading(false);
-      return;
-    }
     
     const fetchInquiries = () => Promise.all([
       inquiryService.getSentInquiries().catch(() => [] as InquiryData[]),
@@ -106,12 +113,15 @@ export default function MessagesScreenMobile() {
       const all = [...sent, ...received];
       const mapped = all.map(i => {
         const buyerIdStr = typeof i.buyerId === "object" && i.buyerId !== null ? i.buyerId._id : i.buyerId;
-        const sellerIdStr = typeof i.sellerId === "object" && i.sellerId !== null ? i.sellerId._id : i.sellerId;
         const isBuyer = buyerIdStr === user.id;
         
         const otherPerson = isBuyer ? i.sellerId : i.buyerId;
         const otherName = otherPerson?.name || "Unknown User";
         const isOffer = !!i.offerAmount;
+        const activity = inquiryActivity(i, user.id);
+        if (selectedChat?.id === i._id && activity.unread) {
+          inquiryService.markRead(i._id, activity.activityAt).catch(() => {});
+        }
         
         return {
           id: i._id,
@@ -122,10 +132,7 @@ export default function MessagesScreenMobile() {
           avatarColor: isBuyer ? "#0D9488" : "#C2410C",
           verified: false,
           property: i.propertyId?.title || "Property Listing",
-          lastMsg: isOffer ? `Offer of ₹${i.offerAmount?.toLocaleString("en-IN")} submitted` : i.message,
-          time: new Date(i.createdAt).toLocaleDateString(),
-          timestampNum: new Date(i.createdAt).getTime(),
-          unread: false,
+          ...activity,
           tag1: isOffer ? {
             label: "Offer Submitted",
             icon: "payments",
@@ -182,7 +189,7 @@ export default function MessagesScreenMobile() {
     const intervalId = setInterval(fetchInquiries, 5000);
 
     return () => { active = false; clearInterval(intervalId); };
-  }, [user, selectedChat?.id]);
+  }, [user, selectedChat?.id]));
 
   // Unread count
   const unreadCount = useMemo(() => {
@@ -207,7 +214,7 @@ export default function MessagesScreenMobile() {
         (c) =>
           c.name.toLowerCase().includes(q) ||
           c.property.toLowerCase().includes(q) ||
-          c.lastMsg.toLowerCase().includes(q)
+          c.lastMsg.toLowerCase().includes(q) || c.messages.some(message => message.text.toLowerCase().includes(q))
       );
     }
 
@@ -225,6 +232,7 @@ export default function MessagesScreenMobile() {
 
   const handleOpenChat = (c: Conversation) => {
     setSelectedChat(c);
+    inquiryService.markRead(c.id, c.activityAt).catch(() => {});
     // Mark conversation as read
     if (c.unread) {
       setConversations((prev) =>
@@ -352,22 +360,7 @@ export default function MessagesScreenMobile() {
 
         {/* ================= 3. SEARCH & SORT ROW ================= */}
         <View style={styles.searchSortRow}>
-          {/* Search bar */}
-          <View style={styles.searchBar}>
-            <MaterialIcons name="search" size={18} color="#64748B" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search messages by name, property, or keywords..."
-              placeholderTextColor="#94A3B8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery("")} activeOpacity={0.7}>
-                <MaterialIcons name="close" size={16} color="#94A3B8" />
-              </TouchableOpacity>
-            )}
-          </View>
+          <ExpandableSearch value={searchQuery} onChangeText={setSearchQuery} language={language} />
 
           {/* Sort Dropdown */}
           <TouchableOpacity
@@ -639,6 +632,7 @@ export default function MessagesScreenMobile() {
       {selectedChat && (
         <Modal
           visible={true}
+          transparent
           animationType="slide"
           onRequestClose={() => setSelectedChat(null)}
         >
@@ -646,9 +640,11 @@ export default function MessagesScreenMobile() {
             style={styles.chatModalContainer}
             behavior={Platform.OS === "ios" ? "padding" : undefined}
           >
+            <FrostedChatBackground />
             {/* Chat Top Bar */}
-            <View style={styles.chatHeader}>
+            <View style={[styles.chatHeader, { paddingTop: chatInsets.top + 12 }]}>
               <TouchableOpacity
+                accessibilityRole="button" accessibilityLabel="Close conversation"
                 style={styles.chatBackBtn}
                 onPress={() => setSelectedChat(null)}
                 activeOpacity={0.7}
@@ -764,7 +760,7 @@ export default function MessagesScreenMobile() {
             </ScrollView>
 
             {/* Chat Composer Input Row */}
-            <View style={styles.chatComposer}>
+            <View style={[styles.chatComposer, { paddingBottom: chatInsets.bottom + 12 }]}>
               <TouchableOpacity style={styles.composerAttachBtn} activeOpacity={0.7}>
                 <MaterialIcons name="attach-file" size={20} color="#64748B" />
               </TouchableOpacity>
@@ -856,14 +852,14 @@ const styles = StyleSheet.create({
   heroCategoryLabel: {
     fontSize: 10.5,
     fontWeight: "800",
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     letterSpacing: 1.2,
     textTransform: "uppercase",
   },
   heroHeadline: {
     fontSize: 20.5,
     fontWeight: "900",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     lineHeight: 25,
     letterSpacing: -0.4,
     marginTop: 3,
@@ -925,47 +921,30 @@ const styles = StyleSheet.create({
   heroPillTitle: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   heroPillSub: {
     fontSize: 8.5,
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "600",
     marginTop: 1,
   },
 
   /* ================= SEARCH & SORT ROW ================= */
   searchSortRow: {
+    flexWrap: "wrap",
     marginHorizontal: 16,
     marginBottom: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
-  searchBar: {
-    flex: 1,
-    height: 42,
-    backgroundColor: "transparent",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 12.5,
-    color: "#0F172A",
-    outlineStyle: "none" as any,
-  },
   sortButton: {
     height: 42,
     backgroundColor: "transparent",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
@@ -979,7 +958,7 @@ const styles = StyleSheet.create({
   sortButtonText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
 
   /* ================= SEGMENTED TABS ================= */
@@ -1010,7 +989,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 12.5,
     fontWeight: "600",
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
   },
   tabTextActive: {
     color: "#065F46",
@@ -1043,7 +1022,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
@@ -1076,7 +1055,7 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: "#059669",
+    backgroundColor: AppTheme.colors.primary,
     borderWidth: 2,
     borderColor: "#FFFFFF",
     justifyContent: "center",
@@ -1094,7 +1073,7 @@ const styles = StyleSheet.create({
   senderName: {
     fontSize: 13.5,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     flex: 1,
     marginRight: 6,
   },
@@ -1105,14 +1084,14 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 11,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "600",
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#059669",
+    backgroundColor: AppTheme.colors.primary,
   },
   propertyRow: {
     flexDirection: "row",
@@ -1122,7 +1101,7 @@ const styles = StyleSheet.create({
   },
   propertyText: {
     fontSize: 11.5,
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "600",
     flex: 1,
   },
@@ -1168,18 +1147,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     marginTop: 10,
   },
   emptyTitle: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     marginTop: 10,
   },
   emptySub: {
     fontSize: 12,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     marginTop: 4,
     textAlign: "center",
   },
@@ -1207,7 +1186,7 @@ const styles = StyleSheet.create({
   sortModalTitle: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     marginBottom: 14,
   },
   sortOptionRow: {
@@ -1224,7 +1203,7 @@ const styles = StyleSheet.create({
   sortOptionText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     flex: 1,
   },
   sortOptionTextActive: {
@@ -1249,6 +1228,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   chatBackBtn: {
+    minWidth: 44, minHeight: 44, justifyContent: "center", alignItems: "center",
     padding: 4,
   },
   chatHeaderAvatar: {
@@ -1269,11 +1249,11 @@ const styles = StyleSheet.create({
   chatHeaderName: {
     fontSize: 13.5,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   chatHeaderProp: {
     fontSize: 11,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "500",
     marginTop: 1,
   },
@@ -1338,7 +1318,7 @@ const styles = StyleSheet.create({
   msgBubbleThem: {
     backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     borderBottomLeftRadius: 4,
   },
   msgBubbleMe: {
@@ -1350,7 +1330,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   msgTextThem: {
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   msgTextMe: {
     color: "#FFFFFF",
@@ -1370,7 +1350,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     padding: 8,
     flexDirection: "row",
     alignItems: "center",
@@ -1388,11 +1368,11 @@ const styles = StyleSheet.create({
   attachmentTitle: {
     fontSize: 11.5,
     fontWeight: "700",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   attachmentSize: {
     fontSize: 10,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     marginTop: 1,
   },
   attachmentDownloadBtn: {
@@ -1420,14 +1400,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     fontSize: 13,
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     outlineStyle: "none" as any,
   },
   composerSendBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#059669",
+    backgroundColor: AppTheme.colors.primary,
     justifyContent: "center",
     alignItems: "center",
   },

@@ -1,6 +1,12 @@
 # MalikSe scalability architecture
 
 Status: proposed architecture, not implemented or capacity-certified.
+Implementation update: the current backend now includes a MongoDB-backed
+submission queue with leases/retries, shared round-robin assignment, three
+secondary search indexes, bounded page-based search and a 15-second candidate-ID
+cache. See README for the implemented behavior and tests. The Redis/outbox,
+cursor-pagination, distributed search and capacity architecture below remains
+proposed; these initial features do not establish the target capacity.
 Target: 10,000,000 simultaneous active users. Preserve Expo, Express,
 TypeScript, Mongoose, MongoDB, and the existing app/server directory structure.
 

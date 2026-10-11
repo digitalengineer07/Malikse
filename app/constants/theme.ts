@@ -5,26 +5,25 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
 const tintColorDark = '#fff';
 
 export const AppTheme = {
   colors: {
-    primary: '#4A90E2', // Soft Blue
-    primaryDark: '#357ABD',
-    primaryLight: '#D0E3F5',
-    accent: '#63B3ED', // Lighter Blue
-    accentLight: '#EBF8FF',
+    primary: '#245B78', // Soft Blue
+    primaryDark: '#19445C',
+    primaryLight: '#E8F1F6',
+    accent: '#245B78', // Lighter Blue
+    accentLight: '#E8F1F6',
     background: 'transparent', // Make screens transparent for shared gradient background
-    card: '#FFFFFF',
+    card: 'rgba(255,255,255,0.72)',
     cardSolid: '#FFFFFF',
-    cardBorder: 'rgba(255, 255, 255, 0.8)',
-    text: '#1E293B',
-    textSecondary: '#475569',
-    textMuted: '#94A3B8',
+    cardBorder: 'rgba(255,255,255,0.8)',
+    text: '#172B3A',
+    textSecondary: '#526575',
+    textMuted: '#526575',
     white: '#FFFFFF',
-    border: 'rgba(255, 255, 255, 0.5)',
-    divider: 'rgba(255, 255, 255, 0.4)',
+    border: '#D6E0E8',
+    divider: '#D6E0E8',
     success: '#10B981',
     successBg: '#ECFDF5',
     warning: '#F59E0B',
@@ -73,15 +72,15 @@ export const AppTheme = {
 export const Colors = {
   light: {
     text: '#0F172A',
-    background: 'transparent',
-    tint: '#059669',
+    background: '#F5F7FA',
+    tint: '#245B78',
     icon: '#64748B',
-    tabIconDefault: '#94A3B8',
-    tabIconSelected: '#059669',
+    tabIconDefault: '#526575',
+    tabIconSelected: '#245B78',
   },
   dark: {
     text: '#ECEDEE',
-    background: 'transparent',
+    background: '#F5F7FA',
     tint: tintColorDark,
     icon: '#9BA1A6',
     tabIconDefault: '#9BA1A6',

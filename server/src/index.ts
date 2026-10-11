@@ -12,7 +12,10 @@ import advisorRoutes from "./routes/advisor.routes";
 import adminRoutes from "./routes/admin.routes";
 import userRoutes from "./routes/user.routes";
 import inquiryRoutes from "./routes/inquiry.routes";
-import { photoDirectory } from "./services/propertyPhotos";
+import photoRoutes from "./routes/photo.routes";
+import { startSubmissionWorker } from "./services/submissionQueue";
+import { Property } from "./models/Property.model";
+import { SearchCache } from "./models/SearchCache.model";
 
 dotenv.config();
 
@@ -23,34 +26,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({ origin: "*", credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-import fs from "fs";
-import path from "path";
-
-// Only public property photography is served here, never ownership documents.
-app.get("/property-photos/:filename", async (req, res, next) => {
-  try {
-    const filename = req.params.filename;
-    if (mongoose.connection.readyState === 1) {
-      const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db!, { bucketName: "photos" });
-      const files = await bucket.find({ filename }).toArray();
-      if (files.length > 0) {
-        const file = files[0];
-        res.setHeader("Content-Type", file.contentType || "image/jpeg");
-        res.setHeader("X-Content-Type-Options", "nosniff");
-        return bucket.openDownloadStream(file._id).pipe(res);
-      }
-    }
-    // Fallback to local disk
-    const localPath = path.join(photoDirectory, filename);
-    if (fs.existsSync(localPath)) {
-      res.setHeader("X-Content-Type-Options", "nosniff");
-      return res.sendFile(localPath);
-    }
-    res.status(404).send("File not found");
-  } catch (error) {
-    res.status(500).send("Error fetching photo");
-  }
-});
+app.use("/property-photos", photoRoutes);
 // Ownership documents are served only through authorized, expiring document links.
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -71,11 +47,19 @@ const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/malikse";
 
 mongoose
   .connect(MONGO_URI)
-  .then(() => {
+  .then(async () => {
+    await Promise.all([Property.createIndexes(), SearchCache.createIndexes()]);
     console.log(`[MalikSe] MongoDB connected`);
-    app.listen(PORT, () => {
+    const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => {} : startSubmissionWorker();
+    const server = app.listen(PORT, () => {
       console.log(`[MalikSe] Server running on http://localhost:${PORT}`);
     });
+    const shutdown = async () => {
+      await Promise.all([new Promise<void>(resolve => server.close(() => resolve())), stopWorker()]);
+      await mongoose.disconnect();
+    };
+    process.once("SIGTERM", shutdown);
+    process.once("SIGINT", shutdown);
   })
   .catch((err) => {
     console.error("[MalikSe] MongoDB connection error:", err);

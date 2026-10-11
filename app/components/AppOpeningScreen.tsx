@@ -15,10 +15,10 @@ export default function AppOpeningScreen({ onFinish, ready = true }: { onFinish?
   const compact = height < 650;
   const [minimumElapsed, setMinimumElapsed] = useState(false);
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
-  const sweep = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
+  const [sweep] = useState(() => new Animated.Value(0));
+  const [opacity] = useState(() => new Animated.Value(1));
   const finishRef = useRef(onFinish);
-  finishRef.current = onFinish;
+  useEffect(() => { finishRef.current = onFinish; }, [onFinish]);
 
   useEffect(() => {
     let mounted = true;

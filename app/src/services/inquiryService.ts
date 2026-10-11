@@ -8,16 +8,21 @@ export interface InquiryData {
   message: string;
   offerAmount?: number;
   status: "pending" | "accepted" | "rejected" | "countered";
-  messages?: Array<{
+  buyerReadAt?: string;
+  sellerReadAt?: string;
+  messages?: {
     _id: string;
     senderId: string;
     text: string;
     createdAt: string;
-  }>;
+  }[];
   createdAt: string;
 }
 
 export const inquiryService = {
+  async markRead(inquiryId: string, through: string): Promise<void> {
+    await api.post(`/inquiries/${inquiryId}/read`, { through });
+  },
   async submitInquiry(data: { propertyId: string; message: string; offerAmount?: number }): Promise<InquiryData> {
     const res = await api.post("/inquiries", data);
     return res.data;

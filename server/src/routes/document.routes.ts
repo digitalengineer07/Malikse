@@ -12,7 +12,7 @@ import { canReadProperty } from "../services/propertyWorkflow";
 
 const router = Router();
 const uploadDir = path.join(__dirname, "../../uploads");
-const secret = process.env.JWT_ACCESS_SECRET || "dev_access_secret";
+import { ACCESS_SECRET as secret, accountEnabled, apiOrigin } from "../services/security";
 const upload = multer({ storage: multer.diskStorage({
   destination: (_req, _file, cb) => { fs.mkdirSync(uploadDir, { recursive: true }); cb(null, uploadDir); },
   filename: (_req, file, cb) => cb(null, `${randomUUID()}${path.extname(file.originalname)}`),
@@ -42,7 +42,7 @@ router.get("/", authGuard, async (req: any, res) => {
     const docs = await PropertyDocument.find({ propertyId: property._id }).sort("-createdAt");
     res.json(docs.map(doc => {
       const token = jwt.sign({ docId: doc._id.toString(), actorId: req.user.id, purpose: "document-view" }, secret, { expiresIn: "5m" });
-      return { _id: doc._id, type: doc.type, fileName: doc.fileName, fileSize: doc.fileSize, createdAt: doc.createdAt, fileUrl: `${req.protocol}://${req.get("host")}/documents/${doc._id}/file?token=${token}` };
+      return { _id: doc._id, type: doc.type, fileName: doc.fileName, fileSize: doc.fileSize, createdAt: doc.createdAt, fileUrl: `${apiOrigin(req)}/documents/${doc._id}/file?token=${token}` };
     }));
   } catch (error: any) { res.status(400).json({ message: error.message }); }
 });
@@ -53,6 +53,7 @@ router.get("/:id/file", async (req, res) => {
     if (token.purpose !== "document-view" || token.docId !== req.params.id) return res.sendStatus(403);
     const [doc, actor] = await Promise.all([PropertyDocument.findById(req.params.id), User.findById(token.actorId)]);
     if (!doc || !actor) return res.sendStatus(404);
+    if (!accountEnabled(actor)) return res.sendStatus(403);
     const property = await Property.findById(doc.propertyId);
     if (!property || !canReadProperty(property, { id: actor._id.toString(), role: actor.role })) return res.sendStatus(403);
     res.setHeader("Cache-Control", "no-store");

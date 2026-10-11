@@ -3,7 +3,7 @@
  */
 
 export type PropertyType = "land" | "flat" | "house" | "shop" | "office";
-export type PropertyStatus = "pending" | "advisor_verified" | "correction_required" | "rejected" | "verified" | "sold";
+export type PropertyStatus = "draft" | "queued" | "pending" | "advisor_verified" | "correction_required" | "rejected" | "verified" | "sold";
 
 export interface PropertyBadges {
   identityVerified: boolean;

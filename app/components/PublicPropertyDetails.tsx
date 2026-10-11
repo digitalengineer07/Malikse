@@ -2,7 +2,6 @@ import { premiumStyles } from "../constants/typography";
 import React, { useState } from "react";
 import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View, Modal } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Listing } from "../src/services/workflowService";
 import AppHeader from "./AppHeader";
@@ -11,7 +10,6 @@ import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import { AppTheme } from "../constants/theme";
 
 export default function PublicPropertyDetails({ property: p, onOffer, canOffer, isSaved, onToggleSave, children }: { property: Listing; onOffer: () => void; canOffer: boolean; isSaved?: boolean; onToggleSave?: () => void; children: React.ReactNode }) {
-  const router = useRouter();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [photo, setPhoto] = useState(0);
@@ -20,8 +18,8 @@ export default function PublicPropertyDetails({ property: p, onOffer, canOffer, 
   const photos = (p.media?.photos || []).map(uri => ({ uri }));
   const openLink = (url: string) => { Linking.openURL(url).catch(() => setLinkError("Could not open this link. Please try again.")); };
   const facts = [["Total sq.ft", p.totalArea != null ? p.totalArea.toLocaleString("en-IN") : "—"], ["Sellable sq.ft", p.sellableArea != null ? p.sellableArea.toLocaleString("en-IN") : "—"], ["Type", p.type], ["Price terms", p.negotiable ? "Flexible" : "Fixed"]];
-  return <View style={s.screen}><AppHeader /><View style={s.sheet}><ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} contentContainerStyle={s.content}>
-    <View style={[s.photo, { height: !photos.length ? 210 : width < 600 ? 285 : 340 }]}>{photos[photo] ? <Image source={photos[photo]} style={StyleSheet.absoluteFill} resizeMode="cover" accessibilityLabel={`Property photo ${photo + 1}`} /> : <View style={s.placeholder}><MaterialIcons name="home-work" size={70} color="#789CB5" /><Text style={s.body}>Property photo not provided</Text></View>}<TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to properties" style={s.imageBack} onPress={() => router.canGoBack() ? router.back() : router.replace("/home")}><MaterialIcons name="arrow-back" size={21} color="#172333" /></TouchableOpacity><View style={s.badge}><MaterialIcons name="verified" size={17} color="#315975" /></View>{onToggleSave && <TouchableOpacity accessibilityRole="button" onPress={onToggleSave} style={s.saveBtn}><MaterialIcons name={isSaved ? "favorite" : "favorite-border"} size={22} color={isSaved ? "#E11D48" : "#315975"} /></TouchableOpacity>}{photos.length > 1 && <View style={s.photoControls}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Previous photo" style={s.photoArrow} onPress={() => setPhoto((photo + photos.length - 1) % photos.length)}><MaterialIcons name="chevron-left" size={24} /></TouchableOpacity><Text style={s.label}>{photo + 1} / {photos.length}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Next photo" style={s.photoArrow} onPress={() => setPhoto((photo + 1) % photos.length)}><MaterialIcons name="chevron-right" size={24} /></TouchableOpacity></View>}</View>
+  return <View style={s.screen}><AppHeader showBack fallbackRoute="/home" /><View style={s.sheet}><ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} contentContainerStyle={s.content}>
+    <View style={[s.photo, { height: !photos.length ? 210 : width < 600 ? 285 : 340 }]}>{photos[photo] ? <Image source={photos[photo]} style={StyleSheet.absoluteFill} resizeMode="cover" accessibilityLabel={`Property photo ${photo + 1}`} /> : <View style={s.placeholder}><MaterialIcons name="home-work" size={70} color="#789CB5" /><Text style={s.body}>Property photo not provided</Text></View>}<View style={s.badge}><MaterialIcons name="verified" size={17} color="#315975" /></View>{onToggleSave && <TouchableOpacity accessibilityRole="button" onPress={onToggleSave} style={s.saveBtn}><MaterialIcons name={isSaved ? "favorite" : "favorite-border"} size={22} color={isSaved ? "#E11D48" : "#315975"} /></TouchableOpacity>}{photos.length > 1 && <View style={s.photoControls}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Previous photo" style={s.photoArrow} onPress={() => setPhoto((photo + photos.length - 1) % photos.length)}><MaterialIcons name="chevron-left" size={24} /></TouchableOpacity><Text style={s.label}>{photo + 1} / {photos.length}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Next photo" style={s.photoArrow} onPress={() => setPhoto((photo + 1) % photos.length)}><MaterialIcons name="chevron-right" size={24} /></TouchableOpacity></View>}</View>
     <View style={s.details}>
     <View style={s.summary}><Text style={s.price}>₹{p.price.toLocaleString("en-IN")}</Text><Text accessibilityRole="header" style={s.title}>{p.title || `${p.type} in ${p.location.district}`}</Text><View style={s.location}><MaterialIcons name="location-on" size={19} color="#5D788C" /><Text style={s.body}>{[p.location.mauza, p.location.district, p.location.state].filter(Boolean).join(", ")}</Text></View></View>
     <Text style={s.heading}>Property information</Text><View style={s.facts}>{facts.map(([label, value]) => <View key={label} style={s.fact}><View style={s.factTile}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} style={[s.factValue, value.length > 6 && { fontSize: 13 }]}>{value}</Text></View><Text style={s.factLabel}>{label}</Text></View>)}</View>
@@ -37,7 +35,7 @@ export default function PublicPropertyDetails({ property: p, onOffer, canOffer, 
   
   <Modal visible={mapExpanded} transparent animationType="fade" onRequestClose={() => setMapExpanded(false)}>
     <View style={StyleSheet.absoluteFill}>
-      <VerifiedPropertyMap properties={[p]} onSelect={() => {}} />
+      <VerifiedPropertyMap properties={[{ id: p._id, type: p.type, status: p.status, price: p.price, location: p.location, parcelPoints: p.parcelPoints, title: p.title }]} onSelect={() => {}} />
       <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close map" onPress={() => setMapExpanded(false)} style={[s.closeMapBtn, { top: Math.max(insets.top, 20) }]}>
         <MaterialIcons name="close" size={24} color="#172333" />
       </TouchableOpacity>
@@ -53,8 +51,7 @@ const s = premiumStyles({
   label: { color: AppTheme.colors.text, fontSize: 12, fontWeight: "500" },
   photo: { overflow: "hidden", backgroundColor: AppTheme.colors.primaryLight },
   placeholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-  imageBack: { position: "absolute", left: 21, top: 21, width: 42, height: 42, borderRadius: 21, backgroundColor: AppTheme.colors.card, borderWidth: 1, borderColor: AppTheme.colors.border, alignItems: "center", justifyContent: "center", ...AppTheme.glass },
-  closeMapBtn: { position: "absolute", left: 20, width: 46, height: 46, borderRadius: 23, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center", ...AppTheme.shadows.medium, ...AppTheme.glass },
+  closeMapBtn: { position: "absolute", left: 20, width: 46, height: 46, borderRadius: 23, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center", ...AppTheme.shadows.card, ...AppTheme.glass },
   badge: { position: "absolute", top: 21, right: 21, backgroundColor: AppTheme.colors.card, padding: 11, borderRadius: 24, flexDirection: "row", alignItems: "center", gap: 6, ...AppTheme.glass },
   saveBtn: { position: "absolute", top: 21, right: 155, backgroundColor: AppTheme.colors.card, width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", ...AppTheme.glass },
   photoControls: { position: "absolute", bottom: 16, right: 18, flexDirection: "row", backgroundColor: AppTheme.colors.card, alignItems: "center", gap: 10, borderRadius: 24, padding: 4, ...AppTheme.glass }, photoArrow: { padding: 6 },

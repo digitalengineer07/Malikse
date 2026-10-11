@@ -14,6 +14,8 @@ export interface IInquiry extends Document {
   }>;
   createdAt: Date;
   updatedAt: Date;
+  buyerReadAt?: Date;
+  sellerReadAt?: Date;
 }
 
 const InquirySchema = new Schema<IInquiry>(
@@ -23,6 +25,8 @@ const InquirySchema = new Schema<IInquiry>(
     sellerId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     message: { type: String, required: true },
     offerAmount: { type: Number },
+    buyerReadAt: Date,
+    sellerReadAt: Date,
     status: {
       type: String,
       enum: ["pending", "accepted", "rejected", "countered"],

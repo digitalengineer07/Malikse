@@ -1,3 +1,4 @@
+import TextInput from "./FormInput";
 import { addParcelBaseLayer, parcelStyle } from "../src/utils/parcelMap";
 import React, { useEffect, useState, useRef } from "react";
 import {
@@ -7,9 +8,7 @@ import {
   ActivityIndicator,
   Text,
   TouchableOpacity,
-  TextInput,
-  useWindowDimensions,
-} from "react-native";
+  } from "react-native";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import { useLanguageStore } from "../src/store/languageStore";
 import { t } from "../src/i18n/translations";
@@ -30,8 +29,6 @@ export default function MapParcelPicker({
   onParcelChange,
   areaSqFt = "2,400",
 }: MapParcelPickerProps) {
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 900;
   const { language } = useLanguageStore();
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -62,9 +59,8 @@ export default function MapParcelPicker({
 
   // Synced refs for event listeners
   const pointsRef = useRef<LatLngPoint[]>(points);
-  pointsRef.current = points;
   const isClosedRef = useRef<boolean>(isDrawingClosed);
-  isClosedRef.current = isDrawingClosed;
+  useEffect(() => { pointsRef.current = points; isClosedRef.current = isDrawingClosed; }, [points, isDrawingClosed]);
 
   // Notify the parent after this component commits its own point update.
   useEffect(() => {
@@ -187,157 +183,6 @@ export default function MapParcelPicker({
       fullText: `${formattedSqFt} sq.ft • ${kattha} ${language === "hi" ? "कट्ठा" : "Kattha"} • ${decimal} ${language === "hi" ? "डेसिमल" : "Decimal"}`,
     };
   };
-
-  // Keyboard Shortcuts (Undo with Ctrl+Z / Backspace, Cancel with Esc)
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined") return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-        handleUndo();
-      } else if (e.key === "Escape") {
-        handleClear();
-      } else if (e.key === "Enter" && points.length >= 3 && !isDrawingClosed) {
-        handleFinishBoundary();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [points, history, isDrawingClosed]);
-
-  // Initialize interactive Leaflet map instance
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined") return;
-
-    let isMounted = true;
-
-    import("leaflet").then((leafletModule) => {
-      const L = (leafletModule as any).default || leafletModule;
-      if (!isMounted || !mapContainerRef.current) return;
-
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
-
-      // Initial center
-      const centroid = calculateCentroid(points);
-      const map = L.map(mapContainerRef.current, {
-        center: [centroid.lat, centroid.lng],
-        zoom: 17,
-        zoomControl: false,
-        attributionControl: true,
-        maxZoom: 20,
-      });
-      mapInstanceRef.current = map;
-
-      addParcelBaseLayer(L, map);
-
-      // Map Click to Add New Boundary Point
-      map.on("click", (e: any) => {
-        // If drawing is already closed, don't add points on map click; user can drag handles
-        if (isClosedRef.current && pointsRef.current.length >= 3) return;
-
-        const newPt: LatLngPoint = { lat: e.latlng.lat, lng: e.latlng.lng };
-
-        const previous = pointsRef.current;
-        // Clicking near the first vertex closes an existing polygon.
-        if (previous.length >= 3 && getEdgeDistance(previous[0], newPt).feet < 30) {
-          setIsDrawingClosed(true);
-          isClosedRef.current = true;
-          if (mouseGuideLineRef.current) {
-            map.removeLayer(mouseGuideLineRef.current);
-            mouseGuideLineRef.current = null;
-          }
-          setCursorDistanceFt(null);
-          return;
-        }
-
-        const updated = [...previous, newPt];
-        setHistory((h) => [...h, previous]);
-        setRedoHistory([]);
-        pointsRef.current = updated;
-        setPoints(updated);
-      });
-
-      // Live Rubber-Band Guide Line to Mouse Cursor
-      map.on("mousemove", (e: any) => {
-        const curPts = pointsRef.current;
-        if (curPts.length > 0 && !isClosedRef.current) {
-          const lastPt = curPts[curPts.length - 1];
-          const curPt = { lat: e.latlng.lat, lng: e.latlng.lng };
-
-          if (!mouseGuideLineRef.current) {
-            mouseGuideLineRef.current = L.polyline(
-              [
-                [lastPt.lat, lastPt.lng],
-                [curPt.lat, curPt.lng],
-              ],
-              {
-                color: "#10B981",
-                weight: 2,
-                dashArray: "5, 5",
-                opacity: 0.85,
-              }
-            ).addTo(map);
-          } else {
-            mouseGuideLineRef.current.setLatLngs([
-              [lastPt.lat, lastPt.lng],
-              [curPt.lat, curPt.lng],
-            ]);
-          }
-
-          const dist = getEdgeDistance(lastPt, curPt);
-          setCursorDistanceFt(dist.feet);
-        } else if (mouseGuideLineRef.current) {
-          map.removeLayer(mouseGuideLineRef.current);
-          mouseGuideLineRef.current = null;
-          setCursorDistanceFt(null);
-        }
-      });
-
-      // Mouse Out: hide rubber band line
-      map.on("mouseout", () => {
-        if (mouseGuideLineRef.current) {
-          map.removeLayer(mouseGuideLineRef.current);
-          mouseGuideLineRef.current = null;
-        }
-        setCursorDistanceFt(null);
-      });
-
-      // Double-Click to Finish Shape
-      map.on("dblclick", (e: any) => {
-        e.originalEvent?.stopPropagation();
-        if (pointsRef.current.length >= 3) {
-          setIsDrawingClosed(true);
-          isClosedRef.current = true;
-          if (mouseGuideLineRef.current) {
-            map.removeLayer(mouseGuideLineRef.current);
-            mouseGuideLineRef.current = null;
-          }
-          setCursorDistanceFt(null);
-        }
-      });
-
-      renderParcel(L, map, points);
-    });
-
-    return () => {
-      isMounted = false;
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
-    };
-  }, []);
-
-  // Re-render polygon & vertex markers when points or closed status changes
-  useEffect(() => {
-    if (!mapInstanceRef.current) return;
-    import("leaflet").then((leafletModule) => {
-      const L = (leafletModule as any).default || leafletModule;
-      renderParcel(L, mapInstanceRef.current, points);
-    });
-  }, [points, isDrawingClosed, language]);
 
   // Render Polygon, Draggable Vertex Handles, Midpoint Handles, Dimension Labels & Centroid Badge
   const renderParcel = (L: any, map: any, pts: LatLngPoint[]) => {
@@ -667,7 +512,7 @@ export default function MapParcelPicker({
   // Crosshair - Center to plot
   const handleCenterToPlot = () => {
     if (mapInstanceRef.current && points.length > 0) {
-      const centroid = calculateCentroid(points);
+      const centroid = calculateCentroid(pointsRef.current);
       mapInstanceRef.current.flyTo([centroid.lat, centroid.lng], 17, { duration: 1 });
     }
   };
@@ -721,7 +566,161 @@ export default function MapParcelPicker({
     return t(language, "plot_hint_done") || "Boundary complete! Drag corner points or '+' to fine-tune";
   };
 
-  const areaDetails = getAreaDetails(points);
+  const renderParcelRef = useRef(renderParcel);
+  useEffect(() => { renderParcelRef.current = renderParcel; });
+
+  // Keyboard Shortcuts (Undo with Ctrl+Z / Backspace, Cancel with Esc)
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        handleUndo();
+      } else if (e.key === "Escape") {
+        handleClear();
+      } else if (e.key === "Enter" && points.length >= 3 && !isDrawingClosed) {
+        handleFinishBoundary();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
+  // Initialize interactive Leaflet map instance
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+
+    let isMounted = true;
+
+    import("leaflet").then((leafletModule) => {
+      const L = (leafletModule as any).default || leafletModule;
+      if (!isMounted || !mapContainerRef.current) return;
+
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+
+      // Initial center
+      const centroid = calculateCentroid(pointsRef.current);
+      const map = L.map(mapContainerRef.current, {
+        center: [centroid.lat, centroid.lng],
+        zoom: 17,
+        zoomControl: false,
+        attributionControl: true,
+        maxZoom: 20,
+      });
+      mapInstanceRef.current = map;
+
+      addParcelBaseLayer(L, map);
+
+      // Map Click to Add New Boundary Point
+      map.on("click", (e: any) => {
+        // If drawing is already closed, don't add points on map click; user can drag handles
+        if (isClosedRef.current && pointsRef.current.length >= 3) return;
+
+        const newPt: LatLngPoint = { lat: e.latlng.lat, lng: e.latlng.lng };
+
+        const previous = pointsRef.current;
+        // Clicking near the first vertex closes an existing polygon.
+        if (previous.length >= 3 && getEdgeDistance(previous[0], newPt).feet < 30) {
+          setIsDrawingClosed(true);
+          isClosedRef.current = true;
+          if (mouseGuideLineRef.current) {
+            map.removeLayer(mouseGuideLineRef.current);
+            mouseGuideLineRef.current = null;
+          }
+          setCursorDistanceFt(null);
+          return;
+        }
+
+        const updated = [...previous, newPt];
+        setHistory((h) => [...h, previous]);
+        setRedoHistory([]);
+        pointsRef.current = updated;
+        setPoints(updated);
+      });
+
+      // Live Rubber-Band Guide Line to Mouse Cursor
+      map.on("mousemove", (e: any) => {
+        const curPts = pointsRef.current;
+        if (curPts.length > 0 && !isClosedRef.current) {
+          const lastPt = curPts[curPts.length - 1];
+          const curPt = { lat: e.latlng.lat, lng: e.latlng.lng };
+
+          if (!mouseGuideLineRef.current) {
+            mouseGuideLineRef.current = L.polyline(
+              [
+                [lastPt.lat, lastPt.lng],
+                [curPt.lat, curPt.lng],
+              ],
+              {
+                color: "#10B981",
+                weight: 2,
+                dashArray: "5, 5",
+                opacity: 0.85,
+              }
+            ).addTo(map);
+          } else {
+            mouseGuideLineRef.current.setLatLngs([
+              [lastPt.lat, lastPt.lng],
+              [curPt.lat, curPt.lng],
+            ]);
+          }
+
+          const dist = getEdgeDistance(lastPt, curPt);
+          setCursorDistanceFt(dist.feet);
+        } else if (mouseGuideLineRef.current) {
+          map.removeLayer(mouseGuideLineRef.current);
+          mouseGuideLineRef.current = null;
+          setCursorDistanceFt(null);
+        }
+      });
+
+      // Mouse Out: hide rubber band line
+      map.on("mouseout", () => {
+        if (mouseGuideLineRef.current) {
+          map.removeLayer(mouseGuideLineRef.current);
+          mouseGuideLineRef.current = null;
+        }
+        setCursorDistanceFt(null);
+      });
+
+      // Double-Click to Finish Shape
+      map.on("dblclick", (e: any) => {
+        e.originalEvent?.stopPropagation();
+        if (pointsRef.current.length >= 3) {
+          setIsDrawingClosed(true);
+          isClosedRef.current = true;
+          if (mouseGuideLineRef.current) {
+            map.removeLayer(mouseGuideLineRef.current);
+            mouseGuideLineRef.current = null;
+          }
+          setCursorDistanceFt(null);
+        }
+      });
+
+      renderParcelRef.current(L, map, pointsRef.current);
+    });
+
+    return () => {
+      isMounted = false;
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, []);
+
+  // Re-render polygon & vertex markers when points or closed status changes
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    import("leaflet").then((leafletModule) => {
+      const L = (leafletModule as any).default || leafletModule;
+      if (mapInstanceRef.current) renderParcelRef.current(L, mapInstanceRef.current, points);
+    });
+  }, [points, isDrawingClosed, language]);
+
+
 
   return (
     <View style={styles.workspaceContainer}>

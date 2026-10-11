@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { Platform, View, Text, StyleSheet } from "react-native";
 import type { Property } from "../src/types/property.types";
 import { addParcelBaseLayer, hasParcelBoundary, parcelStyle } from "../src/utils/parcelMap";
+import { validMapPoint, type MapFocus } from "../src/utils/nativeMapHtml";
 
-export default function VerifiedPropertyMap({ properties, onSelect }: { properties: Property[]; onSelect: (property: Property) => void }) {
+export default function VerifiedPropertyMap({ properties, onSelect, focus }: { properties: Property[]; onSelect: (property: Property) => void; focus?: MapFocus }) {
   const container = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -14,7 +15,7 @@ export default function VerifiedPropertyMap({ properties, onSelect }: { properti
     import("leaflet").then(module => {
       if (!active || !container.current) return;
       const L = module.default || module;
-      map = L.map(container.current, { scrollWheelZoom: true }).setView([25.6, 85.1], 7);
+      map = L.map(container.current, { scrollWheelZoom: true, zoomControl: false }).setView([25.6, 85.1], 7);
       
       // Use satellite base layer if viewing a single property (popup from details), else use OSM for marketplace.
       if (properties.length === 1 && hasParcelBoundary(properties[0].parcelPoints)) {
@@ -43,12 +44,13 @@ export default function VerifiedPropertyMap({ properties, onSelect }: { properti
           if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(property); }
         });
       });
-      if (points.length) map.fitBounds(L.latLngBounds(points), { padding: [65, 65], maxZoom: properties.length === 1 ? 19 : 14 });
+      if (focus && validMapPoint(focus) && Number.isFinite(focus.zoom)) map.setView([focus.lat, focus.lng], Math.max(1, Math.min(19, focus.zoom)));
+      else if (points.length) map.fitBounds(L.latLngBounds(points), { padding: [65, 65], maxZoom: properties.length === 1 ? 19 : 14 });
       resize = new ResizeObserver(() => map?.invalidateSize());
       resize.observe(container.current);
     }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; resize?.disconnect(); map?.remove(); };
-  }, [properties, onSelect]);
+  }, [properties, onSelect, focus]);
   return <View style={styles.map}>
     {Platform.OS === "web" && <div ref={container} aria-label="Map of verified properties" style={{ width: "100%", height: "100%" }} />}
     {(failed || Platform.OS !== "web") && <View style={styles.fallback}><Text style={styles.text}>{failed ? "Map unavailable. Explore the verified properties below." : "Explore verified properties below. Open a property for its map location."}</Text></View>}

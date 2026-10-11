@@ -1,0 +1,1139 @@
+[
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\.expo\\types\\router.d.ts",
+    "errors": 0,
+    "warnings": 1,
+    "messages": [
+      {
+        "line": 1,
+        "column": 1,
+        "rule": null,
+        "severity": 1,
+        "message": "Unused eslint-disable directive (no problems were reported)."
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\(auth)\\_layout.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\(auth)\\login.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\(auth)\\register.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\_layout.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\home.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\messages.tsx",
+    "errors": 1,
+    "warnings": 4,
+    "messages": [
+      {
+        "line": 7,
+        "column": 3,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'Image' is defined but never used."
+      },
+      {
+        "line": 19,
+        "column": 10,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'t' is defined but never used."
+      },
+      {
+        "line": 65,
+        "column": 9,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'router' is assigned a value but never used."
+      },
+      {
+        "line": 97,
+        "column": 7,
+        "rule": "react-hooks/set-state-in-effect",
+        "severity": 2,
+        "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).\n\nD:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\messages.tsx:97:7\n   95 |     let active = true;\n   96 |     if (!user) {\n>  97 |       setLoading(false);\n      |       ^^^^^^^^^^ Avoid calling setState() directly within an effect\n   98 |       return;\n   99 |     }\n  100 |     "
+      },
+      {
+        "line": 109,
+        "column": 15,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'sellerIdStr' is assigned a value but never used."
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\messages.web.tsx",
+    "errors": 1,
+    "warnings": 5,
+    "messages": [
+      {
+        "line": 7,
+        "column": 3,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'Image' is defined but never used."
+      },
+      {
+        "line": 16,
+        "column": 25,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'FontAwesome5' is defined but never used."
+      },
+      {
+        "line": 19,
+        "column": 10,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'t' is defined but never used."
+      },
+      {
+        "line": 56,
+        "column": 9,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'router' is assigned a value but never used."
+      },
+      {
+        "line": 74,
+        "column": 7,
+        "rule": "react-hooks/set-state-in-effect",
+        "severity": 2,
+        "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).\n\nD:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\messages.web.tsx:74:7\n  72 |     let active = true;\n  73 |     if (!user) {\n> 74 |       setLoading(false);\n     |       ^^^^^^^^^^ Avoid calling setState() directly within an effect\n  75 |       return;\n  76 |     }\n  77 |     "
+      },
+      {
+        "line": 86,
+        "column": 15,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'sellerIdStr' is assigned a value but never used."
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\my-properties.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\profile.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\profile.web.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\saved.tsx",
+    "errors": 1,
+    "warnings": 2,
+    "messages": [
+      {
+        "line": 39,
+        "column": 7,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'SAVED_PROPERTIES' is assigned a value but never used."
+      },
+      {
+        "line": 68,
+        "column": 10,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'loading' is assigned a value but never used."
+      },
+      {
+        "line": 74,
+        "column": 7,
+        "rule": "react-hooks/set-state-in-effect",
+        "severity": 2,
+        "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).\n\nD:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\saved.tsx:74:7\n  72 |     let active = true;\n  73 |     if (!user) {\n> 74 |       setSavedList([]);\n     |       ^^^^^^^^^^^^ Avoid calling setState() directly within an effect\n  75 |       setLoading(false);\n  76 |       return;\n  77 |     }"
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\saved.web.tsx",
+    "errors": 1,
+    "warnings": 1,
+    "messages": [
+      {
+        "line": 45,
+        "column": 10,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'loading' is assigned a value but never used."
+      },
+      {
+        "line": 51,
+        "column": 7,
+        "rule": "react-hooks/set-state-in-effect",
+        "severity": 2,
+        "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).\n\nD:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\saved.web.tsx:51:7\n  49 |     let active = true;\n  50 |     if (!user) {\n> 51 |       setSavedList([]);\n     |       ^^^^^^^^^^^^ Avoid calling setState() directly within an effect\n  52 |       setLoading(false);\n  53 |       return;\n  54 |     }"
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\search.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\(tabs)\\search.web.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\_layout.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\admin\\_layout.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\admin\\dashboard.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\admin\\properties.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\admin\\staff.tsx",
+    "errors": 1,
+    "warnings": 0,
+    "messages": [
+      {
+        "line": 28,
+        "column": 5,
+        "rule": "react-hooks/set-state-in-effect",
+        "severity": 2,
+        "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).\n\nD:\\devoxa technologies\\malikse\\app\\app\\admin\\staff.tsx:28:5\n  26 |   useEffect(() => {\n  27 |     if (authState !== \"AUTHENTICATED\" || user?.role !== \"admin\") return;\n> 28 |     setLoading(true);\n     |     ^^^^^^^^^^ Avoid calling setState() directly within an effect\n  29 |     adminService.listStaff().then(setStaff).catch((cause) => {\n  30 |       setError(cause.response?.data?.message || \"Could not load staff accounts\");\n  31 |     }).finally(() => setLoading(false));"
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\admin\\users.tsx",
+    "errors": 1,
+    "warnings": 0,
+    "messages": [
+      {
+        "line": 22,
+        "column": 5,
+        "rule": "react-hooks/set-state-in-effect",
+        "severity": 2,
+        "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).\n\nD:\\devoxa technologies\\malikse\\app\\app\\admin\\users.tsx:22:5\n  20 |   useEffect(() => {\n  21 |     if (authState !== \"AUTHENTICATED\" || user?.role !== \"admin\") return;\n> 22 |     setLoading(true);\n     |     ^^^^^^^^^^ Avoid calling setState() directly within an effect\n  23 |     adminService.listUsers().then(setUsers).catch((cause) => {\n  24 |       setError(cause.response?.data?.message || \"Could not load user accounts\");\n  25 |     }).finally(() => setLoading(false));"
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\advisor\\_layout.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\advisor\\dashboard.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\advisor\\properties.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\advisor\\tasks.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\dashboard.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\index.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\insights.tsx",
+    "errors": 0,
+    "warnings": 1,
+    "messages": [
+      {
+        "line": 12,
+        "column": 25,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'FontAwesome5' is defined but never used."
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\kyc.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\listing\\create.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\listing\\create.web.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\modal.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\post.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\property\\[id].tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\verification\\[id].tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\verifier\\_layout.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\verifier\\dashboard.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\app\\verifier\\properties.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\babel.config.js",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx",
+    "errors": 14,
+    "warnings": 0,
+    "messages": [
+      {
+        "line": 13,
+        "column": 20,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx:13:20\n  11 |   const [stage, setStage] = useState<\"welcome\" | \"login\" | \"register\">(mode === \"register\" ? \"register\" : \"welcome\");\n  12 |   const register = stage === \"register\";\n> 13 |   const progress = useRef(new Animated.Value(mode === \"register\" ? 1 : 0)).current;\n     |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render\n  14 |   const reduceMotion = useRef(false);\n  15 |   const { height } = useWindowDimensions();\n  16 |   const cardHeight = Math.max(620, Math.min(800, height - 90));"
+      },
+      {
+        "line": 13,
+        "column": 20,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx:13:20\n  11 |   const [stage, setStage] = useState<\"welcome\" | \"login\" | \"register\">(mode === \"register\" ? \"register\" : \"welcome\");\n  12 |   const register = stage === \"register\";\n> 13 |   const progress = useRef(new Animated.Value(mode === \"register\" ? 1 : 0)).current;\n     |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render\n  14 |   const reduceMotion = useRef(false);\n  15 |   const { height } = useWindowDimensions();\n  16 |   const cardHeight = Math.max(620, Math.min(800, height - 90));"
+      },
+      {
+        "line": 105,
+        "column": 85,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx:105:85\n  103 |           />\n  104 |           <View pointerEvents=\"none\" style={styles.photoShade} />\n> 105 |           <Animated.View pointerEvents=\"none\" style={[styles.photoBrand, { opacity: progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }) }]}>\n      |                                                                                     ^^^^^^^^ Passing a ref to a function may read its value during render\n  106 |             <View style={styles.brandSeal}><MaterialIcons name=\"wb-sunny\" size={26} color=\"#20251F\" /><Text style={styles.sealText}>MALIKSE</Text></View>\n  107 |             <Text style={styles.brand}>MalikSe</Text>\n  108 |             <Text style={styles.brandTagline}>{label(\"Your land. A safer future.\", \"आपकी ज़मीन। सुरक्षित भविष्य।\")}</Text>"
+      },
+      {
+        "line": 105,
+        "column": 85,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx:105:85\n  103 |           />\n  104 |           <View pointerEvents=\"none\" style={styles.photoShade} />\n> 105 |           <Animated.View pointerEvents=\"none\" style={[styles.photoBrand, { opacity: progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }) }]}>\n      |                                                                                     ^^^^^^^^^^^^^^^^^^^^ Passing a ref to a function may read its value during render\n  106 |             <View style={styles.brandSeal}><MaterialIcons name=\"wb-sunny\" size={26} color=\"#20251F\" /><Text style={styles.sealText}>MALIKSE</Text></View>\n  107 |             <Text style={styles.brand}>MalikSe</Text>\n  108 |             <Text style={styles.brandTagline}>{label(\"Your land. A safer future.\", \"आपकी ज़मीन। सुरक्षित भविष्य।\")}</Text>"
+      },
+      {
+        "line": 110,
+        "column": 55,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx:110:55\n  108 |             <Text style={styles.brandTagline}>{label(\"Your land. A safer future.\", \"आपकी ज़मीन। सुरक्षित भविष्य।\")}</Text>\n  109 |           </Animated.View>\n> 110 |           <Animated.View style={[styles.panel, { top: progress.interpolate({ inputRange: [0, 1], outputRange: [cardHeight * 0.61, cardHeight * 0.16] }) }]}>\n      |                                                       ^^^^^^^^ Passing a ref to a function may read its value during render\n  111 |             <View pointerEvents=\"none\" style={styles.panelCurve} />\n  112 |             <Animated.View pointerEvents={stage === \"welcome\" ? \"auto\" : \"none\"} accessibilityElementsHidden={stage !== \"welcome\"} importantForAccessibility={stage === \"welcome\" ? \"auto\" : \"no-hide-descendants\"} aria-hidden={stage !== \"welcome\"} style={[styles.welcome, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [1, 0, 0] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -24] }) }] }]}>\n  113 |               <Text accessibilityRole=\"header\" style={styles.welcomeTitle}>{label(\"WELCOME\", \"स्वागत है\")}</Text>"
+      },
+      {
+        "line": 110,
+        "column": 55,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx:110:55\n  108 |             <Text style={styles.brandTagline}>{label(\"Your land. A safer future.\", \"आपकी ज़मीन। सुरक्षित भविष्य।\")}</Text>\n  109 |           </Animated.View>\n> 110 |           <Animated.View style={[styles.panel, { top: progress.interpolate({ inputRange: [0, 1], outputRange: [cardHeight * 0.61, cardHeight * 0.16] }) }]}>\n      |                                                       ^^^^^^^^^^^^^^^^^^^^ Passing a ref to a function may read its value during render\n  111 |             <View pointerEvents=\"none\" style={styles.panelCurve} />\n  112 |             <Animated.View pointerEvents={stage === \"welcome\" ? \"auto\" : \"none\"} accessibilityElementsHidden={stage !== \"welcome\"} importantForAccessibility={stage === \"welcome\" ? \"auto\" : \"no-hide-descendants\"} aria-hidden={stage !== \"welcome\"} style={[styles.welcome, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [1, 0, 0] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -24] }) }] }]}>\n  113 |               <Text accessibilityRole=\"header\" style={styles.welcomeTitle}>{label(\"WELCOME\", \"स्वागत है\")}</Text>"
+      },
+      {
+        "line": 112,
+        "column": 282,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx:112:282\n  110 |           <Animated.View style={[styles.panel, { top: progress.interpolate({ inputRange: [0, 1], outputRange: [cardHeight * 0.61, cardHeight * 0.16] }) }]}>\n  111 |             <View pointerEvents=\"none\" style={styles.panelCurve} />\n> 112 |             <Animated.View pointerEvents={stage === \"welcome\" ? \"auto\" : \"none\"} accessibilityElementsHidden={stage !== \"welcome\"} importantForAccessibility={stage === \"welcome\" ? \"auto\" : \"no-hide-descendants\"} aria-hidden={stage !== \"welcome\"} style={[styles.welcome, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [1, 0, 0] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -24] }) }] }]}>\n      |                                                                                                                                                                                                                                                                                          ^^^^^^^^ Passing a ref to a function may read its value during render\n  113 |               <Text accessibilityRole=\"header\" style={styles.welcomeTitle}>{label(\"WELCOME\", \"स्वागत है\")}</Text>\n  114 |               <Text style={styles.welcomeDescription}>{label(\"Find your next space, feel at home.\\nWhere comfort meets confidence.\", \"अपना नया ठिकाना खोजें, घर जैसा महसूस करें।\\nजहाँ सुकून और भरोसा साथ मिलें।\")}</Text>\n  115 |               <TouchableOpacity accessibilityRole=\"button\" style={[styles.button, styles.welcomeButton]} onPress={() => reveal(\"login\")}><Text style={styles.buttonText}>{label(\"Login\", \"लॉगिन\")}</Text></TouchableOpacity>"
+      },
+      {
+        "line": 112,
+        "column": 282,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx:112:282\n  110 |           <Animated.View style={[styles.panel, { top: progress.interpolate({ inputRange: [0, 1], outputRange: [cardHeight * 0.61, cardHeight * 0.16] }) }]}>\n  111 |             <View pointerEvents=\"none\" style={styles.panelCurve} />\n> 112 |             <Animated.View pointerEvents={stage === \"welcome\" ? \"auto\" : \"none\"} accessibilityElementsHidden={stage !== \"welcome\"} importantForAccessibility={stage === \"welcome\" ? \"auto\" : \"no-hide-descendants\"} aria-hidden={stage !== \"welcome\"} style={[styles.welcome, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [1, 0, 0] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -24] }) }] }]}>\n      |                                                                                                                                                                                                                                                                                          ^^^^^^^^^^^^^^^^^^^^ Passing a ref to a function may read its value during render\n  113 |               <Text accessibilityRole=\"header\" style={styles.welcomeTitle}>{label(\"WELCOME\", \"स्वागत है\")}</Text>\n  114 |               <Text style={styles.welcomeDescription}>{label(\"Find your next space, feel at home.\\nWhere comfort meets confidence.\", \"अपना नया ठिकाना खोजें, घर जैसा महसूस करें।\\nजहाँ सुकून और भरोसा साथ मिलें।\")}</Text>\n  115 |               <TouchableOpacity accessibilityRole=\"button\" style={[styles.button, styles.welcomeButton]} onPress={() => reveal(\"login\")}><Text style={styles.buttonText}>{label(\"Login\", \"लॉगिन\")}</Text></TouchableOpacity>"
+      },
+      {
+        "line": 112,
+        "column": 383,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx:112:383\n  110 |           <Animated.View style={[styles.panel, { top: progress.interpolate({ inputRange: [0, 1], outputRange: [cardHeight * 0.61, cardHeight * 0.16] }) }]}>\n  111 |             <View pointerEvents=\"none\" style={styles.panelCurve} />\n> 112 |             <Animated.View pointerEvents={stage === \"welcome\" ? \"auto\" : \"none\"} accessibilityElementsHidden={stage !== \"welcome\"} importantForAccessibility={stage === \"welcome\" ? \"auto\" : \"no-hide-descendants\"} aria-hidden={stage !== \"welcome\"} style={[styles.welcome, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [1, 0, 0] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -24] }) }] }]}>\n      |                                                                                                                                                                                                                                                                                                                                                                                               ^^^^^^^^ Passing a ref to a function may read its value during render\n  113 |               <Text accessibilityRole=\"header\" style={styles.welcomeTitle}>{label(\"WELCOME\", \"स्वागत है\")}</Text>\n  114 |               <Text style={styles.welcomeDescription}>{label(\"Find your next space, feel at home.\\nWhere comfort meets confidence.\", \"अपना नया ठिकाना खोजें, घर जैसा महसूस करें।\\nजहाँ सुकून और भरोसा साथ मिलें।\")}</Text>\n  115 |               <TouchableOpacity accessibilityRole=\"button\" style={[styles.button, styles.welcomeButton]} onPress={() => reveal(\"login\")}><Text style={styles.buttonText}>{label(\"Login\", \"लॉगिन\")}</Text></TouchableOpacity>"
+      },
+      {
+        "line": 112,
+        "column": 383,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx:112:383\n  110 |           <Animated.View style={[styles.panel, { top: progress.interpolate({ inputRange: [0, 1], outputRange: [cardHeight * 0.61, cardHeight * 0.16] }) }]}>\n  111 |             <View pointerEvents=\"none\" style={styles.panelCurve} />\n> 112 |             <Animated.View pointerEvents={stage === \"welcome\" ? \"auto\" : \"none\"} accessibilityElementsHidden={stage !== \"welcome\"} importantForAccessibility={stage === \"welcome\" ? \"auto\" : \"no-hide-descendants\"} aria-hidden={stage !== \"welcome\"} style={[styles.welcome, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [1, 0, 0] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -24] }) }] }]}>\n      |                                                                                                                                                                                                                                                                                                                                                                                               ^^^^^^^^^^^^^^^^^^^^ Passing a ref to a function may read its value during render\n  113 |               <Text accessibilityRole=\"header\" style={styles.welcomeTitle}>{label(\"WELCOME\", \"स्वागत है\")}</Text>\n  114 |               <Text style={styles.welcomeDescription}>{label(\"Find your next space, feel at home.\\nWhere comfort meets confidence.\", \"अपना नया ठिकाना खोजें, घर जैसा महसूस करें।\\nजहाँ सुकून और भरोसा साथ मिलें।\")}</Text>\n  115 |               <TouchableOpacity accessibilityRole=\"button\" style={[styles.button, styles.welcomeButton]} onPress={() => reveal(\"login\")}><Text style={styles.buttonText}>{label(\"Login\", \"लॉगिन\")}</Text></TouchableOpacity>"
+      },
+      {
+        "line": 118,
+        "column": 84,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx:118:84\n  116 |               <TouchableOpacity accessibilityRole=\"button\" style={[styles.button, styles.welcomeButton, styles.outlineButton]} onPress={() => reveal(\"register\")}><Text style={styles.outlineButtonText}>{label(\"Sign Up\", \"साइन अप\")}</Text></TouchableOpacity>\n  117 |             </Animated.View>\n> 118 |             {stage !== \"welcome\" && <Animated.View style={[styles.form, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0, 1] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>\n      |                                                                                    ^^^^^^^^ Passing a ref to a function may read its value during render\n  119 |               <ScrollView keyboardShouldPersistTaps=\"handled\" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContent}>\n  120 |                 <TouchableOpacity accessibilityRole=\"button\" accessibilityLabel={label(\"Back to welcome\", \"स्वागत स्क्रीन पर वापस जाएं\")} disabled={loading} style={styles.backButton} onPress={() => reveal(\"welcome\")}><MaterialIcons name=\"arrow-back\" size={20} color=\"#30352E\" /><Text style={styles.backLabel}>{label(\"Welcome\", \"स्वागत है\")}</Text></TouchableOpacity>\n  121 |                 <Text accessibilityRole=\"header\" style={styles.heading}>{register ? label(\"Create your account\", \"अपना खाता बनाएं\") : label(\"Welcome back\", \"वापस स्वागत है\")}</Text>"
+      },
+      {
+        "line": 118,
+        "column": 84,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx:118:84\n  116 |               <TouchableOpacity accessibilityRole=\"button\" style={[styles.button, styles.welcomeButton, styles.outlineButton]} onPress={() => reveal(\"register\")}><Text style={styles.outlineButtonText}>{label(\"Sign Up\", \"साइन अप\")}</Text></TouchableOpacity>\n  117 |             </Animated.View>\n> 118 |             {stage !== \"welcome\" && <Animated.View style={[styles.form, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0, 1] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>\n      |                                                                                    ^^^^^^^^^^^^^^^^^^^^ Passing a ref to a function may read its value during render\n  119 |               <ScrollView keyboardShouldPersistTaps=\"handled\" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContent}>\n  120 |                 <TouchableOpacity accessibilityRole=\"button\" accessibilityLabel={label(\"Back to welcome\", \"स्वागत स्क्रीन पर वापस जाएं\")} disabled={loading} style={styles.backButton} onPress={() => reveal(\"welcome\")}><MaterialIcons name=\"arrow-back\" size={20} color=\"#30352E\" /><Text style={styles.backLabel}>{label(\"Welcome\", \"स्वागत है\")}</Text></TouchableOpacity>\n  121 |                 <Text accessibilityRole=\"header\" style={styles.heading}>{register ? label(\"Create your account\", \"अपना खाता बनाएं\") : label(\"Welcome back\", \"वापस स्वागत है\")}</Text>"
+      },
+      {
+        "line": 118,
+        "column": 185,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx:118:185\n  116 |               <TouchableOpacity accessibilityRole=\"button\" style={[styles.button, styles.welcomeButton, styles.outlineButton]} onPress={() => reveal(\"register\")}><Text style={styles.outlineButtonText}>{label(\"Sign Up\", \"साइन अप\")}</Text></TouchableOpacity>\n  117 |             </Animated.View>\n> 118 |             {stage !== \"welcome\" && <Animated.View style={[styles.form, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0, 1] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>\n      |                                                                                                                                                                                         ^^^^^^^^ Passing a ref to a function may read its value during render\n  119 |               <ScrollView keyboardShouldPersistTaps=\"handled\" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContent}>\n  120 |                 <TouchableOpacity accessibilityRole=\"button\" accessibilityLabel={label(\"Back to welcome\", \"स्वागत स्क्रीन पर वापस जाएं\")} disabled={loading} style={styles.backButton} onPress={() => reveal(\"welcome\")}><MaterialIcons name=\"arrow-back\" size={20} color=\"#30352E\" /><Text style={styles.backLabel}>{label(\"Welcome\", \"स्वागत है\")}</Text></TouchableOpacity>\n  121 |                 <Text accessibilityRole=\"header\" style={styles.heading}>{register ? label(\"Create your account\", \"अपना खाता बनाएं\") : label(\"Welcome back\", \"वापस स्वागत है\")}</Text>"
+      },
+      {
+        "line": 118,
+        "column": 185,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AccountAuthScreen.tsx:118:185\n  116 |               <TouchableOpacity accessibilityRole=\"button\" style={[styles.button, styles.welcomeButton, styles.outlineButton]} onPress={() => reveal(\"register\")}><Text style={styles.outlineButtonText}>{label(\"Sign Up\", \"साइन अप\")}</Text></TouchableOpacity>\n  117 |             </Animated.View>\n> 118 |             {stage !== \"welcome\" && <Animated.View style={[styles.form, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0, 1] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>\n      |                                                                                                                                                                                         ^^^^^^^^^^^^^^^^^^^^ Passing a ref to a function may read its value during render\n  119 |               <ScrollView keyboardShouldPersistTaps=\"handled\" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContent}>\n  120 |                 <TouchableOpacity accessibilityRole=\"button\" accessibilityLabel={label(\"Back to welcome\", \"स्वागत स्क्रीन पर वापस जाएं\")} disabled={loading} style={styles.backButton} onPress={() => reveal(\"welcome\")}><MaterialIcons name=\"arrow-back\" size={20} color=\"#30352E\" /><Text style={styles.backLabel}>{label(\"Welcome\", \"स्वागत है\")}</Text></TouchableOpacity>\n  121 |                 <Text accessibilityRole=\"header\" style={styles.heading}>{register ? label(\"Create your account\", \"अपना खाता बनाएं\") : label(\"Welcome back\", \"वापस स्वागत है\")}</Text>"
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\AccountProfileScreen.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\AppBackground.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\AppHeader.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\AppOpeningScreen.tsx",
+    "errors": 10,
+    "warnings": 0,
+    "messages": [
+      {
+        "line": 18,
+        "column": 17,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AppOpeningScreen.tsx:18:17\n  16 |   const [minimumElapsed, setMinimumElapsed] = useState(false);\n  17 |   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);\n> 18 |   const sweep = useRef(new Animated.Value(0)).current;\n     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render\n  19 |   const opacity = useRef(new Animated.Value(1)).current;\n  20 |   const finishRef = useRef(onFinish);\n  21 |   finishRef.current = onFinish;"
+      },
+      {
+        "line": 18,
+        "column": 17,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AppOpeningScreen.tsx:18:17\n  16 |   const [minimumElapsed, setMinimumElapsed] = useState(false);\n  17 |   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);\n> 18 |   const sweep = useRef(new Animated.Value(0)).current;\n     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render\n  19 |   const opacity = useRef(new Animated.Value(1)).current;\n  20 |   const finishRef = useRef(onFinish);\n  21 |   finishRef.current = onFinish;"
+      },
+      {
+        "line": 19,
+        "column": 19,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AppOpeningScreen.tsx:19:19\n  17 |   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);\n  18 |   const sweep = useRef(new Animated.Value(0)).current;\n> 19 |   const opacity = useRef(new Animated.Value(1)).current;\n     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render\n  20 |   const finishRef = useRef(onFinish);\n  21 |   finishRef.current = onFinish;\n  22 |"
+      },
+      {
+        "line": 19,
+        "column": 19,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AppOpeningScreen.tsx:19:19\n  17 |   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);\n  18 |   const sweep = useRef(new Animated.Value(0)).current;\n> 19 |   const opacity = useRef(new Animated.Value(1)).current;\n     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render\n  20 |   const finishRef = useRef(onFinish);\n  21 |   finishRef.current = onFinish;\n  22 |"
+      },
+      {
+        "line": 19,
+        "column": 19,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AppOpeningScreen.tsx:19:19\n  17 |   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);\n  18 |   const sweep = useRef(new Animated.Value(0)).current;\n> 19 |   const opacity = useRef(new Animated.Value(1)).current;\n     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render\n  20 |   const finishRef = useRef(onFinish);\n  21 |   finishRef.current = onFinish;\n  22 |"
+      },
+      {
+        "line": 19,
+        "column": 19,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AppOpeningScreen.tsx:19:19\n  17 |   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);\n  18 |   const sweep = useRef(new Animated.Value(0)).current;\n> 19 |   const opacity = useRef(new Animated.Value(1)).current;\n     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render\n  20 |   const finishRef = useRef(onFinish);\n  21 |   finishRef.current = onFinish;\n  22 |"
+      },
+      {
+        "line": 19,
+        "column": 19,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AppOpeningScreen.tsx:19:19\n  17 |   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);\n  18 |   const sweep = useRef(new Animated.Value(0)).current;\n> 19 |   const opacity = useRef(new Animated.Value(1)).current;\n     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render\n  20 |   const finishRef = useRef(onFinish);\n  21 |   finishRef.current = onFinish;\n  22 |"
+      },
+      {
+        "line": 21,
+        "column": 3,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AppOpeningScreen.tsx:21:3\n  19 |   const opacity = useRef(new Animated.Value(1)).current;\n  20 |   const finishRef = useRef(onFinish);\n> 21 |   finishRef.current = onFinish;\n     |   ^^^^^^^^^^^^^^^^^ Cannot update ref during render\n  22 |\n  23 |   useEffect(() => {\n  24 |     let mounted = true;"
+      },
+      {
+        "line": 68,
+        "column": 103,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AppOpeningScreen.tsx:68:103\n  66 |           <Text style={styles.description}>{hi ? \"आपकी ज़मीन। सुरक्षित भविष्य।\" : \"Your land. A safer future.\"}</Text>\n  67 |           <View accessibilityRole=\"progressbar\" accessibilityLabel={hi ? \"MalikSe लोड हो रहा है\" : \"Loading MalikSe\"} accessibilityState={{ busy: true }} style={styles.track}>\n> 68 |             <Animated.View style={[styles.indicator, { transform: [{ translateX: reducedMotion ? 68 : sweep.interpolate({ inputRange: [0, 1], outputRange: [-64, 200] }) }] }]} />\n     |                                                                                                       ^^^^^ Passing a ref to a function may read its value during render\n  69 |           </View>\n  70 |           <Text accessibilityLiveRegion=\"polite\" style={styles.loadingText}>{hi ? \"आपके लिए सब तैयार कर रहे हैं…\" : \"Making you feel at home…\"}</Text>\n  71 |           {!compact && <View style={styles.footer}><View style={styles.dot} /><Text style={styles.footerText}>{hi ? \"खोजें · जुड़ें · अपना बनाएं\" : \"DISCOVER  ·  CONNECT  ·  BELONG\"}</Text></View>}"
+      },
+      {
+        "line": 68,
+        "column": 103,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\AppOpeningScreen.tsx:68:103\n  66 |           <Text style={styles.description}>{hi ? \"आपकी ज़मीन। सुरक्षित भविष्य।\" : \"Your land. A safer future.\"}</Text>\n  67 |           <View accessibilityRole=\"progressbar\" accessibilityLabel={hi ? \"MalikSe लोड हो रहा है\" : \"Loading MalikSe\"} accessibilityState={{ busy: true }} style={styles.track}>\n> 68 |             <Animated.View style={[styles.indicator, { transform: [{ translateX: reducedMotion ? 68 : sweep.interpolate({ inputRange: [0, 1], outputRange: [-64, 200] }) }] }]} />\n     |                                                                                                       ^^^^^^^^^^^^^^^^^ Passing a ref to a function may read its value during render\n  69 |           </View>\n  70 |           <Text accessibilityLiveRegion=\"polite\" style={styles.loadingText}>{hi ? \"आपके लिए सब तैयार कर रहे हैं…\" : \"Making you feel at home…\"}</Text>\n  71 |           {!compact && <View style={styles.footer}><View style={styles.dot} /><Text style={styles.footerText}>{hi ? \"खोजें · जुड़ें · अपना बनाएं\" : \"DISCOVER  ·  CONNECT  ·  BELONG\"}</Text></View>}"
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\AppScreen.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\BadgeChip.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\BiharHeritageWatermark.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\BottomNav.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\ListingEditorScreen.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\MapParcelPicker.native.tsx",
+    "errors": 1,
+    "warnings": 0,
+    "messages": [
+      {
+        "line": 9,
+        "column": 19,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\MapParcelPicker.native.tsx:9:19\n   7 | export default function MapParcelPicker({ initialPoints, onParcelChange }: { initialPoints?: MapPoint[]; onParcelChange: (points: MapPoint[]) => void; areaSqFt?: number | string }) {\n   8 |   // Seed only on mount: parent updates must not reload the WebView mid-drawing.\n>  9 |   const options = useRef({ points: initialPoints ?? [], editable: true }).current;\n     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render\n  10 |   return <View style={{ gap: 10 }}>\n  11 |     <Text style={{ color: \"#284B68\", lineHeight: 22 }}>Zoom to your property, then tap each boundary corner. Tap Finish to close the boundary. Drag a corner to adjust it.</Text>\n  12 |     <View style={{ height: 430, borderRadius: 16, overflow: \"hidden\" }}><NativeLeafletMap options={options} onPoints={onParcelChange} /></View>"
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\MapParcelPicker.tsx",
+    "errors": 6,
+    "warnings": 5,
+    "messages": [
+      {
+        "line": 34,
+        "column": 9,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'isDesktop' is assigned a value but never used."
+      },
+      {
+        "line": 65,
+        "column": 3,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\MapParcelPicker.tsx:65:3\n  63 |   // Synced refs for event listeners\n  64 |   const pointsRef = useRef<LatLngPoint[]>(points);\n> 65 |   pointsRef.current = points;\n     |   ^^^^^^^^^^^^^^^^^ Cannot update ref during render\n  66 |   const isClosedRef = useRef<boolean>(isDrawingClosed);\n  67 |   isClosedRef.current = isDrawingClosed;\n  68 |"
+      },
+      {
+        "line": 67,
+        "column": 3,
+        "rule": "react-hooks/refs",
+        "severity": 2,
+        "message": "Error: Cannot access refs during render\n\nReact refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).\n\nD:\\devoxa technologies\\malikse\\app\\components\\MapParcelPicker.tsx:67:3\n  65 |   pointsRef.current = points;\n  66 |   const isClosedRef = useRef<boolean>(isDrawingClosed);\n> 67 |   isClosedRef.current = isDrawingClosed;\n     |   ^^^^^^^^^^^^^^^^^^^ Cannot update ref during render\n  68 |\n  69 |   // Notify the parent after this component commits its own point update.\n  70 |   useEffect(() => {"
+      },
+      {
+        "line": 196,
+        "column": 9,
+        "rule": "react-hooks/immutability",
+        "severity": 2,
+        "message": "Error: Cannot access variable before it is declared\n\n`handleUndo` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.\n\nD:\\devoxa technologies\\malikse\\app\\components\\MapParcelPicker.tsx:196:9\n  194 |     const handleKeyDown = (e: KeyboardEvent) => {\n  195 |       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === \"z\") {\n> 196 |         handleUndo();\n      |         ^^^^^^^^^^ `handleUndo` accessed before it is declared\n  197 |       } else if (e.key === \"Escape\") {\n  198 |         handleClear();\n  199 |       } else if (e.key === \"Enter\" && points.length >= 3 && !isDrawingClosed) {\n\nD:\\devoxa technologies\\malikse\\app\\components\\MapParcelPicker.tsx:624:3\n  622 |\n  623 |   // Undo last action\n> 624 |   const handleUndo = () => {\n      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 625 |     if (history.length === 0) return;\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 626 |     const previous = history[history.length - 1];\n      …\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 633 |     }\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 634 |   };\n      | ^^^^^ `handleUndo` is declared here\n  635 |\n  636 |   // Redo last undone action\n  637 |   const handleRedo = () => {"
+      },
+      {
+        "line": 198,
+        "column": 9,
+        "rule": "react-hooks/immutability",
+        "severity": 2,
+        "message": "Error: Cannot access variable before it is declared\n\n`handleClear` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.\n\nD:\\devoxa technologies\\malikse\\app\\components\\MapParcelPicker.tsx:198:9\n  196 |         handleUndo();\n  197 |       } else if (e.key === \"Escape\") {\n> 198 |         handleClear();\n      |         ^^^^^^^^^^^ `handleClear` accessed before it is declared\n  199 |       } else if (e.key === \"Enter\" && points.length >= 3 && !isDrawingClosed) {\n  200 |         handleFinishBoundary();\n  201 |       }\n\nD:\\devoxa technologies\\malikse\\app\\components\\MapParcelPicker.tsx:646:3\n  644 |\n  645 |   // Clear all points\n> 646 |   const handleClear = () => {\n      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 647 |     setHistory((h) => [...h, points]);\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 648 |     setRedoHistory([]);\n      …\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 656 |     setCursorDistanceFt(null);\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 657 |   };\n      | ^^^^^ `handleClear` is declared here\n  658 |\n  659 |   // Zoom In / Out\n  660 |   const handleZoomIn = () => {"
+      },
+      {
+        "line": 200,
+        "column": 9,
+        "rule": "react-hooks/immutability",
+        "severity": 2,
+        "message": "Error: Cannot access variable before it is declared\n\n`handleFinishBoundary` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.\n\nD:\\devoxa technologies\\malikse\\app\\components\\MapParcelPicker.tsx:200:9\n  198 |         handleClear();\n  199 |       } else if (e.key === \"Enter\" && points.length >= 3 && !isDrawingClosed) {\n> 200 |         handleFinishBoundary();\n      |         ^^^^^^^^^^^^^^^^^^^^ `handleFinishBoundary` accessed before it is declared\n  201 |       }\n  202 |     };\n  203 |     window.addEventListener(\"keydown\", handleKeyDown);\n\nD:\\devoxa technologies\\malikse\\app\\components\\MapParcelPicker.tsx:611:3\n  609 |\n  610 |   // Finish / Close Boundary Manually\n> 611 |   const handleFinishBoundary = () => {\n      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 612 |     if (points.length >= 3) {\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 613 |       setIsDrawingClosed(true);\n      …\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 620 |     }\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 621 |   };\n      | ^^^^^ `handleFinishBoundary` is declared here\n  622 |\n  623 |   // Undo last action\n  624 |   const handleUndo = () => {"
+      },
+      {
+        "line": 205,
+        "column": 6,
+        "rule": "react-hooks/exhaustive-deps",
+        "severity": 1,
+        "message": "React Hook useEffect has missing dependencies: 'handleClear', 'handleFinishBoundary', and 'handleUndo'. Either include them or remove the dependency array."
+      },
+      {
+        "line": 321,
+        "column": 7,
+        "rule": "react-hooks/immutability",
+        "severity": 2,
+        "message": "Error: Cannot access variable before it is declared\n\n`renderParcel` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.\n\nD:\\devoxa technologies\\malikse\\app\\components\\MapParcelPicker.tsx:321:7\n  319 |       });\n  320 |\n> 321 |       renderParcel(L, map, points);\n      |       ^^^^^^^^^^^^ `renderParcel` accessed before it is declared\n  322 |     });\n  323 |\n  324 |     return () => {\n\nD:\\devoxa technologies\\malikse\\app\\components\\MapParcelPicker.tsx:343:3\n  341 |\n  342 |   // Render Polygon, Draggable Vertex Handles, Midpoint Handles, Dimension Labels & Centroid Badge\n> 343 |   const renderParcel = (L: any, map: any, pts: LatLngPoint[]) => {\n      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 344 |     // Clear old polygon layer\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 345 |     if (polygonLayerRef.current) {\n      …\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 574 |     }\n      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n> 575 |   };\n      | ^^^^^ `renderParcel` is declared here\n  576 |\n  577 |   // Insert a new vertex from a midpoint handle\n  578 |   const insertMidpointVertex = (insertIndex: number, lat: number, lng: number) => {"
+      },
+      {
+        "line": 331,
+        "column": 6,
+        "rule": "react-hooks/exhaustive-deps",
+        "severity": 1,
+        "message": "React Hook useEffect has missing dependencies: 'points' and 'renderParcel'. Either include them or remove the dependency array."
+      },
+      {
+        "line": 340,
+        "column": 6,
+        "rule": "react-hooks/exhaustive-deps",
+        "severity": 1,
+        "message": "React Hook useEffect has a missing dependency: 'renderParcel'. Either include it or remove the dependency array."
+      },
+      {
+        "line": 724,
+        "column": 9,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'areaDetails' is assigned a value but never used."
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\MarketplaceScreen.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\MiniMapPreview.native.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\MiniMapPreview.tsx",
+    "errors": 1,
+    "warnings": 0,
+    "messages": [
+      {
+        "line": 15,
+        "column": 5,
+        "rule": "react-hooks/set-state-in-effect",
+        "severity": 2,
+        "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).\n\nD:\\devoxa technologies\\malikse\\app\\components\\MiniMapPreview.tsx:15:5\n  13 |     let active = true;\n  14 |     let map: import(\"leaflet\").Map | undefined;\n> 15 |     setLoading(true); setFailed(false);\n     |     ^^^^^^^^^^ Avoid calling setState() directly within an effect\n  16 |     import(\"leaflet\").then(module => {\n  17 |       if (!active || !container.current) return;\n  18 |       const L = module.default || module;"
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\NativeLeafletMap.tsx",
+    "errors": 1,
+    "warnings": 0,
+    "messages": [
+      {
+        "line": 12,
+        "column": 5,
+        "rule": "react-hooks/set-state-in-effect",
+        "severity": 2,
+        "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).\n\nD:\\devoxa technologies\\malikse\\app\\components\\NativeLeafletMap.tsx:12:5\n  10 |   const [status, setStatus] = useState<\"loading\" | \"ready\" | \"error\">(\"loading\");\n  11 |   useEffect(() => {\n> 12 |     setStatus(\"loading\");\n     |     ^^^^^^^^^ Avoid calling setState() directly within an effect\n  13 |     const timeout = setTimeout(() => setStatus(current => current === \"loading\" ? \"error\" : current), 20000);\n  14 |     return () => clearTimeout(timeout);\n  15 |   }, [html, attempt]);"
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\OfferSheet.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\PropertyCard.tsx",
+    "errors": 0,
+    "warnings": 1,
+    "messages": [
+      {
+        "line": 2,
+        "column": 59,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'Platform' is defined but never used."
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\PropertyQueueScreen.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\PropertyWorkspaceScreen.tsx",
+    "errors": 0,
+    "warnings": 1,
+    "messages": [
+      {
+        "line": 13,
+        "column": 10,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'dealService' is defined but never used."
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\PublicPropertyDetails.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\RoleDashboard.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\VerificationBadgeRow.tsx",
+    "errors": 0,
+    "warnings": 1,
+    "messages": [
+      {
+        "line": 2,
+        "column": 10,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'View' is defined but never used."
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\VerifiedHomeScreen.tsx",
+    "errors": 0,
+    "warnings": 1,
+    "messages": [
+      {
+        "line": 10,
+        "column": 8,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'VerifiedPropertyMap' is defined but never used."
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\VerifiedPropertyMap.native.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\VerifiedPropertyMap.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\WorkflowUI.tsx",
+    "errors": 0,
+    "warnings": 1,
+    "messages": [
+      {
+        "line": 2,
+        "column": 22,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'StyleSheet' is defined but never used."
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\external-link.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\haptic-tab.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\hello-wave.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\parallax-scroll-view.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\themed-text.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\themed-view.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\ui\\collapsible.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\ui\\icon-symbol.ios.tsx",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\components\\ui\\icon-symbol.tsx",
+    "errors": 0,
+    "warnings": 2,
+    "messages": [
+      {
+        "line": 4,
+        "column": 24,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'SymbolViewProps' is defined but never used."
+      },
+      {
+        "line": 8,
+        "column": 6,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'IconMapping' is defined but never used."
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\constants\\theme.ts",
+    "errors": 0,
+    "warnings": 1,
+    "messages": [
+      {
+        "line": 8,
+        "column": 7,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'tintColorLight' is assigned a value but never used."
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\constants\\typography.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\eslint.config.js",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\expo-env.d.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\hooks\\use-color-scheme.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\hooks\\use-color-scheme.web.ts",
+    "errors": 1,
+    "warnings": 0,
+    "messages": [
+      {
+        "line": 11,
+        "column": 5,
+        "rule": "react-hooks/set-state-in-effect",
+        "severity": 2,
+        "message": "Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscribe for updates from some external system, calling setState in a callback function when external state changes.\n\nCalling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).\n\nD:\\devoxa technologies\\malikse\\app\\hooks\\use-color-scheme.web.ts:11:5\n   9 |\n  10 |   useEffect(() => {\n> 11 |     setHasHydrated(true);\n     |     ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect\n  12 |   }, []);\n  13 |\n  14 |   const colorScheme = useRNColorScheme();"
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\hooks\\use-theme-color.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\makeTransparent.js",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\metro.config.js",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\i18n\\translations.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\services\\adminService.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\services\\advisorService.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\services\\authService.ts",
+    "errors": 0,
+    "warnings": 1,
+    "messages": [
+      {
+        "line": 138,
+        "column": 14,
+        "rule": "@typescript-eslint/no-unused-vars",
+        "severity": 1,
+        "message": "'e' is defined but never used."
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\services\\dealService.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\services\\documentService.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\services\\inquiryService.ts",
+    "errors": 0,
+    "warnings": 1,
+    "messages": [
+      {
+        "line": 11,
+        "column": 14,
+        "rule": "@typescript-eslint/array-type",
+        "severity": 1,
+        "message": "Array type using 'Array<T>' is forbidden. Use 'T[]' instead."
+      }
+    ]
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\services\\parcelService.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\services\\propertyService.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\services\\userService.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\services\\workflowService.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\store\\authStore.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\store\\languageStore.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\store\\listingFilterStore.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\types\\auth.types.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\types\\deal.types.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\types\\document.types.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\types\\property.types.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\utils\\accountRoutes.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\utils\\nativeMapHtml.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  },
+  {
+    "file": "D:\\devoxa technologies\\malikse\\app\\src\\utils\\parcelMap.ts",
+    "errors": 0,
+    "warnings": 0,
+    "messages": []
+  }
+]

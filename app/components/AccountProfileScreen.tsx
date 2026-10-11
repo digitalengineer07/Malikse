@@ -1,5 +1,7 @@
+import { AppTheme } from "../constants/theme";
+import TextInput from "./FormInput";
 import React, { useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Platform } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform } from "react-native";
 import { Redirect, useRouter } from "expo-router";
 import AppHeader from "./AppHeader";
 import { useAuthStore } from "../src/store/authStore";
@@ -18,6 +20,7 @@ export default function AccountProfileScreen() {
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
   const signingOut = useRef(false);
 
   const startEditing = () => {
@@ -29,13 +32,16 @@ export default function AccountProfileScreen() {
 
   const saveProfile = async () => {
     if (!user) return;
+    setError("");
+    if (editName.trim().length < 2) { setError("Enter a name of at least 2 characters"); return; }
+    if (editEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())) { setError("Enter a valid email address"); return; }
     setIsSaving(true);
     try {
       const updatedUser = await userService.updateProfile({ name: editName, email: editEmail });
       setUser(updatedUser);
       setIsEditing(false);
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      setError(e.response?.data?.message || "Could not save profile. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -63,13 +69,14 @@ export default function AccountProfileScreen() {
 
   return <View style={styles.screen}>
     <AppHeader showNavLinks={false} showPostPropertyBtn={false} />
-    <ScrollView contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       <View style={styles.titleRow}>
         <Text style={styles.title}>{label("Your profile", "आपकी प्रोफ़ाइल")}</Text>
         <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: loggingOut, busy: loggingOut }} style={styles.logout} disabled={loggingOut} onPress={logout}>
           <Text style={styles.logoutText}>{loggingOut ? label("Logging out…", "लॉग आउट हो रहा है…") : label("Log out", "लॉग आउट")}</Text>
         </TouchableOpacity>
       </View>
+      {!!error && <Text accessibilityRole="alert" style={{ color: "#B91C1C" }}>{error}</Text>}
       <View style={styles.card}>
         <View style={styles.identity}>
           <View style={styles.avatar}><Text style={styles.initial}>{user.name.charAt(0).toUpperCase()}</Text></View>
@@ -83,13 +90,13 @@ export default function AccountProfileScreen() {
           <View style={{ gap: 12, marginTop: 16 }}>
             <View style={styles.inputGroup}>
               <Text style={styles.muted}>{label("Full name", "पूरा नाम")}</Text>
-              <TextInput style={styles.input} value={editName} onChangeText={setEditName} />
+              <TextInput accessibilityLabel={label("Full name", "पूरा नाम")} autoComplete="name" style={styles.input} value={editName} onChangeText={setEditName} />
             </View>
             <View style={styles.inputGroup}>
               <Text style={styles.muted}>{label("Email", "ईमेल")}</Text>
-              <TextInput style={styles.input} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
+              <TextInput accessibilityLabel={label("Email", "ईमेल")} autoComplete="email" style={styles.input} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
             </View>
-            <View style={{ flexDirection: "row", gap: 12, marginTop: 10 }}>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 10 }}>
               <TouchableOpacity style={[styles.button, { flex: 1, backgroundColor: "#E3EEF6" }]} onPress={() => setIsEditing(false)}>
                 <Text style={[styles.buttonText, { color: "#111" }]}>{label("Cancel", "रद्द करें")}</Text>
               </TouchableOpacity>
@@ -123,7 +130,7 @@ export default function AccountProfileScreen() {
       <TouchableOpacity accessibilityRole="button" style={styles.button} onPress={() => router.push(dashboardRoutes[user.role])}>
         <Text style={styles.buttonText}>{label("Open my dashboard", "मेरा डैशबोर्ड खोलें")}</Text>
       </TouchableOpacity>
-    </ScrollView>
+    </ScrollView></KeyboardAvoidingView>
   </View>;
 }
 
@@ -132,7 +139,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   content: { width: "100%", maxWidth: 760, alignSelf: "center", padding: 20, paddingBottom: 40, gap: 16 },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 },
-  title: { fontSize: 28, fontWeight: "800", color: "#111827" },
+  title: { fontSize: 28, fontWeight: "800", color: AppTheme.colors.text },
   logout: { borderWidth: 1, borderColor: "#FECACA", borderRadius: 10, padding: 12, backgroundColor: "#FEF2F2" },
   logoutText: { color: "#B91C1C", fontWeight: "700" },
   card: { borderWidth: 1, borderColor: "rgba(255,255,255,0.6)", borderRadius: 24, padding: 20, backgroundColor: "rgba(255,255,255,0.5)", ...(Platform.OS === "web" ? { backdropFilter: "none" } : {}) },
@@ -140,15 +147,15 @@ const styles = StyleSheet.create({
   identityText: { flex: 1 },
   avatar: { backgroundColor: "#EAF4FC", borderRadius: 28, width: 56, height: 56, justifyContent: "center", alignItems: "center" },
   initial: { color: "#416980", fontSize: 24, fontWeight: "700" },
-  name: { fontSize: 22, fontWeight: "700", color: "#111827" },
+  name: { fontSize: 22, fontWeight: "700", color: AppTheme.colors.text },
   muted: { color: "#6B7E90", lineHeight: 22 },
   detail: { paddingVertical: 12, borderTopWidth: 1, borderColor: "#EDF2EE", gap: 4 },
-  value: { color: "#111827", fontSize: 16 },
+  value: { color: AppTheme.colors.text, fontSize: 16 },
   note: { color: "#3E566B", lineHeight: 22, marginVertical: 10 },
-  sectionTitle: { color: "#111827", fontSize: 18, fontWeight: "700" },
+  sectionTitle: { color: AppTheme.colors.text, fontSize: 18, fontWeight: "700" },
   linkButton: { paddingTop: 16, paddingBottom: 8, alignSelf: "flex-start" },
   link: { color: "#416980", fontWeight: "700" },
-  button: { backgroundColor: "#111827", borderRadius: 26, padding: 16, alignItems: "center" },
+  button: { backgroundColor: AppTheme.colors.primary, borderRadius: 26, padding: 16, alignItems: "center" },
   buttonText: { color: "white", fontWeight: "700", fontSize: 16 },
   inputGroup: { gap: 4 },
   input: { borderWidth: 1, borderColor: "#EDF2EE", backgroundColor: "white", borderRadius: 8, padding: 12, fontSize: 16, color: "#111" },

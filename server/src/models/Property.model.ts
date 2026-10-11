@@ -29,7 +29,8 @@ export interface IProperty extends Document {
   media: { photos: string[]; videos: string[] };
   documents: mongoose.Types.ObjectId[];
   disclosures: { hasLoan: boolean; hasDispute: boolean; possessionStatus: string };
-  status: "draft" | "pending" | "advisor_verified" | "correction_required" | "rejected" | "verified" | "sold";
+  status: "draft" | "queued" | "pending" | "advisor_verified" | "correction_required" | "rejected" | "verified" | "sold";
+  submission?: { id: string; digest: string; attempts: number; nextAttemptAt: Date; leaseUntil?: Date; leaseToken?: string; error?: string; completedAt?: Date };
   assignedVerifierId?: mongoose.Types.ObjectId;
   advisorReview?: any;
   verifierReview?: any;
@@ -100,7 +101,7 @@ const PropertySchema = new Schema<IProperty>(
     },
     status: {
       type: String,
-      enum: ["draft", "pending", "advisor_verified", "correction_required", "rejected", "verified", "sold"],
+      enum: ["draft", "queued", "pending", "advisor_verified", "correction_required", "rejected", "verified", "sold"],
       default: "pending",
     },
     badges: {
@@ -112,6 +113,14 @@ const PropertySchema = new Schema<IProperty>(
     },
     assignedAdvisorId: { type: Schema.Types.ObjectId, ref: "User" },
     rejectionReason: String,
+    submission: {
+      type: new Schema({
+        id: String, digest: String, attempts: { type: Number, default: 0 },
+        nextAttemptAt: Date, leaseUntil: Date, leaseToken: String,
+        error: String, completedAt: Date,
+      }, { _id: false }),
+      default: undefined,
+    },
   },
   { timestamps: true }
 );
@@ -120,5 +129,10 @@ const PropertySchema = new Schema<IProperty>(
 PropertySchema.index({ "location.lat": 1, "location.lng": 1 });
 PropertySchema.index({ status: 1, price: 1 });
 PropertySchema.index({ type: 1, status: 1 });
+// Additive secondary indexes; existing indexes are retained until measured.
+PropertySchema.index({ title: "text", "location.state": "text", "location.district": "text", "location.block": "text", "location.mauza": "text" }, { name: "property_location_text", default_language: "none" });
+PropertySchema.index({ status: 1, type: 1, createdAt: -1, _id: -1 }, { name: "property_type_newest" });
+PropertySchema.index({ status: 1, price: 1, createdAt: -1, _id: -1 }, { name: "property_price_newest" });
+PropertySchema.index({ status: 1, "submission.nextAttemptAt": 1, "submission.leaseUntil": 1 }, { name: "property_submission_queue" });
 
 export const Property = mongoose.model<IProperty>("Property", PropertySchema);

@@ -29,7 +29,7 @@ export type Listing = {
   disclosures?: { hasLoan: boolean; hasDispute: boolean; possessionStatus: string };
 };
 export type Review = { actorId: string; role: string; decision: string; notes: string; signature: string; submittedAt: string; checklist: Record<string, boolean>; gpsCheckIn?: { lat: number; lng: number; timestamp: string } };
-export const statusLabels: Record<string, string> = { draft: "Draft", pending: "Pending Advisor verification", advisor_verified: "Pending Verifier approval", correction_required: "Corrections required", rejected: "Rejected", verified: "Fully verified · Published", sold: "Sold" };
+export const statusLabels: Record<string, string> = { draft: "Draft", queued: "Submission queued for processing", pending: "Pending Advisor verification", advisor_verified: "Pending Verifier approval", correction_required: "Corrections required", rejected: "Rejected", verified: "Fully verified · Published", sold: "Sold" };
 export const actorId = (actor: Listing["assignedAdvisorId"]) => typeof actor === "string" ? actor : actor?._id;
 export const workflowService = {
   async queue(role: string): Promise<Listing[]> { return (await api.get(role === "admin" ? "/admin/properties" : role === "user" ? "/properties/mine" : "/verification/my-tasks")).data; },

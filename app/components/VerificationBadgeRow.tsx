@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, ScrollView } from "react-native";
+import { StyleSheet, ScrollView } from "react-native";
 import BadgeChip from "./BadgeChip";
 import type { PropertyBadges } from "../src/types/property.types";
 import { t } from "../src/i18n/translations";

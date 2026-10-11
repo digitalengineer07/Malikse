@@ -1,16 +1,18 @@
+import { AppTheme } from "../../constants/theme";
+import TextInput from "../../components/FormInput";
 import React, { useState } from "react";
 import {
   View,
+  ActivityIndicator,
   Text,
   StyleSheet,
   TouchableOpacity,
   Image,
-  TextInput,
   ScrollView,
   useWindowDimensions,
   Platform,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import AppHeader from "../../components/AppHeader";
 import { useLanguageStore } from "../../src/store/languageStore";
@@ -26,6 +28,7 @@ interface SavedPropertyItem {
   location: string;
   area: string;
   roadWidth: string;
+  image?: { uri: string };
   facing: string;
   type: string;
   typeBadge: string;
@@ -45,7 +48,7 @@ export default function SavedScreen() {
   const [loading, setLoading] = useState(true);
   const user = useAuthStore(state => state.user);
 
-  React.useEffect(() => {
+  useFocusEffect(React.useCallback(() => {
     let active = true;
     if (!user) {
       setSavedList([]);
@@ -53,6 +56,7 @@ export default function SavedScreen() {
       return;
     }
     
+    setLoading(true);
     userService.getWishlist()
       .then(properties => {
         if (!active) return;
@@ -62,7 +66,7 @@ export default function SavedScreen() {
           location: `${p.location?.district || "Unknown"}, ${p.location?.state || "Unknown"}`,
           area: p.sellableArea ? `${p.sellableArea} sq.ft` : "Area not provided",
           price: `₹${(p.price || 0).toLocaleString("en-IN")}`,
-          roadWidth: p.roadWidth || "Not provided",
+          roadWidth: p.roadWidth == null ? "Not provided" : String(p.roadWidth),
           facing: "Any",
           type: p.type || "property",
           typeBadge: (p.type || "property").toUpperCase(),
@@ -77,7 +81,7 @@ export default function SavedScreen() {
       });
       
     return () => { active = false; };
-  }, [user]);
+  }, [user]));
 
   const handleRemove = async (id: string) => {
     try {
@@ -119,6 +123,7 @@ export default function SavedScreen() {
         showLanguageToggle={true}
         showPostPropertyBtn={true}
       />
+      {loading && <ActivityIndicator accessibilityLabel="Loading saved properties" />}
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* ================= 2. HERO BANNER ================= */}
         <View style={styles.heroWrapper}>
@@ -683,7 +688,7 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 28,
     fontWeight: "900",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     letterSpacing: -0.5,
   },
   heroSubtitle: {
@@ -694,7 +699,7 @@ const styles = StyleSheet.create({
   },
   heroCount: {
     fontSize: 13,
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "500",
     marginTop: 4,
   },
@@ -746,11 +751,11 @@ const styles = StyleSheet.create({
   heroFloatingTitle: {
     fontSize: 11.5,
     fontWeight: "700",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   heroFloatingSubtitle: {
     fontSize: 11,
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     marginTop: 1,
   },
 
@@ -777,7 +782,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     padding: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -799,7 +804,7 @@ const styles = StyleSheet.create({
   categoryLabel: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     flex: 1,
   },
   categoryLabelActive: {
@@ -861,7 +866,7 @@ const styles = StyleSheet.create({
   },
   promoSubtitle: {
     fontSize: 11.5,
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     marginTop: 2,
     marginBottom: 10,
   },
@@ -899,13 +904,13 @@ const styles = StyleSheet.create({
     height: 40,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     gap: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 13,
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     outlineStyle: "none" as any,
   },
   sortDropdown: {
@@ -965,7 +970,7 @@ const styles = StyleSheet.create({
     height: 240,
     width: "100%",
     position: "relative",
-    backgroundColor: "#0F172A",
+    backgroundColor: AppTheme.colors.text,
   },
   photoSliderWrapDesktop: {
     width: "44%",
@@ -983,7 +988,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#059669",
+    backgroundColor: AppTheme.colors.primary,
     paddingVertical: 5,
     paddingHorizontal: 10,
     borderRadius: 9999,
@@ -1096,7 +1101,7 @@ const styles = StyleSheet.create({
   propertyTitle: {
     fontSize: 16.5,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     lineHeight: 22,
     flex: 1,
   },
@@ -1112,7 +1117,7 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: 12.5,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "500",
   },
   featuresStrip: {
@@ -1128,14 +1133,14 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 6,
   },
   featureChipText: {
     fontSize: 11.5,
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "600",
   },
 
@@ -1205,7 +1210,7 @@ const styles = StyleSheet.create({
   priceContainer: {},
   priceLabel: {
     fontSize: 11,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "500",
   },
   priceValue: {
@@ -1240,7 +1245,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     padding: 16,
     marginTop: 16,
     flexDirection: "row",
@@ -1273,11 +1278,11 @@ const styles = StyleSheet.create({
   bottomBannerTitle: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   bottomBannerSub: {
     fontSize: 12,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     marginTop: 2,
   },
   bottomBannerBtn: {
@@ -1302,7 +1307,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     padding: 40,
     alignItems: "center",
     justifyContent: "center",
@@ -1310,18 +1315,18 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 17,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     marginTop: 14,
   },
   emptySub: {
     fontSize: 13,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     marginTop: 4,
     textAlign: "center",
   },
   emptyExploreBtn: {
     marginTop: 16,
-    backgroundColor: "#059669",
+    backgroundColor: AppTheme.colors.primary,
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 9999,
@@ -1368,11 +1373,11 @@ const styles = StyleSheet.create({
   footerBrandName: {
     fontSize: 16,
     fontWeight: "900",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   footerBrandTagline: {
     fontSize: 11,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
   },
   footerLinksRow: {
     flexDirection: "row",
@@ -1382,7 +1387,7 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontSize: 12.5,
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "500",
   },
   footerSignatureWrap: {
@@ -1392,7 +1397,7 @@ const styles = StyleSheet.create({
   footerSignatureText: {
     fontFamily: Platform.OS === "web" ? "Kalam, Caveat, 'Segoe Script', cursive" : "System",
     fontSize: 14,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     fontStyle: "italic",
     textAlign: "right",
     lineHeight: 17,

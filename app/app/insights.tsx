@@ -1,3 +1,5 @@
+import { AppTheme } from "../constants/theme";
+import TextInput from "../components/FormInput";
 import React, { useState } from "react";
 import {
   View,
@@ -5,11 +7,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  TextInput,
   useWindowDimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
+import { MaterialIcons } from "@expo/vector-icons";
 import AppHeader from "../components/AppHeader";
 import BottomNav from "../components/BottomNav";
 import { useLanguageStore } from "../src/store/languageStore";
@@ -570,10 +571,10 @@ export default function InsightsScreen() {
 
                     {/* Total Govt Registration Outlay */}
                     <View style={styles.resultItemSmall}>
-                      <Text style={[styles.resultSmallLabel, { fontWeight: "800", color: "#0F172A", fontSize: 14 }]}>
+                      <Text style={[styles.resultSmallLabel, { fontWeight: "800", color: AppTheme.colors.text, fontSize: 14 }]}>
                         {t(language, "insights_stamp_duty") || "Est. Total Govt Registration"}
                       </Text>
-                      <Text style={[styles.resultSmallVal, { fontWeight: "900", color: "#0F172A", fontSize: 16 }]}>
+                      <Text style={[styles.resultSmallVal, { fontWeight: "900", color: AppTheme.colors.text, fontSize: 16 }]}>
                         {formatRupees(totalGovtOutlay)}
                       </Text>
                     </View>
@@ -794,7 +795,7 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 24,
     fontWeight: "900",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     letterSpacing: -0.4,
   },
   verifiedBadge: {
@@ -815,7 +816,7 @@ const styles = StyleSheet.create({
   },
   pageSubtitle: {
     fontSize: 13.5,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     marginTop: 4,
     lineHeight: 19,
   },
@@ -830,12 +831,12 @@ const styles = StyleSheet.create({
   metricCard: {
     flex: 1,
     minWidth: 160,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AppTheme.colors.card,
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
@@ -850,18 +851,18 @@ const styles = StyleSheet.create({
   metricValue: {
     fontSize: 22,
     fontWeight: "900",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     letterSpacing: -0.5,
   },
   metricUnit: {
     fontSize: 12.5,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "700",
   },
   metricLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     marginTop: 4,
     lineHeight: 16,
   },
@@ -888,7 +889,7 @@ const styles = StyleSheet.create({
     borderRadius: 9999,
   },
   segmentBtnActive: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AppTheme.colors.card,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.09,
@@ -898,7 +899,7 @@ const styles = StyleSheet.create({
   segmentBtnText: {
     fontSize: 13.5,
     fontWeight: "600",
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
   },
   segmentBtnTextActive: {
     color: "#065F46",
@@ -918,9 +919,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 18,
     borderRadius: 9999,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AppTheme.colors.card,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     marginRight: 10,
   },
   corridorChipActive: {
@@ -930,7 +931,7 @@ const styles = StyleSheet.create({
   corridorChipText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
   },
   corridorChipTextActive: {
     color: "#065F46",
@@ -947,10 +948,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   corridorCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AppTheme.colors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     padding: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -971,7 +972,7 @@ const styles = StyleSheet.create({
   corridorTitle: {
     fontSize: 17,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     letterSpacing: -0.3,
   },
   corridorKatthaSub: {
@@ -1021,13 +1022,13 @@ const styles = StyleSheet.create({
   },
   benchmarkLabel: {
     fontSize: 11,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "600",
   },
   benchmarkVal: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     marginTop: 2,
   },
   benchmarkDivider: {
@@ -1045,7 +1046,7 @@ const styles = StyleSheet.create({
   },
   catalystText: {
     fontSize: 13,
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     lineHeight: 18,
     flex: 1,
     fontWeight: "500",
@@ -1075,10 +1076,10 @@ const styles = StyleSheet.create({
 
   /* Calculator Styles */
   calcCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AppTheme.colors.card,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     padding: 24,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -1089,12 +1090,12 @@ const styles = StyleSheet.create({
   calcHeading: {
     fontSize: 18,
     fontWeight: "900",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     marginBottom: 4,
   },
   calcSubHeading: {
     fontSize: 13.5,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     marginBottom: 20,
     lineHeight: 19,
   },
@@ -1130,7 +1131,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: "#F1F5F9",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     marginRight: 8,
   },
   calcCorridorChipActive: {
@@ -1139,7 +1140,7 @@ const styles = StyleSheet.create({
   },
   calcCorridorChipText: {
     fontSize: 12.5,
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "600",
   },
   calcCorridorChipTextActive: {
@@ -1165,7 +1166,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   unitBtnActive: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AppTheme.colors.card,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -1173,7 +1174,7 @@ const styles = StyleSheet.create({
   },
   unitBtnText: {
     fontSize: 11.5,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "700",
   },
   unitBtnTextActive: {
@@ -1194,12 +1195,12 @@ const styles = StyleSheet.create({
     height: 48,
     fontSize: 16,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     outlineStyle: "none" as any,
   },
   calcInputUnit: {
     fontSize: 12.5,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "600",
   },
   genderRow: {
@@ -1217,7 +1218,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
   },
   genderBtnActive: {
     backgroundColor: "#E6F4EA",
@@ -1225,7 +1226,7 @@ const styles = StyleSheet.create({
   },
   genderBtnText: {
     fontSize: 12.5,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "600",
   },
   genderBtnTextActive: {
@@ -1238,7 +1239,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     padding: 18,
     width: "100%",
   },
@@ -1254,7 +1255,7 @@ const styles = StyleSheet.create({
   resultLabel: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   resultValBig: {
     fontSize: 22,
@@ -1275,13 +1276,13 @@ const styles = StyleSheet.create({
   },
   resultSmallLabel: {
     fontSize: 13,
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "500",
   },
   resultSmallVal: {
     fontSize: 13.5,
     fontWeight: "700",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   brokerageSavingsHighlight: {
     flexDirection: "row",
@@ -1318,12 +1319,12 @@ const styles = StyleSheet.create({
   legalTitle: {
     fontSize: 18,
     fontWeight: "900",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     marginBottom: 4,
   },
   legalSub: {
     fontSize: 13.5,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     lineHeight: 19,
   },
   pillarsGrid: {
@@ -1335,10 +1336,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   pillarCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AppTheme.colors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     padding: 18,
   },
   pillarCardDesktop: {
@@ -1368,11 +1369,11 @@ const styles = StyleSheet.create({
   pillarCardTitle: {
     fontSize: 15.5,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   pillarCardDesc: {
     fontSize: 13,
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     lineHeight: 20,
     marginBottom: 10,
   },
@@ -1396,7 +1397,7 @@ const styles = StyleSheet.create({
 
   /* Bottom Banner */
   bottomBanner: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AppTheme.colors.card,
     borderRadius: 18,
     borderWidth: 1.5,
     borderColor: "#A7F3D0",
@@ -1427,11 +1428,11 @@ const styles = StyleSheet.create({
   bannerTitle: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   bannerSub: {
     fontSize: 13,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     marginTop: 3,
     lineHeight: 18,
   },
@@ -1445,7 +1446,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#059669",
+    backgroundColor: AppTheme.colors.primary,
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 9999,

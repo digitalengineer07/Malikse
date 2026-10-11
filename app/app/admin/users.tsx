@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { adminService } from "../../src/services/adminService";
 import { useAuthStore } from "../../src/store/authStore";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -17,13 +17,13 @@ export default function ManageUsersScreen() {
   const [transactions, setTransactions] = useState<any>({ inquiries: [], deals: [] });
   const [loadingProps, setLoadingProps] = useState(false);
 
-  useEffect(() => {
-    if (authState !== "AUTHENTICATED" || user?.role !== "admin") return;
+  useFocusEffect(React.useCallback(() => {
+    if (authState !== "AUTHENTICATED" || user?.role !== "admin" || !user.id) return;
     setLoading(true);
     adminService.listUsers().then(setUsers).catch((cause) => {
       setError(cause.response?.data?.message || "Could not load user accounts");
     }).finally(() => setLoading(false));
-  }, [authState, user?.role]);
+  }, [authState, user]));
 
   const viewProperties = async (usr: any) => {
     if (selectedUser?._id === usr._id) {
@@ -83,7 +83,7 @@ export default function ManageUsersScreen() {
           <View style={styles.propertiesSection}>
             <Text style={styles.propsHeading}>Properties Listed</Text>
             {loadingProps ? <ActivityIndicator color="#047857" /> : properties.length === 0 ? <Text style={styles.description}>No properties listed by this user.</Text> : properties.map((prop) => (
-              <TouchableOpacity key={prop._id} style={styles.propRow} onPress={() => router.push({ pathname: "/property/[id]", params: { id: prop._id } })}>
+              <TouchableOpacity key={prop._id} style={styles.propRow} onPress={() => router.push({ pathname: "/verification/[id]", params: { id: prop._id } })}>
                 <View>
                   <Text style={styles.propTitle}>{prop.title || `${prop.type} in ${prop.location?.district}`}</Text>
                   <Text style={styles.propDetail}>₹{prop.price?.toLocaleString("en-IN")} · Status: <Text style={{fontWeight:"600", textTransform: "capitalize"}}>{prop.status}</Text></Text>
@@ -97,7 +97,7 @@ export default function ManageUsersScreen() {
               <>
                 {transactions.deals.map((deal: any) => (
                   <View key={`d_${deal._id}`} style={styles.propRow}>
-                    <View><Text style={styles.propTitle}>Deal: {deal.propertyId?.title}</Text><Text style={styles.propDetail}>Status: {deal.status} · ₹{deal.agreedPrice?.toLocaleString("en-IN")}</Text></View>
+                    <View><Text style={styles.propTitle}>Deal: {deal.propertyId?.title}</Text><Text style={styles.propDetail}>Status: {deal.status} · ₹{(deal.counterAmount ?? deal.offerAmount)?.toLocaleString("en-IN")}</Text></View>
                   </View>
                 ))}
                 {transactions.inquiries.map((inq: any) => (

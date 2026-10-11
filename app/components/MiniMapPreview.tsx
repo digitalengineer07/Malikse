@@ -4,6 +4,9 @@ import type { Property } from "../src/types/property.types";
 import { addParcelBaseLayer, hasParcelBoundary, parcelStyle } from "../src/utils/parcelMap";
 
 export default function MiniMapPreview({ property }: { property: Property }) {
+  return <MiniMapContent key={JSON.stringify(property.parcelPoints)} property={property} />;
+}
+function MiniMapContent({ property }: { property: Property }) {
   const container = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -12,7 +15,6 @@ export default function MiniMapPreview({ property }: { property: Property }) {
     if (Platform.OS !== "web" || !hasParcelBoundary(points)) return;
     let active = true;
     let map: import("leaflet").Map | undefined;
-    setLoading(true); setFailed(false);
     import("leaflet").then(module => {
       if (!active || !container.current) return;
       const L = module.default || module;

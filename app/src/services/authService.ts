@@ -135,7 +135,7 @@ export const authService = {
     try {
       // Best effort backend logout to invalidate refresh token
       await api.post("/auth/logout", undefined, { timeout: 10000 });
-    } catch (e) {
+    } catch {
       console.warn("Backend logout failed, clearing local session anyway.");
     } finally {
       useAuthStore.getState().clearSession();

@@ -1,0 +1,16 @@
+{
+  "checks": 66,
+  "passed": [
+    "Photo traversal rejected; normal photo upload/download works",
+    "Wishlist requires publication, filters suspended owners and excludes private fields",
+    "Inquiry and deal eligibility enforced; contact details stay private",
+    "Refresh tokens are unique, rotate once atomically and reject replay/legacy hashes/logout",
+    "Profile DTO preserves id and validates name/email",
+    "Inactive staff excluded from automatic/manual/resubmission assignment; deactivation releases pending work",
+    "Deal buyers receive public fields; terminal and concurrent transitions are protected",
+    "Admin seller transactions, staff history and property audits use actual schema fields",
+    "Document URLs use configured HTTPS origin; missing authorization and disabled actors denied",
+    "Latest-message previews and unread state persist, remain actor-scoped and never move backwards",
+    "Startup fails closed for missing/known/shared JWT secrets and unsafe production origin"
+  ]
+}

@@ -335,7 +335,7 @@ const styles = premiumStyles({
 
   /* Mobile Bottom Tab Bar */
   mobileWrapper: {
-    position: "absolute",
+    position: "relative",
     bottom: 0,
     left: 0,
     right: 0,

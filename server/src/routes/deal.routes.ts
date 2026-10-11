@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { Deal } from "../models/Deal.model";
-import { Property } from "../models/Property.model";
-import { User } from "../models/User.model";
+import { publicFields } from "../services/propertyWorkflow";
+import { OfferError, offerProperty } from "../services/marketplace";
+
 import { authGuard, roleGuard } from "../middleware/auth.middleware";
 
 const router = Router();
@@ -9,17 +10,10 @@ const router = Router();
 // POST /deals/:propertyId/offer (Buyer)
 router.post("/:propertyId/offer", authGuard, roleGuard("user"), async (req: any, res) => {
   try {
-    const buyer = await User.findById(req.user.id);
-    if (!buyer?.demoKycComplete) return res.status(403).json({ message: "Complete the demo KYC step before making an offer" });
     const { amount } = req.body;
+    if (amount === undefined) return res.status(400).json({ message: "Enter a positive offer amount" });
     const propertyId = req.params.propertyId;
-    
-    const property = await Property.findById(propertyId);
-    if (!property) return res.status(404).json({ message: "Property not found" });
-    if (property.status !== "verified" || property.advisorReview?.decision !== "approve" || property.verifierReview?.decision !== "approve") return res.status(409).json({ message: "Offers are available only for fully approved published properties" });
-    if (property.ownerId.toString() === req.user.id) return res.status(400).json({ message: "You cannot make an offer on your own property" });
-    if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: "Enter a positive offer amount" });
-
+    const property = await offerProperty(req.user.id, propertyId, amount);
     const commissionAmount = amount * 0.0118; // 1% + 18% GST
 
     const deal = new Deal({
@@ -34,27 +28,21 @@ router.post("/:propertyId/offer", authGuard, roleGuard("user"), async (req: any,
     await deal.save();
     res.status(201).json(deal);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(error instanceof OfferError ? error.status : 500).json({ message: error.message });
   }
 });
 
 // GET /deals/:id
 router.get("/:id", authGuard, async (req: any, res) => {
   try {
-    const deal = await Deal.findById(req.params.id)
-      .populate("propertyId")
-      .populate("buyerId", "name")
-      .populate("ownerId", "name");
-      
+    const deal = await Deal.findById(req.params.id);
     if (!deal) return res.status(404).json({ message: "Deal not found" });
-    
-    // Simple auth check
-    if (deal.buyerId._id.toString() !== req.user.id && 
-        deal.ownerId._id.toString() !== req.user.id && 
-        req.user.role !== "admin") {
-      return res.status(403).json({ message: "Unauthorized" });
-    }
-    
+    const owner = deal.ownerId.toString() === req.user.id;
+    if (deal.buyerId.toString() !== req.user.id && !owner && req.user.role !== "admin") return res.status(403).json({ message: "Unauthorized" });
+    await deal.populate([
+      { path: "propertyId", ...(!owner && req.user.role !== "admin" ? { select: publicFields } : {}) },
+      { path: "buyerId", select: "name" }, { path: "ownerId", select: "name" },
+    ]);
     res.json(deal);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -68,20 +56,25 @@ router.patch("/:id/status", authGuard, async (req: any, res) => {
     const deal = await Deal.findById(req.params.id);
     if (!deal) return res.status(404).json({ message: "Deal not found" });
     
-    // Allow owner to accept/reject
-    if (deal.ownerId.toString() === req.user.id && ["accepted", "rejected", "countered"].includes(status)) {
-       deal.status = status;
-       await deal.save();
-       return res.json(deal);
+    const transitions: Record<string, string[]> = {
+      offered: ["accepted", "rejected", "countered", "cancelled"],
+      countered: ["accepted", "rejected", "cancelled"],
+      accepted: ["token_paid", "cancelled"], token_paid: ["completed", "cancelled"],
+      completed: [], cancelled: [], rejected: [],
+    };
+    const ownerAction = deal.ownerId.toString() === req.user.id && ["accepted", "rejected", "countered"].includes(status);
+    if (!ownerAction && req.user.role !== "admin") return res.status(403).json({ message: "Unauthorized to change status" });
+    if (!transitions[deal.status]?.includes(status)) return res.status(409).json({ message: "This deal cannot move to that status" });
+    const changes: any = { status };
+    if (status === "countered") {
+      const amount = req.body.counterAmount;
+      if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: "Enter a positive counter amount" });
+      changes.counterAmount = amount;
     }
-    
-    if (req.user.role === "admin") {
-      deal.status = status;
-      await deal.save();
-      return res.json(deal);
-    }
-    
-    res.status(403).json({ message: "Unauthorized to change status" });
+    if (status === "accepted" && deal.counterAmount) changes.commissionAmount = deal.counterAmount * 0.0118;
+    const updated = await Deal.findOneAndUpdate({ _id: deal._id, status: deal.status, __v: deal.__v }, { $set: changes, $inc: { __v: 1 } }, { new: true, runValidators: true });
+    if (!updated) return res.status(409).json({ message: "Deal changed. Reload and try again" });
+    res.json(updated);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import type { Property } from "../src/types/property.types";

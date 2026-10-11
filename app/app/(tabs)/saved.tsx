@@ -1,18 +1,20 @@
-import React, { useState, useMemo, useEffect } from "react";
+import { AppTheme } from "../../constants/theme";
+import TextInput from "../../components/FormInput";
+import React, { useState, useMemo } from "react";
 import {
   View,
+  ActivityIndicator,
   Text,
   StyleSheet,
   TouchableOpacity,
   Image,
-  TextInput,
   ScrollView,
   useWindowDimensions,
   Platform,
   Modal,
   Pressable,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import Svg, { Path, Rect } from "react-native-svg";
 import AppHeader from "../../components/AppHeader";
@@ -36,7 +38,6 @@ interface SavedPropertyItem {
   isSaved: boolean;
 }
 
-const SAVED_PROPERTIES: SavedPropertyItem[] = [];
 
 interface CategoryItem {
   id: string;
@@ -68,7 +69,7 @@ export default function SavedScreen() {
   const [loading, setLoading] = useState(true);
   const user = useAuthStore(state => state.user);
 
-  useEffect(() => {
+  useFocusEffect(React.useCallback(() => {
     let active = true;
     if (!user) {
       setSavedList([]);
@@ -76,6 +77,7 @@ export default function SavedScreen() {
       return;
     }
     
+    setLoading(true);
     userService.getWishlist()
       .then(properties => {
         if (!active) return;
@@ -100,7 +102,7 @@ export default function SavedScreen() {
       });
       
     return () => { active = false; };
-  }, [user]);
+  }, [user]));
 
   // Toggle saved status
   const handleToggleHeart = async (id: string) => {
@@ -177,6 +179,7 @@ export default function SavedScreen() {
         showPostPropertyBtn={true}
       />
 
+      {loading && <ActivityIndicator accessibilityLabel="Loading saved properties" />}
       <ScrollView
         contentContainerStyle={[
           styles.scrollContainer,
@@ -724,7 +727,7 @@ const styles = StyleSheet.create({
   heroMainTitle: {
     fontSize: 25,
     fontWeight: "900",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     letterSpacing: -0.5,
     lineHeight: 28,
   },
@@ -784,11 +787,11 @@ const styles = StyleSheet.create({
   heroFloatingTitle: {
     fontSize: 11.5,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   heroFloatingSubtitle: {
     fontSize: 10,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     marginTop: 1,
   },
   heroBottomRightScriptWrap: {
@@ -826,7 +829,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 8,
@@ -890,7 +893,7 @@ const styles = StyleSheet.create({
     color: "#059669",
   },
   categoryBadgeTextZero: {
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
   },
 
   /* ================= 4. PROMOTIONAL CARD ================= */
@@ -927,11 +930,11 @@ const styles = StyleSheet.create({
   promoTitle: {
     fontSize: 14.5,
     fontWeight: "900",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   promoSubtitle: {
     fontSize: 11,
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     lineHeight: 15,
     marginTop: 2,
   },
@@ -961,7 +964,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderRadius: 13,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     height: 44,
     paddingHorizontal: 12,
     gap: 8,
@@ -969,7 +972,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 13,
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     paddingVertical: 0,
     outlineStyle: "none" as any,
   },
@@ -979,7 +982,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderRadius: 13,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     height: 44,
     paddingHorizontal: 12,
     gap: 5,
@@ -992,7 +995,7 @@ const styles = StyleSheet.create({
   sortButtonText: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
 
   /* ================= 6. PROPERTY CARDS ================= */
@@ -1026,7 +1029,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
     position: "relative",
-    backgroundColor: "#0F172A",
+    backgroundColor: AppTheme.colors.text,
   },
   cardImage: {
     width: "100%",
@@ -1076,7 +1079,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 13.5,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     flex: 1,
     lineHeight: 17,
   },
@@ -1092,7 +1095,7 @@ const styles = StyleSheet.create({
   },
   cardMetaText: {
     fontSize: 11,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "500",
     flex: 1,
   },
@@ -1110,7 +1113,7 @@ const styles = StyleSheet.create({
   },
   cardPerSqFtText: {
     fontSize: 10.5,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "500",
     marginTop: 1,
   },
@@ -1163,11 +1166,11 @@ const styles = StyleSheet.create({
   footerBrandName: {
     fontSize: 14.5,
     fontWeight: "900",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   footerBrandTagline: {
     fontSize: 10,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
   },
   footerLinksRow: {
     flexDirection: "row",
@@ -1177,7 +1180,7 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontSize: 11.5,
-    color: "#475569",
+    color: AppTheme.colors.textSecondary,
     fontWeight: "500",
   },
   footerSignatureWrap: {
@@ -1186,7 +1189,7 @@ const styles = StyleSheet.create({
   footerSignatureText: {
     fontFamily: Platform.OS === "web" ? "Caveat, Kalam, 'Segoe Script', cursive" : "System",
     fontSize: 13,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     fontStyle: "italic",
     textAlign: "right",
     lineHeight: 15,
@@ -1205,7 +1208,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: AppTheme.colors.border,
     padding: 32,
     marginHorizontal: 16,
     alignItems: "center",
@@ -1215,17 +1218,17 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
   },
   emptySub: {
     fontSize: 12.5,
-    color: "#64748B",
+    color: AppTheme.colors.textSecondary,
     marginTop: 4,
     textAlign: "center",
   },
   emptyExploreBtn: {
     marginTop: 14,
-    backgroundColor: "#059669",
+    backgroundColor: AppTheme.colors.primary,
     paddingVertical: 9,
     paddingHorizontal: 18,
     borderRadius: 9999,
@@ -1259,7 +1262,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#0F172A",
+    color: AppTheme.colors.text,
     marginBottom: 14,
   },
   modalOption: {

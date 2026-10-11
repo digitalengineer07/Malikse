@@ -10,7 +10,7 @@ import { useLanguageStore } from "../src/store/languageStore";
 export default function AccountAuthScreen({ mode }: { mode: "login" | "register" }) {
   const [stage, setStage] = useState<"welcome" | "login" | "register">(mode === "register" ? "register" : "welcome");
   const register = stage === "register";
-  const progress = useRef(new Animated.Value(mode === "register" ? 1 : 0)).current;
+  const [progress] = useState(() => new Animated.Value(mode === "register" ? 1 : 0));
   const reduceMotion = useRef(false);
   const { height } = useWindowDimensions();
   const cardHeight = Math.max(620, Math.min(800, height - 90));
@@ -87,8 +87,8 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 20 }]}>
         <View style={styles.topBar}>
-          <TouchableOpacity accessibilityRole="button" onPress={() => router.replace("/home")}>
-            <Text style={styles.link}>← {label("Marketplace", "मार्केटप्लेस")}</Text>
+          <TouchableOpacity accessibilityRole="button" disabled={loading} onPress={() => stage === "welcome" ? router.replace("/home") : reveal("welcome")}>
+            <Text style={styles.link}>← {stage === "welcome" ? label("Marketplace", "मार्केटप्लेस") : label("Welcome", "स्वागत है")}</Text>
           </TouchableOpacity>
           <TouchableOpacity accessibilityRole="button" onPress={toggleLanguage}>
             <Text style={styles.link}>{label("हिन्दी", "English")}</Text>
@@ -117,7 +117,6 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
             </Animated.View>
             {stage !== "welcome" && <Animated.View style={[styles.form, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0, 1] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
               <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContent}>
-                <TouchableOpacity accessibilityRole="button" accessibilityLabel={label("Back to welcome", "स्वागत स्क्रीन पर वापस जाएं")} disabled={loading} style={styles.backButton} onPress={() => reveal("welcome")}><MaterialIcons name="arrow-back" size={20} color="#30352E" /><Text style={styles.backLabel}>{label("Welcome", "स्वागत है")}</Text></TouchableOpacity>
                 <Text accessibilityRole="header" style={styles.heading}>{register ? label("Create your account", "अपना खाता बनाएं") : label("Welcome back", "वापस स्वागत है")}</Text>
                 <Text style={styles.description}>{register ? label("Your next chapter starts here.", "आपकी नई शुरुआत यहीं से।") : label("A place of your own is one step closer.", "आपका अपना ठिकाना, बस एक कदम दूर।")}</Text>
           {register && <View style={styles.field}>

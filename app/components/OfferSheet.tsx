@@ -1,5 +1,7 @@
+import { AppTheme } from "../constants/theme";
+import TextInput from "./FormInput";
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
 import { t } from "../src/i18n/translations";
 import { useLanguageStore } from "../src/store/languageStore";
 
@@ -14,15 +16,20 @@ export default function OfferSheet({ askingPrice, onSubmit, onCancel }: OfferShe
   const { language } = useLanguageStore();
   const [offer, setOffer] = useState(askingPrice.toString());
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const parsedOffer = parseFloat(offer) || 0;
-  const commission = parsedOffer * 0.0118; // 1% + 18% GST
+  const parsedOffer = Number(offer);
+  const commission = (Number.isFinite(parsedOffer) ? parsedOffer : 0) * 0.0118; // 1% + 18% GST
 
   const handleSubmit = async () => {
-    if (parsedOffer <= 0) return;
+    if (loading) return;
+    if (!Number.isFinite(parsedOffer) || parsedOffer <= 0) { setError("Enter a positive offer amount"); return; }
+    setError("");
     setLoading(true);
     try {
       await onSubmit(parsedOffer);
+    } catch (cause: any) {
+      setError(cause.response?.data?.error || cause.response?.data?.message || "Could not submit offer. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -34,6 +41,8 @@ export default function OfferSheet({ askingPrice, onSubmit, onCancel }: OfferShe
       
       <Text style={styles.label}>{t(language, "deal_offer_amount")}</Text>
       <TextInput
+        accessibilityLabel={t(language, "deal_offer_amount")}
+        editable={!loading}
         style={styles.input}
         value={offer}
         onChangeText={setOffer}
@@ -48,6 +57,7 @@ export default function OfferSheet({ askingPrice, onSubmit, onCancel }: OfferShe
         </Text>
       </View>
 
+      {!!error && <Text accessibilityRole="alert" style={{ color: "#B91C1C", marginBottom: 12 }}>{error}</Text>}
       <View style={styles.row}>
         <TouchableOpacity style={styles.cancelBtn} onPress={onCancel} disabled={loading}>
           <Text style={styles.cancelTxt}>{t(language, "cancel")}</Text>
@@ -104,15 +114,18 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
   },
   cancelBtn: {
     flex: 1,
+    minWidth: 100,
+    minHeight: 50,
     padding: 14,
     marginRight: 8,
     borderRadius: 8,
     alignItems: "center",
-    backgroundColor: "#F0F0F0",
+    backgroundColor: AppTheme.colors.primaryLight,
   },
   submitBtn: {
     flex: 1,
@@ -120,7 +133,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     borderRadius: 8,
     alignItems: "center",
-    backgroundColor: "#2A85FF",
+    backgroundColor: AppTheme.colors.primary,
   },
   cancelTxt: {
     fontSize: 16,

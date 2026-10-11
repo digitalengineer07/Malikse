@@ -5,7 +5,7 @@ dotenv.config();
 
 async function fixImageUrls() {
   await mongoose.connect(process.env.MONGO_URI as string);
-  console.log("Connected to MongoDB at", process.env.MONGO_URI);
+  console.log("Connected to MongoDB");
 
   const properties = await Property.find({ "media.photos": { $regex: "http://malikse.onrender.com" } });
   

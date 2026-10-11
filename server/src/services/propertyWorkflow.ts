@@ -1,5 +1,7 @@
 import { Property, IProperty } from "../models/Property.model";
 import { User } from "../models/User.model";
+import { SearchCache } from "../models/SearchCache.model";
+import { AssignmentCursor } from "../models/AssignmentCursor.model";
 
 export const editableFields = ["title", "description", "type", "location", "parcelPoints", "khata", "khesra", "holdingNumber", "totalArea", "sellableArea", "boundary", "roadWidth", "price", "negotiable", "media", "disclosures"];
 export const listingFields = (body: Record<string, unknown>) => Object.fromEntries(Object.entries(body).filter(([key]) => editableFields.includes(key)));
@@ -22,12 +24,17 @@ export function validateListing(data: any) {
   return null;
 }
 
-export async function availableStaff(role: "advisor" | "verifier") {
-  const people = await User.find({ role, passwordHash: { $exists: true, $ne: "" } }).select("_id").sort({ createdAt: 1 });
-  const field = role === "advisor" ? "assignedAdvisorId" : "assignedVerifierId";
-  const status = role === "advisor" ? "pending" : "advisor_verified";
-  const counts = await Promise.all(people.map(async person => ({ id: person._id, count: await Property.countDocuments({ [field]: person._id, status }) })));
-  return counts.sort((a, b) => a.count - b.count)[0]?.id;
+export const activeStaffFilter = { isActive: { $ne: false }, isSuspended: { $ne: true }, passwordHash: { $exists: true, $nin: [null, ""] } };
+
+export async function availableStaff(role: "advisor" | "verifier", preferred?: unknown) {
+  if (preferred && await User.exists({ _id: preferred, role, ...activeStaffFilter })) return preferred;
+  const people = await User.find({ role, ...activeStaffFilter }).select("_id").sort({ _id: 1 });
+  if (!people.length) return undefined;
+  // Initialize separately: concurrent first-use upserts can collide on _id.
+  try { await AssignmentCursor.updateOne({ _id: role }, { $setOnInsert: { sequence: 0 } }, { upsert: true }); }
+  catch (error: any) { if (error.code !== 11000) throw error; }
+  const cursor = await AssignmentCursor.findOneAndUpdate({ _id: role }, { $inc: { sequence: 1 } }, { new: true });
+  return people[(cursor!.sequence! - 1) % people.length]._id;
 }
 
 export function historyEvent(actor: { id: string; role: string }, from: string, to: string, action: string, extra: object = {}) {
@@ -36,9 +43,13 @@ export function historyEvent(actor: { id: string; role: string }, from: string, 
 
 // Version checks prevent simultaneous reviewers or edits from overwriting decisions.
 export async function transition(property: IProperty, changes: object, event: object) {
-  return Property.findOneAndUpdate({ _id: property._id, __v: property.__v, status: property.status }, {
+  const updated = await Property.findOneAndUpdate({ _id: property._id, __v: property.__v, status: property.status }, {
     $set: changes, $inc: { __v: 1 }, $push: { verificationHistory: event },
   }, { new: true, runValidators: true });
+  if (updated && (property.status === "verified" || updated.status === "verified")) {
+    await SearchCache.deleteMany({}).catch(() => undefined);
+  }
+  return updated;
 }
 
 export const publicFields = "title description type location parcelPoints totalArea sellableArea boundary roadWidth price negotiable media disclosures status badges createdAt updatedAt";

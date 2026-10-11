@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { useRouter } from "expo-router";
+import { AppTheme } from "../../constants/theme";
+import TextInput from "../../components/FormInput";
+import React, { useState } from "react";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { adminService, type StaffAccount, type StaffRole } from "../../src/services/adminService";
 import { useAuthStore } from "../../src/store/authStore";
@@ -23,15 +25,16 @@ export default function ManageStaffScreen() {
   const [workload, setWorkload] = useState<any>({ assigned: [], history: [] });
   const [loadingWorkload, setLoadingWorkload] = useState(false);
 
-  useEffect(() => {
-    if (authState !== "AUTHENTICATED" || user?.role !== "admin") return;
+  useFocusEffect(React.useCallback(() => {
+    if (authState !== "AUTHENTICATED" || user?.role !== "admin" || !user.id) return;
     setLoading(true);
     adminService.listStaff().then(setStaff).catch((cause) => {
       setError(cause.response?.data?.message || "Could not load staff accounts");
     }).finally(() => setLoading(false));
-  }, [authState, user?.role]);
+  }, [authState, user]));
 
   const create = async () => {
+    if (saving) return;
     setError("");
     setMessage("");
     if (name.trim().length < 2 || !/^[0-9]{10}$/.test(mobile.trim()) || password.length < 8) {
@@ -85,7 +88,7 @@ export default function ManageStaffScreen() {
     return <View style={styles.screen}><Text style={styles.title}>Admin sign in required</Text><TouchableOpacity onPress={() => router.replace("/login")}><Text style={styles.link}>Go to sign in</Text></TouchableOpacity></View>;
   }
 
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+  return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}><ScrollView keyboardShouldPersistTaps="handled" style={styles.screen} contentContainerStyle={styles.content}>
     <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/admin/dashboard")}><Text style={styles.link}>← Admin dashboard</Text></TouchableOpacity>
     <Text style={styles.title}>Manage Advisors and Verifiers</Text>
     <Text style={styles.description}>Create a staff account, then give the person their mobile number and password through your own secure channel.</Text>
@@ -95,13 +98,13 @@ export default function ManageStaffScreen() {
         {(["advisor", "verifier"] as StaffRole[]).map((value) => <TouchableOpacity key={value} style={[styles.role, role === value && styles.roleSelected]} onPress={() => setRole(value)}><Text style={[styles.roleText, role === value && styles.roleTextSelected]}>{value === "advisor" ? "Advisor" : "Verifier"}</Text></TouchableOpacity>)}
       </View>
       <Text style={styles.label}>Full name</Text>
-      <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Staff member's name" />
+      <TextInput accessibilityLabel="Full name" editable={!saving} style={styles.input} value={name} onChangeText={setName} placeholder="Staff member's name" />
       <Text style={styles.label}>Mobile number</Text>
-      <TextInput style={styles.input} value={mobile} onChangeText={setMobile} placeholder="10-digit number" keyboardType="phone-pad" maxLength={10} />
+      <TextInput accessibilityLabel="Mobile number" editable={!saving} style={styles.input} value={mobile} onChangeText={setMobile} placeholder="10-digit number" keyboardType="phone-pad" maxLength={10} />
       <Text style={styles.label}>Email (optional)</Text>
-      <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none" />
+      <TextInput accessibilityLabel="Email (optional)" editable={!saving} style={styles.input} value={email} onChangeText={setEmail} placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none" />
       <Text style={styles.label}>Temporary password</Text>
-      <TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="At least 8 characters" secureTextEntry autoCapitalize="none" />
+      <TextInput accessibilityLabel="Temporary password" editable={!saving} style={styles.input} value={password} onChangeText={setPassword} placeholder="At least 8 characters" secureTextEntry autoCapitalize="none" />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {message ? <Text style={styles.success}>{message}</Text> : null}
       <TouchableOpacity style={styles.button} onPress={create} disabled={saving}>
@@ -124,7 +127,7 @@ export default function ManageStaffScreen() {
           <View style={{ padding: 18, backgroundColor: "#F7FBF9", borderTopWidth: 1, borderTopColor: "#D7E6DC" }}>
             <Text style={{ fontSize: 14, fontWeight: "700", color: "#10251B", marginBottom: 12 }}>Currently Assigned</Text>
             {loadingWorkload ? <ActivityIndicator color="#047857" /> : workload.assigned.length === 0 ? <Text style={styles.description}>No properties currently assigned.</Text> : workload.assigned.map((prop: any) => (
-              <TouchableOpacity key={`a_${prop._id}`} style={styles.propRow} onPress={() => router.push({ pathname: "/property/[id]", params: { id: prop._id } })}>
+              <TouchableOpacity key={`a_${prop._id}`} style={styles.propRow} onPress={() => router.push({ pathname: "/verification/[id]", params: { id: prop._id } })}>
                 <View><Text style={{ color: "#10251B", fontWeight: "600" }}>{prop.title}</Text><Text style={{ color: "#53645B", fontSize: 12 }}>Status: {prop.status}</Text></View>
                 <MaterialIcons name="chevron-right" size={20} color="#53645B" />
               </TouchableOpacity>
@@ -132,7 +135,7 @@ export default function ManageStaffScreen() {
 
             <Text style={{ fontSize: 14, fontWeight: "700", color: "#10251B", marginTop: 24, marginBottom: 12 }}>Verification History</Text>
             {loadingWorkload ? <ActivityIndicator color="#047857" /> : workload.history.length === 0 ? <Text style={styles.description}>No history yet.</Text> : workload.history.map((prop: any) => (
-              <TouchableOpacity key={`h_${prop._id}`} style={styles.propRow} onPress={() => router.push({ pathname: "/property/[id]", params: { id: prop._id } })}>
+              <TouchableOpacity key={`h_${prop._id}`} style={styles.propRow} onPress={() => router.push({ pathname: "/verification/[id]", params: { id: prop._id } })}>
                 <View><Text style={{ color: "#10251B", fontWeight: "600" }}>{prop.title}</Text><Text style={{ color: "#53645B", fontSize: 12 }}>Current Status: {prop.status}</Text></View>
                 <MaterialIcons name="chevron-right" size={20} color="#53645B" />
               </TouchableOpacity>
@@ -147,7 +150,7 @@ export default function ManageStaffScreen() {
         )}
       </View>
     )}
-  </ScrollView>;
+  </ScrollView></KeyboardAvoidingView>;
 }
 
 const styles = StyleSheet.create({
@@ -160,12 +163,12 @@ const styles = StyleSheet.create({
   heading: { fontSize: 18, fontWeight: "700", color: "#10251B", marginBottom: 14 },
   roles: { flexDirection: "row", gap: 10, marginBottom: 12 },
   role: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: 9, borderWidth: 1, borderColor: "#C7D8CE" },
-  roleSelected: { backgroundColor: "#047857", borderColor: "#047857" },
+  roleSelected: { backgroundColor: AppTheme.colors.primary, borderColor: "#047857" },
   roleText: { color: "#244536", fontWeight: "700" },
   roleTextSelected: { color: "white" },
   label: { color: "#244536", fontWeight: "700", marginTop: 10, marginBottom: 6 },
   input: { borderWidth: 1, borderColor: "#C7D8CE", borderRadius: 9, paddingHorizontal: 12, paddingVertical: 11, fontSize: 15 },
-  button: { marginTop: 18, backgroundColor: "#047857", borderRadius: 9, padding: 14 },
+  button: { marginTop: 18, backgroundColor: AppTheme.colors.primary, borderRadius: 9, padding: 14 },
   buttonText: { color: "white", textAlign: "center", fontWeight: "700" },
   error: { color: "#B91C1C", marginTop: 12 },
   success: { color: "#047857", marginTop: 12 },

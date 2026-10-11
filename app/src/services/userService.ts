@@ -1,13 +1,14 @@
 import api from "./authService";
 import type { Property } from "../types/property.types";
+import type { UserProfile } from "../types/auth.types";
 
 export const userService = {
-  async getProfile(): Promise<any> {
+  async getProfile(): Promise<UserProfile> {
     const res = await api.get("/users/profile");
     return res.data;
   },
 
-  async updateProfile(data: { name?: string; email?: string }): Promise<any> {
+  async updateProfile(data: { name?: string; email?: string }): Promise<UserProfile> {
     const res = await api.put("/users/profile", data);
     return res.data;
   },

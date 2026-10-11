@@ -5,7 +5,7 @@ import { Deal } from "../models/Deal.model";
 import { Inquiry } from "../models/Inquiry.model";
 import { Property } from "../models/Property.model";
 import { User } from "../models/User.model";
-import { historyEvent, transition } from "../services/propertyWorkflow";
+import { activeStaffFilter, historyEvent, transition } from "../services/propertyWorkflow";
 
 const router = Router();
 
@@ -15,7 +15,7 @@ router.post("/properties/:id/assign", authGuard, roleGuard("admin"), async (req:
     if (!property) return res.status(404).json({ message: "Property not found" });
     const role = property.status === "pending" ? "advisor" : property.status === "advisor_verified" ? "verifier" : null;
     if (!role) return res.status(409).json({ message: "Only pending review stages can be assigned" });
-    const staff = await User.findOne({ _id: req.body.staffId, role, passwordHash: { $exists: true, $ne: "" } });
+    const staff = await User.findOne({ _id: req.body.staffId, role, ...activeStaffFilter });
     if (!staff) return res.status(400).json({ message: `Choose an active ${role} account` });
     const field = role === "advisor" ? "assignedAdvisorId" : "assignedVerifierId";
     const updated = await transition(property, { [field]: staff._id }, historyEvent(req.user, property.status, property.status, "assigned", { staffId: staff._id, assignedRole: role }));
@@ -160,20 +160,28 @@ router.put("/users/:userId/suspend", authGuard, roleGuard("admin"), async (req, 
     console.log("before save" + user.isSuspended);
     await user.save();
     console.log("after save" + user.isSuspended);
-    res.json(user);
+    res.json({ id: user._id, isSuspended: user.isSuspended });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
 });
 
 // Toggle staff active status
-router.put("/staff/:staffId/status", authGuard, roleGuard("admin"), async (req, res) => {
+router.put("/staff/:staffId/status", authGuard, roleGuard("admin"), async (req: any, res) => {
   try {
     const staff = await User.findById(req.params.staffId);
     if (!staff || !["advisor", "verifier"].includes(staff.role)) return res.status(404).json({ message: "Staff not found" });
     staff.isActive = !staff.isActive;
     await staff.save();
-    res.json(staff);
+    if (!staff.isActive) {
+      const field = staff.role === "advisor" ? "assignedAdvisorId" : "assignedVerifierId";
+      const status = staff.role === "advisor" ? "pending" : "advisor_verified";
+      await Property.updateMany({ [field]: staff._id, status }, {
+        $unset: { [field]: 1 }, $inc: { __v: 1 },
+        $push: { verificationHistory: historyEvent(req.user, status, status, "reviewer_deactivated", { staffId: staff._id }) },
+      });
+    }
+    res.json({ id: staff._id, name: staff.name, role: staff.role, isActive: staff.isActive });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -183,7 +191,7 @@ router.put("/staff/:staffId/status", authGuard, roleGuard("admin"), async (req, 
 router.get("/users/:userId/transactions", authGuard, roleGuard("admin"), async (req, res) => {
   try {
     const inquiries = await Inquiry.find({ $or: [{ buyerId: req.params.userId }, { sellerId: req.params.userId }] }).populate("propertyId", "title price type location");
-    const deals = await Deal.find({ $or: [{ buyerId: req.params.userId }, { sellerId: req.params.userId }] }).populate("propertyId", "title price type location");
+    const deals = await Deal.find({ $or: [{ buyerId: req.params.userId }, { ownerId: req.params.userId }] }).populate("propertyId", "title price type location");
     res.json({ inquiries, deals });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -195,7 +203,7 @@ router.get("/staff/:staffId/workload", authGuard, roleGuard("admin"), async (req
   try {
     const staffId = req.params.staffId;
     const assignedProps = await Property.find({ $or: [{ assignedAdvisorId: staffId }, { assignedVerifierId: staffId }] }).select("title status createdAt location");
-    const verifiedHistory = await Property.find({ "history.userId": staffId }).select("title status createdAt location");
+    const verifiedHistory = await Property.find({ verificationHistory: { $elemMatch: { actorId: staffId, action: { $in: ["approve", "correction", "reject"] } } } }).select("title status createdAt location");
     res.json({ assigned: assignedProps, history: verifiedHistory });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -205,7 +213,7 @@ router.get("/staff/:staffId/workload", authGuard, roleGuard("admin"), async (req
 // Get property audit
 router.get("/properties/:propertyId/audit", authGuard, roleGuard("admin"), async (req, res) => {
   try {
-    const prop = await Property.findById(req.params.propertyId).populate("history.userId", "name role").select("history documents");
+    const prop = await Property.findById(req.params.propertyId).select("verificationHistory documents");
     if (!prop) return res.status(404).json({ message: "Property not found" });
     res.json(prop);
   } catch (error: any) {

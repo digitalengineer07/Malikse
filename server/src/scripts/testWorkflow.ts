@@ -14,6 +14,7 @@ import documentRoutes from "../routes/document.routes";
 import dealRoutes from "../routes/deal.routes";
 import { User } from "../models/User.model";
 import { Property } from "../models/Property.model";
+import { processNextSubmission } from "../services/submissionQueue";
 import { PropertyDocument } from "../models/Document.model";
 
 async function main() {
@@ -31,6 +32,13 @@ async function main() {
   const request = async (route: string, token?: string, body?: object, expected = 200, method = body ? "POST" : "GET") => {
     const response = await fetch(base + route, { method, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
     const data: any = await response.json();
+    if (route.endsWith("/submit") && expected === 200) {
+      assert.equal(response.status, 202);
+      assert.equal(data.status, "queued");
+      await processNextSubmission();
+      checks++;
+      return JSON.parse(JSON.stringify(await Property.findById(data._id)));
+    }
     assert.equal(response.status, expected, `${method} ${route}: ${JSON.stringify(data)}`);
     checks++;
     return data;
@@ -54,6 +62,8 @@ async function main() {
     await request(`/properties/${id}/workspace`, outsider, undefined, 403);
     await request(`/documents?propertyId=${id}`, outsider, undefined, 403);
     await request(`/properties/${id}/submit`, seller, {}, 400);
+    await request(`/properties/${id}/submit`, seller, { consent: true }, 400);
+    await request(`/properties/${id}`, seller, { media: { photos: ["https://example.test/property.jpg"], videos: [] } }, 200, "PATCH");
     const pending = await request(`/properties/${id}/submit`, seller, { consent: true });
     assert.equal(pending.status, "pending"); assert.equal(pending.assignedAdvisorId, null);
     await request(`/properties/${id}/submit`, seller, { consent: true }, 409);
@@ -109,16 +119,18 @@ async function main() {
     assert.ok(tracked.verificationHistory.some((event: any) => event.report?.decision === "correction"));
     assert.equal(tracked.verificationHistory.filter((event: any) => event.toStatus === "verified").length, 1);
 
-    const second = await request("/properties", seller, input, 201);
+    const second = await request("/properties", seller, { ...input, media: { photos: ["https://example.test/property.jpg"], videos: [] } }, 201);
     const multipart = new FormData();
     multipart.append("propertyId", second._id); multipart.append("type", "Registry"); multipart.append("file", new Blob(["Test ownership document"]), "test.txt");
     const uploaded = await fetch(base + "/documents", { method: "POST", headers: { Authorization: `Bearer ${seller}` }, body: multipart });
     assert.equal(uploaded.status, 201, await uploaded.text());
     const documents = await request(`/documents?propertyId=${second._id}`, seller);
     assert.equal(documents.length, 1);
-    const download = await fetch(documents[0].fileUrl);
+    const downloadUrl = new URL(documents[0].fileUrl);
+    const localDownload = base + downloadUrl.pathname + downloadUrl.search;
+    const download = await fetch(localDownload);
     assert.equal(download.status, 200); assert.equal(await download.text(), "Test ownership document");
-    assert.equal((await fetch(documents[0].fileUrl.split("?")[0])).status, 403);
+    assert.equal((await fetch(base + downloadUrl.pathname)).status, 403);
     await request(`/documents?propertyId=${second._id}`, outsider, undefined, 403);
     const autoAssigned = await request(`/properties/${second._id}/submit`, seller, { consent: true });
     assert.ok(autoAssigned.assignedAdvisorId);

@@ -6,8 +6,8 @@ MalikSe uses four roles: **User** (buying and selling), **Advisor**, **Verifier*
 
 - Login and registration open the verified marketplace. The Profile button opens the signed-in account's role dashboard; **My profile** there opens account details and logout.
 - Users complete the explicitly labeled demo KYC step, then fill in property details, location/boundaries, and optional ownership documents. Web supports boundary drawing; mobile supports GPS capture or manual coordinates.
-- The final submission saves a draft, uploads selected documents, and submits it to the Advisor queue. Failed uploads retain the draft; errors never advance in preview mode. Photo/video URLs are supported in this skeleton; a media upload pipeline is not yet included.
-- New submissions are assigned to an available Advisor with the smallest pending queue. Advisor approval assigns an available Verifier. If no reviewer exists, the property stays unassigned and can be claimed after a staff account is created. Admin can assign or reassign pending reviews.
+- The final submission saves a draft, uploads photos and optional documents, then durably queues the submitted details. The app shows the queued state until a worker assigns Advisor review. Failed uploads retain the draft.
+- New submissions are assigned to available Advisors in round-robin order. Advisor approval assigns an available Verifier using a separate round-robin counter. Corrections retain the previous Advisor when that account remains eligible. If no reviewer exists, the property stays unassigned and can be claimed after a staff account is created. Admin can assign or reassign pending reviews.
 - Advisors and Verifiers see their assigned properties, seller records, protected documents, checklists and reports. Unassigned queues show only summaries until claimed.
 - Both stages can approve, request corrections, or reject with signed notes. Seller corrections restart Advisor review; previous reports remain in history. Rejected listings cannot be resubmitted through this flow.
 - Only final Verifier approval publishes a listing. Public search and details require both recorded approvals and expose neither private seller contact details nor documents/reports. Fully Verified is not a legal-title guarantee.
@@ -24,6 +24,8 @@ MalikSe uses four roles: **User** (buying and selling), **Advisor**, **Verifier*
 ### Verify the workflow
 
 With MongoDB available, run `npm --prefix server run test:workflow`. The test uses a uniquely named temporary database and deletes only its own test database and uploaded fixture when finished. It exercises role restrictions, assignment, both correction loops, duplicate approvals, optional documents, protected downloads and publication.
+
+Run `npm --prefix server run test:security` for the audit regression suite. It also uses a unique temporary database and checks private-data access, photo traversal, token replay/concurrent rotation, active-reviewer assignment, profile validation, deal transitions, document-link revocation and unread-message tracking. Downloads in both suites stay on their local test server.
 
 ## 🛠 Tech Stack
 
@@ -71,13 +73,16 @@ malikse/
    Create a `.env` file in the `server` directory and fill in your credentials:
    ```env
    # JWT Secrets
-   JWT_ACCESS_SECRET=your_access_secret
-   JWT_REFRESH_SECRET=your_refresh_secret
+   JWT_ACCESS_SECRET=<unique-private-random-secret>
+   JWT_REFRESH_SECRET=<different-private-random-secret>
 
    # MongoDB
    MONGO_URI=your_mongodb_connection_string
    PORT=5000
    ```
+   Supply actual random signing secrets; the server rejects missing secrets, known development defaults and matching access/refresh secrets. For production, also set `NODE_ENV=production` and `PUBLIC_API_URL=https://your-api-host.example` to the API's externally reachable HTTPS origin (no path). Set `PUBLIC_API_URL` behind a TLS proxy even outside production so document/photo URLs use the correct scheme. It is deliberately not inferred from untrusted forwarding headers.
+
+   The audit fixes replace bcrypt refresh-token hashes with full-token digests and atomic rotation. Existing refresh sessions must sign in again after the upgrade. Existing access tokens retain their normal expiry. Inquiry read timestamps need no migration; old incoming messages start unread until viewed. Seller/buyer phone numbers are no longer exposed through inquiries; conversations continue inside the app.
    Set `ADMIN_NAME`, `ADMIN_MOBILE`, and `ADMIN_PASSWORD` (at least 6 characters) in `server/.env` to create the first Admin. `ADMIN_EMAIL` is optional. Configure the app API address in `app/.env`; the example is in `app/.env.example`. Expo Go on a phone uses the Metro host for a localhost API URL, so the phone and server should be on the same network.
 
    Create the Admin once:
@@ -105,3 +110,21 @@ Users register from the app and are signed in immediately. The Admin signs in wi
 
 ---
 **Note:** This project is adapted from an earlier GIS/drone codebase (Landroid). All previous mapping layers and AI modules have been removed to focus entirely on the verified property marketplace functionality.
+
+## Submission workers, secondary indexes and search cache
+
+The queue and shared assignment counters use MongoDB, so no Redis service is required. The job is embedded in the property: `POST /properties/:id/submit` atomically changes its status to `queued` and returns **202 Accepted**. Draft details and file uploads are saved before this step. Queued details cannot be edited. The existing private workspace endpoint exposes progress; My listings refreshes automatically while queued.
+
+Workers lease jobs for 60 seconds, retry failures with exponential backoff and jitter up to five attempts, and fence completion writes using a unique lease token. Expired leases can be recovered after a restart. Exhausted jobs return to `correction_required` with feedback, allowing the seller to check and resubmit. Queue acceptance includes a SHA-256 digest of the submitted details in the audit trail. Passwords continue to use bcrypt and refresh tokens use SHA-256 digests.
+
+By default, each API instance runs one worker, polling each second and processing at most ten jobs per poll. For separate worker deployment, set `SUBMISSION_WORKER_ENABLED=false` on the API and run `npm --prefix server run worker:submissions` against the same MongoDB database. After a production build, use `node server/dist/scripts/submissionWorker.js` with the server environment loaded. Keep at least one worker running. Multiple workers may run safely; no strict global FIFO ordering is promised during retries.
+
+Round-robin counters persist per role and are incremented atomically. Only active, unsuspended staff with login credentials qualify. With an unchanged eligible roster, new assignments rotate evenly. Corrections that retain a reviewer do not consume a turn. Retries, concurrent review conflicts, manual assignments and roster changes can affect exact totals. No eligible reviewer leaves work unassigned for claim or Admin assignment.
+
+Three additive MongoDB secondary indexes support location/title text search, property type with newest-first ordering, and price ranges. Startup builds missing named indexes for existing data before accepting traffic; no old indexes are dropped. The queue also has a polling index. Text search now matches indexed words (including district, state, block, mauza and title), rather than arbitrary substrings. Price ranges combined with newest-first sorting may still require an in-memory sort; index presence is not a throughput guarantee.
+
+Search returns an array with `page` (1–100) and `limit` (1–100, default 100), ordered by `createdAt` and `_id` descending. Both browse screens use 50-result pages. This is bounded offset pagination; concurrent publications can move results between pages.
+
+The shared MongoDB cache keeps only candidate IDs for 15 seconds, keyed by a SHA-256 hash of normalized filters and pagination. TTL expiry is checked explicitly, independently of MongoDB cleanup timing. Current public details, filters, approvals and seller availability are rechecked for every response, including cache hits. Publication invalidates cached searches; a concurrent refill, account reactivation or out-of-band update can delay discovery by up to the TTL. Private workspaces and documents are never cached. `X-Search-Cache: HIT/MISS` reports cache use. Identical misses share work within each process, with at most 50 distinct in-flight fills per process; cache read/write failures fall back to authoritative search. This reduces repeated search work but still requires database reads on a hit.
+
+Run `npm --prefix server run test:infrastructure` for isolated temporary-database tests of concurrent assignment, queue leases/retries, cache expiry/privacy, filter validation and secondary-index execution plans. Also run the workflow and security suites. These checks validate correctness on fixtures, not production capacity.
