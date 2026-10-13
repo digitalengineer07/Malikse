@@ -1,12 +1,18 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { publicCacheHooks } from "../services/publicCacheHooks";
+import { regionCountHooks } from "../services/regionCountHooks";
 
 export interface IProperty extends Document {
+  __v: number;
+  title?: string;
+  description?: string;
   ownerId: mongoose.Types.ObjectId;
   jointOwnerIds: mongoose.Types.ObjectId[];
   type: "land" | "flat" | "house" | "shop" | "office";
   location: {
     state: string;
     district: string;
+    pincode?: string;
     block: string;
     mauza: string;
     policeStation: string;
@@ -26,7 +32,12 @@ export interface IProperty extends Document {
   media: { photos: string[]; videos: string[] };
   documents: mongoose.Types.ObjectId[];
   disclosures: { hasLoan: boolean; hasDispute: boolean; possessionStatus: string };
-  status: "pending" | "correction_required" | "rejected" | "verified" | "sold";
+  status: "draft" | "queued" | "pending" | "advisor_verified" | "correction_required" | "rejected" | "verified" | "sold";
+  submission?: { id: string; digest: string; attempts: number; nextAttemptAt: Date; leaseUntil?: Date; leaseToken?: string; error?: string; completedAt?: Date };
+  assignedVerifierId?: mongoose.Types.ObjectId;
+  advisorReview?: any;
+  verifierReview?: any;
+  verificationHistory: any[];
   badges: {
     identityVerified: boolean;
     documentsChecked: boolean;
@@ -41,6 +52,12 @@ export interface IProperty extends Document {
 
 const PropertySchema = new Schema<IProperty>(
   {
+    title: { type: String, trim: true, maxlength: 200 },
+    description: { type: String, maxlength: 5000 },
+    assignedVerifierId: { type: Schema.Types.ObjectId, ref: "User" },
+    advisorReview: Schema.Types.Mixed,
+    verifierReview: Schema.Types.Mixed,
+    verificationHistory: { type: [Schema.Types.Mixed], default: [] } as any,
     ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     jointOwnerIds: { type: [Schema.Types.ObjectId], ref: "User", default: [] },
     type: {
@@ -51,6 +68,7 @@ const PropertySchema = new Schema<IProperty>(
     location: {
       state: { type: String, required: true },
       district: { type: String, required: true },
+      pincode: { type: String, trim: true, default: "", validate: { validator: (value: string) => !value || /^[1-9]\d{5}$/.test(value), message: "Enter a valid six-digit pincode" } },
       block: { type: String, default: "" },
       mauza: { type: String, default: "" },
       policeStation: { type: String, default: "" },
@@ -87,7 +105,7 @@ const PropertySchema = new Schema<IProperty>(
     },
     status: {
       type: String,
-      enum: ["pending", "correction_required", "rejected", "verified", "sold"],
+      enum: ["draft", "queued", "pending", "advisor_verified", "correction_required", "rejected", "verified", "sold"],
       default: "pending",
     },
     badges: {
@@ -99,6 +117,14 @@ const PropertySchema = new Schema<IProperty>(
     },
     assignedAdvisorId: { type: Schema.Types.ObjectId, ref: "User" },
     rejectionReason: String,
+    submission: {
+      type: new Schema({
+        id: String, digest: String, attempts: { type: Number, default: 0 },
+        nextAttemptAt: Date, leaseUntil: Date, leaseToken: String,
+        error: String, completedAt: Date,
+      }, { _id: false }),
+      default: undefined,
+    },
   },
   { timestamps: true }
 );
@@ -107,5 +133,25 @@ const PropertySchema = new Schema<IProperty>(
 PropertySchema.index({ "location.lat": 1, "location.lng": 1 });
 PropertySchema.index({ status: 1, price: 1 });
 PropertySchema.index({ type: 1, status: 1 });
+// Additive secondary indexes; existing indexes are retained until measured.
+PropertySchema.index({ title: "text", "location.state": "text", "location.district": "text", "location.block": "text", "location.mauza": "text" }, { name: "property_location_text", default_language: "none" });
+PropertySchema.index({ status: 1, type: 1, createdAt: -1, _id: -1 }, { name: "property_type_newest" });
+PropertySchema.index({ status: 1, price: 1, createdAt: -1, _id: -1 }, { name: "property_price_newest" });
+PropertySchema.index({ status: 1, "submission.nextAttemptAt": 1, "submission.leaseUntil": 1 }, { name: "property_submission_queue" });
+PropertySchema.index({ ownerId: 1, createdAt: -1 }, { name: "property_owner_newest" });
+PropertySchema.index({ assignedAdvisorId: 1, updatedAt: -1 }, { name: "property_advisor_updated" });
+PropertySchema.index({ assignedVerifierId: 1, updatedAt: -1 }, { name: "property_verifier_updated" });
+PropertySchema.index({ status: 1, createdAt: -1, _id: -1 }, { name: "property_status_newest" });
 
+PropertySchema.index({ createdAt: -1, _id: -1 }, { name: "property_cursor" });
+PropertySchema.index({ ownerId: 1, createdAt: -1, _id: -1 }, { name: "property_owner_cursor" });
+PropertySchema.index({ status: 1, "location.district": 1, createdAt: -1, _id: -1 }, { name: "property_district_cursor" });
+PropertySchema.index({ "verificationHistory.actorId": 1, createdAt: -1, _id: -1 }, { name: "property_history_actor_cursor" });
+PropertySchema.plugin(publicCacheHooks);
+PropertySchema.plugin(regionCountHooks);
+const publicIndex = { status: "verified", "badges.fullyVerified": true, "advisorReview.decision": "approve", "verifierReview.decision": "approve" };
+PropertySchema.index({ createdAt: -1, _id: -1 }, { name: "public_newest", partialFilterExpression: publicIndex });
+PropertySchema.index({ type: 1, createdAt: -1, _id: -1 }, { name: "public_type_newest", partialFilterExpression: publicIndex });
+PropertySchema.index({ "location.state": 1, "location.district": 1, createdAt: -1, _id: -1 }, { name: "public_location_newest", partialFilterExpression: publicIndex });
+PropertySchema.index({ "location.state": 1, "location.district": 1, "location.pincode": 1, createdAt: -1, _id: -1 }, { name: "public_pincode_newest", partialFilterExpression: publicIndex });
 export const Property = mongoose.model<IProperty>("Property", PropertySchema);

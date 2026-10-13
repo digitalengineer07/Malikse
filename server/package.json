@@ -4,19 +4,41 @@
   "description": "MalikSe backend — Node.js + Express + MongoDB",
   "main": "dist/index.js",
   "scripts": {
+    "db:region-counts": "npm run build && node dist/scripts/rebuildRegionCounts.js",
+    "verify:demo-properties": "npm run build && node load/verify-demo-properties.cjs",
+    "seed:demo-properties": "npm run build && node dist/scripts/seedDemoProperties.js",
+    "test:regions": "npm run build && node load/test-regions.cjs",
+    "load:pm2": "npm run build && node load/run-pm2.cjs",
+    "load:pm2-max": "npm run build && node --expose-gc load/run-pm2.cjs --sweep",
     "dev": "nodemon --exec ts-node src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "seed:admin": "ts-node src/scripts/seedAdmin.ts",
+    "test:workflow": "ts-node src/scripts/testWorkflow.ts",
+    "test:security": "node ../audit/regression.cjs",
+    "worker:submissions": "ts-node src/scripts/submissionWorker.ts",
+    "test:infrastructure": "ts-node src/scripts/testInfrastructure.ts",
+    "test:production": "ts-node src/scripts/testProduction.ts",
+    "db:indexes": "ts-node src/scripts/createIndexes.ts",
+    "db:indexes:prod": "node dist/scripts/createIndexes.js",
+    "load:production": "node dist/scripts/benchmarkProduction.js",
+    "load:home": "npm run build && node load/profile-local.cjs --home-autocannon",
+    "load:users-10k": "npm run build && node load/profile-local.cjs --users-10k",
+    "test:public-cache": "npm run build && node load/test-public-cache.cjs",
+    "load:pool-matrix": "npm run build && node load/pool-matrix.cjs",
+    "test:performance": "npm run build && node load/test-performance.cjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.5.1",
     "multer": "^1.4.5-lts.1",
-    "uuid": "^10.0.0"
+    "redis": "^6.3.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -25,10 +47,10 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/multer": "^1.4.11",
     "@types/node": "^20.14.11",
-    "@types/uuid": "^10.0.0",
+    "autocannon": "^8.0.0",
     "nodemon": "^3.1.14",
+    "pm2": "^7.0.4",
     "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
     "typescript": "^5.5.3"
   }
 }

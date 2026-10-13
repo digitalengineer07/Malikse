@@ -1,0 +1,6 @@
+{
+  "command": "npx eslint app components src hooks constants --max-warnings 0",
+  "exitCode": 0,
+  "errors": 0,
+  "warnings": 0
+}

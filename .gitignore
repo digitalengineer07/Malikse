@@ -42,6 +42,8 @@ app-example
 # generated native folders
 /ios
 /android
+/app/ios
+/app/android
 
 
 
@@ -54,5 +56,11 @@ data
 
 public/
 public
-
+load
+!server/load/
+server/load/*
+!server/load/*.cjs
+!server/load/*.js
+!server/load/README.md
+.md
 

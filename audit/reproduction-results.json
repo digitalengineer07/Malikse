@@ -1,0 +1,50 @@
+[
+  {
+    "name": "Unauthenticated path traversal",
+    "detail": "Encoded slash escapes photo directory and serves sibling fixture"
+  },
+  {
+    "name": "Wishlist discloses private draft and reports",
+    "detail": "Unrelated buyer can save draft ID then read complete property"
+  },
+  {
+    "name": "Inquiry bypasses publication/KYC/amount checks",
+    "detail": "Non-KYC buyer offers negative amount on draft and obtains seller mobile"
+  },
+  {
+    "name": "Inactive staff selected for automatic assignment",
+    "detail": "Only advisor is inactive but availableStaff returns their ID"
+  },
+  {
+    "name": "Profile response drops session id",
+    "detail": "Profile update returns _id without id required by auth store"
+  },
+  {
+    "name": "Refresh token rotation hash collision",
+    "detail": "Different valid JWTs compare equal under bcrypt"
+  },
+  {
+    "name": "Deal detail exposes private review",
+    "detail": "Buyer receives unprojected property including advisor notes"
+  },
+  {
+    "name": "Completed deal can be rewritten",
+    "detail": "Seller changes completed deal to rejected"
+  },
+  {
+    "name": "Seller transactions missing",
+    "detail": "Deal query uses sellerId instead of ownerId"
+  },
+  {
+    "name": "Staff history missing",
+    "detail": "History query ignores populated verificationHistory.actorId"
+  },
+  {
+    "name": "Property audit endpoint fails",
+    "detail": "Populates nonexistent history.userId and responds 500"
+  },
+  {
+    "name": "Suspension does not revoke document links",
+    "detail": "Suspended owner can still download using an issued link"
+  }
+]

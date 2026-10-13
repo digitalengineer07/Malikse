@@ -1,35 +1,50 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { User } from "../models/User.model";
 
 export interface AuthRequest extends Request {
   user?: { id: string; role: string };
+  account?: ReturnType<typeof publicUser>;
 }
 
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || "dev_access_secret";
+import { ACCESS_SECRET, publicUser } from "../services/security";
 
 /**
  * Verifies the Bearer JWT in the Authorization header.
  * Attaches `req.user` on success.
  */
-export function authGuard(req: AuthRequest, res: Response, next: NextFunction) {
+export async function authGuard(req: AuthRequest, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ")) {
     return res.status(401).json({ message: "Authentication required. Please sign in as a verified owner to continue." });
   }
   const token = header.slice(7);
 
-  // Development demo fallback
-  if (token === "dummy_access" || token.startsWith("dummy_")) {
-    req.user = { id: "650000000000000000000001", role: "owner" };
-    return next();
-  }
-
+  let decoded: { id: string; role: string };
   try {
-    const decoded = jwt.verify(token, ACCESS_SECRET) as { id: string; role: string };
-    req.user = decoded;
-    next();
+    decoded = jwt.verify(token, ACCESS_SECRET, { algorithms: ["HS256"] }) as { id: string; role: string };
+    if (typeof decoded.id !== "string" || !/^[a-f0-9]{24}$/i.test(decoded.id)) {
+      return res.status(401).json({ message: "Invalid account session" });
+    }
   } catch {
     return res.status(401).json({ message: "Session expired or invalid. Please sign in again." });
+  }
+  try {
+    const user = await User.findById(decoded.id).select("role passwordHash isSuspended isActive name mobile email isVerifiedIdentity demoKycComplete createdAt").lean();
+    if (!user?.passwordHash) {
+      return res.status(401).json({ message: "Please sign in with your account credentials" });
+    }
+    if (user.isSuspended) {
+      return res.status(403).json({ message: "Your account has been suspended by the administrator." });
+    }
+    if (user.isActive === false) {
+      return res.status(403).json({ message: "Your staff account has been deactivated." });
+    }
+    req.user = { id: user._id.toString(), role: user.role };
+    req.account = publicUser(user);
+    next();
+  } catch {
+    return res.status(503).json({ message: "Account service is temporarily unavailable. Please try again." });
   }
 }
 
