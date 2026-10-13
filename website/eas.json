@@ -1,0 +1,29 @@
+{
+  "cli": {
+    "version": ">= 7.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyDy5-JRs3leGCOqa79EWO4oZM3-3IlK7BY",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "landroid-app-ec6c9.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "landroid-app-ec6c9",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "landroid-app-ec6c9.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "1098456944107",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:1098456944107:web:0b3d1a5228083027175dae",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "1098456944107-0uthc86tghi4o2c80o9c6ejuiv1chpd2.apps.googleusercontent.com",
+        "EXPO_PUBLIC_API_BASE_URL": "https://malikse.onrender.com"
+      }
+    },
+    "production": {}
+  }
+}

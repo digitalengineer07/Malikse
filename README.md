@@ -44,16 +44,19 @@ Run `npm --prefix server run test:security` for the audit regression suite. It a
 
 ```text
 malikse/
-├── app/                 # Expo / React Native application
-│   ├── app/             # Expo Router screens (auth, tabs, admin, advisor)
-│   ├── src/             # Components, services, stores, and hooks
-│   ├── assets/          # Application images and fonts
-│   └── package.json     # Frontend dependencies and commands
-├── server/              # Node.js + Express backend
-│   ├── src/             # API routes, models, middleware, and index.ts
-│   ├── uploads/         # Uploaded documents served by the API
-│   └── package.json     # Backend dependencies and commands
-└── website/             # Reserved for the future standalone website
+├── app/                 # Mobile application (Expo / React Native for Android & iOS)
+│   ├── app/             # App screens & navigation
+│   ├── components/      # Mobile UI components
+│   ├── src/             # Services, stores, types
+│   └── package.json     # App dependencies and commands
+├── website/             # Standalone website application (Web interface)
+│   ├── app/             # Website routes & pages
+│   ├── components/      # Website UI components
+│   ├── src/             # Services, stores, types
+│   └── package.json     # Website dependencies and commands
+└── server/              # Node.js + Express backend
+    ├── src/             # API routes, models, middleware
+    └── package.json     # Backend dependencies and commands
 ```
 
 ## 🚦 Getting Started
@@ -100,15 +103,21 @@ malikse/
    npm --prefix server run dev
    ```
 
-4. **Run the Application (Frontend)**:
-   Open a new terminal at the project root:
+4. **Run the Standalone Website**:
    ```bash
-   # For Web
-   npm --prefix app run web
-   
-   # For Android
+   npm --prefix website run dev
+   ```
+   Starts the website on `http://localhost:8082`. Any UI changes made in `website/` will only affect the website and will not alter the mobile app UI.
+
+5. **Run the Mobile Application**:
+   ```bash
+   # Start Expo bundler (Expo Go / QR code)
+   npm --prefix app start
+
+   # Run on Android emulator / device
    npm --prefix app run android
    ```
+   Any UI changes made in `app/` will only affect the mobile application and will not alter the website UI.
 
 Users register from the app and are signed in immediately. The Admin signs in with the seeded mobile number and password, then clicks Profile and opens **Advisors and Verifiers** on the Admin dashboard to create staff accounts. Staff sign in through the same login screen with the credentials the Admin set. Registration does not create staff or Admin accounts.
 
