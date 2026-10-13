@@ -15,6 +15,9 @@ interface AppHeaderProps {
   fallbackRoute?: string;
   rightElement?: React.ReactNode;
   showLanguageToggle?: boolean;
+  showNavLinks?: boolean;
+  showPostPropertyBtn?: boolean;
+  showHomeButton?: boolean;
 }
 
 export default function AppHeader(props: AppHeaderProps) {
