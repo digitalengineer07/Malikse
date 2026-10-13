@@ -1,6 +1,5 @@
 import { Property, IProperty } from "../models/Property.model";
 import { User } from "../models/User.model";
-import { SearchCache } from "../models/SearchCache.model";
 import { AssignmentCursor } from "../models/AssignmentCursor.model";
 
 export const editableFields = ["title", "description", "type", "location", "parcelPoints", "khata", "khesra", "holdingNumber", "totalArea", "sellableArea", "boundary", "roadWidth", "price", "negotiable", "media", "disclosures"];
@@ -11,6 +10,7 @@ export const canReadProperty = (property: IProperty, actor: { id: string; role: 
   (actor.role === "verifier" && property.assignedVerifierId?.toString() === actor.id);
 
 export function validateListing(data: any) {
+  if (data.location?.pincode !== undefined && (typeof data.location.pincode !== "string" || (data.location.pincode !== "" && !/^[1-9]\d{5}$/.test(data.location.pincode)))) return "Enter a valid six-digit pincode";
   if (!data.location?.state?.trim() || !data.location?.district?.trim()) return "State and district are required";
   if (!Number.isFinite(data.location.lat) || Math.abs(data.location.lat) > 90 || !Number.isFinite(data.location.lng) || Math.abs(data.location.lng) > 180) return "Provide valid GPS coordinates";
   if (![data.price, data.totalArea, data.sellableArea].every(n => Number.isFinite(n) && n > 0)) return "Price and areas must be positive numbers";
@@ -46,9 +46,6 @@ export async function transition(property: IProperty, changes: object, event: ob
   const updated = await Property.findOneAndUpdate({ _id: property._id, __v: property.__v, status: property.status }, {
     $set: changes, $inc: { __v: 1 }, $push: { verificationHistory: event },
   }, { new: true, runValidators: true });
-  if (updated && (property.status === "verified" || updated.status === "verified")) {
-    await SearchCache.deleteMany({}).catch(() => undefined);
-  }
   return updated;
 }
 

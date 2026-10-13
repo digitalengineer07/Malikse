@@ -6,6 +6,7 @@ import express from "express";
 import { Property } from "../models/Property.model";
 import { User } from "../models/User.model";
 import { AssignmentCursor } from "../models/AssignmentCursor.model";
+import { searchMemory } from "../services/searchMemory";
 import { SearchCache } from "../models/SearchCache.model";
 import { availableStaff } from "../services/propertyWorkflow";
 import { enqueueSubmission, processNextSubmission } from "../services/submissionQueue";
@@ -96,6 +97,7 @@ async function main() {
     assert.equal((await searchProperties({ location: "Patna", type: "land", minPrice: "1" })).results.length, 0);
     for (const bad of [{ type: { $ne: "land" } }, { minPrice: "NaN" }, { minPrice: "4", maxPrice: "3" }, { page: "-1" }, { limit: "101" }, { location: ["Patna"] }]) await assert.rejects(searchProperties(bad));
     await SearchCache.updateMany({}, { $set: { expiresAt: new Date(0) } });
+    for (const entry of searchMemory.values()) entry.expires = 0;
     assert.equal((await searchProperties({ location: "Patna", type: "land", minPrice: "1" })).cacheHit, false);
     const more = await Property.create([1, 2, 3].map(i => ({ ...input, title: `Page fixture ${i}`, status: "verified", badges: { fullyVerified: true }, advisorReview: { decision: "approve" }, verifierReview: { decision: "approve" } })));
     await Property.updateMany({ _id: { $in: more.map(p => p._id) } }, { $set: { createdAt: new Date("2025-01-01") } }, { timestamps: false });

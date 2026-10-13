@@ -1,6 +1,6 @@
 import PropertyTypeTabs from "./PropertyTypeTabs";
 import { premiumStyles } from "../constants/typography";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 
 import AppHeader from "./AppHeader";
-import { propertyService } from "../src/services/propertyService";
+import { cachedPropertySearch, propertyService } from "../src/services/propertyService";
 import type { Property, PropertyType } from "../src/types/property.types";
 import { AppTheme } from "../constants/theme";
 
@@ -22,31 +22,40 @@ export default function VerifiedHomeScreen() {
   const insets = useSafeAreaInsets();
   const [properties, setProperties] = useState<Property[]>([]);
   const [selected, setSelected] = useState<Property | null>(null);
-  const { type: initialType, query, min, max } = useLocalSearchParams<{ type?: PropertyType; query?: string; min?: string; max?: string }>();
-  const [type, setType] = useState<PropertyType | undefined>(initialType);
+  const { type: initialType, query, min, max, district, state, pincode, address } = useLocalSearchParams<{ type?: PropertyType; query?: string; min?: string; max?: string; district?: string; state?: string; pincode?: string; address?: string }>();
+  const [type, setType] = useState<PropertyType | undefined>(initialType || undefined);
+  useEffect(() => { setType(initialType || undefined); }, [initialType]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [refreshError, setRefreshError] = useState("");
   const [revision, setRevision] = useState(0);
-  const filterKey = JSON.stringify([type, query, min, max]);
-  const [pagination, setPagination] = useState({ key: "", page: 1 });
+  const filterKey = JSON.stringify([type, query, min, max, district, state, pincode, address]);
+  const [pagination, setPagination] = useState<{ key: string; page: number; cursors: (string | undefined)[] }>({ key: "", page: 1, cursors: [undefined] });
+  const [nextCursor, setNextCursor] = useState<string>();
   const page = pagination.key === filterKey ? pagination.page : 1;
   useFocusEffect(useCallback(() => {
     let active = true;
-    setLoading(true); setError("");
-    const searchFilters = { page, limit: 50, type, location: query, budgetMin: min ? Number(min) : undefined, budgetMax: max ? Number(max) : undefined };
-    propertyService.searchProperties(searchFilters).then(data => { if (active) setProperties(data); }).catch(() => { if (active) { setProperties([]); setError("We couldn’t load verified properties. Please try again."); } }).finally(() => { if (active) setLoading(false); });
+    const searchFilters = { cursor: pagination.key === filterKey ? pagination.cursors[page - 1] : undefined, limit: 50, type, location: query, district, state, pincode, address, budgetMin: min ? Number(min) : undefined, budgetMax: max ? Number(max) : undefined };
+    const cached = cachedPropertySearch(searchFilters);
+    if (cached) { setProperties(cached); setNextCursor((cached as any).nextCursor); }
+    setLoading(!cached);
+    setError(""); setRefreshError("");
+    propertyService.searchProperties(searchFilters).then(data => { if (active) { setProperties(data); setNextCursor((data as any).nextCursor); } }).catch(() => { if (active && cached) setRefreshError("Showing saved results. Could not refresh; try again shortly."); if (active && !cached) { setProperties([]); setError("We couldn’t load verified properties. Please try again."); } }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; setSelected(null); };
   // Retry explicitly reloads the same backend query.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [revision, type, query, min, max, page]));
+  }, [revision, type, query, min, max, district, state, pincode, address, page]));
   const openProperty = useCallback((property: Property) => { setSelected(null); router.push({ pathname: "/property/[id]", params: { id: property._id || property.id } }); }, [router]);
   return <View style={s.screen}>
     <AppHeader />
+    {!!refreshError && <Text accessibilityRole="alert" style={s.note}>{refreshError}</Text>}
     <ScrollView contentContainerStyle={{ paddingBottom: 45 }}>
 
     <View style={[s.content, width < 600 && { paddingHorizontal: 18 }]}>
     <View style={[s.headingRow, { marginTop: 36, marginBottom: 16 }]}><View><Text style={s.eyebrow}>A PLACE FOR YOUR NEXT CHAPTER</Text><Text style={s.sectionTitle}>Explore our properties</Text></View><Text style={s.count}>{properties.length} on page {page}</Text></View>
 
+    {!!pincode && <View style={s.headingRow}><Text style={s.note}>{state} · {district} · {pincode === "__missing__" ? "Pincode not provided" : pincode}</Text><TouchableOpacity accessibilityRole="button" onPress={() => router.setParams({ pincode: "", state: "", district: "" })}><Text style={s.typeLabel}>Clear area filter</Text></TouchableOpacity></View>}
+    {!!address && <View style={s.headingRow}><Text style={s.note}>Address: {address}</Text><TouchableOpacity accessibilityRole="button" onPress={() => router.setParams({ address: "" })}><Text style={s.typeLabel}>Clear address search</Text></TouchableOpacity></View>}
     <PropertyTypeTabs value={type} onChange={setType} />
     {loading ? <ActivityIndicator style={{ padding: 30 }} color="#284B68" /> : error ? <View style={s.empty}><Text accessibilityRole="alert" style={s.note}>{error}</Text><TouchableOpacity accessibilityRole="button" onPress={() => setRevision(v => v + 1)} style={s.button}><Text style={s.buttonText}>Try again</Text></TouchableOpacity></View> : properties.length === 0 ? <View style={s.empty}><MaterialIcons name="home-work" size={36} color="#56768E" /><Text style={s.sectionTitle}>More places are on the way</Text><Text style={s.note}>Properties will appear here after Advisor and Verifier approval.</Text></View> : <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 16 }}>
       {properties.filter(p => type === undefined || p.type === type).map(property => (
@@ -73,8 +82,8 @@ export default function VerifiedHomeScreen() {
       ))}
     </View>}
     {!loading && !error && <View style={s.typeRow}>
-      {page > 1 && <TouchableOpacity accessibilityRole="button" style={s.typePill} onPress={() => setPagination({ key: filterKey, page: page - 1 })}><Text style={s.typeLabel}>Previous page</Text></TouchableOpacity>}
-      {properties.length === 50 && page < 100 && <TouchableOpacity accessibilityRole="button" style={s.typePill} onPress={() => setPagination({ key: filterKey, page: page + 1 })}><Text style={s.typeLabel}>Next page</Text></TouchableOpacity>}
+      {page > 1 && <TouchableOpacity accessibilityRole="button" style={s.typePill} onPress={() => setPagination(old => ({ key: filterKey, page: page - 1, cursors: old.cursors }))}><Text style={s.typeLabel}>Previous page</Text></TouchableOpacity>}
+      {!!nextCursor && <TouchableOpacity accessibilityRole="button" style={s.typePill} onPress={() => setPagination(old => ({ key: filterKey, page: page + 1, cursors: [...(old.key === filterKey ? old.cursors.slice(0, page) : [undefined]), nextCursor] }))}><Text style={s.typeLabel}>Next page</Text></TouchableOpacity>}
       {page === 100 && <Text style={s.note}>Refine your search to see more relevant properties.</Text>}
     </View>}
     </View>

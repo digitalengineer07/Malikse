@@ -19,8 +19,8 @@ export const documentService = {
     return res.data;
   },
 
-  async getDocuments(propertyId: string): Promise<PropertyDocument[]> {
-    const res = await api.get("/documents", { params: { propertyId } });
+  async getDocuments(propertyId: string, cursor?: string): Promise<PropertyDocument[]> {
+    const res = await api.get("/documents", { params: { propertyId, cursor } });
     return res.data;
   },
 

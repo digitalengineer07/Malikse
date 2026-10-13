@@ -4,9 +4,10 @@ import { User } from "../models/User.model";
 
 export interface AuthRequest extends Request {
   user?: { id: string; role: string };
+  account?: ReturnType<typeof publicUser>;
 }
 
-import { ACCESS_SECRET } from "../services/security";
+import { ACCESS_SECRET, publicUser } from "../services/security";
 
 /**
  * Verifies the Bearer JWT in the Authorization header.
@@ -19,12 +20,17 @@ export async function authGuard(req: AuthRequest, res: Response, next: NextFunct
   }
   const token = header.slice(7);
 
+  let decoded: { id: string; role: string };
   try {
-    const decoded = jwt.verify(token, ACCESS_SECRET) as { id: string; role: string };
+    decoded = jwt.verify(token, ACCESS_SECRET, { algorithms: ["HS256"] }) as { id: string; role: string };
     if (typeof decoded.id !== "string" || !/^[a-f0-9]{24}$/i.test(decoded.id)) {
       return res.status(401).json({ message: "Invalid account session" });
     }
-    const user = await User.findById(decoded.id).select("role passwordHash isSuspended isActive");
+  } catch {
+    return res.status(401).json({ message: "Session expired or invalid. Please sign in again." });
+  }
+  try {
+    const user = await User.findById(decoded.id).select("role passwordHash isSuspended isActive name mobile email isVerifiedIdentity demoKycComplete createdAt").lean();
     if (!user?.passwordHash) {
       return res.status(401).json({ message: "Please sign in with your account credentials" });
     }
@@ -35,9 +41,10 @@ export async function authGuard(req: AuthRequest, res: Response, next: NextFunct
       return res.status(403).json({ message: "Your staff account has been deactivated." });
     }
     req.user = { id: user._id.toString(), role: user.role };
+    req.account = publicUser(user);
     next();
   } catch {
-    return res.status(401).json({ message: "Session expired or invalid. Please sign in again." });
+    return res.status(503).json({ message: "Account service is temporarily unavailable. Please try again." });
   }
 }
 

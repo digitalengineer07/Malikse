@@ -1,133 +1,103 @@
-import ExpandableSearch from "./ExpandableSearch";
-import { currentMapLocation } from "../src/services/currentMapLocation";
-import type { MapFocus } from "../src/utils/nativeMapHtml";
-import PropertyTypeTabs from "./PropertyTypeTabs";
-import React, { useCallback, useRef, useState } from "react";
-import { StyleSheet, View, TouchableOpacity, Text, Platform } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BlurView } from "expo-blur";
-import VerifiedPropertyMap from "./VerifiedPropertyMap";
-import { propertyService } from "../src/services/propertyService";
-import type { Property, PropertyType } from "../src/types/property.types";
-import { AppTheme } from "../constants/theme";
-import { premiumStyles } from "../constants/typography";
-
+import PropertyTypeTabs from "./PropertyTypeTabs";
+import RegionCountMap from "./RegionCountMap";
+import { fetchRegionCounts, fetchLocationSuggestions, type LocationSuggestion, type RegionGroup } from "../src/services/regionService";
+import type { PropertyType } from "../src/types/property.types";
+import type { MapFocus } from "../src/utils/nativeMapHtml";
 
 export default function MarketplaceScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const [focus, setFocus] = useState<MapFocus>();
-  const [locationNote, setLocationNote] = useState("");
-  const locationRequest = useRef(0);
-  useFocusEffect(useCallback(() => () => { locationRequest.current++; }, []));
-  const locate = async () => {
-    const request = ++locationRequest.current;
-    setLocationNote("Finding your current area…");
-    try {
-      const point = await currentMapLocation();
-      if (request !== locationRequest.current) return;
-      setFocus({ ...point, zoom: 10 });
-      setLocationNote("Map centered on your current area. Search by district or property name.");
-    } catch (cause) {
-      if (request === locationRequest.current) setLocationNote(cause instanceof Error ? cause.message : "Location unavailable. You can still search by district.");
-    }
-  };
+  const router = useRouter(), insets = useSafeAreaInsets();
+  const [state, setState] = useState<RegionGroup>();
+  const [district, setDistrict] = useState<RegionGroup>();
+  const [type, setType] = useState<PropertyType>();
+  const [groups, setGroups] = useState<RegionGroup[]>([]);
   const [query, setQuery] = useState("");
-  const [type, setType] = useState<PropertyType | undefined>(undefined);
-  const [properties, setProperties] = useState<Property[]>([]);
-  const loadedPage = useRef(0);
-  const searchGeneration = useRef(0);
-  const pendingSearch = useRef(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [limitReached, setLimitReached] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
-  
-  const loadPage = useCallback(async (page: number, generation: number) => {
-    pendingSearch.current = true;
-    setLoading(true); setError("");
-    try {
-      const data = await propertyService.searchProperties({ type, location: query, page, limit: 50 });
-      if (generation !== searchGeneration.current) return;
-      setProperties(previous => {
-        const merged = new Map<string, Property>();
-        for (const property of [...(page === 1 ? [] : previous), ...data]) merged.set(property._id || property.id, property);
-        return [...merged.values()];
-      });
-      loadedPage.current = page;
-      setHasMore(data.length === 50 && page < 100);
-      setLimitReached(data.length === 50 && page === 100);
-    } catch {
-      if (generation === searchGeneration.current) setError("Could not load properties. Please try again.");
-    } finally {
-      if (generation === searchGeneration.current) { pendingSearch.current = false; setLoading(false); }
-    }
-  }, [type, query]);
-
+  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
+  const [suggesting, setSuggesting] = useState(false), [suggestionError, setSuggestionError] = useState(false);
+  const [loading, setLoading] = useState(true), [error, setError] = useState("");
+  const [revision, setRevision] = useState(0);
+  const level = district ? "pincode" : state ? "district" : "state";
   useFocusEffect(useCallback(() => {
-    const generation = ++searchGeneration.current;
-    loadedPage.current = 0; pendingSearch.current = true;
-    setLoading(true); setError(""); setProperties([]); setHasMore(false); setLimitReached(false);
-    const timer = setTimeout(() => { void loadPage(1, generation); }, 300);
-    return () => { searchGeneration.current++; pendingSearch.current = false; clearTimeout(timer); };
-  }, [loadPage]));
-
-  const loadMore = () => {
-    if (!pendingSearch.current) void loadPage(loadedPage.current + 1, searchGeneration.current);
+    const controller = new AbortController();
+    let active = true;
+    setLoading(true);setError("");setGroups([]);
+    fetchRegionCounts({ state: state?.key, district: district?.key, type }, controller.signal)
+      .then(data => { if (active) setGroups(data.groups); })
+      .catch(() => { if (active) setError("Could not load area counts. Please try again."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false;controller.abort(); };
+  }, [state?.key, district?.key, type, revision]));
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2) { setSuggestions([]);setSuggesting(false);setSuggestionError(false);return; }
+    const controller = new AbortController();
+    let active = true;
+    setSuggesting(true);setSuggestionError(false);
+    const timer = setTimeout(() => {
+      fetchLocationSuggestions(term, type, controller.signal)
+        .then(data => { if (active) setSuggestions(data); })
+        .catch(() => { if (active) setSuggestionError(true); })
+        .finally(() => { if (active) setSuggesting(false); });
+    }, 250);
+    return () => { active = false;clearTimeout(timer);controller.abort(); };
+  }, [query, type]);
+  const focus = useMemo<MapFocus | undefined>(() => district ? { lat: district.lat, lng: district.lng, zoom: 10 } : state ? { lat: state.lat, lng: state.lng, zoom: 7 } : undefined, [state, district]);
+  const select = useCallback((group: RegionGroup) => {
+    setQuery("");
+    if (!state) setState(group);
+    else if (!district) setDistrict(group);
+    else router.push({ pathname: "/(tabs)/home", params: { state: state.key, district: district.key, pincode: group.key, type: type || "", query: "", min: "", max: "" } });
+  }, [state, district, type, router]);
+  const selectSuggestion = useCallback((item: LocationSuggestion) => {
+    const term = query.trim();setQuery("");setSuggestions([]);
+    const stateGroup = { key: item.state, name: item.state, count: 0, lat: item.lat, lng: item.lng };
+    const districtGroup = { key: item.district || "", name: item.district || "", count: 0, lat: item.lat, lng: item.lng };
+    if (item.kind === "state") { setState(stateGroup);setDistrict(undefined);return; }
+    if (item.kind === "district") { setState(stateGroup);setDistrict(districtGroup);return; }
+    if (item.kind === "pincode") {
+      router.push({ pathname: "/(tabs)/home", params: { state: item.state, district: item.district || "", pincode: item.pincode || "", type: type || "", query: "", address: "", min: "", max: "" } });
+      return;
+    }
+    router.push({ pathname: "/(tabs)/home", params: { address: term, state: "", district: "", pincode: "", type: type || "", query: "", min: "", max: "" } });
+  }, [query, router, type]);
+  const searchAll = () => {
+    const term = query.trim();
+    if (term.length < 2) return;
+    setQuery("");setSuggestions([]);
+    router.push({ pathname: "/(tabs)/home", params: { address: term, state: "", district: "", pincode: "", type: type || "", query: "", min: "", max: "" } });
   };
-
-  const openProperty = useCallback((property: Property) => {
-    router.push({ pathname: "/property/[id]", params: { id: property._id || property.id } });
-  }, [router]);
-
-  return <View style={styles.screen}>
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: AppTheme.colors.background }]} />
-    <View style={[StyleSheet.absoluteFill, { top: 0, bottom: 0 }]}>
-      <VerifiedPropertyMap properties={properties} onSelect={openProperty} focus={focus} />
+  return <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <View style={styles.controls}>
+      <Text style={styles.title}>Find properties by area</Text>
+      <View style={styles.breadcrumbs}>
+        <TouchableOpacity accessibilityRole="button" onPress={() => { setState(undefined);setDistrict(undefined);setQuery(""); }}><Text style={styles.link}>All states</Text></TouchableOpacity>
+        {state && <TouchableOpacity accessibilityRole="button" onPress={() => { setDistrict(undefined);setQuery(""); }}><Text style={styles.link}> › {state.name}</Text></TouchableOpacity>}
+        {district && <Text style={styles.label}> › {district.name}</Text>}
+      </View>
+      <PropertyTypeTabs value={type} onChange={setType} />
+      <TextInput accessibilityLabel="Search any state, district, pincode or address" placeholder="Search state, district, pincode or address" value={query} onChangeText={setQuery} onSubmitEditing={searchAll} returnKeyType="search" autoCorrect={false} style={styles.input} />
+      {query.trim().length >= 2 && <View style={styles.suggestions}>
+        {suggesting && <ActivityIndicator accessibilityLabel="Searching addresses" color="#1A365D" />}
+        {suggestionError && <Text accessibilityRole="alert" style={styles.label}>Could not search addresses. Press Enter to try the full search.</Text>}
+        {!suggesting && !suggestionError && <ScrollView keyboardShouldPersistTaps="always" style={styles.suggestionList}>
+          {suggestions.map((item, index) => <TouchableOpacity key={`${item.kind}:${item.label}:${index}`} accessibilityRole="button" onPress={() => selectSuggestion(item)} style={styles.suggestionRow}><Text style={styles.label}>{item.label}</Text><Text style={styles.suggestionKind}>{item.kind}</Text></TouchableOpacity>)}
+          {!suggestions.length && <Text style={styles.label}>No matching areas. Press Enter to search listings.</Text>}
+        </ScrollView>}
+      </View>}
+      {loading && <ActivityIndicator accessibilityLabel="Loading area counts" color="#1A365D" />}
+      {!!error && <View><Text accessibilityRole="alert" style={styles.label}>{error}</Text><TouchableOpacity accessibilityRole="button" onPress={() => setRevision(value => value + 1)}><Text style={styles.link}>Try again</Text></TouchableOpacity></View>}
+      {!loading && !error && !groups.length && !query && <Text style={styles.label}>No available properties in this area.</Text>}
     </View>
-    
-    <View style={[styles.topControls, { paddingTop: Math.max(insets.top, 20) }]}>
-       <View style={styles.searchControls}>
-         <ExpandableSearch value={query} onChangeText={setQuery} label="Search properties" placeholder="Search district or property" onOpen={() => { void locate(); }} onClose={() => { locationRequest.current++; setLocationNote(""); }} />
-         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Property filters" accessibilityState={{ expanded: showFilters }} onPress={() => setShowFilters(!showFilters)} style={styles.filterBtn}>
-           <MaterialIcons name="tune" size={24} color={showFilters ? AppTheme.colors.primary : AppTheme.colors.textMuted} />
-         </TouchableOpacity>
-       </View>
-       {!!locationNote && <Text accessibilityLiveRegion="polite" style={styles.locationNote}>{locationNote}</Text>}
-       <View style={styles.filtersPanel}>
-         <Text accessibilityLiveRegion="polite" style={styles.typeLabel}>{loading ? (properties.length ? "Loading more properties…" : "Loading properties…") : properties.length ? `${properties.length} properties shown` : error ? "Properties unavailable" : "No properties match your search"}</Text>
-         {!!error && <Text accessibilityRole="alert" style={styles.typeLabel}>{error}</Text>}
-         {!loading && (hasMore || !!error) && <TouchableOpacity accessibilityRole="button" style={styles.loadMoreButton} onPress={loadMore}>
-           <Text style={styles.loadMoreLabel}>{error ? "Try again" : "Show more properties"}</Text>
-         </TouchableOpacity>}
-         {limitReached && <Text style={styles.typeLabel}>Narrow your search by district or property type to explore more.</Text>}
-       </View>
-       {showFilters && (
-         <View style={styles.filtersPanelWrapper}>
-           {Platform.OS !== "web" ? (
-             <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} />
-           ) : null}
-           <View style={styles.filtersPanel}>
-             <PropertyTypeTabs value={type} onChange={setType} />
-           </View>
-         </View>
-       )}
-    </View>
+    <View style={styles.map}><RegionCountMap groups={loading || error ? [] : groups} focus={focus} onSelect={select} /></View>
   </View>;
 }
-
-const styles = premiumStyles({
-  screen: { flex: 1, backgroundColor: AppTheme.colors.background },
-  topControls: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingHorizontal: 16, width: "100%", maxWidth: 800, alignSelf: "center" },
-  searchControls: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 },
-  filterBtn: { width: 48, height: 48, alignItems: "center", justifyContent: "center", borderRadius: 24, backgroundColor: "rgba(255,255,255,0.8)" },
-  locationNote: { padding: 12, borderRadius: 16, marginBottom: 8, fontSize: 13, lineHeight: 19, color: AppTheme.colors.text, backgroundColor: "rgba(255,255,255,0.85)" },
-  filtersPanelWrapper: { marginTop: 12, borderRadius: 24, overflow: "hidden", ...AppTheme.shadows.card },
-  filtersPanel: { backgroundColor: Platform.OS === "web" ? AppTheme.colors.card : "rgba(255,255,255,0.7)", padding: 16, ...AppTheme.glass },
-  loadMoreButton: { marginTop: 12, minHeight: 48, paddingHorizontal: 18, paddingVertical: 12, alignItems: "center", justifyContent: "center", borderRadius: 24, backgroundColor: AppTheme.colors.primary },
-  loadMoreLabel: { color: "white", fontSize: 14, fontWeight: "600" },
-  typeLabel: { fontSize: 13, fontWeight: "600", color: AppTheme.colors.textSecondary },
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: "#F5F8FC" }, controls: { padding: 14, gap: 8 }, title: { fontSize: 22, fontWeight: "700", color: "#1A365D" },
+  breadcrumbs: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", minHeight: 32 }, link: { color: "#245E92", fontWeight: "600", paddingVertical: 6 }, label: { color: "#19334a", fontWeight: "600" },
+  input: { backgroundColor: "white", borderColor: "#ccd6df", borderWidth: 1, padding: 12, borderRadius: 12 }, map: { flex: 1, minHeight: 160 },
+  suggestions: { backgroundColor: "white", borderRadius: 12, padding: 8, maxHeight: 220 }, suggestionList: { flexGrow: 0 },
+  suggestionRow: { flexDirection: "row", justifyContent: "space-between", gap: 10, padding: 10, borderBottomColor: "#edf0f4", borderBottomWidth: 1 }, suggestionKind: { color: "#56768E", textTransform: "capitalize" },
 });

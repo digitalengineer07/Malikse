@@ -2,7 +2,8 @@ import express from "express";
 import { Inquiry } from "../models/Inquiry.model";
 import { authGuard, AuthRequest } from "../middleware/auth.middleware";
 import { OfferError, offerProperty } from "../services/marketplace";
-import { isValidObjectId } from "mongoose";
+import { isValidObjectId, Types } from "mongoose";
+import { pageInput, cursorFor } from "../services/pagination";
 
 const router = express.Router();
 router.param("id", (_req, res, next, id) => isValidObjectId(id) ? next() : res.status(400).json({ error: "Invalid inquiry ID" }));
@@ -30,30 +31,42 @@ router.post("/", authGuard, async (req: AuthRequest, res) => {
   }
 });
 
-// Get sent inquiries (Buyer view)
-router.get("/sent", authGuard, async (req: AuthRequest, res) => {
-  try {
-    const inquiries = await Inquiry.find({ buyerId: req.user?.id })
-      .populate("propertyId", "title price media status location")
-      .populate("sellerId", "name")
-      .sort({ createdAt: -1 });
-    res.json(inquiries);
-  } catch (err) {
-    res.status(500).json({ error: "Server error" });
-  }
-});
+// Lists include one preview message; full history is fetched only for an open chat.
+for (const [route, party, other] of [["/", "both", "both"], ["/sent", "buyerId", "sellerId"], ["/received", "sellerId", "buyerId"]]) {
+  router.get(route, authGuard, async (req: AuthRequest, res) => {
+    try {
+      const { limit, filter } = pageInput(req.query);
+      const actor = new Types.ObjectId(req.user!.id);
+      const rows = await Inquiry.aggregate([
+        { $match: { $and: [party === "both" ? { $or: [{ buyerId: actor }, { sellerId: actor }] } : { [party]: actor }, filter] } }, { $sort: { createdAt: -1, _id: -1 } }, { $limit: limit + 1 },
+        { $addFields: { unread: { $gt: [
+          { $max: [{ $cond: [{ $eq: ["$sellerId", actor] }, "$createdAt", new Date(0)] }, { $max: { $map: { input: { $filter: { input: "$messages", as: "m", cond: { $ne: ["$$m.senderId", actor] } } }, as: "m", in: "$$m.createdAt" } } }] },
+          { $ifNull: [{ $cond: [{ $eq: ["$buyerId", actor] }, "$buyerReadAt", "$sellerReadAt"] }, new Date(0)] }
+        ] } } },
+        { $set: { messages: { $slice: ["$messages", -1] } } },
+      ]).option({ maxTimeMS: 5000 });
+      res.setHeader("X-Next-Cursor", rows.length > limit ? cursorFor(rows[limit - 1]) : "");
+      const items = rows.slice(0, limit);
+      await Inquiry.populate(items, [{ path: "propertyId", select: "title price status location" }, { path: "buyerId", select: "name" }, { path: "sellerId", select: "name" }]);
+      res.json(items);
+    } catch { res.status(500).json({ error: "Could not load conversations" }); }
+  });
+}
 
-// Get received inquiries (Seller view)
-router.get("/received", authGuard, async (req: AuthRequest, res) => {
+router.get("/:id/messages", authGuard, async (req: AuthRequest, res) => {
   try {
-    const inquiries = await Inquiry.find({ sellerId: req.user?.id })
-      .populate("propertyId", "title price media status location")
-      .populate("buyerId", "name")
-      .sort({ createdAt: -1 });
-    res.json(inquiries);
-  } catch (err) {
-    res.status(500).json({ error: "Server error" });
-  }
+    const before = req.query.before === undefined ? undefined : Number(req.query.before);
+    if (before !== undefined && (!Number.isInteger(before) || before < 0)) return res.status(400).json({ error: "Invalid message cursor" });
+    const filter = { _id: new Types.ObjectId(req.params.id), $or: [{ buyerId: new Types.ObjectId(req.user!.id) }, { sellerId: new Types.ObjectId(req.user!.id) }] };
+    const rows = await Inquiry.aggregate([
+      { $match: filter },
+      { $set: { end: { $min: [before ?? 2147483647, { $size: "$messages" }] } } },
+      { $set: { start: { $max: [0, { $subtract: ["$end", 50] }] } } },
+      { $project: { messages: { $cond: [{ $gt: ["$end", 0] }, { $slice: ["$messages", "$start", { $subtract: ["$end", "$start"] }] }, []] }, nextBefore: { $cond: [{ $gt: ["$start", 0] }, "$start", null] } } },
+    ]).option({ maxTimeMS: 5000 });
+    if (!rows.length) return res.status(404).json({ error: "Inquiry not found" });
+    res.json(rows[0]);
+  } catch { res.status(500).json({ error: "Could not load messages" }); }
 });
 
 // Reply/update inquiry status (Seller view)
@@ -68,7 +81,7 @@ router.put("/:id/status", authGuard, async (req: AuthRequest, res) => {
       { _id: req.params.id, sellerId: req.user?.id },
       { $set: { status } },
       { new: true }
-    );
+    ).select({ messages: { $slice: -1 } }).lean();
 
     if (!inquiry) return res.status(404).json({ error: "Inquiry not found or unauthorized" });
     res.json(inquiry);
@@ -83,20 +96,14 @@ router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
     const { text } = req.body;
     if (typeof text !== "string" || !text.trim() || text.length > 5000) return res.status(400).json({ error: "Enter a message between 1 and 5000 characters" });
 
-    const inquiry = await Inquiry.findOne({
+    const inquiry = await Inquiry.findOneAndUpdate({
       _id: req.params.id,
-      $or: [{ buyerId: req.user?.id }, { sellerId: req.user?.id }],
-    });
+      $or: [{ buyerId: req.user!.id }, { sellerId: req.user!.id }],
+      "messages.999": { $exists: false },
+    }, { $push: { messages: { senderId: req.user!.id, text: text.trim(), createdAt: new Date() } } }, { new: true, runValidators: true })
+      .select({ messages: { $slice: -1 } }).lean();
+    if (!inquiry) return res.status(409).json({ error: "Conversation unavailable or its 1,000-message limit has been reached" });
 
-    if (!inquiry) return res.status(404).json({ error: "Inquiry not found" });
-
-    inquiry.messages.push({
-      senderId: req.user!.id,
-      text: text.trim(),
-      createdAt: new Date(),
-    });
-
-    await inquiry.save();
     res.json(inquiry);
   } catch (err) {
     res.status(500).json({ error: "Server error" });
@@ -108,7 +115,7 @@ router.post("/:id/read", authGuard, async (req: AuthRequest, res) => {
   try {
     const through = new Date(req.body.through);
     if (typeof req.body.through !== "string" || !Number.isFinite(through.getTime()) || through.getTime() > Date.now()) return res.status(400).json({ error: "Invalid read timestamp" });
-    const inquiry = await Inquiry.findOne({ _id: req.params.id, $or: [{ buyerId: req.user!.id }, { sellerId: req.user!.id }] });
+    const inquiry = await Inquiry.findOne({ _id: req.params.id, $or: [{ buyerId: req.user!.id }, { sellerId: req.user!.id }] }).select("buyerId sellerId").lean();
     if (!inquiry) return res.status(404).json({ error: "Inquiry not found" });
     const field = inquiry.buyerId.toString() === req.user!.id ? "buyerReadAt" : "sellerReadAt";
     await Inquiry.updateOne({ _id: inquiry._id }, { $max: { [field]: through } }, { timestamps: false });

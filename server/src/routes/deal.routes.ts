@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { isValidObjectId } from "mongoose";
 import { Deal } from "../models/Deal.model";
 import { publicFields } from "../services/propertyWorkflow";
 import { OfferError, offerProperty } from "../services/marketplace";
@@ -6,6 +7,7 @@ import { OfferError, offerProperty } from "../services/marketplace";
 import { authGuard, roleGuard } from "../middleware/auth.middleware";
 
 const router = Router();
+router.param("id", (_req, res, next, id) => isValidObjectId(id) ? next() : res.status(400).json({ message: "Invalid deal ID" }));
 
 // POST /deals/:propertyId/offer (Buyer)
 router.post("/:propertyId/offer", authGuard, roleGuard("user"), async (req: any, res) => {
@@ -28,7 +30,7 @@ router.post("/:propertyId/offer", authGuard, roleGuard("user"), async (req: any,
     await deal.save();
     res.status(201).json(deal);
   } catch (error: any) {
-    res.status(error instanceof OfferError ? error.status : 500).json({ message: error.message });
+    res.status(error instanceof OfferError ? error.status : 500).json({ message: error instanceof OfferError ? error.message : "An unexpected server error occurred" });
   }
 });
 
@@ -45,7 +47,7 @@ router.get("/:id", authGuard, async (req: any, res) => {
     ]);
     res.json(deal);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "An unexpected server error occurred" });
   }
 });
 
@@ -76,7 +78,7 @@ router.patch("/:id/status", authGuard, async (req: any, res) => {
     if (!updated) return res.status(409).json({ message: "Deal changed. Reload and try again" });
     res.json(updated);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "An unexpected server error occurred" });
   }
 });
 

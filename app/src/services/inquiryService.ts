@@ -1,6 +1,7 @@
 import api from "./authService";
 
 export interface InquiryData {
+  unread?: boolean;
   _id: string;
   propertyId: any;
   buyerId: any;
@@ -20,6 +21,10 @@ export interface InquiryData {
 }
 
 export const inquiryService = {
+  async getConversations(cursor?: string): Promise<InquiryData[]> { return (await api.get("/inquiries", { params: { cursor } })).data; },
+  async getMessages(id: string, before?: number): Promise<{ messages: NonNullable<InquiryData["messages"]>; nextBefore: number | null }> {
+    return (await api.get(`/inquiries/${id}/messages`, { params: { before } })).data;
+  },
   async markRead(inquiryId: string, through: string): Promise<void> {
     await api.post(`/inquiries/${inquiryId}/read`, { through });
   },
@@ -28,13 +33,13 @@ export const inquiryService = {
     return res.data;
   },
 
-  async getSentInquiries(): Promise<InquiryData[]> {
-    const res = await api.get("/inquiries/sent");
+  async getSentInquiries(cursor?: string): Promise<InquiryData[]> {
+    const res = await api.get("/inquiries/sent", { params: { cursor } });
     return res.data;
   },
 
-  async getReceivedInquiries(): Promise<InquiryData[]> {
-    const res = await api.get("/inquiries/received");
+  async getReceivedInquiries(cursor?: string): Promise<InquiryData[]> {
+    const res = await api.get("/inquiries/received", { params: { cursor } });
     return res.data;
   },
 

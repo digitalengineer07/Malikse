@@ -18,6 +18,8 @@ export default function ManageStaffScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string>();
+  const [moreBusy, setMoreBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   
@@ -25,10 +27,16 @@ export default function ManageStaffScreen() {
   const [workload, setWorkload] = useState<any>({ assigned: [], history: [] });
   const [loadingWorkload, setLoadingWorkload] = useState(false);
 
+    const loadMore = async () => {
+    if (!nextCursor || moreBusy) return;
+    setMoreBusy(true);
+    try { const rows = await adminService.listStaff(nextCursor); setStaff(old => [...old, ...rows]); setNextCursor((rows as any).nextCursor); }
+    catch { setError("Could not load the next page"); } finally { setMoreBusy(false); }
+  };
   useFocusEffect(React.useCallback(() => {
-    if (authState !== "AUTHENTICATED" || user?.role !== "admin" || !user.id) return;
+  if (authState !== "AUTHENTICATED" || user?.role !== "admin" || !user.id) return;
     setLoading(true);
-    adminService.listStaff().then(setStaff).catch((cause) => {
+    adminService.listStaff().then(rows => { setStaff(rows); setNextCursor((rows as any).nextCursor); }).catch((cause) => {
       setError(cause.response?.data?.message || "Could not load staff accounts");
     }).finally(() => setLoading(false));
   }, [authState, user]));
@@ -59,13 +67,21 @@ export default function ManageStaffScreen() {
 
   const toggleStatus = async (staffMember: StaffAccount) => {
     try {
-      await adminService.toggleStaffStatus(staffMember.id);
-      setStaff(staff.map(s => s.id === staffMember.id ? { ...s, isActive: !s.isActive } : s));
+      const updated = await adminService.toggleStaffStatus(staffMember.id, !staffMember.isActive);
+      setStaff(staff.map(s => s.id === staffMember.id ? { ...s, isActive: updated.isActive } : s));
     } catch (e: any) {
       setError(e.response?.data?.message || "Failed to toggle status");
     }
   };
 
+  const moreWorkload = async (kind: "assigned" | "history") => {
+    if (!selectedStaff || loadingWorkload) return;
+    setLoadingWorkload(true);
+    const next = kind === "assigned" ? "nextAssigned" : "nextHistory";
+    try { const data = await adminService.getStaffWorkload(selectedStaff.id, { [kind + "Cursor"]: workload[next] });
+      setWorkload((old: any) => ({ ...old, [kind]: [...old[kind], ...data[kind]], [next]: data[next] }));
+    } catch { setError("Could not load staff workload"); } finally { setLoadingWorkload(false); }
+  };
   const viewWorkload = async (staffMember: StaffAccount) => {
     if (selectedStaff?.id === staffMember.id) {
       setSelectedStaff(null);
@@ -90,6 +106,7 @@ export default function ManageStaffScreen() {
 
   return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}><ScrollView keyboardShouldPersistTaps="handled" style={styles.screen} contentContainerStyle={styles.content}>
     <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/admin/dashboard")}><Text style={styles.link}>← Admin dashboard</Text></TouchableOpacity>
+    {nextCursor && <TouchableOpacity disabled={moreBusy} onPress={loadMore}><Text style={styles.link}>{moreBusy ? "Loading…" : "Load more accounts"}</Text></TouchableOpacity>}
     <Text style={styles.title}>Manage Advisors and Verifiers</Text>
     <Text style={styles.description}>Create a staff account, then give the person their mobile number and password through your own secure channel.</Text>
     <View style={styles.card}>
@@ -125,6 +142,8 @@ export default function ManageStaffScreen() {
         
         {selectedStaff?.id === person.id && (
           <View style={{ padding: 18, backgroundColor: "#F7FBF9", borderTopWidth: 1, borderTopColor: "#D7E6DC" }}>
+            {workload.nextAssigned && <TouchableOpacity disabled={loadingWorkload} onPress={() => moreWorkload("assigned")}><Text style={styles.link}>More assignments</Text></TouchableOpacity>}
+            {workload.nextHistory && <TouchableOpacity disabled={loadingWorkload} onPress={() => moreWorkload("history")}><Text style={styles.link}>More review history</Text></TouchableOpacity>}
             <Text style={{ fontSize: 14, fontWeight: "700", color: "#10251B", marginBottom: 12 }}>Currently Assigned</Text>
             {loadingWorkload ? <ActivityIndicator color="#047857" /> : workload.assigned.length === 0 ? <Text style={styles.description}>No properties currently assigned.</Text> : workload.assigned.map((prop: any) => (
               <TouchableOpacity key={`a_${prop._id}`} style={styles.propRow} onPress={() => router.push({ pathname: "/verification/[id]", params: { id: prop._id } })}>

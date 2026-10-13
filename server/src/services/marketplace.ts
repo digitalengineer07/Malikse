@@ -5,7 +5,7 @@ import { accountEnabled } from "./security";
 
 export const publishedFilter = { status: "verified", "badges.fullyVerified": true, "advisorReview.decision": "approve", "verifierReview.decision": "approve" };
 export async function publicPropertyFilter() {
-  const unavailable = await User.find({ $or: [{ isSuspended: true }, { isActive: false }] }).select("_id");
+  const unavailable = await User.find({ $or: [{ isSuspended: true }, { isActive: false }] }).select("_id").lean().maxTimeMS(5000);
   return { ...publishedFilter, ownerId: { $nin: unavailable.map(user => user._id) } };
 }
 export class OfferError extends Error {

@@ -14,6 +14,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
   const { user, authState, hydrated } = useAuthStore();
   const [properties, setProperties] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
@@ -27,7 +28,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
     setLoading(true); setError("");
     const refresh = () => workflowService.queue(role).then(data => {
       if (!active) return;
-      setProperties(data);
+      setProperties(data); setNextCursor((data as any).nextCursor);
       if (data.some(property => property.status === "queued")) timer = setTimeout(refresh, 3000);
     }).catch((cause) => { if (active) { setProperties([]); setError(cause.response?.data?.message || "Could not load properties"); } }).finally(() => { if (active) setLoading(false); });
     void refresh();
@@ -43,6 +44,12 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
     try { await workflowService.claim(id); router.push({ pathname: "/verification/[id]", params: { id } }); }
     catch (cause: any) { setError(cause.response?.data?.message || "Could not claim property"); setRevision(value => value + 1); }
     finally { setBusy(false); }
+  };
+  const loadMore = async () => {
+    if (busy || !nextCursor) return;
+    setBusy(true);
+    try { const rows = await workflowService.queue(role, nextCursor); setProperties(old => [...old, ...rows]); setNextCursor((rows as any).nextCursor); }
+    catch { setError("Could not load the next page. Please try again."); } finally { setBusy(false); }
   };
   const filtered = properties.filter(property => filter === "all" || property.status === filter);
   const filterOptions = ["all", "draft", "queued", "pending", "advisor_verified", "correction_required", "rejected", "verified"].filter(status => role === "user" || role === "admin" || !["draft", "queued"].includes(status));
@@ -87,6 +94,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
         {role === "user" && ["draft", "correction_required"].includes(property.status) ? <Action title={property.status === "draft" ? "Continue listing" : "Correct and resubmit"} secondary onPress={() => router.push({ pathname: "/listing/create", params: { id: property._id } })} /> : null}
       </View>;
     })}
+    {nextCursor && <Action title={busy ? "Loading…" : "Load more properties"} disabled={busy} onPress={loadMore} />}
   </WorkflowScreen>;
 }
 

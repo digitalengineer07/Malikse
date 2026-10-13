@@ -501,14 +501,6 @@ export default function MapParcelPicker({
     setCursorDistanceFt(null);
   };
 
-  // Zoom In / Out
-  const handleZoomIn = () => {
-    if (mapInstanceRef.current) mapInstanceRef.current.zoomIn();
-  };
-  const handleZoomOut = () => {
-    if (mapInstanceRef.current) mapInstanceRef.current.zoomOut();
-  };
-
   // Crosshair - Center to plot
   const handleCenterToPlot = () => {
     if (mapInstanceRef.current && points.length > 0) {
@@ -846,16 +838,6 @@ export default function MapParcelPicker({
 
         {/* Parcel navigation controls */}
         <View style={styles.mapLeftControls}>
-          <View style={styles.zoomPill}>
-            <TouchableOpacity style={styles.navIconBtn} onPress={handleZoomIn} activeOpacity={0.7}>
-              <MaterialIcons name="add" size={18} color="#065F46" />
-            </TouchableOpacity>
-            <View style={styles.zoomDivider} />
-            <TouchableOpacity style={styles.navIconBtn} onPress={handleZoomOut} activeOpacity={0.7}>
-              <MaterialIcons name="remove" size={18} color="#065F46" />
-            </TouchableOpacity>
-          </View>
-
           <TouchableOpacity
             style={styles.standaloneIconBtn}
             onPress={handleCenterToPlot}
@@ -1083,27 +1065,6 @@ const styles = StyleSheet.create({
     left: 14,
     gap: 8,
     zIndex: 1000,
-  },
-  zoomPill: {
-    backgroundColor: "transparent",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    overflow: "hidden",
-  },
-  navIconBtn: {
-    width: 34,
-    height: 32,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  zoomDivider: {
-    height: 1,
-    backgroundColor: "#E2E8F0",
   },
   standaloneIconBtn: {
     width: 34,

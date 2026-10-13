@@ -43,6 +43,11 @@ export default function SavedScreen() {
 
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [savedError, setSavedError] = useState("");
+  const [savedRevision, setSavedRevision] = useState(0);
+  const [cursor, setCursor] = useState<string>();
+  const [nextCursor, setNextCursor] = useState<string>();
+  const [previousCursors, setPreviousCursors] = useState<(string | undefined)[]>([]);
   const [savedList, setSavedList] = useState<SavedPropertyItem[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [loading, setLoading] = useState(true);
@@ -56,10 +61,11 @@ export default function SavedScreen() {
       return;
     }
     
-    setLoading(true);
-    userService.getWishlist()
+    setLoading(true); setSavedError("");
+    userService.getWishlist(cursor)
       .then(properties => {
         if (!active) return;
+        setNextCursor((properties as any).nextCursor);
         const mapped: SavedPropertyItem[] = (properties || []).filter(p => p && p.location).map(p => ({
           id: p._id || p.id,
           title: p.title || `${p.type} in ${p.location?.district || "Unknown"}`,
@@ -75,13 +81,13 @@ export default function SavedScreen() {
         }));
         setSavedList(mapped);
       })
-      .catch(console.error)
+      .catch(() => { if (active) setSavedError("Could not load saved properties. Refresh to try again."); })
       .finally(() => {
         if (active) setLoading(false);
       });
       
     return () => { active = false; };
-  }, [user]));
+  }, [user, cursor, savedRevision]));
 
   const handleRemove = async (id: string) => {
     try {
@@ -123,6 +129,12 @@ export default function SavedScreen() {
         showLanguageToggle={true}
         showPostPropertyBtn={true}
       />
+      {!!savedError && <Text accessibilityRole="alert">{savedError}</Text>}
+      <View style={{ flexDirection: "row", gap: 20, padding: 12 }}>
+        <TouchableOpacity onPress={() => { setCursor(undefined); setPreviousCursors([]); setSavedRevision(old => old + 1); }}><Text>Refresh saved properties</Text></TouchableOpacity>
+        {previousCursors.length > 0 && <TouchableOpacity onPress={() => { setCursor(previousCursors.at(-1)); setPreviousCursors(old => old.slice(0, -1)); }}><Text>Previous saved properties</Text></TouchableOpacity>}
+        {nextCursor && <TouchableOpacity onPress={() => { setPreviousCursors(old => [...old, cursor]); setCursor(nextCursor); }}><Text>More saved properties</Text></TouchableOpacity>}
+      </View>
       {loading && <ActivityIndicator accessibilityLabel="Loading saved properties" />}
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* ================= 2. HERO BANNER ================= */}

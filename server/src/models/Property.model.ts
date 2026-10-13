@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { publicCacheHooks } from "../services/publicCacheHooks";
 
 export interface IProperty extends Document {
   __v: number;
@@ -10,6 +11,7 @@ export interface IProperty extends Document {
   location: {
     state: string;
     district: string;
+    pincode?: string;
     block: string;
     mauza: string;
     policeStation: string;
@@ -65,6 +67,7 @@ const PropertySchema = new Schema<IProperty>(
     location: {
       state: { type: String, required: true },
       district: { type: String, required: true },
+      pincode: { type: String, trim: true, default: "", validate: { validator: (value: string) => !value || /^[1-9]\d{5}$/.test(value), message: "Enter a valid six-digit pincode" } },
       block: { type: String, default: "" },
       mauza: { type: String, default: "" },
       policeStation: { type: String, default: "" },
@@ -134,5 +137,19 @@ PropertySchema.index({ title: "text", "location.state": "text", "location.distri
 PropertySchema.index({ status: 1, type: 1, createdAt: -1, _id: -1 }, { name: "property_type_newest" });
 PropertySchema.index({ status: 1, price: 1, createdAt: -1, _id: -1 }, { name: "property_price_newest" });
 PropertySchema.index({ status: 1, "submission.nextAttemptAt": 1, "submission.leaseUntil": 1 }, { name: "property_submission_queue" });
+PropertySchema.index({ ownerId: 1, createdAt: -1 }, { name: "property_owner_newest" });
+PropertySchema.index({ assignedAdvisorId: 1, updatedAt: -1 }, { name: "property_advisor_updated" });
+PropertySchema.index({ assignedVerifierId: 1, updatedAt: -1 }, { name: "property_verifier_updated" });
+PropertySchema.index({ status: 1, createdAt: -1, _id: -1 }, { name: "property_status_newest" });
 
+PropertySchema.index({ createdAt: -1, _id: -1 }, { name: "property_cursor" });
+PropertySchema.index({ ownerId: 1, createdAt: -1, _id: -1 }, { name: "property_owner_cursor" });
+PropertySchema.index({ status: 1, "location.district": 1, createdAt: -1, _id: -1 }, { name: "property_district_cursor" });
+PropertySchema.index({ "verificationHistory.actorId": 1, createdAt: -1, _id: -1 }, { name: "property_history_actor_cursor" });
+PropertySchema.plugin(publicCacheHooks);
+const publicIndex = { status: "verified", "badges.fullyVerified": true, "advisorReview.decision": "approve", "verifierReview.decision": "approve" };
+PropertySchema.index({ createdAt: -1, _id: -1 }, { name: "public_newest", partialFilterExpression: publicIndex });
+PropertySchema.index({ type: 1, createdAt: -1, _id: -1 }, { name: "public_type_newest", partialFilterExpression: publicIndex });
+PropertySchema.index({ "location.state": 1, "location.district": 1, createdAt: -1, _id: -1 }, { name: "public_location_newest", partialFilterExpression: publicIndex });
+PropertySchema.index({ "location.state": 1, "location.district": 1, "location.pincode": 1, createdAt: -1, _id: -1 }, { name: "public_pincode_newest", partialFilterExpression: publicIndex });
 export const Property = mongoose.model<IProperty>("Property", PropertySchema);

@@ -3,7 +3,7 @@ import { User } from "../models/User.model";
 import { Property } from "../models/Property.model";
 
 async function seedMoreProperties() {
-  const mongoUri = "mongodb+srv://Ankush:lhq0ljItQtTNoIcI@cluster0.sed8t.mongodb.net/MAlikse?retryWrites=true&w=majority&appName=Cluster0";
+  const mongoUri = process.env.MONGO_URI || "mongodb://localhost:27017/malikse";
   await mongoose.connect(mongoUri);
 
   try {

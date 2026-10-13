@@ -1,3 +1,5 @@
+import { uploadCapacity } from "../middleware/uploadCapacity";
+import { readPage, listFields } from "../services/pagination";
 import { Router } from "express";
 import multer from "multer";
 import { storePropertyPhoto, discardPropertyPhoto } from "../services/propertyPhotos";
@@ -7,28 +9,50 @@ import { User } from "../models/User.model";
 import { authGuard, roleGuard } from "../middleware/auth.middleware";
 import { canReadProperty, historyEvent, listingFields, publicFields, transition, validateListing } from "../services/propertyWorkflow";
 
-import { publicPropertyFilter } from "../services/marketplace";
+import { publishedFilter } from "../services/marketplace";
 import { apiOrigin } from "../services/security";
 
 import { enqueueSubmission } from "../services/submissionQueue";
-import { searchProperties } from "../services/propertySearch";
+import { getPublicSearchResponse } from "../services/propertySearch";
+import { regionCounts } from "../services/propertyRegions";
+import { locationSuggestions } from "../services/propertyLocationSuggestions";
+import { publicResponse, sendPublicResponse } from "../services/publicResponseCache";
 
 const router = Router();
 const photoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 router.param("id", (_req, res, next, id) => isValidObjectId(id) ? next() : res.status(400).json({ message: "Invalid property ID" }));
 
+router.get("/regions/suggest", async (req, res) => {
+  try { sendPublicResponse(req, res, await locationSuggestions(req.query)); }
+  catch (error: any) {
+    const unavailable = error.status === 503 || error.code === 50 || /Mongo|Mongoose/.test(error.name || "");
+    if (unavailable) res.setHeader("Retry-After", "1");
+    res.status(unavailable ? 503 : 400).json({ message: unavailable ? "Address search is busy. Please try again shortly." : error.message });
+  }
+});
+
+router.get("/regions", async (req, res) => {
+  try { sendPublicResponse(req, res, await regionCounts(req.query)); }
+  catch (error: any) {
+    const unavailable = error.status === 503 || error.code === 50 || /Mongo|Mongoose/.test(error.name || "");
+    if (unavailable) res.setHeader("Retry-After", "1");
+    res.status(unavailable ? 503 : 400).json({ message: unavailable ? "Area counts are busy. Please try again shortly." : error.message });
+  }
+});
+
 router.get("/search", async (req, res) => {
   try {
-    const { results, cacheHit } = await searchProperties(req.query);
-    res.setHeader("X-Search-Cache", cacheHit ? "HIT" : "MISS");
-    res.setHeader("Cache-Control", "no-store");
-    res.json(results);
-  } catch (error: any) { res.status(400).json({ message: error.message }); }
+    sendPublicResponse(req, res, await getPublicSearchResponse(req.query));
+  } catch (error: any) {
+    const unavailable = error.status === 503 || error.code === 50 || /Mongo|MongooseServerSelection/.test(error.name || "");
+    if (unavailable) res.setHeader("Retry-After", "1");
+    res.status(unavailable ? 503 : 400).json({ message: unavailable ? "Search is busy. Please try again shortly." : error.message });
+  }
 });
 
 router.get("/mine", authGuard, roleGuard("user"), async (req: any, res) => {
-  try { res.json(await Property.find({ ownerId: req.user.id }).sort("-createdAt")); }
-  catch (error: any) { res.status(500).json({ message: error.message }); }
+  try { res.json(await readPage(Property.find({ ownerId: req.user.id }).select(listFields), req, res)); }
+  catch (error: any) { res.status(500).json({ message: "An unexpected server error occurred" }); }
 });
 
 router.get("/:id/workspace", authGuard, async (req: any, res) => {
@@ -43,11 +67,15 @@ router.get("/:id/workspace", authGuard, async (req: any, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
-    const query = { ...await publicPropertyFilter(), _id: req.params.id };
-    const property = await Property.findOne(query).select(publicFields);
-    if (!property) return res.status(404).json({ message: "Published property not found" });
-    res.json(property);
-  } catch (error: any) { res.status(400).json({ message: error.message }); }
+    const response = await publicResponse({ db: Property.db.name, kind: "detail", id: req.params.id }, async () => {
+      const property = await Property.findOne({ ...publishedFilter, _id: req.params.id }).select(publicFields + " ownerId").maxTimeMS(1500).lean();
+      const owner = property && await User.exists({ _id: property.ownerId, isSuspended: { $ne: true }, isActive: { $ne: false } }).maxTimeMS(1000);
+      if (!property || !owner) return { data: { message: "Published property not found" }, status: 404 };
+      const { ownerId: _owner, ...dto } = property;
+      return { data: dto };
+    });
+    sendPublicResponse(req, res, response);
+  } catch { res.setHeader("Retry-After", "1"); res.status(503).json({ message: "Search is busy. Please try again shortly." }); }
 });
 
 router.post("/", authGuard, roleGuard("user"), async (req: any, res) => {
@@ -92,7 +120,7 @@ router.post("/:id/submit", authGuard, roleGuard("user"), async (req: any, res) =
     res.status(202).json(result);
   } catch (error: any) { res.status(400).json({ message: error.message }); }
 });
-router.post("/:id/photos", authGuard, roleGuard("user"), async (req: any, res, next) => {
+router.post("/:id/photos", authGuard, roleGuard("user"), uploadCapacity, async (req: any, res, next) => {
   try {
     const property = await Property.findOne({ _id: req.params.id, ownerId: req.user.id, status: { $in: ["draft", "correction_required"] } });
     if (!property) return res.status(403).json({ message: "Upload photos only to your draft or correction request" });

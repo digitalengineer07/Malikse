@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { publicCacheHooks } from "../services/publicCacheHooks";
 
 export interface IUser extends Document {
   role: "user" | "advisor" | "verifier" | "admin";
@@ -38,4 +39,10 @@ const UserSchema = new Schema<IUser>(
   { timestamps: true }
 );
 
+UserSchema.index({ role: 1, createdAt: -1 }, { name: "user_role_newest" });
+UserSchema.index({ isSuspended: 1 }, { name: "user_suspension" });
+UserSchema.index({ isActive: 1 }, { name: "user_active" });
+UserSchema.index({ role: 1, createdAt: -1, _id: -1 }, { name: "user_role_cursor" });
+
+UserSchema.plugin(publicCacheHooks, { account: true });
 export const User = mongoose.model<IUser>("User", UserSchema);

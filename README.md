@@ -1,5 +1,9 @@
 # MalikSe — Verified Owner-to-Buyer Property Marketplace
 
+See [the production readiness plan](PRODUCTION_READINESS_PLAN.md) for the complete endpoint audit, applied hardening, deployment configuration and remaining release gates.
+
+The [10,000 RPS implementation plan](IMPLEMENTATION_PLAN_10000_RPS.md) specifies the ordered changes and qualification gates for one Hostinger Business API deployment with MongoDB Atlas.
+
 MalikSe uses four roles: **User** (buying and selling), **Advisor**, **Verifier**, and **Admin**.
 
 ## Current account and verification flow
@@ -128,3 +132,7 @@ Search returns an array with `page` (1–100) and `limit` (1–100, default 100)
 The shared MongoDB cache keeps only candidate IDs for 15 seconds, keyed by a SHA-256 hash of normalized filters and pagination. TTL expiry is checked explicitly, independently of MongoDB cleanup timing. Current public details, filters, approvals and seller availability are rechecked for every response, including cache hits. Publication invalidates cached searches; a concurrent refill, account reactivation or out-of-band update can delay discovery by up to the TTL. Private workspaces and documents are never cached. `X-Search-Cache: HIT/MISS` reports cache use. Identical misses share work within each process, with at most 50 distinct in-flight fills per process; cache read/write failures fall back to authoritative search. This reduces repeated search work but still requires database reads on a hit.
 
 Run `npm --prefix server run test:infrastructure` for isolated temporary-database tests of concurrent assignment, queue leases/retries, cache expiry/privacy, filter validation and secondary-index execution plans. Also run the workflow and security suites. These checks validate correctness on fixtures, not production capacity.
+
+## Local performance fixes
+
+See [PERFORMANCE_FIXES.md](PERFORMANCE_FIXES.md) for implemented changes, current benchmark results, API pagination changes and deployment prerequisites. The original measurements remain in [LOCAL_BOTTLENECK_REPORT.md](LOCAL_BOTTLENECK_REPORT.md).

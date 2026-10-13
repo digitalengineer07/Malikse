@@ -1,13 +1,22 @@
-import bcrypt from "bcryptjs";
+import { readPage, readNamedPage, listFields } from "../services/pagination";
+import bcrypt from "../services/passwords";
 import { Router } from "express";
+import { isValidObjectId } from "mongoose";
 import { authGuard, roleGuard } from "../middleware/auth.middleware";
 import { Deal } from "../models/Deal.model";
 import { Inquiry } from "../models/Inquiry.model";
 import { Property } from "../models/Property.model";
 import { User } from "../models/User.model";
 import { activeStaffFilter, historyEvent, transition } from "../services/propertyWorkflow";
+import { performanceMetrics } from "../services/performanceMetrics";
 
 const router = Router();
+router.get("/performance", authGuard, roleGuard("admin"), (_req, res) => {
+  res.json({ counters: { ...performanceMetrics }, memory: process.memoryUsage(), uptimeSeconds: process.uptime() });
+});
+for (const name of ["id", "userId", "staffId", "propertyId"]) {
+  router.param(name, (_req, res, next, id) => isValidObjectId(id) ? next() : res.status(400).json({ message: "Invalid record ID" }));
+}
 
 router.post("/properties/:id/assign", authGuard, roleGuard("admin"), async (req: any, res) => {
   try {
@@ -25,17 +34,17 @@ router.post("/properties/:id/assign", authGuard, roleGuard("admin"), async (req:
 });
 
 // Staff accounts are created only by a signed-in Admin.
-router.get("/staff", authGuard, roleGuard("admin"), async (_req, res) => {
+router.get("/staff", authGuard, roleGuard("admin"), async (req, res) => {
   try {
-    const staff = await User.find({ role: { $in: ["advisor", "verifier"] }, passwordHash: { $exists: true, $ne: "" } })
+    const staff = await readPage(User.find({ role: { $in: ["advisor", "verifier"] }, passwordHash: { $exists: true, $ne: "" } })
       .select("name mobile email role isActive createdAt")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 }), req, res);
     res.json(staff.map((person) => ({
       id: person._id.toString(), name: person.name, mobile: person.mobile,
       email: person.email, role: person.role, isActive: person.isActive, createdAt: person.createdAt,
     })));
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 
@@ -48,14 +57,14 @@ router.post("/staff", authGuard, roleGuard("admin"), async (req, res) => {
     if (role !== "advisor" && role !== "verifier") {
       return res.status(400).json({ message: "Choose Advisor or Verifier" });
     }
-    if (cleanName.length < 2 || !/^[0-9]{10}$/.test(cleanMobile)) {
+    if (cleanName.length < 2 || cleanName.length > 200 || !/^[0-9]{10}$/.test(cleanMobile)) {
       return res.status(400).json({ message: "Enter a name and 10-digit mobile number" });
     }
-    if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    if (cleanEmail.length > 254 || (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))) {
       return res.status(400).json({ message: "Enter a valid email address" });
     }
-    if (typeof password !== "string" || password.length < 8) {
-      return res.status(400).json({ message: "Staff password must be at least 8 characters" });
+    if (typeof password !== "string" || password.length < 8 || Buffer.byteLength(password, "utf8") > 72) {
+      return res.status(400).json({ message: "Staff password must contain at least 8 characters and at most 72 UTF-8 bytes" });
     }
     if (await User.exists({ mobile: cleanMobile })) {
       return res.status(409).json({ message: "Mobile number already registered" });
@@ -70,39 +79,38 @@ router.post("/staff", authGuard, roleGuard("admin"), async (req, res) => {
     });
   } catch (error: any) {
     if (error.code === 11000) return res.status(409).json({ message: "Mobile number already registered" });
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 
+let summaryCache: { expires: number; value: any } | undefined;
+let summaryWork: Promise<any> | undefined;
 // GET /admin/dashboard/summary
 router.get("/dashboard/summary", authGuard, roleGuard("admin"), async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments({ role: "user" });
-    const totalAdvisors = await User.countDocuments({ role: "advisor" });
-    const totalVerifiers = await User.countDocuments({ role: "verifier" });
-    const totalProperties = await Property.countDocuments();
+    if (summaryCache && summaryCache.expires > Date.now()) return res.json(summaryCache.value);
+    if (!summaryWork) summaryWork = (async () => {
+    // Three bounded result sets instead of serial counts and loading every completed deal.
+    const [userCounts, propertyCounts, dealCounts] = await Promise.all([
+      User.aggregate<{ _id: string; count: number }>([{ $group: { _id: "$role", count: { $sum: 1 } } }]).option({ maxTimeMS: 5000 }),
+      Property.aggregate<{ _id: string; count: number }>([{ $group: { _id: "$status", count: { $sum: 1 } } }]).option({ maxTimeMS: 5000 }),
+      Deal.aggregate<{ _id: string; count: number; commission: number }>([{ $group: { _id: "$status", count: { $sum: 1 }, commission: { $sum: "$commissionAmount" } } }]).option({ maxTimeMS: 5000 }),
+    ]);
+    const users = Object.fromEntries(userCounts.map(row => [row._id, row.count]));
+    const properties = Object.fromEntries(propertyCounts.map(row => [row._id, row.count]));
+    const activeDeals = dealCounts.filter(row => !["completed", "cancelled", "rejected"].includes(row._id)).reduce((sum, row) => sum + row.count, 0);
+    const commissionEarned = (dealCounts.find(row => row._id === "completed")?.commission || 0) * 2;
 
-    const pendingProperties = await Property.countDocuments({ status: "pending" });
-    const draftProperties = await Property.countDocuments({ status: "draft" });
-    const verifierPending = await Property.countDocuments({ status: "advisor_verified" });
-    const corrections = await Property.countDocuments({ status: "correction_required" });
-    const verifiedProperties = await Property.countDocuments({ status: "verified" });
-    const rejectedProperties = await Property.countDocuments({ status: "rejected" });
-
-    const activeDeals = await Deal.countDocuments({ status: { $nin: ["completed", "cancelled", "rejected"] } });
-
-    // Sum total commissions for completed deals
-    const completedDeals = await Deal.find({ status: "completed" });
-    const commissionEarned = completedDeals.reduce((sum, deal) => sum + (deal.commissionAmount * 2), 0); // Both sides
-
-    res.json({
-      users: { total: totalUsers, advisors: totalAdvisors, verifiers: totalVerifiers },
-      properties: { total: totalProperties, draft: draftProperties, pending: pendingProperties, advisorPending: pendingProperties, verifierPending, corrections, verified: verifiedProperties, rejected: rejectedProperties },
+    return {
+      users: { total: users.user || 0, advisors: users.advisor || 0, verifiers: users.verifier || 0 },
+      properties: { total: propertyCounts.reduce((sum, row) => sum + row.count, 0), draft: properties.draft || 0, pending: properties.pending || 0, advisorPending: properties.pending || 0, verifierPending: properties.advisor_verified || 0, corrections: properties.correction_required || 0, verified: properties.verified || 0, rejected: properties.rejected || 0 },
       deals: { active: activeDeals },
       financials: { commissionEarned }
-    });
+    };
+    })().then(value => { summaryCache = { value, expires: Date.now() + 5000 }; return value; }).finally(() => { summaryWork = undefined; });
+    res.json(await summaryWork);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 
@@ -110,6 +118,7 @@ router.get("/dashboard/summary", authGuard, roleGuard("admin"), async (req, res)
 router.get("/properties", authGuard, roleGuard("admin"), async (req, res) => {
   try {
     const { status } = req.query;
+    if (status !== undefined && (typeof status !== "string" || !["draft", "queued", "pending", "advisor_verified", "correction_required", "rejected", "verified", "sold"].includes(status))) return res.status(400).json({ message: "Invalid property status" });
     const query: any = status ? { status } : {};
 
     // Exclude suspended users
@@ -119,32 +128,32 @@ router.get("/properties", authGuard, roleGuard("admin"), async (req, res) => {
       query.ownerId = { $nin: suspendedUserIds };
     }
 
-    const properties = await Property.find(query).populate("ownerId", "name mobile").sort("-createdAt");
+    const properties = await readPage(Property.find(query).select(listFields).populate("ownerId", "name mobile"), req, res);
     res.json(properties);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 
 // GET /admin/users
 router.get("/users", authGuard, roleGuard("admin"), async (req, res) => {
   try {
-    const users = await User.find({ role: "user" })
+    const users = await readPage(User.find({ role: "user" })
       .select("name mobile email role createdAt isVerifiedIdentity demoKycComplete isSuspended")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 }), req, res);
     res.json(users);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 
 // GET /admin/users/:userId/properties
 router.get("/users/:userId/properties", authGuard, roleGuard("admin"), async (req, res) => {
   try {
-    const properties = await Property.find({ ownerId: req.params.userId }).sort("-createdAt");
+    const properties = await readPage(Property.find({ ownerId: req.params.userId }).select(listFields), req, res);
     res.json(properties);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 
@@ -153,16 +162,13 @@ router.put("/users/:userId/suspend", authGuard, roleGuard("admin"), async (req, 
   try {
     const user = await User.findById(req.params.userId);
     if (!user || user.role !== "user") return res.status(404).json({ message: "User not found" });
-    console.log("before " + user.isSuspended);
-
-    user.isSuspended = !user.isSuspended;
-
-    console.log("before save" + user.isSuspended);
+    if (req.body?.isSuspended !== undefined && typeof req.body.isSuspended !== "boolean") return res.status(400).json({ message: "isSuspended must be a boolean" });
+    // Legacy callers may omit the field; current clients send the desired state.
+    user.isSuspended = req.body?.isSuspended ?? !user.isSuspended;
     await user.save();
-    console.log("after save" + user.isSuspended);
     res.json({ id: user._id, isSuspended: user.isSuspended });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 
@@ -171,8 +177,11 @@ router.put("/staff/:staffId/status", authGuard, roleGuard("admin"), async (req: 
   try {
     const staff = await User.findById(req.params.staffId);
     if (!staff || !["advisor", "verifier"].includes(staff.role)) return res.status(404).json({ message: "Staff not found" });
-    staff.isActive = !staff.isActive;
+    if (req.body?.isActive !== undefined && typeof req.body.isActive !== "boolean") return res.status(400).json({ message: "isActive must be a boolean" });
+    staff.isActive = req.body?.isActive ?? !staff.isActive;
     await staff.save();
+    // Retry assignment cleanup even if a previous request saved the state but
+    // failed before releasing assignments. The assignment filter makes it safe.
     if (!staff.isActive) {
       const field = staff.role === "advisor" ? "assignedAdvisorId" : "assignedVerifierId";
       const status = staff.role === "advisor" ? "pending" : "advisor_verified";
@@ -183,18 +192,20 @@ router.put("/staff/:staffId/status", authGuard, roleGuard("admin"), async (req: 
     }
     res.json({ id: staff._id, name: staff.name, role: staff.role, isActive: staff.isActive });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 
 // Get user transactions
 router.get("/users/:userId/transactions", authGuard, roleGuard("admin"), async (req, res) => {
   try {
-    const inquiries = await Inquiry.find({ $or: [{ buyerId: req.params.userId }, { sellerId: req.params.userId }] }).populate("propertyId", "title price type location");
-    const deals = await Deal.find({ $or: [{ buyerId: req.params.userId }, { ownerId: req.params.userId }] }).populate("propertyId", "title price type location");
-    res.json({ inquiries, deals });
+    const [inquiries, deals] = await Promise.all([
+      readNamedPage(Inquiry.find({ $or: [{ buyerId: req.params.userId }, { sellerId: req.params.userId }] }).select("propertyId status offerAmount createdAt").populate("propertyId", "title price type location"), req, "inquiries"),
+      readNamedPage(Deal.find({ $or: [{ buyerId: req.params.userId }, { ownerId: req.params.userId }] }).populate("propertyId", "title price type location"), req, "deals"),
+    ]);
+    res.json({ inquiries: inquiries.items, deals: deals.items, nextInquiries: inquiries.nextCursor, nextDeals: deals.nextCursor });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 
@@ -202,11 +213,13 @@ router.get("/users/:userId/transactions", authGuard, roleGuard("admin"), async (
 router.get("/staff/:staffId/workload", authGuard, roleGuard("admin"), async (req, res) => {
   try {
     const staffId = req.params.staffId;
-    const assignedProps = await Property.find({ $or: [{ assignedAdvisorId: staffId }, { assignedVerifierId: staffId }] }).select("title status createdAt location");
-    const verifiedHistory = await Property.find({ verificationHistory: { $elemMatch: { actorId: staffId, action: { $in: ["approve", "correction", "reject"] } } } }).select("title status createdAt location");
-    res.json({ assigned: assignedProps, history: verifiedHistory });
+    const [assigned, history] = await Promise.all([
+      readNamedPage(Property.find({ $or: [{ assignedAdvisorId: staffId }, { assignedVerifierId: staffId }] }).select("title status createdAt location"), req, "assigned"),
+      readNamedPage(Property.find({ verificationHistory: { $elemMatch: { actorId: staffId, action: { $in: ["approve", "correction", "reject"] } } } }).select("title status createdAt location"), req, "history"),
+    ]);
+    res.json({ assigned: assigned.items, history: history.items, nextAssigned: assigned.nextCursor, nextHistory: history.nextCursor });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 
@@ -217,7 +230,7 @@ router.get("/properties/:propertyId/audit", authGuard, roleGuard("admin"), async
     if (!prop) return res.status(404).json({ message: "Property not found" });
     res.json(prop);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 

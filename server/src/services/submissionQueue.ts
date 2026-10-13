@@ -67,10 +67,14 @@ export function startSubmissionWorker() {
   let running: Promise<void> | undefined;
   const tick = () => {
     if (stopped || running) return;
+    let processed = 0;
     running = (async () => {
-      for (let i = 0; i < 10 && !stopped; i++) if (!await processNextSubmission()) break;
+      for (let i = 0; i < 10 && !stopped; i++) {
+        if (!await processNextSubmission()) break;
+        processed++;
+      }
     })().catch(() => console.error("[submission-worker] Database unavailable; retrying on next poll"))
-      .finally(() => { running = undefined; });
+      .finally(() => { running = undefined; if (processed === 10 && !stopped) setImmediate(tick); });
   };
   const timer = setInterval(tick, 1000);
   tick();

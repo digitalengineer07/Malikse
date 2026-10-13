@@ -22,6 +22,8 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
   const router = useRouter();
   const { user, authState, hydrated } = useAuthStore();
   const [property, setProperty] = useState<Listing | null>(null);
+  const [docCursor, setDocCursor] = useState<string>();
+  const [staffCursor, setStaffCursor] = useState<string>();
   const [docs, setDocs] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,11 +48,11 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
         setProperty(result);
         if (!publicView) {
           const documents = await documentService.getDocuments(id);
-          if (active) setDocs(documents);
-          if (user?.role === "admin") { const response = await api.get("/admin/staff"); if (active) setStaff(response.data); }
+          if (active) { setDocs(documents); setDocCursor((documents as any).nextCursor); }
+          if (user?.role === "admin") { const response = await api.get("/admin/staff"); if (active) { setStaff(response.data); setStaffCursor(response.data.nextCursor); } }
         } else if (authState === "AUTHENTICATED" && user) {
-          const wishlist = await userService.getWishlist();
-          if (active) setIsSaved(wishlist.some(p => p._id === id));
+          const saved = await userService.isWishlisted(id);
+          if (active) setIsSaved(saved);
         }
       } catch (cause: any) { if (active) setError(cause.response?.data?.message || "Could not load property"); }
       finally { if (active) setLoading(false); }
@@ -142,6 +144,8 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
           <Text style={ui.text}>Verifier: {property.assignedVerifierId && typeof property.assignedVerifierId === "object" ? property.assignedVerifierId.name : property.assignedVerifierId || "Awaiting assignment"}</Text>
           <Text style={ui.heading}>Documents (optional)</Text>
           {docs.length === 0 && <Text style={ui.muted}>No documents uploaded.</Text>}
+          {user?.role === "admin" && staffCursor && <Action title="Load more staff choices" secondary onPress={async () => { try { const response = await api.get("/admin/staff", { params: { cursor: staffCursor } }); setStaff(old => [...old, ...response.data]); setStaffCursor(response.data.nextCursor); } catch { setError("Could not load staff"); } }} />}
+          {docCursor && <Action title="More documents" secondary onPress={async () => { try { const rows = await documentService.getDocuments(id, docCursor); setDocs(old => [...old, ...rows]); setDocCursor((rows as any).nextCursor); } catch { setError("Could not load documents"); } }} />}
           {docs.map(doc => <Action key={doc._id || doc.id} title={`${doc.type}: ${doc.fileName}`} secondary onPress={() => Linking.openURL(doc.fileUrl).catch(() => setError("Could not open document. Refresh to get a new link."))} />)}
         </View>
         {property.rejectionReason && <Text style={ui.error}>Review feedback: {property.rejectionReason}</Text>}

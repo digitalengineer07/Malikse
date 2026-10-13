@@ -34,4 +34,6 @@ const DocumentSchema = new Schema<IDocument>(
   { timestamps: true }
 );
 
+DocumentSchema.index({ propertyId: 1, createdAt: -1 }, { name: "document_property_newest" });
+
 export const PropertyDocument = mongoose.model<IDocument>("Document", DocumentSchema);

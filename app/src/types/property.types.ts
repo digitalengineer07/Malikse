@@ -14,6 +14,7 @@ export interface PropertyBadges {
 }
 
 export interface PropertyLocation {
+  pincode?: string;
   state: string;
   district: string;
   block?: string;
@@ -67,6 +68,11 @@ export interface Property {
 }
 
 export interface PropertySearchFilters {
+  address?: string;
+  pincode?: string;
+  cursor?: string;
+  district?: string;
+  state?: string;
   location?: string;
   budgetMin?: number;
   budgetMax?: number;

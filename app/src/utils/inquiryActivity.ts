@@ -15,6 +15,6 @@ export function inquiryActivity(inquiry: InquiryData, userId: string) {
     timestampNum: Date.parse(activityAt),
     activityAt,
     time: new Date(activityAt).toLocaleString(),
-    unread: incoming.some(timestamp => timestamp > readAt),
+    unread: inquiry.unread ?? incoming.some(timestamp => timestamp > readAt),
   };
 }

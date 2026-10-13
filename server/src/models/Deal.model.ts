@@ -32,4 +32,8 @@ const DealSchema = new Schema<IDeal>(
   { timestamps: true }
 );
 
+DealSchema.index({ buyerId: 1, createdAt: -1 }, { name: "deal_buyer_newest" });
+DealSchema.index({ ownerId: 1, createdAt: -1 }, { name: "deal_owner_newest" });
+DealSchema.index({ status: 1 }, { name: "deal_status" });
+
 export const Deal = mongoose.model<IDeal>("Deal", DealSchema);

@@ -3,6 +3,7 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { useAuthStore } from "../store/authStore";
 import type { UserProfile } from "../types/auth.types";
+import { invalidatePropertySearch } from "./searchCache";
 
 const configuredApiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
 function resolveApiUrl() {
@@ -15,7 +16,7 @@ function resolveApiUrl() {
 }
 const API_URL = resolveApiUrl();
 
-const api = axios.create({ baseURL: API_URL });
+const api = axios.create({ baseURL: API_URL, timeout: 15000 });
 
 let isRefreshing = false;
 let failedQueue: any[] = [];
@@ -40,13 +41,19 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (Array.isArray(response.data)) (response.data as any).nextCursor = response.headers["x-next-cursor"] || undefined;
+    if (["post", "patch", "put", "delete"].includes(response.config.method || "") && /^\/(properties|verification|admin)\b/.test(response.config.url || "")) invalidatePropertySearch();
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
     
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !["/auth/login", "/auth/register", "/auth/refresh"].includes(originalRequest.url)) {
       
+      originalRequest._retry = true;
       if (isRefreshing) {
+        if (failedQueue.length >= 100) return Promise.reject(error);
         return new Promise(function(resolve, reject) {
           failedQueue.push({ resolve, reject });
         }).then(token => {
@@ -69,7 +76,8 @@ api.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
+        const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken }, { timeout: 10000 });
+        if (useAuthStore.getState().refreshToken !== refreshToken) throw new Error("Session changed during refresh");
         
         useAuthStore.getState().setTokens({ 
           accessToken: data.accessToken, 
@@ -83,7 +91,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (err) {
         processQueue(err, null);
-        useAuthStore.getState().clearSession();
+        if (axios.isAxiosError(err) && [401, 403].includes(err.response?.status || 0) && useAuthStore.getState().refreshToken === refreshToken) useAuthStore.getState().clearSession();
         return Promise.reject(err);
       } finally {
         isRefreshing = false;

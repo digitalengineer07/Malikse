@@ -11,7 +11,7 @@ import { documentService } from "../src/services/documentService";
 import { workflowService } from "../src/services/workflowService";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 
-const initialForm = { title: "", description: "", type: "land", price: "", totalArea: "", sellableArea: "", state: "Bihar", district: "", block: "", mauza: "", policeStation: "", khata: "", khesra: "", holdingNumber: "", boundary: "", roadWidth: "", lat: "", lng: "", photos: "", videos: "", possessionStatus: "With Owner" };
+const initialForm = { title: "", description: "", type: "land", price: "", totalArea: "", sellableArea: "", state: "Bihar", district: "", pincode: "", block: "", mauza: "", policeStation: "", khata: "", khesra: "", holdingNumber: "", boundary: "", roadWidth: "", lat: "", lng: "", photos: "", videos: "", possessionStatus: "With Owner" };
 const docTypes = ["Registry", "Mutation", "LPC/Jamabandi", "Map", "Rent Receipt", "Owner ID Proof"];
 type Picked = { asset: DocumentPicker.DocumentPickerAsset; type: string };
 
@@ -52,7 +52,7 @@ export default function ListingEditorScreen() {
         if (!active) return;
         const next = { ...initialForm };
         for (const key of ["title", "description", "type", "price", "totalArea", "sellableArea", "khata", "khesra", "holdingNumber", "boundary", "roadWidth"] as const) next[key] = String(property[key] ?? "");
-        for (const key of ["state", "district", "block", "mauza", "policeStation", "lat", "lng"] as const) next[key] = String(property.location[key] ?? "");
+        for (const key of ["state", "district", "pincode", "block", "mauza", "policeStation", "lat", "lng"] as const) next[key] = String(property.location[key] ?? "");
         next.photos = property.media?.photos?.join("\n") || "";
         next.videos = property.media?.videos?.join("\n") || "";
         next.possessionStatus = property.disclosures?.possessionStatus || "With Owner";
@@ -64,6 +64,7 @@ export default function ListingEditorScreen() {
     return () => { active = false; };
   }, [initialId, authState]);
   const validate = (location = false) => {
+    if (form.pincode && !/^[1-9]\d{5}$/.test(form.pincode.trim())) return "Enter a valid six-digit pincode.";
     if (!form.state.trim() || !form.district.trim()) return "Enter state and district.";
     if (![form.price, form.totalArea, form.sellableArea].every(value => value.trim() && Number.isFinite(Number(value)) && Number(value) > 0)) return "Enter a positive price, total area and sellable area.";
     if (Number(form.sellableArea) > Number(form.totalArea)) return "Sellable area cannot exceed total area.";
@@ -100,7 +101,7 @@ export default function ListingEditorScreen() {
     if (message || !consent) { setError(message || "Accept the seller declaration."); return; }
     submitting.current = true; setBusy(true); setError("");
     try {
-      const data = { title: form.title.trim() || `${form.type} in ${form.district}`, description: form.description.trim(), type: form.type, price: Number(form.price), totalArea: Number(form.totalArea), sellableArea: Number(form.sellableArea), khata: form.khata, khesra: form.khesra, holdingNumber: form.holdingNumber, boundary: form.boundary, roadWidth: form.roadWidth ? Number(form.roadWidth) : undefined, negotiable, location: { state: form.state.trim(), district: form.district.trim(), block: form.block, mauza: form.mauza, policeStation: form.policeStation, lat: Number(form.lat), lng: Number(form.lng) }, parcelPoints: points, disclosures: { hasLoan, hasDispute, possessionStatus: form.possessionStatus }, media: { photos: form.photos.split("\n").map(value => value.trim()).filter(Boolean), videos: form.videos.split("\n").map(value => value.trim()).filter(Boolean) } };
+      const data = { title: form.title.trim() || `${form.type} in ${form.district}`, description: form.description.trim(), type: form.type, price: Number(form.price), totalArea: Number(form.totalArea), sellableArea: Number(form.sellableArea), khata: form.khata, khesra: form.khesra, holdingNumber: form.holdingNumber, boundary: form.boundary, roadWidth: form.roadWidth ? Number(form.roadWidth) : undefined, negotiable, location: { state: form.state.trim(), district: form.district.trim(), pincode: form.pincode.trim(), block: form.block, mauza: form.mauza, policeStation: form.policeStation, lat: Number(form.lat), lng: Number(form.lng) }, parcelPoints: points, disclosures: { hasLoan, hasDispute, possessionStatus: form.possessionStatus }, media: { photos: form.photos.split("\n").map(value => value.trim()).filter(Boolean), videos: form.videos.split("\n").map(value => value.trim()).filter(Boolean) } };
       let savedId = propertyId;
       if (savedId) await propertyService.updateProperty(savedId, data);
       else { const property = await propertyService.createProperty(data); savedId = property._id || property.id; setPropertyId(savedId); }
@@ -145,7 +146,7 @@ export default function ListingEditorScreen() {
         {field("title", "Property title (optional)")}
         <Text style={ui.label}>Property type</Text>
         <View style={ui.row}>{["land", "flat", "house", "shop", "office"].map(type => <Action key={type} title={type} secondary={form.type !== type} onPress={() => change("type", type)} />)}</View>
-        {field("state", "State *")}{field("district", "District *")}{field("block", "Block / circle")}{field("mauza", "Mauza")}{field("policeStation", "Police station number")}
+        {field("state", "State *")}{field("district", "District *")}{field("pincode", "Pincode (6 digits)")}{field("block", "Block / circle")}{field("mauza", "Mauza")}{field("policeStation", "Police station number")}
         {field("khata", "Khata number")}{field("khesra", "Khesra / plot number")}{field("holdingNumber", "Holding number")}
         {field("price", "Price (₹) *", true)}{field("totalArea", "Total area (sq.ft) *", true)}{field("sellableArea", "Sellable area (sq.ft) *", true)}
         <Check label="Price is negotiable" checked={negotiable} onPress={() => setNegotiable(!negotiable)} />

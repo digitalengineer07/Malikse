@@ -1,4 +1,4 @@
-import bcrypt from "bcryptjs";
+import bcrypt from "../services/passwords";
 import { Router } from "express";
 import jwt from "jsonwebtoken";
 import { authGuard } from "../middleware/auth.middleware";
@@ -16,22 +16,21 @@ router.post("/register", async (req, res) => {
     const cleanName = typeof name === "string" ? name.trim() : "";
     const cleanMobile = typeof mobile === "string" ? mobile.trim() : "";
     const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
-    if (cleanName.length < 2 || !mobilePattern.test(cleanMobile)) {
+    if (cleanName.length < 2 || cleanName.length > 200 || !mobilePattern.test(cleanMobile)) {
       return res.status(400).json({ message: "Enter your name and a 10-digit mobile number" });
     }
-    if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    if (cleanEmail.length > 254 || (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))) {
       return res.status(400).json({ message: "Enter a valid email address" });
     }
-    if (typeof password !== "string" || password.length < 6) {
-      return res.status(400).json({ message: "Password is required (min 6 characters)" });
+    if (typeof password !== "string" || password.length < 6 || Buffer.byteLength(password, "utf8") > 72) {
+      return res.status(400).json({ message: "Password must contain at least 6 characters and at most 72 UTF-8 bytes" });
     }
     let user = await User.findOne({ mobile: cleanMobile });
     if (user) {
       return res.status(409).json({ message: "Mobile number already registered" });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
+    const passwordHash = await bcrypt.hash(password, 10);
 
     user = new User({ role: "user", name: cleanName, mobile: cleanMobile, email: cleanEmail || undefined, passwordHash });
     await user.save();
@@ -41,7 +40,7 @@ router.post("/register", async (req, res) => {
     res.status(201).json({ accessToken, refreshToken, user: publicUser(user) });
   } catch (error: any) {
     if (error.code === 11000) return res.status(409).json({ message: "Mobile number already registered" });
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 
@@ -49,7 +48,7 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { mobile, password } = req.body;
-    if (typeof mobile !== "string" || !mobilePattern.test(mobile.trim()) || typeof password !== "string") {
+    if (typeof mobile !== "string" || !mobilePattern.test(mobile.trim()) || typeof password !== "string" || password.length > 1024) {
       return res.status(400).json({ message: "Enter a 10-digit mobile number and password" });
     }
     const user = await User.findOne({ mobile: mobile.trim() });
@@ -79,18 +78,20 @@ router.post("/login", async (req, res) => {
       user: publicUser(user)
     });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 
 // POST /auth/kyc/demo — a UI prototype toggle, not identity verification.
 router.post("/kyc/demo", authGuard, async (req: any, res) => {
+  try {
   if (req.user.role !== "user") return res.status(403).json({ message: "User role required" });
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ message: "User not found" });
   user.demoKycComplete = true;
   await user.save();
   res.json({ demoKycComplete: true, demoOnly: true });
+  } catch { res.status(503).json({ message: "Account service is temporarily unavailable" }); }
 });
 
 // POST /auth/refresh
@@ -102,7 +103,7 @@ router.post("/refresh", async (req, res) => {
     }
 
     // Verify token signature
-    const decoded = jwt.verify(refreshToken, REFRESH_SECRET) as { id: string; role: string };
+    const decoded = jwt.verify(refreshToken, REFRESH_SECRET, { algorithms: ["HS256"] }) as { id: string; role: string };
     const user = await User.findById(decoded.id);
 
     if (!user || !accountEnabled(user)) return res.status(401).json({ message: "Invalid refresh token" });
@@ -126,18 +127,16 @@ router.post("/logout", authGuard, async (req: any, res) => {
     }
     res.json({ message: "Logged out successfully" });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 
 // GET /auth/me
 router.get("/me", authGuard, async (req: any, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-passwordHash -refreshTokenHash");
-    if (!user) return res.status(404).json({ message: "User not found" });
-    res.json(publicUser(user));
+    res.json(req.account);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
 

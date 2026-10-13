@@ -10,17 +10,26 @@ export default function ManageUsersScreen() {
   const { user, authState } = useAuthStore();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string>();
+  const [moreBusy, setMoreBusy] = useState(false);
   const [error, setError] = useState("");
   
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [propertyCursor, setPropertyCursor] = useState<string>();
   const [properties, setProperties] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any>({ inquiries: [], deals: [] });
   const [loadingProps, setLoadingProps] = useState(false);
 
+    const loadMore = async () => {
+    if (!nextCursor || moreBusy) return;
+    setMoreBusy(true);
+    try { const rows = await adminService.listUsers(nextCursor); setUsers(old => [...old, ...rows]); setNextCursor((rows as any).nextCursor); }
+    catch { setError("Could not load the next page"); } finally { setMoreBusy(false); }
+  };
   useFocusEffect(React.useCallback(() => {
-    if (authState !== "AUTHENTICATED" || user?.role !== "admin" || !user.id) return;
+  if (authState !== "AUTHENTICATED" || user?.role !== "admin" || !user.id) return;
     setLoading(true);
-    adminService.listUsers().then(setUsers).catch((cause) => {
+    adminService.listUsers().then(rows => { setUsers(rows); setNextCursor((rows as any).nextCursor); }).catch((cause) => {
       setError(cause.response?.data?.message || "Could not load user accounts");
     }).finally(() => setLoading(false));
   }, [authState, user]));
@@ -37,7 +46,7 @@ export default function ManageUsersScreen() {
         adminService.getUserProperties(usr._id),
         adminService.getUserTransactions(usr._id)
       ]);
-      setProperties(props);
+      setProperties(props); setPropertyCursor((props as any).nextCursor);
       setTransactions(txs);
     } catch (e) {
       console.error(e);
@@ -47,9 +56,22 @@ export default function ManageUsersScreen() {
     }
   };
 
+  const moreProperties = async () => {
+    if (!selectedUser || !propertyCursor || loadingProps) return;
+    setLoadingProps(true);
+    try { const rows = await adminService.getUserProperties(selectedUser._id, propertyCursor); setProperties(old => [...old, ...rows]); setPropertyCursor((rows as any).nextCursor); }
+    catch { setError("Could not load properties"); } finally { setLoadingProps(false); }
+  };
+  const moreTransactions = async (kind: "inquiries" | "deals") => {
+    if (!selectedUser || loadingProps) return;
+    setLoadingProps(true);
+    try { const data = await adminService.getUserTransactions(selectedUser._id, { [kind + "Cursor"]: transactions[kind === "inquiries" ? "nextInquiries" : "nextDeals"] });
+      setTransactions((old: any) => ({ ...old, [kind]: [...old[kind], ...data[kind]], [kind === "inquiries" ? "nextInquiries" : "nextDeals"]: data[kind === "inquiries" ? "nextInquiries" : "nextDeals"] }));
+    } catch { setError("Could not load transactions"); } finally { setLoadingProps(false); }
+  };
   const toggleSuspension = async (usr: any) => {
     try {
-      await adminService.suspendUser(usr._id);
+      await adminService.suspendUser(usr._id, !usr.isSuspended);
       setUsers(users.map(u => u._id === usr._id ? { ...u, isSuspended: !u.isSuspended } : u));
     } catch (e: any) {
       setError(e.response?.data?.message || "Failed to toggle suspension");
@@ -62,6 +84,7 @@ export default function ManageUsersScreen() {
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/admin/dashboard")}><Text style={styles.link}>← Admin dashboard</Text></TouchableOpacity>
+    {nextCursor && <TouchableOpacity disabled={moreBusy} onPress={loadMore}><Text style={styles.link}>{moreBusy ? "Loading…" : "Load more accounts"}</Text></TouchableOpacity>}
     <Text style={styles.title}>User Accounts</Text>
     <Text style={styles.description}>View all registered users and tap on an account to see their property listings.</Text>
     
@@ -92,6 +115,9 @@ export default function ManageUsersScreen() {
               </TouchableOpacity>
             ))}
             
+            {propertyCursor && <TouchableOpacity disabled={loadingProps} onPress={moreProperties}><Text style={styles.link}>More properties</Text></TouchableOpacity>}
+            {transactions.nextInquiries && <TouchableOpacity disabled={loadingProps} onPress={() => moreTransactions("inquiries")}><Text style={styles.link}>More inquiries</Text></TouchableOpacity>}
+            {transactions.nextDeals && <TouchableOpacity disabled={loadingProps} onPress={() => moreTransactions("deals")}><Text style={styles.link}>More deals</Text></TouchableOpacity>}
             <Text style={[styles.propsHeading, { marginTop: 24 }]}>Recent Transactions</Text>
             {loadingProps ? <ActivityIndicator color="#047857" /> : transactions.deals.length === 0 && transactions.inquiries.length === 0 ? <Text style={styles.description}>No active deals or inquiries.</Text> : (
               <>

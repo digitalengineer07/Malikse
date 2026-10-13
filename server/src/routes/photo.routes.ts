@@ -6,6 +6,8 @@ import { photoDirectory } from "../services/propertyPhotos";
 
 const router = Router();
 router.get("/:filename", async (req, res) => {
+  // Property images are intentionally embedded by web clients on other origins.
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
   const filename = req.params.filename;
   if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|png|webp)$/i.test(filename)) return res.sendStatus(404);
   const localPath = path.resolve(photoDirectory, filename);

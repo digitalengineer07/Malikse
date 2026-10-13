@@ -3,6 +3,7 @@ import type { Property } from "../types/property.types";
 import type { UserProfile } from "../types/auth.types";
 
 export const userService = {
+  async isWishlisted(id: string): Promise<boolean> { return (await api.get(`/users/wishlist/${id}`)).data.isWishlisted; },
   async getProfile(): Promise<UserProfile> {
     const res = await api.get("/users/profile");
     return res.data;
@@ -18,8 +19,8 @@ export const userService = {
     return res.data;
   },
 
-  async getWishlist(): Promise<Property[]> {
-    const res = await api.get("/users/wishlist");
+  async getWishlist(cursor?: string): Promise<Property[]> {
+    const res = await api.get("/users/wishlist", { params: { cursor } });
     return res.data;
   },
 

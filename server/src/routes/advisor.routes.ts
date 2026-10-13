@@ -1,3 +1,4 @@
+import { readPage, listFields } from "../services/pagination";
 import { Router } from "express";
 import { isValidObjectId } from "mongoose";
 import { Property } from "../models/Property.model";
@@ -21,11 +22,13 @@ router.get("/my-tasks", async (req: any, res) => {
     const filter: any = {};
     if (suspendedUserIds.length > 0) filter.ownerId = { $nin: suspendedUserIds };
 
-    const assigned = await Property.find({ [field]: req.user.id, ...filter }).populate("ownerId", "name mobile").sort("-updatedAt");
-    // Unassigned work exposes only a summary until an authorized reviewer claims it.
-    const unassigned = await Property.find({ [field]: null, status: pending, ...filter }).select("title type location status totalArea price createdAt").sort("createdAt");
-    res.json([...assigned, ...unassigned]);
-  } catch (error: any) { res.status(500).json({ message: error.message }); }
+    // Queue summaries never expose owner contact details before assignment.
+    const rows = await readPage(Property.find({ ...filter, $or: [{ [field]: req.user.id }, { [field]: null, status: pending }] }).select(listFields), req, res);
+    for (const row of rows) if (!row[field]) {
+      for (const key of Object.keys(row)) if (!["_id", "title", "type", "location", "status", "totalArea", "price", "createdAt"].includes(key)) delete row[key];
+    }
+    res.json(rows);
+  } catch (error: any) { res.status(500).json({ message: "An unexpected server error occurred" }); }
 });
 
 router.post("/:propertyId/claim", async (req: any, res) => {

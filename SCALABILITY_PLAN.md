@@ -1,5 +1,8 @@
 # MalikSe scalability architecture
 
+Current endpoint audit and prioritized implementation plan: [PRODUCTION_READINESS_PLAN.md](PRODUCTION_READINESS_PLAN.md).
+The historical findings below are architectural context; use that newer plan for current implementation status and release gates.
+
 Status: proposed architecture, not implemented or capacity-certified.
 Implementation update: the current backend now includes a MongoDB-backed
 submission queue with leases/retries, shared round-robin assignment, three

@@ -25,6 +25,7 @@ import { inquiryService, InquiryData } from "../../src/services/inquiryService";
 
 
 interface MessageItem {
+  sentAt?: number;
   id: string;
   sender: "them" | "me";
   text: string;
@@ -78,15 +79,55 @@ function MessagesContent({ user }: { user: UserProfile }) {
   const [replyText, setReplyText] = useState("");
   const [showSupportModal, setShowSupportModal] = useState(false);
 
+  const [conversationCursor, setConversationCursor] = useState<string>();
+  const [nextConversationCursor, setNextConversationCursor] = useState<string>();
+  const [previousConversationCursors, setPreviousConversationCursors] = useState<(string | undefined)[]>([]);
+  const [messageBefore, setMessageBefore] = useState<number | null>(null);
+  const chatId = React.useRef(selectedChat?.id);
+  chatId.current = selectedChat?.id;
+  const [messageBusy, setMessageBusy] = useState(false);
+  const [networkError, setNetworkError] = useState("");
+  const mapMessage = (m: NonNullable<InquiryData["messages"]>[number]): MessageItem => ({ id: m._id, sender: m.senderId === user.id ? "me" : "them", text: m.text, sentAt: Date.parse(m.createdAt), time: new Date(m.createdAt).toLocaleString() });
+  useFocusEffect(React.useCallback(() => {
+    if (!selectedChat) return;
+    let active = true, fetching = false, first = true;
+    const id = selectedChat.id;
+    setMessageBefore(null);
+    const refresh = async () => {
+      if (fetching) return;
+      fetching = true;
+      try {
+        const page = await inquiryService.getMessages(id);
+        if (!active) return;
+        const initial = first;
+        if (first) { setMessageBefore(page.nextBefore); first = false; }
+        setSelectedChat(current => current?.id !== id ? current : { ...current, messages: [...new Map([...current.messages.filter(m => !m.id.startsWith("m_") && (!initial || m.id.endsWith("_m1") || m.id.endsWith("_m2"))), ...page.messages.map(mapMessage)].map(m => [m.id, m])).values()].sort((a, b) => (a.sentAt || 0) - (b.sentAt || 0)) });
+      } catch { if (active) setNetworkError("Could not refresh messages. Please try again."); }
+      finally { fetching = false; }
+    };
+    void refresh(); const timer = setInterval(refresh, 5000);
+    return () => { active = false; clearInterval(timer); };
+  }, [selectedChat?.id, user.id]));
+  const olderMessages = async () => {
+    if (!selectedChat || messageBefore === null || messageBusy) return;
+    const id = selectedChat.id; setMessageBusy(true);
+    try {
+      const page = await inquiryService.getMessages(id, messageBefore);
+      if (chatId.current !== id) return;
+      setSelectedChat(current => current?.id !== id ? current : { ...current, messages: [...new Map([...page.messages.map(mapMessage), ...current.messages].map(m => [m.id, m])).values()].sort((a, b) => (a.sentAt || 0) - (b.sentAt || 0)) });
+      setMessageBefore(page.nextBefore);
+    } catch { setNetworkError("Could not load older messages"); } finally { setMessageBusy(false); }
+  };
   useFocusEffect(React.useCallback(() => {
     let active = true;
     
-    const fetchInquiries = () => Promise.all([
-      inquiryService.getSentInquiries().catch(() => [] as InquiryData[]),
-      inquiryService.getReceivedInquiries().catch(() => [] as InquiryData[])
-    ]).then(([sent, received]) => {
+    let fetching = false;
+    const fetchInquiries = () => {
+      if (fetching) return;
+      fetching = true;
+      return inquiryService.getConversations(conversationCursor).then(all => {
       if (!active) return;
-      const all = [...sent, ...received];
+      setNextConversationCursor((all as any).nextCursor);
       const mapped = all.map(i => {
         const buyerIdStr = typeof i.buyerId === "object" && i.buyerId !== null ? i.buyerId._id : i.buyerId;
         const isBuyer = buyerIdStr === user.id;
@@ -146,6 +187,7 @@ function MessagesContent({ user }: { user: UserProfile }) {
               id: m._id,
               sender: m.senderId === user.id ? "me" : "them" as const,
               text: m.text,
+              sentAt: Date.parse(m.createdAt),
               time: new Date(m.createdAt).toLocaleString(),
             })) || [])
           ]
@@ -157,15 +199,16 @@ function MessagesContent({ user }: { user: UserProfile }) {
       setSelectedChat(prev => {
         if (!prev) return prev;
         const updatedChat = mapped.find(c => c.id === prev.id);
-        return updatedChat || prev;
+        return updatedChat ? { ...updatedChat, messages: prev.messages } : prev;
       });
-    });
+    }).catch(() => { if (active) setNetworkError("Could not load conversations. Please try again."); }).finally(() => { fetching = false; if (active) setLoading(false); });
+    };
 
     fetchInquiries();
     const intervalId = setInterval(fetchInquiries, 5000);
 
     return () => { active = false; clearInterval(intervalId); };
-  }, [user, selectedChat?.id]));
+  }, [user, selectedChat?.id, conversationCursor]));
 
   // Filter conversations
   const filteredConversations = conversations.filter((c) => {
@@ -203,14 +246,9 @@ function MessagesContent({ user }: { user: UserProfile }) {
     setReplyText("");
 
     try {
-      await inquiryService.sendMessage(selectedChat.id, currentText);
-      // Let the polling handle the refresh, but we can do an optimistic update
-      const newMsg: MessageItem = {
-        id: `m_${Date.now()}`,
-        sender: "me",
-        text: currentText,
-        time: "Just now",
-      };
+      const response = await inquiryService.sendMessage(selectedChat.id, currentText);
+      const saved = response.messages?.at(-1);
+      const newMsg: MessageItem = saved ? mapMessage(saved) : { id: `m_${Date.now()}`, sender: "me", text: currentText, time: "Just now", sentAt: Date.now() };
 
       const updated = {
         ...selectedChat,
@@ -219,12 +257,13 @@ function MessagesContent({ user }: { user: UserProfile }) {
         time: "Just now",
       };
 
-      setSelectedChat(updated);
+      setSelectedChat(current => current?.id === updated.id ? { ...updated, messages: [...new Map([...current.messages, newMsg].map(m => [m.id, m])).values()] } : current);
       setConversations((prev) =>
         prev.map((item) => (item.id === selectedChat.id ? updated : item))
       );
-    } catch (err) {
-      console.error("Failed to send message", err);
+    } catch (err: any) {
+      setReplyText(value => value || currentText);
+      setNetworkError(err.response?.data?.error || "Message was not sent. Please retry.");
     }
   };
 
@@ -586,6 +625,10 @@ function MessagesContent({ user }: { user: UserProfile }) {
 
             {/* Conversations List */}
             <View style={styles.conversationsContainer}>
+          {!!networkError && <Text accessibilityRole="alert">{networkError}</Text>}
+          {previousConversationCursors.length > 0 && <TouchableOpacity onPress={() => { setConversationCursor(previousConversationCursors.at(-1)); setPreviousConversationCursors(old => old.slice(0, -1)); }}><Text>Previous conversations</Text></TouchableOpacity>}
+          {nextConversationCursor && <TouchableOpacity onPress={() => { setPreviousConversationCursors(old => [...old, conversationCursor]); setConversationCursor(nextConversationCursor); }}><Text>More conversations</Text></TouchableOpacity>}
+
               {loading ? (
                 <ActivityIndicator size="large" color="#059669" style={{ marginVertical: 40 }} />
               ) : filteredConversations.length === 0 ? (
@@ -804,6 +847,8 @@ function MessagesContent({ user }: { user: UserProfile }) {
                 </View>
 
                 {/* Message bubbles */}
+                {!!networkError && <Text accessibilityRole="alert">{networkError}</Text>}
+                {messageBefore !== null && <TouchableOpacity disabled={messageBusy} onPress={olderMessages}><Text>{messageBusy ? "Loading…" : "Load older messages"}</Text></TouchableOpacity>}
                 {selectedChat.messages.map((m) => (
                   <View
                     key={m.id}

@@ -1,3 +1,5 @@
+import { uploadCapacity } from "../middleware/uploadCapacity";
+import { readPage } from "../services/pagination";
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
@@ -16,9 +18,9 @@ import { ACCESS_SECRET as secret, accountEnabled, apiOrigin } from "../services/
 const upload = multer({ storage: multer.diskStorage({
   destination: (_req, _file, cb) => { fs.mkdirSync(uploadDir, { recursive: true }); cb(null, uploadDir); },
   filename: (_req, file, cb) => cb(null, `${randomUUID()}${path.extname(file.originalname)}`),
-}), limits: { fileSize: 20 * 1024 * 1024 } });
+}), limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 4, fieldSize: 1024 } });
 
-router.post("/", authGuard, roleGuard("user"), upload.single("file"), async (req: any, res) => {
+router.post("/", authGuard, roleGuard("user"), uploadCapacity, upload.single("file"), async (req: any, res) => {
   let retained = false;
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
@@ -39,7 +41,7 @@ router.get("/", authGuard, async (req: any, res) => {
   try {
     const property = await Property.findById(req.query.propertyId);
     if (!property || !canReadProperty(property, req.user)) return res.status(403).json({ message: "Document access denied" });
-    const docs = await PropertyDocument.find({ propertyId: property._id }).sort("-createdAt");
+    const docs = await readPage(PropertyDocument.find({ propertyId: property._id }), req, res);
     res.json(docs.map(doc => {
       const token = jwt.sign({ docId: doc._id.toString(), actorId: req.user.id, purpose: "document-view" }, secret, { expiresIn: "5m" });
       return { _id: doc._id, type: doc.type, fileName: doc.fileName, fileSize: doc.fileSize, createdAt: doc.createdAt, fileUrl: `${apiOrigin(req)}/documents/${doc._id}/file?token=${token}` };

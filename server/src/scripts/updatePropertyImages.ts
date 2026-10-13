@@ -4,7 +4,7 @@ import { Property } from "../models/Property.model";
 import { storePropertyPhoto } from "../services/propertyPhotos";
 
 async function updatePropertyImages() {
-  const mongoUri = "mongodb+srv://Ankush:lhq0ljItQtTNoIcI@cluster0.sed8t.mongodb.net/MAlikse?retryWrites=true&w=majority&appName=Cluster0";
+  const mongoUri = process.env.MONGO_URI || "mongodb://localhost:27017/malikse";
   await mongoose.connect(mongoUri);
 
   try {

@@ -28,4 +28,8 @@ Final exported-home check at 320px confirmed no page-wide overflow and horizonta
 Original loading-screen design and animation are retained (only prior React hook safety fixes differ from the repository version). Property details use the header back button; the duplicate photo-overlay back button was removed. Login retains one top back action rather than separate top and panel arrows.
 
 ## Chat readability and search
+
 Native and web conversations now use a shared frosted background with blur intensity 55 and a 60%-opacity blue-white tint. Android uses an explicit in-modal blur target, with a readable tint fallback on older devices. The original app background and bottom dock are unchanged. Conversation-list search starts as an accessible icon, expands/focuses on tap, and clears/collapses on close or Escape. Search matches names, properties, latest messages and loaded message history, with trimmed queries on both platforms. Search/sort controls wrap at narrow widths. Native chat respects safe-area insets. TypeScript and strict lint pass; actual blur appearance still needs native-device QA.
+
+## Search results and map controls
+Search-map results use “Show more properties” instead of numbered pages. Results append without duplicate pins, reset when filters change, and support retry after a failed request. All maps hide the +/− zoom buttons, including the parcel editor's custom controls; existing gesture zoom remains available.
