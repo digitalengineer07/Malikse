@@ -2,6 +2,7 @@
  * MalikSe — Property Service
  */
 import api from "./authService";
+import { Platform } from "react-native";
 import type { Property, PropertySearchFilters } from "../types/property.types";
 
 import { searchResults, pendingSearches, searchKey, searchGeneration } from "./searchCache";
@@ -14,7 +15,8 @@ export function cachedPropertySearch(filters: PropertySearchFilters): Property[]
 export const propertyService = {
   async uploadPhoto(propertyId: string, file: File | Blob, fileName: string): Promise<{ url: string }> {
     const body = new FormData();
-    body.append("file", file, fileName);
+    if (Platform.OS === "web") body.append("file", file, fileName);
+    else body.append("file", file);
     return (await api.post(`/properties/${propertyId}/photos`, body, { headers: { "Content-Type": "multipart/form-data" } })).data;
   },
   async createProperty(data: any): Promise<Property> {

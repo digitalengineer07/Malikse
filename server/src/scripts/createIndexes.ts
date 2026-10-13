@@ -1,3 +1,4 @@
+import { Registration } from "../models/Registration.model";
 import "dotenv/config";
 import mongoose from "mongoose";
 import { User } from "../models/User.model";
@@ -11,7 +12,7 @@ async function main() {
   await mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/malikse", { autoIndex: false });
   try {
     // Additive only: never drop existing indexes automatically during a deployment.
-    for (const model of [User, Property, Inquiry, Deal, PropertyDocument, SearchCache]) {
+    for (const model of [Registration, User, Property, Inquiry, Deal, PropertyDocument, SearchCache]) {
       await model.createIndexes();
       console.log(`Indexes ready: ${model.modelName}`);
     }

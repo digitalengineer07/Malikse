@@ -26,7 +26,8 @@
     "load:users-10k": "npm run build && node load/profile-local.cjs --users-10k",
     "test:public-cache": "npm run build && node load/test-public-cache.cjs",
     "load:pool-matrix": "npm run build && node load/pool-matrix.cjs",
-    "test:performance": "npm run build && node load/test-performance.cjs"
+    "test:performance": "npm run build && node load/test-performance.cjs",
+    "test:otp": "npm run build && node load/test-registration-otp.cjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

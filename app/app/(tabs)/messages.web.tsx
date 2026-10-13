@@ -87,11 +87,12 @@ function MessagesContent({ user }: { user: UserProfile }) {
   chatId.current = selectedChat?.id;
   const [messageBusy, setMessageBusy] = useState(false);
   const [networkError, setNetworkError] = useState("");
-  const mapMessage = (m: NonNullable<InquiryData["messages"]>[number]): MessageItem => ({ id: m._id, sender: m.senderId === user.id ? "me" : "them", text: m.text, sentAt: Date.parse(m.createdAt), time: new Date(m.createdAt).toLocaleString() });
+  const mapMessage = React.useCallback((m: NonNullable<InquiryData["messages"]>[number]): MessageItem => ({ id: m._id, sender: m.senderId === user.id ? "me" : "them", text: m.text, sentAt: Date.parse(m.createdAt), time: new Date(m.createdAt).toLocaleString() }), [user.id]);
+  const selectedChatId = selectedChat?.id;
   useFocusEffect(React.useCallback(() => {
-    if (!selectedChat) return;
+    if (!selectedChatId) return;
     let active = true, fetching = false, first = true;
-    const id = selectedChat.id;
+    const id = selectedChatId;
     setMessageBefore(null);
     const refresh = async () => {
       if (fetching) return;
@@ -107,7 +108,7 @@ function MessagesContent({ user }: { user: UserProfile }) {
     };
     void refresh(); const timer = setInterval(refresh, 5000);
     return () => { active = false; clearInterval(timer); };
-  }, [selectedChat?.id, user.id]));
+  }, [selectedChatId, mapMessage]));
   const olderMessages = async () => {
     if (!selectedChat || messageBefore === null || messageBusy) return;
     const id = selectedChat.id; setMessageBusy(true);

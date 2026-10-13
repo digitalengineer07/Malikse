@@ -4,7 +4,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, Platform, useWindowDimensions } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
+import BlurView from "./GlassSurface";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";

@@ -5,7 +5,7 @@ import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, Style
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BlurView } from "expo-blur";
+import BlurView, { GlassBackdrop } from "./GlassSurface";
 
 import AppHeader from "./AppHeader";
 import { cachedPropertySearch, propertyService } from "../src/services/propertyService";
@@ -24,9 +24,9 @@ export default function VerifiedHomeScreen() {
   const [selected, setSelected] = useState<Property | null>(null);
   const resultsScroll = useRef<ScrollView>(null);
   const { type: initialType, query, min, max, district, state, pincode, address, areaSelection } = useLocalSearchParams<{ type?: PropertyType; query?: string; min?: string; max?: string; district?: string; state?: string; pincode?: string; address?: string; areaSelection?: string }>();
-  const [type, setType] = useState<PropertyType | undefined>(initialType || undefined);
+  const type = initialType || undefined;
+  const setType = (value: PropertyType | undefined) => router.setParams({ type: value || "" });
   useEffect(() => { if (areaSelection) resultsScroll.current?.scrollTo({ y: 0, animated: false }); }, [areaSelection]);
-  useEffect(() => { setType(initialType || undefined); }, [initialType]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshError, setRefreshError] = useState("");
@@ -62,7 +62,7 @@ export default function VerifiedHomeScreen() {
     {loading ? <ActivityIndicator style={{ padding: 30 }} color="#284B68" /> : error ? <View style={s.empty}><Text accessibilityRole="alert" style={s.note}>{error}</Text><TouchableOpacity accessibilityRole="button" onPress={() => setRevision(v => v + 1)} style={s.button}><Text style={s.buttonText}>Try again</Text></TouchableOpacity></View> : properties.length === 0 ? <View style={s.empty}><MaterialIcons name="home-work" size={36} color="#56768E" /><Text style={s.sectionTitle}>More places are on the way</Text><Text style={s.note}>Properties will appear here after Advisor and Verifier approval.</Text></View> : <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 16 }}>
       {properties.filter(p => type === undefined || p.type === type).map(property => (
         <TouchableOpacity key={property._id || property.id} accessibilityRole="button" onPress={() => setSelected(property)} activeOpacity={0.9} style={[s.cardWrapper, { width: width < 800 ? "100%" : 460, marginBottom: 12 }]}>
-          <View style={s.cardBlur}>
+          <BlurView intensity={35} tint="light" style={s.cardBlur}>
             {/* Left Side Image */}
             <View style={s.cardImageContainer}>
               {property.media?.photos?.[0] ? <Image source={{ uri: property.media.photos[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <View style={s.noPhoto} />}
@@ -79,7 +79,7 @@ export default function VerifiedHomeScreen() {
               <Text style={s.cardSpecs}>{property.sellableArea ? `${property.sellableArea.toLocaleString("en-IN")} sq ft` : "Area not provided"} | {property.negotiable ? "Negotiable" : "Fixed price"}</Text>
 
             </View>
-          </View>
+          </BlurView>
         </TouchableOpacity>
       ))}
     </View>}
@@ -90,7 +90,7 @@ export default function VerifiedHomeScreen() {
     </View>}
     </View>
   </ScrollView>
-    <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}><View style={s.modal}><Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="Dismiss property preview" onPress={() => setSelected(null)} />{selected && <BlurView intensity={90} tint="light" accessibilityViewIsModal style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 22) }]}><View style={s.handle} /><ScrollView><View style={s.headingRow}><Text style={s.eyebrow}>PROPERTY PREVIEW</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Close preview" onPress={() => setSelected(null)} style={s.circle}><MaterialIcons name="close" size={22} /></TouchableOpacity></View><Text style={s.sectionTitle}>{nameOf(selected)}</Text><Text style={s.note}>{selected.location.district}, {selected.location.state}</Text><Text style={s.sheetPrice}>{priceOf(selected)}</Text><View style={s.facts}><Text style={s.fact}>{selected.type}</Text><Text style={s.fact}>{selected.sellableArea != null ? `${selected.sellableArea.toLocaleString("en-IN")} sq.ft` : "Area not provided"}</Text><Text style={s.fact}>{selected.negotiable ? "Negotiable" : "Fixed price"}</Text></View><Text style={[s.note, { marginVertical: 18 }]}>{selected.title ? `${selected.title}. ` : ""}{selected.boundary ? `Boundary: ${selected.boundary}. ` : ""}{selected.roadWidth ? `Road Width: ${selected.roadWidth} ft. ` : ""}{selected.khata || selected.khesra ? `Khata: ${selected.khata || 'N/A'}, Khesra: ${selected.khesra || 'N/A'}. ` : ""}{selected.disclosures?.possessionStatus ? `Possession: ${selected.disclosures.possessionStatus}.` : ""}{!selected.boundary && !selected.roadWidth && !selected.khata && !selected.title && "Explore the full listing for more detailed property information, photos, and disclosures."}</Text></ScrollView><TouchableOpacity accessibilityRole="button" style={s.button} onPress={() => openProperty(selected)}><Text style={s.buttonText}>View full property details</Text><MaterialIcons name="arrow-forward" size={20} color="white" /></TouchableOpacity></BlurView>}</View></Modal>
+    <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}><View style={s.modal}><Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="Dismiss property preview" onPress={() => setSelected(null)} />{selected && <View style={s.sheetFrame}><GlassBackdrop androidOnly><BlurView intensity={90} tint="light" accessibilityViewIsModal style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 22) }]}><View style={s.handle} /><ScrollView><View style={s.headingRow}><Text style={s.eyebrow}>PROPERTY PREVIEW</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Close preview" onPress={() => setSelected(null)} style={s.circle}><MaterialIcons name="close" size={22} /></TouchableOpacity></View><Text style={s.sectionTitle}>{nameOf(selected)}</Text><Text style={s.note}>{selected.location.district}, {selected.location.state}</Text><Text style={s.sheetPrice}>{priceOf(selected)}</Text><View style={s.facts}><Text style={s.fact}>{selected.type}</Text><Text style={s.fact}>{selected.sellableArea != null ? `${selected.sellableArea.toLocaleString("en-IN")} sq.ft` : "Area not provided"}</Text><Text style={s.fact}>{selected.negotiable ? "Negotiable" : "Fixed price"}</Text></View><Text style={[s.note, { marginVertical: 18 }]}>{selected.title ? `${selected.title}. ` : ""}{selected.boundary ? `Boundary: ${selected.boundary}. ` : ""}{selected.roadWidth ? `Road Width: ${selected.roadWidth} ft. ` : ""}{selected.khata || selected.khesra ? `Khata: ${selected.khata || 'N/A'}, Khesra: ${selected.khesra || 'N/A'}. ` : ""}{selected.disclosures?.possessionStatus ? `Possession: ${selected.disclosures.possessionStatus}.` : ""}{!selected.boundary && !selected.roadWidth && !selected.khata && !selected.title && "Explore the full listing for more detailed property information, photos, and disclosures."}</Text></ScrollView><TouchableOpacity accessibilityRole="button" style={s.button} onPress={() => openProperty(selected)}><Text style={s.buttonText}>View full property details</Text><MaterialIcons name="arrow-forward" size={20} color="white" /></TouchableOpacity></BlurView></GlassBackdrop></View>}</View></Modal>
   </View>;
 }
 const s = premiumStyles({
@@ -140,5 +140,5 @@ const s = premiumStyles({
   activePill: { backgroundColor: "rgba(255,255,255,0.9)", borderColor: "rgba(255,255,255,1)" },
   typeLabel: { color: "#4A5568", fontSize: 13, fontWeight: "600" },
   activeLabel: { color: "#1A365D" },
-  modal: { flex: 1, backgroundColor: "rgba(15,33,55,0.42)", justifyContent: "flex-end" }, sheet: { width: "100%", maxWidth: 660, alignSelf: "center", backgroundColor: AppTheme.colors.card, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 26, maxHeight: "85%", ...AppTheme.shadows.float, ...AppTheme.glass }, handle: { height: 4, width: 42, borderRadius: 4, backgroundColor: AppTheme.colors.border, alignSelf: "center", marginBottom: 22 }, sheetPrice: { fontSize: 34, fontWeight: "800", color: AppTheme.colors.primaryDark, marginVertical: 20 }, facts: { flexDirection: "row", flexWrap: "wrap", gap: 9 }, fact: { backgroundColor: AppTheme.colors.card, padding: 12, borderRadius: 14, color: AppTheme.colors.textSecondary, ...AppTheme.glass }, button: { backgroundColor: AppTheme.colors.primary, padding: 18, borderRadius: 28, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 }, buttonText: { color: "white", fontSize: 14, fontWeight: "700" },
+  modal: { flex: 1, backgroundColor: "rgba(15,33,55,0.42)", justifyContent: "flex-end" }, sheetFrame: { width: "100%", maxWidth: 660, maxHeight: "85%", alignSelf: "center", borderTopLeftRadius: 32, borderTopRightRadius: 32, overflow: "hidden" }, sheet: { width: "100%", flexShrink: 1, backgroundColor: AppTheme.colors.card, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 26, ...AppTheme.shadows.float, ...AppTheme.glass }, handle: { height: 4, width: 42, borderRadius: 4, backgroundColor: AppTheme.colors.border, alignSelf: "center", marginBottom: 22 }, sheetPrice: { fontSize: 34, fontWeight: "800", color: AppTheme.colors.primaryDark, marginVertical: 20 }, facts: { flexDirection: "row", flexWrap: "wrap", gap: 9 }, fact: { backgroundColor: AppTheme.colors.card, padding: 12, borderRadius: 14, color: AppTheme.colors.textSecondary, ...AppTheme.glass }, button: { backgroundColor: AppTheme.colors.primary, padding: 18, borderRadius: 28, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 }, buttonText: { color: "white", fontSize: 14, fontWeight: "700" },
 });

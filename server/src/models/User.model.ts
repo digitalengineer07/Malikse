@@ -8,6 +8,7 @@ export interface IUser extends Document {
   mobile: string;
   email?: string;
   passwordHash?: string;
+  mobileVerifiedAt?: Date;
   kycDocuments: string[];
   isVerifiedIdentity: boolean;
   demoKycComplete: boolean;
@@ -29,6 +30,7 @@ const UserSchema = new Schema<IUser>(
     mobile: { type: String, required: true, unique: true, trim: true },
     email: { type: String, trim: true, lowercase: true },
     passwordHash: { type: String },
+    mobileVerifiedAt: { type: Date },
     kycDocuments: { type: [String], default: [] },
     isVerifiedIdentity: { type: Boolean, default: false },
     demoKycComplete: { type: Boolean, default: false },

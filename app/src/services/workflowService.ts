@@ -1,4 +1,5 @@
 import api from "./authService";
+import { normalizePropertyMedia } from "../utils/propertyMedia";
 
 export type Listing = {
   _id: string;
@@ -33,7 +34,7 @@ export const statusLabels: Record<string, string> = { draft: "Draft", queued: "S
 export const actorId = (actor: Listing["assignedAdvisorId"]) => typeof actor === "string" ? actor : actor?._id;
 export const workflowService = {
   async queue(role: string, cursor?: string): Promise<Listing[]> { return (await api.get(role === "admin" ? "/admin/properties" : role === "user" ? "/properties/mine" : "/verification/my-tasks", { params: { cursor } })).data; },
-  async detail(id: string, publicView = false): Promise<Listing> { return (await api.get(`/properties/${id}${publicView ? "" : "/workspace"}`)).data; },
+  async detail(id: string, publicView = false): Promise<Listing> { return normalizePropertyMedia((await api.get(`/properties/${id}${publicView ? "" : "/workspace"}`)).data); },
   async claim(id: string) { return (await api.post(`/verification/${id}/claim`)).data; },
   async review(id: string, body: object) { return (await api.post(`/verification/${id}/report`, body)).data; },
   async submit(id: string) { return (await api.post(`/properties/${id}/submit`, { consent: true })).data; },

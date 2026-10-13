@@ -2,7 +2,7 @@ import type { RegionGroup } from "../services/regionService";
 
 export type RegionBoundaryOptions = { level: "state" | "district" | "pincode"; state?: string; groups: RegionGroup[] };
 
-/** Closure-free: also embedded in the native WebView, keeping both maps identical. */
+/** Closure-free: serialized at build time for the native WebView. */
 export function addRegionBoundaries(L: any, map: any, options: RegionBoundaryOptions, select: (key: string) => void, fail: () => void) {
   const normalize = (value: unknown) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
   const aliases: Record<string, string> = { orissa: "odisha", uttaranchal: "uttarakhand", pondicherry: "puducherry", nctofdelhi: "delhi", newdelhi: "delhi", bangaloreurban: "bengaluruurban", bangalorerural: "bengalururural", allahabad: "prayagraj", gurgaon: "gurugram" };

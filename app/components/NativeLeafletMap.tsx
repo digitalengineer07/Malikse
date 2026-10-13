@@ -1,29 +1,38 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { WebView } from "react-native-webview";
-import { nativeMapHtml, validMapPoint, type NativeMapOptions, type MapPoint } from "../src/utils/nativeMapHtml";
+import { nativeMapHtml, validMapPoint, type NativeMapOptions, type MapPoint, type MapFocus } from "../src/utils/nativeMapHtml";
 
-export default function NativeLeafletMap({ options, onSelect, onPoints }: { options: NativeMapOptions; onSelect?: (id: string) => void; onPoints?: (points: MapPoint[]) => void }) {
+export default function NativeLeafletMap({ options, focus, onSelect, onPoints }: { options: NativeMapOptions; focus?: MapFocus; onSelect?: (id: string) => void; onPoints?: (points: MapPoint[]) => void }) {
   const html = useMemo(() => nativeMapHtml(options), [options]);
   const [attempt, setAttempt] = useState(0);
-  return <NativeMapContent key={html + attempt} html={html} options={options} onSelect={onSelect} onPoints={onPoints} retry={() => setAttempt(value => value + 1)} />;
+  return <NativeMapContent key={html + attempt} html={html} options={options} focus={focus} onSelect={onSelect} onPoints={onPoints} retry={() => setAttempt(value => value + 1)} />;
 }
-function NativeMapContent({ html, options, onSelect, onPoints, retry }: { html: string; options: NativeMapOptions; onSelect?: (id: string) => void; onPoints?: (points: MapPoint[]) => void; retry: () => void }) {
+function NativeMapContent({ html, options, focus, onSelect, onPoints, retry }: { html: string; options: NativeMapOptions; focus?: MapFocus; onSelect?: (id: string) => void; onPoints?: (points: MapPoint[]) => void; retry: () => void }) {
+  const webview = useRef<WebView>(null);
   const source = useMemo(() => ({ html, baseUrl: "https://malikse.local/" }), [html]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [boundaryError, setBoundaryError] = useState(false);
+  useEffect(() => {
+    if (status === "ready" && focus && validMapPoint(focus) && Number.isFinite(focus.zoom)) {
+      webview.current?.injectJavaScript(`window.focusMap && window.focusMap(${focus.lat},${focus.lng},${Math.max(1, Math.min(19, focus.zoom))}); true;`);
+    }
+  }, [focus, status]);
   useEffect(() => {
     const timeout = setTimeout(() => setStatus(current => current === "loading" ? "error" : current), 20000);
     return () => clearTimeout(timeout);
   }, []);
   return <View style={styles.container}>
-    <WebView source={source} originWhitelist={["*"]} javaScriptEnabled scrollEnabled={false} nestedScrollEnabled style={styles.webview}
+    <WebView ref={webview} source={source} originWhitelist={["*"]} javaScriptEnabled scrollEnabled={false} nestedScrollEnabled style={styles.webview}
       onShouldStartLoadWithRequest={request => {
         if (request.url === "about:blank" || request.url === "https://malikse.local/") return true;
         if (request.url.startsWith("https://www.openstreetmap.org/") || request.url.startsWith("https://indianopenmaps.com/")) Linking.openURL(request.url).catch(() => {});
         return false;
       }}
-      onError={() => setStatus("error")} onHttpError={() => setStatus("error")} onContentProcessDidTerminate={() => setStatus("error")} onRenderProcessGone={() => setStatus("error")}
+      onError={() => setStatus("error")} onHttpError={({ nativeEvent }) => {
+        // Android also reports failed subresources here; one failed tile must not hide the map.
+        if (nativeEvent.url === source.baseUrl) setStatus("error");
+      }} onContentProcessDidTerminate={() => setStatus("error")} onRenderProcessGone={() => setStatus("error")}
       onMessage={({ nativeEvent }) => {
         try {
           const message = JSON.parse(nativeEvent.data);

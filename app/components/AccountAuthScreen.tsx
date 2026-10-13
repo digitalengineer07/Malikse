@@ -25,6 +25,8 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
     setError("");
     setShowPassword(false);
     setStage(next);
+    setChallenge(null);
+    setOtp("");
     Animated.timing(progress, {
       toValue: next === "welcome" ? 0 : 1,
       duration: reduceMotion.current ? 0 : 620,
@@ -44,7 +46,44 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const submitting = useRef(false);
+  const [challenge, setChallenge] = useState<{ challengeId: string; expiresAt: number; resendAt: number } | null>(null);
+  const [otp, setOtp] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+  const [retryAt, setRetryAt] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const expiresIn = Math.max(0, Math.ceil(((challenge?.expiresAt || 0) - now) / 1000));
+  const resendIn = Math.max(0, Math.ceil((Math.max(challenge?.resendAt || 0, retryAt) - now) / 1000));
+  const sendCode = async () => {
+    const result = await authService.register(name.trim(), mobile.trim(), password, email.trim().toLowerCase() || undefined);
+    const sentAt = Date.now();
+    setNow(sentAt);
+    if (result.testOnly) {
+      setChallenge(null);
+      setOtp("");
+      setRetryAt(sentAt + result.resendAfterSeconds * 1000);
+      setNotice(label("Trial test SMS requested. The sample code is for delivery testing only; no account was created.", "ट्रायल टेस्ट SMS का अनुरोध भेजा गया। यह केवल डिलीवरी टेस्ट है; खाता नहीं बनाया गया।"));
+      return;
+    }
+    setNotice("");
+    setChallenge({ challengeId: result.challengeId, expiresAt: sentAt + result.expiresInSeconds * 1000, resendAt: sentAt + result.resendAfterSeconds * 1000 });
+    setOtp("");
+  };
+  const resend = async () => {
+    if (submitting.current || resendIn > 0) return;
+    submitting.current = true;
+    setLoading(true);
+    setError("");
+    try { await sendCode(); }
+    catch (cause: any) {
+      if (cause?.response?.data?.retryAfterSeconds) setRetryAt(Date.now() + cause.response.data.retryAfterSeconds * 1000);
+      setError(cause?.response?.data?.message || "Unable to send OTP. Please try again.");
+    } finally { submitting.current = false; setLoading(false); }
+  };
 
   const submit = async () => {
     if (submitting.current) return;
@@ -68,11 +107,14 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
     submitting.current = true;
     setLoading(true);
     try {
-      await (register
-        ? authService.register(name.trim(), mobile.trim(), password, email.trim().toLowerCase() || undefined)
-        : authService.login(mobile.trim(), password));
+      if (register) {
+        if (!challenge) { await sendCode(); return; }
+        if (!/^\d{6}$/.test(otp)) { setError(label("Enter the six-digit OTP.", "छह अंकों का OTP दर्ज करें।")); return; }
+        await authService.verifyRegistration(mobile.trim(), challenge.challengeId, otp);
+      } else { await authService.login(mobile.trim(), password); }
       router.replace("/home");
     } catch (cause: any) {
+      if (cause?.response?.data?.retryAfterSeconds) setRetryAt(Date.now() + cause.response.data.retryAfterSeconds * 1000);
       setError(cause?.response?.data?.message || label("Unable to connect. Please try again.", "कनेक्ट नहीं हो सका। फिर से कोशिश करें।"));
     } finally {
       submitting.current = false;
@@ -119,6 +161,7 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
               <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContent}>
                 <Text accessibilityRole="header" style={styles.heading}>{register ? label("Create your account", "अपना खाता बनाएं") : label("Welcome back", "वापस स्वागत है")}</Text>
                 <Text style={styles.description}>{register ? label("Your next chapter starts here.", "आपकी नई शुरुआत यहीं से।") : label("A place of your own is one step closer.", "आपका अपना ठिकाना, बस एक कदम दूर।")}</Text>
+          {!(register && challenge) && <>
           {register && <View style={styles.field}>
             <Text style={styles.label}>{label("Full name", "पूरा नाम")}</Text>
             <TextInput accessibilityLabel={label("Full name", "पूरा नाम")} style={styles.input} value={name} onChangeText={setName} editable={!loading} autoComplete="name" autoCapitalize="words" placeholder={label("Enter your full name", "अपना पूरा नाम दर्ज करें")} placeholderTextColor="#718078" />
@@ -143,10 +186,22 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
             <Text style={styles.label}>{label("Email (optional)", "ईमेल (वैकल्पिक)")}</Text>
             <TextInput accessibilityLabel={label("Email (optional)", "ईमेल (वैकल्पिक)")} style={styles.input} value={email} onChangeText={setEmail} editable={!loading} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" placeholder="name@example.com" placeholderTextColor="#718078" returnKeyType="go" onSubmitEditing={submit} />
           </View>}
+          </>}
+          {register && challenge && <View style={styles.field}>
+            <Text style={styles.label}>{label("OTP sent to", "OTP भेजा गया")} +91 {mobile}</Text>
+            <TextInput accessibilityLabel="OTP" style={styles.input} value={otp} onChangeText={value => setOtp(value.replace(/\D/g, ""))} keyboardType="number-pad" maxLength={6} autoComplete="sms-otp" textContentType="oneTimeCode" editable={!loading && expiresIn > 0} onSubmitEditing={submit} placeholder="6-digit OTP" />
+            <Text style={styles.description}>{expiresIn > 0 ? label(`Code expires in ${expiresIn}s`, `कोड ${expiresIn} सेकंड में समाप्त होगा`) : label("OTP expired. Request a new code.", "OTP समाप्त हो गया। नया कोड मांगें।")}</Text>
+            <TouchableOpacity accessibilityRole="button" disabled={loading || resendIn > 0} onPress={resend} style={styles.secondary}>
+              <Text style={styles.link}>{resendIn > 0 ? label(`Resend OTP in ${resendIn}s`, `OTP फिर भेजें: ${resendIn} सेकंड`) : label("Resend OTP", "OTP फिर भेजें")}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" disabled={loading} onPress={() => { setChallenge(null); setOtp(""); setError(""); }} style={styles.secondary}><Text style={styles.link}>{label("Change details", "जानकारी बदलें")}</Text></TouchableOpacity>
+          </View>}
+          {register && !challenge && resendIn > 0 && <Text style={styles.description}>{label(`You can request another OTP in ${resendIn}s.`, `${resendIn} सेकंड में नया OTP मांग सकते हैं।`)}</Text>}
+          {!!notice && register && <Text accessibilityLiveRegion="polite" style={styles.description}>{notice}</Text>}
           {!!error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
-          <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: loading, busy: loading }} style={[styles.button, loading && styles.disabled]} onPress={submit} disabled={loading}>
+          <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: loading, busy: loading }} style={[styles.button, loading && styles.disabled]} onPress={submit} disabled={loading || (register && (challenge ? expiresIn === 0 : resendIn > 0))}>
             {loading && <ActivityIndicator color="white" />}
-            <Text style={styles.buttonText}>{loading ? label("Please wait…", "कृपया प्रतीक्षा करें…") : register ? label("Create account", "खाता बनाएं") : label("Sign in", "साइन इन करें")}</Text>
+            <Text style={styles.buttonText}>{loading ? label("Please wait…", "कृपया प्रतीक्षा करें…") : register ? (challenge ? label("Verify & create account", "सत्यापित करें और खाता बनाएं") : label("Send OTP", "OTP भेजें")) : label("Sign in", "साइन इन करें")}</Text>
           </TouchableOpacity>
           <TouchableOpacity accessibilityRole="button" style={styles.secondary} disabled={loading} onPress={() => reveal(register ? "login" : "register")}>
             <Text style={styles.link}>{register ? label("Already have an account? Sign in", "पहले से खाता है? साइन इन करें") : label("New to MalikSe? Create an account", "MalikSe पर नए हैं? खाता बनाएं")}</Text>

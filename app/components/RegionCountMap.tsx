@@ -26,9 +26,9 @@ export default function RegionCountMap({ groups, focus, level, state, onSelect }
     if (!ready) return;
     let active = true;
     let cleanup: (() => void) | undefined;
-    setFailed(false);
     import("leaflet").then(module => {
       if (!active || !map.current) return;
+      setFailed(false);
       const L = module.default || module;
       cleanup = addRegionBoundaries(L, map.current, { groups, level, state }, key => {
         const group = groups.find(item => item.key === key);if (group) onSelect(group);
