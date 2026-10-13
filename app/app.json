@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "MalikSe",
-    "slug": "malikse",
+    "name": "MalikSe App",
+    "slug": "malikse-app",
     "version": "3.1.0",
     "orientation": "default",
     "icon": "./assets/images/icon.png",

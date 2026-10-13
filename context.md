@@ -6,14 +6,14 @@ This document records only the work currently implemented in the MalikSe reposit
 
 ```text
 malikse/
-├── app/       # Expo / React Native application, including web support
+├── app/       # Mobile application (Expo / React Native for Android & iOS)
+├── website/   # Standalone website application (Web interface)
 ├── server/    # Express, TypeScript, and MongoDB backend
-├── website/   # Reserved for a future standalone website
 ├── MalikSe_Requirements.md
 └── README.md
 ```
 
-The Expo application and backend server have been separated into their own child folders. The `website` folder is reserved for later work.
+The mobile application (`app/`), standalone website (`website/`), and backend server (`server/`) are completely decoupled into their own directories with independent dependencies, components, and UI files. Any UI changes in `website/` will not impact `app/`, and vice versa.
 
 ## Authentication and Accounts
 
