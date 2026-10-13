@@ -1,6 +1,6 @@
 import PropertyTypeTabs from "./PropertyTypeTabs";
 import { premiumStyles } from "../constants/typography";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -22,14 +22,16 @@ export default function VerifiedHomeScreen() {
   const insets = useSafeAreaInsets();
   const [properties, setProperties] = useState<Property[]>([]);
   const [selected, setSelected] = useState<Property | null>(null);
-  const { type: initialType, query, min, max, district, state, pincode, address } = useLocalSearchParams<{ type?: PropertyType; query?: string; min?: string; max?: string; district?: string; state?: string; pincode?: string; address?: string }>();
+  const resultsScroll = useRef<ScrollView>(null);
+  const { type: initialType, query, min, max, district, state, pincode, address, areaSelection } = useLocalSearchParams<{ type?: PropertyType; query?: string; min?: string; max?: string; district?: string; state?: string; pincode?: string; address?: string; areaSelection?: string }>();
   const [type, setType] = useState<PropertyType | undefined>(initialType || undefined);
+  useEffect(() => { if (areaSelection) resultsScroll.current?.scrollTo({ y: 0, animated: false }); }, [areaSelection]);
   useEffect(() => { setType(initialType || undefined); }, [initialType]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshError, setRefreshError] = useState("");
   const [revision, setRevision] = useState(0);
-  const filterKey = JSON.stringify([type, query, min, max, district, state, pincode, address]);
+  const filterKey = JSON.stringify([type, query, min, max, district, state, pincode, address, areaSelection]);
   const [pagination, setPagination] = useState<{ key: string; page: number; cursors: (string | undefined)[] }>({ key: "", page: 1, cursors: [undefined] });
   const [nextCursor, setNextCursor] = useState<string>();
   const page = pagination.key === filterKey ? pagination.page : 1;
@@ -44,15 +46,15 @@ export default function VerifiedHomeScreen() {
     return () => { active = false; setSelected(null); };
   // Retry explicitly reloads the same backend query.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [revision, type, query, min, max, district, state, pincode, address, page]));
+  }, [revision, type, query, min, max, district, state, pincode, address, areaSelection, page]));
   const openProperty = useCallback((property: Property) => { setSelected(null); router.push({ pathname: "/property/[id]", params: { id: property._id || property.id } }); }, [router]);
   return <View style={s.screen}>
     <AppHeader />
     {!!refreshError && <Text accessibilityRole="alert" style={s.note}>{refreshError}</Text>}
-    <ScrollView contentContainerStyle={{ paddingBottom: 45 }}>
+    <ScrollView ref={resultsScroll} contentContainerStyle={{ paddingBottom: 45 }}>
 
     <View style={[s.content, width < 600 && { paddingHorizontal: 18 }]}>
-    <View style={[s.headingRow, { marginTop: 36, marginBottom: 16 }]}><View><Text style={s.eyebrow}>A PLACE FOR YOUR NEXT CHAPTER</Text><Text style={s.sectionTitle}>Explore our properties</Text></View><Text style={s.count}>{properties.length} on page {page}</Text></View>
+    <View style={[s.headingRow, { marginTop: 36, marginBottom: 16 }]}><View><Text style={s.eyebrow}>A PLACE FOR YOUR NEXT CHAPTER</Text><Text style={s.sectionTitle}>{pincode ? pincode === "__missing__" ? "Properties without a pincode" : `Properties in ${pincode}` : "Explore our properties"}</Text></View><Text style={s.count}>{loading ? "Loading properties…" : `${properties.length} on page ${page}`}</Text></View>
 
     {!!pincode && <View style={s.headingRow}><Text style={s.note}>{state} · {district} · {pincode === "__missing__" ? "Pincode not provided" : pincode}</Text><TouchableOpacity accessibilityRole="button" onPress={() => router.setParams({ pincode: "", state: "", district: "" })}><Text style={s.typeLabel}>Clear area filter</Text></TouchableOpacity></View>}
     {!!address && <View style={s.headingRow}><Text style={s.note}>Address: {address}</Text><TouchableOpacity accessibilityRole="button" onPress={() => router.setParams({ address: "" })}><Text style={s.typeLabel}>Clear address search</Text></TouchableOpacity></View>}

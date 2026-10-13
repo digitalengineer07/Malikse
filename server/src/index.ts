@@ -6,6 +6,7 @@ import { startSubmissionWorker } from "./services/submissionQueue";
 import { mongoPoolOptions } from "./services/mongoPool";
 import { closeRedis } from "./services/redis";
 import { monitorPool } from "./services/performanceMetrics";
+import { startRegionCounts, stopRegionCounts } from "./services/regionCountStore";
 
 let stopping = false;
 const app = createApp(() => !stopping && mongoose.connection.readyState === 1);
@@ -18,6 +19,7 @@ mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/malikse", {
 }).then(async () => {
   monitorPool(mongoose.connection.getClient());
   console.log("[MalikSe] MongoDB connected");
+  await startRegionCounts();
   const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => {} : startSubmissionWorker();
   const server = app.listen(PORT, () => console.log(`[MalikSe] Server running on http://localhost:${PORT}`));
   server.requestTimeout = 60_000;
@@ -28,6 +30,7 @@ mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/malikse", {
     const deadline = setTimeout(() => { server.closeAllConnections(); process.exit(1); }, 15_000);
     deadline.unref();
     await Promise.all([new Promise<void>(resolve => server.close(() => resolve())), stopWorker()]);
+    await stopRegionCounts();
     await mongoose.disconnect();
     closeRedis();
     clearTimeout(deadline);

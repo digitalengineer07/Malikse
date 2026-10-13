@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document } from "mongoose";
 import { publicCacheHooks } from "../services/publicCacheHooks";
+import { regionCountHooks } from "../services/regionCountHooks";
 
 export interface IProperty extends Document {
   __v: number;
@@ -147,6 +148,7 @@ PropertySchema.index({ ownerId: 1, createdAt: -1, _id: -1 }, { name: "property_o
 PropertySchema.index({ status: 1, "location.district": 1, createdAt: -1, _id: -1 }, { name: "property_district_cursor" });
 PropertySchema.index({ "verificationHistory.actorId": 1, createdAt: -1, _id: -1 }, { name: "property_history_actor_cursor" });
 PropertySchema.plugin(publicCacheHooks);
+PropertySchema.plugin(regionCountHooks);
 const publicIndex = { status: "verified", "badges.fullyVerified": true, "advisorReview.decision": "approve", "verifierReview.decision": "approve" };
 PropertySchema.index({ createdAt: -1, _id: -1 }, { name: "public_newest", partialFilterExpression: publicIndex });
 PropertySchema.index({ type: 1, createdAt: -1, _id: -1 }, { name: "public_type_newest", partialFilterExpression: publicIndex });

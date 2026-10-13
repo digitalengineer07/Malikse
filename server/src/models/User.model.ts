@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document } from "mongoose";
 import { publicCacheHooks } from "../services/publicCacheHooks";
+import { regionCountHooks } from "../services/regionCountHooks";
 
 export interface IUser extends Document {
   role: "user" | "advisor" | "verifier" | "admin";
@@ -45,4 +46,5 @@ UserSchema.index({ isActive: 1 }, { name: "user_active" });
 UserSchema.index({ role: 1, createdAt: -1, _id: -1 }, { name: "user_role_cursor" });
 
 UserSchema.plugin(publicCacheHooks, { account: true });
+UserSchema.plugin(regionCountHooks, { account: true });
 export const User = mongoose.model<IUser>("User", UserSchema);

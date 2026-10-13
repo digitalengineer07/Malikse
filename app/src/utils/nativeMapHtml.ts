@@ -1,7 +1,8 @@
+import { addRegionBoundaries, type RegionBoundaryOptions } from "./regionBoundaryLayer";
 export type MapPoint = { lat: number; lng: number };
 export type MapPin = MapPoint & { id: string; label: string; title: string };
 export type MapFocus = MapPoint & { zoom: number };
-export type NativeMapOptions = { pins?: MapPin[]; points?: MapPoint[]; editable?: boolean; focus?: MapFocus };
+export type NativeMapOptions = { pins?: MapPin[]; points?: MapPoint[]; editable?: boolean; focus?: MapFocus; regions?: RegionBoundaryOptions };
 
 export function validMapPoint(point: MapPoint): boolean {
   return !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
@@ -14,7 +15,7 @@ export function nativeMapHtml(options: NativeMapOptions): string {
 html,body,#map{height:100%;width:100%;margin:0}body{background:#E9F3FA;font-family:Arial,sans-serif}.price{display:inline-block;background:#1A365D;color:white;padding:8px 12px;border:2px solid white;border-radius:22px;font-size:13px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 5px #0003}.vertex{background:#fff;border:3px solid #059669;border-radius:50%;box-sizing:border-box}.tools{position:absolute;bottom:25px;left:10px;right:10px;z-index:1000;display:flex;gap:8px;justify-content:center}.tools button{min-height:44px;padding:8px 16px;background:white;border:1px solid #cbd5e1;border-radius:12px;color:#19334a;font-weight:bold}.tools button:disabled{opacity:.5}.leaflet-control-attribution{font-size:9px}
 </style></head><body><div id="map" aria-label="Property map"></div><script>
 function send(type,payload){window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({type,payload}));}
-</script><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="send('error')"></script><script>
+</script><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="send('error')"></script>${options.regions ? '<script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.min.js" onerror="send(\'error\')"></script>' : ""}<script>
 try {
 const data=${data};
 const map=L.map('map',{scrollWheelZoom:false,zoomControl:false}).setView([25.6,85.1],7);
@@ -34,6 +35,7 @@ function draw(){
  if(undoButton){undoButton.disabled=!points.length;clearButton.disabled=!points.length;finishButton.disabled=points.length<3||closed;}
 }
 const bounds=[];
+${options.regions ? `(${addRegionBoundaries.toString()})(L,map,data.regions,key=>send('select',key),()=>send('boundaryError'));` : ""}
 data.pins.forEach(pin=>{
  const label=document.createElement('div');label.className='price';label.textContent=pin.label;
  L.marker([pin.lat,pin.lng],{title:pin.title,icon:L.divIcon({html:label,className:'',iconSize:[90,40],iconAnchor:[45,40]})}).addTo(map).on('click',()=>send('select',pin.id));

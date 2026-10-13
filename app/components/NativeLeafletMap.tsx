@@ -11,6 +11,7 @@ export default function NativeLeafletMap({ options, onSelect, onPoints }: { opti
 function NativeMapContent({ html, options, onSelect, onPoints, retry }: { html: string; options: NativeMapOptions; onSelect?: (id: string) => void; onPoints?: (points: MapPoint[]) => void; retry: () => void }) {
   const source = useMemo(() => ({ html, baseUrl: "https://malikse.local/" }), [html]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [boundaryError, setBoundaryError] = useState(false);
   useEffect(() => {
     const timeout = setTimeout(() => setStatus(current => current === "loading" ? "error" : current), 20000);
     return () => clearTimeout(timeout);
@@ -19,7 +20,7 @@ function NativeMapContent({ html, options, onSelect, onPoints, retry }: { html: 
     <WebView source={source} originWhitelist={["*"]} javaScriptEnabled scrollEnabled={false} nestedScrollEnabled style={styles.webview}
       onShouldStartLoadWithRequest={request => {
         if (request.url === "about:blank" || request.url === "https://malikse.local/") return true;
-        if (request.url.startsWith("https://www.openstreetmap.org/")) Linking.openURL(request.url).catch(() => {});
+        if (request.url.startsWith("https://www.openstreetmap.org/") || request.url.startsWith("https://indianopenmaps.com/")) Linking.openURL(request.url).catch(() => {});
         return false;
       }}
       onError={() => setStatus("error")} onHttpError={() => setStatus("error")} onContentProcessDidTerminate={() => setStatus("error")} onRenderProcessGone={() => setStatus("error")}
@@ -28,10 +29,12 @@ function NativeMapContent({ html, options, onSelect, onPoints, retry }: { html: 
           const message = JSON.parse(nativeEvent.data);
           if (message.type === "ready") setStatus("ready");
           else if (message.type === "error") setStatus("error");
-          else if (message.type === "select" && typeof message.payload === "string" && options.pins?.some(pin => pin.id === message.payload)) onSelect?.(message.payload);
+          else if (message.type === "boundaryError") setBoundaryError(true);
+          else if (message.type === "select" && typeof message.payload === "string" && (options.pins?.some(pin => pin.id === message.payload) || options.regions?.groups.some(group => group.key === message.payload))) onSelect?.(message.payload);
           else if (message.type === "points" && options.editable && Array.isArray(message.payload) && message.payload.every(validMapPoint)) onPoints?.(message.payload);
         } catch { /* Ignore invalid bridge messages. */ }
       }} />
+    {boundaryError && <Text accessibilityRole="alert" style={styles.text}>Boundaries could not load. Search for an area above.</Text>}
     {status !== "ready" && <View style={styles.overlay}>
       {status === "loading" ? <><ActivityIndicator color="#1A365D" /><Text style={styles.text}>Loading map…</Text></> : <><Text style={styles.text}>Map could not load. Check your internet connection and try again.</Text><TouchableOpacity accessibilityRole="button" style={styles.retry} onPress={retry}><Text style={styles.retryText}>Retry map</Text></TouchableOpacity></>}
     </View>}

@@ -20,6 +20,7 @@ const { generateTokens } = require('../dist/services/security');
 const { mongoPoolOptions } = require('../dist/services/mongoPool');
 const { performanceMetrics, monitorPool } = require('../dist/services/performanceMetrics');
 const { closeRedis } = require('../dist/services/redis');
+const { startRegionCounts, stopRegionCounts } = require('../dist/services/regionCountStore');
 const dbName = 'malikse_profile_' + randomUUID().replaceAll('-', '');
 const homeAutocannon = process.argv.includes('--home-autocannon') || !!process.env.PROFILE_AUTOCANNON;
 const users10k = process.argv.includes('--users-10k');
@@ -57,6 +58,7 @@ async function main() {
   }
   await Inquiry.insertMany(Array.from({length:300},(_,i)=>({propertyId:ids[0],buyerId:users[1]._id,sellerId:users[0]._id,message:`Inquiry ${i}`,messages:Array.from({length:30},()=>({senderId:users[1]._id,text:'Message content. '.repeat(10),createdAt:new Date()}))})));
   await Promise.all([User.createIndexes(),Property.createIndexes(),Inquiry.createIndexes(),SearchCache.createIndexes()]);
+  await startRegionCounts();
   const fixture={tokens:users.slice(0,200).map(u=>generateTokens(u).accessToken),adminToken:generateTokens(admin).accessToken,propertyIds:ids,propertyCount:10000};
   const fixturePath=path.join(temp,'fixture.json'); await fs.writeFile(fixturePath,JSON.stringify(fixture));
   if(process.env.PROFILE_PM2==='1') {
@@ -186,6 +188,7 @@ async function main() {
   clearInterval(timer);
 }
 main().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{
+  await stopRegionCounts();
   closeRedis();
   if(server) await new Promise(r=>server.close(r));
   if(mongoose.connection.readyState===1) {if(mongoose.connection.name!==dbName || !dbName.startsWith('malikse_profile_')) throw Error('Cleanup guard failed');await mongoose.connection.dropDatabase();await mongoose.disconnect();console.log('Disposable database removed');}

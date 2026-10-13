@@ -45,12 +45,19 @@ export default function MarketplaceScreen() {
     return () => { active = false;clearTimeout(timer);controller.abort(); };
   }, [query, type]);
   const focus = useMemo<MapFocus | undefined>(() => district ? { lat: district.lat, lng: district.lng, zoom: 10 } : state ? { lat: state.lat, lng: state.lng, zoom: 7 } : undefined, [state, district]);
+  const openPincode = useCallback((selectedPincode: string, selectedState: string, selectedDistrict: string) => {
+    setQuery("");setSuggestions([]);
+    router.navigate({ pathname: "/(tabs)/home", params: {
+      state: selectedState, district: selectedDistrict, pincode: selectedPincode,
+      type: type || "", query: "", address: "", min: "", max: "", areaSelection: String(Date.now()),
+    } });
+  }, [router, type]);
   const select = useCallback((group: RegionGroup) => {
     setQuery("");
     if (!state) setState(group);
     else if (!district) setDistrict(group);
-    else router.push({ pathname: "/(tabs)/home", params: { state: state.key, district: district.key, pincode: group.key, type: type || "", query: "", min: "", max: "" } });
-  }, [state, district, type, router]);
+    else openPincode(group.key, state.key, district.key);
+  }, [state, district, openPincode]);
   const selectSuggestion = useCallback((item: LocationSuggestion) => {
     const term = query.trim();setQuery("");setSuggestions([]);
     const stateGroup = { key: item.state, name: item.state, count: 0, lat: item.lat, lng: item.lng };
@@ -58,11 +65,11 @@ export default function MarketplaceScreen() {
     if (item.kind === "state") { setState(stateGroup);setDistrict(undefined);return; }
     if (item.kind === "district") { setState(stateGroup);setDistrict(districtGroup);return; }
     if (item.kind === "pincode") {
-      router.push({ pathname: "/(tabs)/home", params: { state: item.state, district: item.district || "", pincode: item.pincode || "", type: type || "", query: "", address: "", min: "", max: "" } });
+      openPincode(item.pincode || "", item.state, item.district || "");
       return;
     }
     router.push({ pathname: "/(tabs)/home", params: { address: term, state: "", district: "", pincode: "", type: type || "", query: "", min: "", max: "" } });
-  }, [query, router, type]);
+  }, [query, router, type, openPincode]);
   const searchAll = () => {
     const term = query.trim();
     if (term.length < 2) return;
@@ -91,7 +98,7 @@ export default function MarketplaceScreen() {
       {!!error && <View><Text accessibilityRole="alert" style={styles.label}>{error}</Text><TouchableOpacity accessibilityRole="button" onPress={() => setRevision(value => value + 1)}><Text style={styles.link}>Try again</Text></TouchableOpacity></View>}
       {!loading && !error && !groups.length && !query && <Text style={styles.label}>No available properties in this area.</Text>}
     </View>
-    <View style={styles.map}><RegionCountMap groups={loading || error ? [] : groups} focus={focus} onSelect={select} /></View>
+    <View style={styles.map}><RegionCountMap groups={loading || error ? [] : groups} level={level} state={state?.key} focus={focus} onSelect={select} /></View>
   </View>;
 }
 const styles = StyleSheet.create({

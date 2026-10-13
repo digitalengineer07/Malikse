@@ -4,6 +4,7 @@
   "description": "MalikSe backend — Node.js + Express + MongoDB",
   "main": "dist/index.js",
   "scripts": {
+    "db:region-counts": "npm run build && node dist/scripts/rebuildRegionCounts.js",
     "verify:demo-properties": "npm run build && node load/verify-demo-properties.cjs",
     "seed:demo-properties": "npm run build && node dist/scripts/seedDemoProperties.js",
     "test:regions": "npm run build && node load/test-regions.cjs",
