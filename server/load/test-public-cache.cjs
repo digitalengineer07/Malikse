@@ -7,7 +7,7 @@ process.env.JWT_ACCESS_SECRET=randomUUID(); process.env.JWT_REFRESH_SECRET=rando
 process.env.PUBLIC_RESPONSE_CACHE_ENABLED='true';
 process.env.REDIS_URL='redis://127.0.0.1:1'; // Real connection refusal exercises fallback.
 const mongoose = require('mongoose');
-const { createApp } = require('../dist/app');
+const { createFastifyApp } = require('../dist/fastifyApp');
 const { User } = require('../dist/models/User.model');
 const { Property } = require('../dist/models/Property.model');
 const { getPublicSearchResponse } = require('../dist/services/propertySearch');
@@ -17,7 +17,7 @@ const { searchMemory } = require('../dist/services/searchMemory');
 const { admitPublicRead } = require('../dist/services/publicReadAdmission');
 const redis = require('../dist/services/redis');
 const db='malikse_cache_test_'+randomUUID().replaceAll('-','');
-let server, base, commands=0;
+let app,server, base, commands=0;
 function raw(route, encoding) {
   return new Promise((resolve,reject)=>{
     http.get(base+route,{headers:{'Accept-Encoding':encoding}},res=>{
@@ -32,7 +32,7 @@ async function main() {
   const fixture={ownerId:owner._id,title:'A public listing',type:'land',location:{state:'Bihar',district:'Patna',lat:25,lng:85},price:100000,totalArea:1000,sellableArea:900,status:'verified',badges:{fullyVerified:true},advisorReview:{decision:'approve'},verifierReview:{decision:'approve'},media:{photos:['https://example.test/1.jpg','https://example.test/2.jpg']}};
   const rows=await Property.insertMany(Array.from({length:240},(_,i)=>({...fixture,title:'Listing '+i,ownerId:i>=130?hidden._id:owner._id})));
   await Property.createIndexes();
-  server=createApp().listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));base='http://127.0.0.1:'+server.address().port;
+  app=createFastifyApp();await app.listen({port:0,host:'127.0.0.1'});server=app.server;base='http://127.0.0.1:'+server.address().port;
   const admin=await User.create({name:'Admin',mobile:'9200090003',role:'admin',passwordHash:'test-fixture-only'});
   const staff=await User.create({name:'Staff',mobile:'9200090004',role:'advisor',passwordHash:'test-fixture-only'});
   const token=require('jsonwebtoken').sign({id:String(admin._id),role:'admin'},process.env.JWT_ACCESS_SECRET);
@@ -107,6 +107,6 @@ async function main() {
   console.log('PASS fill/write races, concurrent barriers, Redis payload roundtrip and generation invalidation, bounded admission, protected metrics');
 }
 main().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{
-  redis.closeRedis();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}
+  redis.closeRedis();if(server){server.closeAllConnections();await app.close();}
   if(mongoose.connection.name===db){await mongoose.connection.dropDatabase();await mongoose.disconnect();}
 });

@@ -4,14 +4,14 @@ process.env.NODE_ENV='development';process.env.REQUEST_LOGS='false';
 process.env.JWT_ACCESS_SECRET=randomUUID();process.env.JWT_REFRESH_SECRET=randomUUID();
 process.env.REDIS_URL='';process.env.PUBLIC_RESPONSE_CACHE_ENABLED='true';
 const mongoose=require('mongoose');
-const {createApp}=require('../dist/app');
+const {createFastifyApp}=require('../dist/fastifyApp');
 const {User}=require('../dist/models/User.model');
 const {Property}=require('../dist/models/Property.model');
 const {startRegionCounts,refreshRegionCounts,stopRegionCounts,markRegionCountsDirty}=require('../dist/services/regionCountStore');
 const {RegionCountState,RegionCount}=require('../dist/models/RegionCount.model');
 async function syncCounts(){for(let i=0;i<20;i++){await refreshRegionCounts();const s=await RegionCountState.findById('public-regions-v1').lean();if(s&&s.revision===s.builtRevision)return;await new Promise(r=>setTimeout(r,50));}throw Error('Counts did not settle');}
 const db='malikse_regions_test_'+randomUUID().replaceAll('-','');
-let server,base,reads=0,sourceReads=0;
+let app,server,base,reads=0,sourceReads=0;
 async function get(path,status=200){const r=await fetch(base+path);assert.equal(r.status,status);return {data:await r.json(),cursor:r.headers.get('x-next-cursor')};}
 async function main(){
   await mongoose.connect('mongodb://127.0.0.1:27017/'+db,{monitorCommands:true});
@@ -30,7 +30,36 @@ async function main(){
   ]);
   await Property.createIndexes();
   await startRegionCounts();await syncCounts();
-  server=createApp().listen(Number(process.env.REGION_UI_PORT||0),'127.0.0.1');await new Promise(r=>server.once('listening',r));base='http://127.0.0.1:'+server.address().port;
+  app=createFastifyApp();await app.listen({port:Number(process.env.REGION_UI_PORT||0),host:'127.0.0.1'});server=app.server;base='http://127.0.0.1:'+server.address().port;
+  // Verify the native routes and the Express handoff through the same HTTP listener.
+  for(const url of ['/properties/search','/properties/regions','/properties/regions/suggest']) {
+    assert.ok(app.hasRoute({method:'GET',url}), 'Native Fastify route missing: '+url);
+  }
+  const publicRead=await fetch(base+'/properties/search?limit=1',{headers:{Origin:'http://localhost:8081'}});
+  assert.equal(publicRead.status,200);
+  assert.equal(publicRead.headers.get('access-control-allow-origin'),'http://localhost:8081');
+  assert.equal(publicRead.headers.get('cache-control'),'no-store');
+  assert.equal(publicRead.headers.get('x-content-type-options'),'nosniff');
+  assert.ok(publicRead.headers.get('x-request-id'));
+  const head=await fetch(base+'/properties/search?limit=1',{method:'HEAD'});
+  assert.equal(head.status,200);assert.equal(await head.text(),'');
+  await get('/PROPERTIES/REGIONS/');
+  await get('/properties/search?limit=1&limit=2',400);
+  await get('/properties/search?limit[x]=1',400);
+  const options=await fetch(base+'/properties/search',{method:'OPTIONS',headers:{Origin:'http://localhost:8081','Access-Control-Request-Method':'GET'}});
+  assert.equal(options.status,204);assert.equal(options.headers.get('access-control-allow-origin'),'http://localhost:8081');
+  const json=await fetch(base+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Owner',mobile:'1234567890',password:'x'})});
+  assert.equal(json.status,400);assert.match((await json.json()).message,/Password must contain/);
+  const form=await fetch(base+'/auth/register',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'name=Owner&mobile=1234567890&password=x'});
+  assert.equal(form.status,400);assert.match((await form.json()).message,/Password must contain/);
+  const malformed=await fetch(base+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:'{'});
+  assert.equal(malformed.status,400);assert.equal((await malformed.json()).message,'Invalid request body');
+  const oversized=await fetch(base+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'x'.repeat(103000)})});
+  assert.equal(oversized.status,413);
+  const upload=new FormData();upload.append('file',new Blob(['test']),'test.txt');
+  assert.equal((await fetch(base+'/documents',{method:'POST',body:upload})).status,401);
+  await get('/properties/mine',401);await get('/does-not-exist',404);await get('/ready');
+  console.log('PASS native routing, HEAD, CORS, security headers, query validation, and Express JSON/form/multipart/auth handoff');
   const countSourceReads=sourceReads;
   const states=(await get('/properties/regions')).data;
   assert.equal(states.level,'state');assert.deepEqual(states.groups.map(g=>[g.name,g.count]),[['Bihar',60],['Uttar Pradesh',1]]);
@@ -103,4 +132,4 @@ async function main(){
     await new Promise(resolve=>setTimeout(resolve,300000));
   }
 }
-main().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await stopRegionCounts();if(mongoose.connection.name===db){await mongoose.connection.dropDatabase();await mongoose.disconnect();}});
+main().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{if(server){server.closeAllConnections();await app.close();}await stopRegionCounts();if(mongoose.connection.name===db){await mongoose.connection.dropDatabase();await mongoose.disconnect();}});
