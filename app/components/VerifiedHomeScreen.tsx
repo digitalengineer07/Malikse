@@ -155,7 +155,14 @@ export default function VerifiedHomeScreen() {
               <View style={s.eyebrowDash} />
             </View>
 
-            {/* Title Row with Right-aligned count & Skyline graphic */}
+            {/* Skyline Background Graphic */}
+            {isWide && (
+              <View style={s.skylineWrapper}>
+                <CitySkyline width={width < 1100 ? 460 : 560} height={155} opacity={0.92} />
+              </View>
+            )}
+
+            {/* Title Row with Right-aligned count */}
             <View style={s.titleRow}>
               <View style={s.titleLeft}>
                 <Text style={s.mainTitle}>
@@ -173,13 +180,6 @@ export default function VerifiedHomeScreen() {
                   {loading ? "Loading…" : `${properties.length} properties on page ${page}`}
                 </Text>
               </View>
-
-              {/* Skyline Background Graphic */}
-              {isWide && (
-                <View style={s.skylineWrapper}>
-                  <CitySkyline width={440} height={135} opacity={0.6} />
-                </View>
-              )}
             </View>
 
             {/* Filter Area Clear Buttons if active */}
@@ -491,7 +491,7 @@ const s = StyleSheet.create({
   skylineWrapper: {
     position: "absolute",
     right: 0,
-    bottom: -18,
+    bottom: -6,
     zIndex: 1,
     pointerEvents: "none",
   },
