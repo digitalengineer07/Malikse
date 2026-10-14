@@ -10,7 +10,6 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import AppHeader from "./AppHeader";
@@ -34,7 +33,6 @@ import { currentMapLocation } from "../src/services/currentMapLocation";
 
 export default function MarketplaceScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 980;
 
@@ -44,73 +42,17 @@ export default function MarketplaceScreen() {
   const [type, setType] = useState<PropertyType | undefined>();
   const [groups, setGroups] = useState<RegionGroup[]>([]);
   const [query, setQuery] = useState("");
-<<<<<<< HEAD
   const suggestionKey = JSON.stringify([query.trim(), type]);
   const [suggestionResult, setSuggestionResult] = useState<{ key: string; items: LocationSuggestion[]; error: boolean }>();
   const suggestions = suggestionResult?.key === suggestionKey ? suggestionResult.items : [];
   const suggesting = query.trim().length >= 2 && suggestionResult?.key !== suggestionKey;
-  const suggestionError = suggestionResult?.key === suggestionKey && suggestionResult.error;
+  const suggestionError = !!(suggestionResult?.key === suggestionKey && suggestionResult.error);
   const [loading, setLoading] = useState(true), [error, setError] = useState("");
-=======
-  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
-  const [suggesting, setSuggesting] = useState(false);
-  const [suggestionError, setSuggestionError] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
->>>>>>> 23a60b94dc28d2a24448de8680090dee62d7f584
   const [revision, setRevision] = useState(0);
   const [locating, setLocating] = useState(false);
   const [customFocus, setCustomFocus] = useState<MapFocus | undefined>();
 
   const level = district ? "pincode" : state ? "district" : "state";
-<<<<<<< HEAD
-  useFocusEffect(useCallback(() => {
-    const controller = new AbortController();
-    let active = true;
-    setLoading(true);setError("");setGroups([]);
-    fetchRegionCounts({ state: state?.key, district: district?.key, type }, controller.signal)
-      .then(data => { if (active) setGroups(data.groups); })
-      .catch(() => { if (active) setError("Could not load area counts. Please try again."); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false;controller.abort(); };
-  // The revision is an explicit user-requested reload of the same query.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.key, district?.key, type, revision]));
-  useEffect(() => {
-    const term = query.trim();
-    if (term.length < 2) return;
-    const controller = new AbortController();
-    let active = true;
-    const timer = setTimeout(() => {
-      fetchLocationSuggestions(term, type, controller.signal)
-        .then(items => { if (active) setSuggestionResult({ key: suggestionKey, items, error: false }); })
-        .catch(() => { if (active) setSuggestionResult({ key: suggestionKey, items: [], error: true }); });
-    }, 250);
-    return () => { active = false;clearTimeout(timer);controller.abort(); };
-  }, [query, type, suggestionKey]);
-  const focus = useMemo<MapFocus | undefined>(() => district ? { lat: district.lat, lng: district.lng, zoom: 10 } : state ? { lat: state.lat, lng: state.lng, zoom: 7 } : undefined, [state, district]);
-  const openPincode = useCallback((selectedPincode: string, selectedState: string, selectedDistrict: string) => {
-    setQuery("");setSuggestionResult(undefined);
-    router.navigate({ pathname: "/(tabs)/home", params: {
-      state: selectedState, district: selectedDistrict, pincode: selectedPincode,
-      type: type || "", query: "", address: "", min: "", max: "", areaSelection: String(Date.now()),
-    } });
-  }, [router, type]);
-  const select = useCallback((group: RegionGroup) => {
-    setQuery("");
-    if (!state) setState(group);
-    else if (!district) setDistrict(group);
-    else openPincode(group.key, state.key, district.key);
-  }, [state, district, openPincode]);
-  const selectSuggestion = useCallback((item: LocationSuggestion) => {
-    const term = query.trim();setQuery("");setSuggestionResult(undefined);
-    const stateGroup = { key: item.state, name: item.state, count: 0, lat: item.lat, lng: item.lng };
-    const districtGroup = { key: item.district || "", name: item.district || "", count: 0, lat: item.lat, lng: item.lng };
-    if (item.kind === "state") { setState(stateGroup);setDistrict(undefined);return; }
-    if (item.kind === "district") { setState(stateGroup);setDistrict(districtGroup);return; }
-    if (item.kind === "pincode") {
-      openPincode(item.pincode || "", item.state, item.district || "");
-=======
 
   // Total properties count aggregated from region groups
   const totalVerifiedCount = useMemo(() => {
@@ -153,43 +95,24 @@ export default function MarketplaceScreen() {
         active = false;
         controller.abort();
       };
+    // Revision explicitly retries the same region query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state?.key, district?.key, type, revision])
   );
 
-  // Autocomplete suggestions debounce
+  // Ignore responses for superseded queries and property types.
   useEffect(() => {
     const term = query.trim();
-    if (term.length < 2) {
-      setSuggestions([]);
-      setSuggesting(false);
-      setSuggestionError(false);
->>>>>>> 23a60b94dc28d2a24448de8680090dee62d7f584
-      return;
-    }
+    if (term.length < 2) return;
     const controller = new AbortController();
     let active = true;
-    setSuggesting(true);
-    setSuggestionError(false);
-
     const timer = setTimeout(() => {
       fetchLocationSuggestions(term, type, controller.signal)
-        .then((data) => {
-          if (active) setSuggestions(data);
-        })
-        .catch(() => {
-          if (active) setSuggestionError(true);
-        })
-        .finally(() => {
-          if (active) setSuggesting(false);
-        });
+        .then(items => { if (active) setSuggestionResult({ key: suggestionKey, items, error: false }); })
+        .catch(() => { if (active) setSuggestionResult({ key: suggestionKey, items: [], error: true }); });
     }, 250);
-
-    return () => {
-      active = false;
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [query, type]);
+    return () => { active = false;clearTimeout(timer);controller.abort(); };
+  }, [query, type, suggestionKey]);
 
   // Calculated Map Focus
   const mapFocus = useMemo<MapFocus | undefined>(() => {
@@ -203,7 +126,7 @@ export default function MarketplaceScreen() {
   const openPincode = useCallback(
     (selectedPincode: string, selectedState: string, selectedDistrict: string) => {
       setQuery("");
-      setSuggestions([]);
+      setSuggestionResult(undefined);
       router.navigate({
         pathname: "/(tabs)/home",
         params: {
@@ -283,7 +206,7 @@ export default function MarketplaceScreen() {
     (item: LocationSuggestion) => {
       const term = query.trim();
       setQuery("");
-      setSuggestions([]);
+      setSuggestionResult(undefined);
       setCustomFocus(undefined);
 
       const stateGroup: RegionGroup = {
@@ -337,34 +260,8 @@ export default function MarketplaceScreen() {
   const handleSearchAll = useCallback(() => {
     const term = query.trim();
     if (term.length < 2) return;
-<<<<<<< HEAD
-    setQuery("");setSuggestionResult(undefined);
-    router.push({ pathname: "/(tabs)/home", params: { address: term, state: "", district: "", pincode: "", type: type || "", query: "", min: "", max: "" } });
-  };
-  return <View style={[styles.screen, { paddingTop: insets.top }]}>
-    <View style={styles.controls}>
-      <Text style={styles.title}>Find properties by area</Text>
-      <View style={styles.breadcrumbs}>
-        <TouchableOpacity accessibilityRole="button" onPress={() => { setState(undefined);setDistrict(undefined);setQuery(""); }}><Text style={styles.link}>All states</Text></TouchableOpacity>
-        {state && <TouchableOpacity accessibilityRole="button" onPress={() => { setDistrict(undefined);setQuery(""); }}><Text style={styles.link}> › {state.name}</Text></TouchableOpacity>}
-        {district && <Text style={styles.label}> › {district.name}</Text>}
-      </View>
-      <PropertyTypeTabs value={type} onChange={setType} />
-      <TextInput accessibilityLabel="Search any state, district, pincode or address" placeholder="Search state, district, pincode or address" value={query} onChangeText={setQuery} onSubmitEditing={searchAll} returnKeyType="search" autoCorrect={false} style={styles.input} />
-      {query.trim().length >= 2 && <View style={styles.suggestions}>
-        {suggesting && <ActivityIndicator accessibilityLabel="Searching addresses" color="#1A365D" />}
-        {suggestionError && <Text accessibilityRole="alert" style={styles.label}>Could not search addresses. Use the keyboard search button to try the full search.</Text>}
-        {!suggesting && !suggestionError && <ScrollView keyboardShouldPersistTaps="always" style={styles.suggestionList}>
-          {suggestions.map((item, index) => <TouchableOpacity key={`${item.kind}:${item.label}:${index}`} accessibilityRole="button" onPress={() => selectSuggestion(item)} style={styles.suggestionRow}><Text style={styles.label}>{item.label}</Text><Text style={styles.suggestionKind}>{item.kind}</Text></TouchableOpacity>)}
-          {!suggestions.length && <Text style={styles.label}>No matching areas. Use the keyboard search button to search listings.</Text>}
-        </ScrollView>}
-      </View>}
-      {loading && <ActivityIndicator accessibilityLabel="Loading area counts" color="#1A365D" />}
-      {!!error && <View><Text accessibilityRole="alert" style={styles.label}>{error}</Text><TouchableOpacity accessibilityRole="button" onPress={() => setRevision(value => value + 1)}><Text style={styles.link}>Try again</Text></TouchableOpacity></View>}
-      {!loading && !error && !groups.length && !query && <Text style={styles.label}>No available properties in this area.</Text>}
-=======
     setQuery("");
-    setSuggestions([]);
+    setSuggestionResult(undefined);
     router.push({
       pathname: "/(tabs)/home",
       params: {
@@ -586,7 +483,6 @@ export default function MarketplaceScreen() {
           )}
         </View>
       </ScrollView>
->>>>>>> 23a60b94dc28d2a24448de8680090dee62d7f584
     </View>
   );
 }

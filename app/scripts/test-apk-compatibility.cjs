@@ -1,3 +1,4 @@
+/* global __dirname */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -5,6 +6,15 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
 require('./generate-native-map.cjs');
+function isWebOnly(node, ast) {
+  const isWeb = expression => /^Platform\.OS\s*===\s*["']web["']$/.test(expression.getText(ast));
+  for (let child = node, parent = node.parent; parent; child = parent, parent = parent.parent) {
+    if (ts.isIfStatement(parent) && child === parent.thenStatement && isWeb(parent.expression)) return true;
+    if (ts.isConditionalExpression(parent) && child === parent.whenTrue && isWeb(parent.condition)) return true;
+    if (ts.isBinaryExpression(parent) && child === parent.right && parent.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken && isWeb(parent.left)) return true;
+  }
+  return false;
+}
 function load(file, mocks = {}) {
   const filename = path.resolve(root, file);
   const exports = {};
@@ -26,7 +36,7 @@ async function main() {
       function visit(node) {
         if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
           const tag = node.tagName.getText(ast);
-          assert.ok(!/^[a-z][a-z0-9-]*$/.test(tag), `${filename} contains browser-only JSX: ${tag}`);
+          assert.ok(!/^[a-z][a-z0-9-]*$/.test(tag) || isWebOnly(node, ast), `${filename} contains unguarded browser-only JSX: ${tag}`);
         }
         ts.forEachChild(node, visit);
       }
