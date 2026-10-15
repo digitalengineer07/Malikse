@@ -37,11 +37,11 @@ function sendPublicResponse(request: FastifyRequest, reply: FastifyReply, value:
 
 /** All property GET routes are native; other APIs remain on Express. */
 export function createFastifyApp(isReady?: () => boolean) {
-  const { production, origins, proxies } = runtimeConfiguration();
+  const { production, origins, trustProxy } = runtimeConfiguration();
   const app = Fastify({
     bodyLimit: 100 * 1024,
     requestTimeout: 60_000,
-    trustProxy: proxies.length ? proxies : false,
+    trustProxy,
     genReqId: () => randomUUID(),
     routerOptions: {
       ignoreTrailingSlash: true,
@@ -55,6 +55,12 @@ export function createFastifyApp(isReady?: () => boolean) {
   // Handoff happens before body parsing so Express JSON and multipart middleware
   // receive the original, unread request stream.
   app.addHook("onRequest", (request, reply, done) => {
+    const path = (request.raw.url || "").split("?")[0].replace(/\/$/, "").toLowerCase();
+    if (isReady && !isReady() && path !== "/health" && path !== "/ready") {
+      reply.code(503).header("Retry-After", "1").send({ message: "Service is initializing. Please try again shortly." });
+      done();
+      return;
+    }
     if (!(request.routeOptions.config as { nativePropertyRead?: boolean }).nativePropertyRead) {
       reply.hijack();
       legacy(request.raw, reply.raw);
