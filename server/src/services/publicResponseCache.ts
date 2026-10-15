@@ -4,7 +4,7 @@ import { gzip, brotliCompress, constants } from "zlib";
 import type { Request, Response } from "express";
 import { publicCacheBoot, publicGeneration, assertPublicGeneration, onPublicInvalidation, publicBusy } from "./publicCacheGeneration";
 import { searchMemory, PublicSnapshot } from "./searchMemory";
-import { redisGet, redisSet } from "./redis";
+import { redisGet, redisSet, redisConfigured } from "./redis";
 import { admitPublicRead } from "./publicReadAdmission";
 import { performanceMetrics as metrics } from "./performanceMetrics";
 
@@ -31,11 +31,13 @@ function remember(key: string, entry: PublicSnapshot) {
 async function serialize(value: { data: unknown; nextCursor?: string; status?: number }): Promise<PublicSnapshot> {
   const body = Buffer.from(JSON.stringify(value.data));
   const ttl = value.status === 404 || (Array.isArray(value.data) && !value.data.length) ? 2000 : 15000 + Math.floor(Math.random() * 1500);
-  const entry: PublicSnapshot = { body, nextCursor: value.nextCursor || "", status: value.status || 200, expires: Date.now() + ttl, localUntil: Date.now() + (process.env.REDIS_URL ? 2000 : ttl), bytes: body.length + 256 };
+  const entry: PublicSnapshot = { body, nextCursor: value.nextCursor || "", status: value.status || 200, expires: Date.now() + ttl, localUntil: Date.now() + (redisConfigured() ? 2000 : ttl), bytes: body.length + 256 };
   if (body.length >= 1024 && process.env.PUBLIC_JSON_COMPRESSION !== "false") {
     // Compression runs once per fill and is included in the bounded fill concurrency.
-    entry.gzip = await zip(body, { level: 1 });
-    entry.br = await brotli(body, { params: { [constants.BROTLI_PARAM_QUALITY]: 4 } });
+    [entry.gzip, entry.br] = await Promise.all([
+      zip(body, { level: 4 }),
+      brotli(body, { params: { [constants.BROTLI_PARAM_QUALITY]: 4 } }),
+    ]);
     entry.bytes += entry.gzip.length + entry.br.length;
   }
   return entry;

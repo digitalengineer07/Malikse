@@ -1,5 +1,52 @@
 # Single instance load test
 
+## Search response size and compression
+
+`GET /properties/search` defaults to the compact `cards` view (one photo, no description,
+parcel geometry, videos or disclosures). It still returns an array, defaults to 100 results,
+and exposes the next page in `X-Next-Cursor`. Use `limit=20` for a smaller page, pass the
+returned `cursor` to continue, and request `/properties/:id` for details. Clients that need
+the previous full search payload can explicitly use `view=full`.
+
+Gzip and Brotli JSON buffers are generated once per cache fill and reused on cache hits.
+Compression is enabled unless `PUBLIC_JSON_COMPRESSION=false`. Clients must advertise
+`Accept-Encoding`; a plain Autocannon run tests uncompressed JSON. Browsers negotiate
+and decompress automatically. Run this from `server/` to test compressed responses:
+
+```powershell
+npx autocannon -c 10 -d 10 --renderStatusCodes -H "Accept-Encoding=gzip" http://localhost:5000/properties/search
+```
+
+Use `Accept-Encoding=br` for Brotli or `Accept-Encoding=identity` for the uncompressed
+comparison. Keep the URL, result count and connection count identical when comparing
+throughput; repeat with `view=full` to compare the old response shape.
+
+Local comparison on 15 October 2026, using the running API at port 5000, the same
+100 listings, 10 connections, and sequential 10-second runs after warming each URL:
+
+| Response | Body bytes | Requests/sec | p99 latency |
+| --- | ---: | ---: | ---: |
+| Full view, identity | 128,203 | 2,146.81 | 9 ms |
+| Default cards, identity | 64,679 | 4,281.80 | 5 ms |
+| Default cards, gzip | 3,960 | 5,347.20 | 4 ms |
+
+All three runs returned only HTTP 200, with zero errors or timeouts. Brotli body size
+was 3,446 bytes in a separate response probe. Body sizes exclude HTTP headers.
+These are short local warm-cache measurements, not sustained production capacity.
+
+Follow-up after a reported run with zero successful responses: the remote-MongoDB
+cold path fetched 100 rows, then fetched another batch just to determine whether a
+next page existed. Search now fetches up to 101 rows per batch and deduplicates owner
+IDs, reducing a normal 100-result page from four database reads to two. A fresh
+service read measured 474 ms with 100 results and the same 3,960-byte gzip body.
+
+The final 45-second HTTP run at 10 connections, without explicit warmup, crossed
+multiple cache expirations: 271,841 HTTP 200 responses, 6,041.47 requests/sec,
+1.30 ms average latency, 6 ms p99, 524 ms maximum, zero errors/timeouts/non-2xx.
+The original failing status was not captured in the supplied output and could not
+be reproduced. Keep `--renderStatusCodes` enabled when diagnosing a recurrence;
+zero 2xx responses indicate an error run, not successful search throughput.
+
 ## Current cache implementation (12 October 2026)
 
 See [implementation results](../../PERFORMANCE_IMPLEMENTATION_RESULTS.md). Current `profile-local.cjs` runs write unique `load/runs/<timestamp>-<mode>/` directories; older fixed-folder instructions below describe historical runs. Test sources are versionable; generated results remain ignored.
