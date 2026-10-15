@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#102B52",
     paddingVertical: 2,
-    ...(Platform.OS === "web" ? ({ outline: "none" } as any) : {}),
+    ...(Platform.OS === "web" ? { outlineWidth: 0 } : {}),
   },
   searchClear: {
     padding: 2,

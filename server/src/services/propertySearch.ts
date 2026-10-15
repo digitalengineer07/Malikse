@@ -25,7 +25,7 @@ export function normalizeSearch(input: Record<string, unknown>) {
   if (min !== undefined && max !== undefined && Number(min) > Number(max)) throw new Error("Minimum price exceeds maximum price");
   const page = Number(scalar(input.page, "page") ?? 1);
   const limit = Number(scalar(input.limit, "limit") ?? 100);
-  const view = scalar(input.view, "view") ?? "full";
+  const view = scalar(input.view, "view") ?? "cards";
   if (!["cards", "full"].includes(view)) throw new Error("Invalid property view");
   if (!Number.isInteger(page) || page < 1 || page > 100 || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("Page must be 1–100 and limit 1–100");
   const filters: any = {
@@ -55,19 +55,26 @@ export function getPublicSearchResponse(input: Record<string, unknown>): Promise
   const parsed = normalizeSearch(input);
   return publicResponse({ db: Property.db.name, kind: "search", ...parsed }, async () => {
     const { filters, page, limit, view } = parsed;
-    const fields = view === "cards" ? "title type location totalArea sellableArea price negotiable media status badges createdAt updatedAt" : publicFields;
+    // Project the thumbnail in MongoDB so lists never fetch full photo/video arrays.
+    const fields = view === "cards" ? "title type location totalArea sellableArea price negotiable status badges createdAt updatedAt" : publicFields;
+    const projection = Object.fromEntries((fields + " ownerId").split(" ").map(field => [field, 1]));
+    if (view === "cards") Object.assign(projection, { "media.photos": { $slice: 1 } });
     const skip = (page - 1) * limit;
     const visible: any[] = [];
     let cursor = parsed.cursor, scanned = 0, eligible = 0;
     const deadline = Date.now() + 3000;
+    // Include the next-page sentinel without shrinking later batches: many
+    // consecutive suspended owners must still be skipped in bounded reads.
+    const batchSize = Math.max(100, limit + 1);
     while (visible.length <= limit) {
       if (scanned >= 15000 || Date.now() >= deadline) throw publicBusy();
       // Bound both the property page and owner set; never enumerate all disabled owners.
       const batch: any[] = await Property.find({ ...publishedFilter, ...filters, ...cursor })
-        .select(fields + " ownerId").sort({ createdAt: -1, _id: -1 }).limit(100).maxTimeMS(1500).lean();
+        .select(projection).sort({ createdAt: -1, _id: -1 }).limit(batchSize).maxTimeMS(1500).lean();
       if (!batch.length) break;
       scanned += batch.length;
-      const owners = await User.find({ _id: { $in: batch.map(row => row.ownerId) }, isSuspended: { $ne: true }, isActive: { $ne: false } }).select("_id").maxTimeMS(1000).lean();
+      const ownerIds = [...new Set(batch.map(row => String(row.ownerId)))];
+      const owners = await User.find({ _id: { $in: ownerIds }, isSuspended: { $ne: true }, isActive: { $ne: false } }).select("_id").maxTimeMS(1000).lean();
       const enabled = new Set(owners.map(owner => String(owner._id)));
       for (const row of batch) {
         if (!enabled.has(String(row.ownerId))) continue;
@@ -77,7 +84,7 @@ export function getPublicSearchResponse(input: Record<string, unknown>): Promise
         visible.push(dto);
         if (visible.length > limit) break;
       }
-      if (batch.length < 100) break;
+      if (batch.length < batchSize) break;
       cursor = pageInput({ cursor: cursorFor(batch[batch.length - 1]) }).filter;
     }
     return { data: visible.slice(0, limit), nextCursor: visible.length > limit ? cursorFor(visible[limit - 1]) : "" };

@@ -5,6 +5,7 @@ const zlib = require('zlib');
 process.env.NODE_ENV='development'; process.env.REQUEST_LOGS='false';
 process.env.JWT_ACCESS_SECRET=randomUUID(); process.env.JWT_REFRESH_SECRET=randomUUID();
 process.env.PUBLIC_RESPONSE_CACHE_ENABLED='true';
+process.env.PUBLIC_JSON_COMPRESSION='true';
 process.env.REDIS_URL='redis://127.0.0.1:1'; // Real connection refusal exercises fallback.
 const mongoose = require('mongoose');
 const { createFastifyApp } = require('../dist/fastifyApp');
@@ -15,22 +16,29 @@ const { publicResponse } = require('../dist/services/publicResponseCache');
 const { beginPublicMutation, publicGeneration } = require('../dist/services/publicCacheGeneration');
 const { searchMemory } = require('../dist/services/searchMemory');
 const { admitPublicRead } = require('../dist/services/publicReadAdmission');
+const { stopRegionCounts } = require('../dist/services/regionCountStore');
 const redis = require('../dist/services/redis');
 const db='malikse_cache_test_'+randomUUID().replaceAll('-','');
 let app,server, base, commands=0;
-function raw(route, encoding) {
+function raw(route, encoding, method = 'GET') {
   return new Promise((resolve,reject)=>{
-    http.get(base+route,{headers:{'Accept-Encoding':encoding}},res=>{
+    http.get(base+route,{method,headers:encoding ? {'Accept-Encoding':encoding} : {}},res=>{
       const chunks=[];res.on('data',b=>chunks.push(b));res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,body:Buffer.concat(chunks)}));
     }).on('error',reject);
   });
 }
 async function main() {
+  // Region rebuilds invalidate all public snapshots asynchronously. This suite
+  // controls invalidation explicitly; the region worker has its own integration suite.
+  await stopRegionCounts();
   await mongoose.connect('mongodb://127.0.0.1:27017/'+db,{monitorCommands:true});
   mongoose.connection.getClient().on('commandStarted',e=>{if(['find','aggregate','count'].includes(e.commandName))commands++;});
   const [owner,hidden]=await User.create([{name:'Owner',mobile:'9200090001',role:'user'}, {name:'Hidden',mobile:'9200090002',role:'user',isSuspended:true}]);
   const fixture={ownerId:owner._id,title:'A public listing',type:'land',location:{state:'Bihar',district:'Patna',lat:25,lng:85},price:100000,totalArea:1000,sellableArea:900,status:'verified',badges:{fullyVerified:true},advisorReview:{decision:'approve'},verifierReview:{decision:'approve'},media:{photos:['https://example.test/1.jpg','https://example.test/2.jpg']}};
-  const rows=await Property.insertMany(Array.from({length:240},(_,i)=>({...fixture,title:'Listing '+i,ownerId:i>=130?hidden._id:owner._id})));
+  fixture.description='Detailed property description. '.repeat(100);
+  fixture.parcelPoints=[{lat:25,lng:85},{lat:25.1,lng:85.1},{lat:25.2,lng:85.2}];
+  fixture.media.videos=['https://example.test/tour.mp4'];
+  const rows=await Property.insertMany(Array.from({length:240},(_,i)=>({...fixture,title:'Listing '+i,type:i>=130?'shop':'land',ownerId:i>=130?hidden._id:owner._id})));
   await Property.createIndexes();
   app=createFastifyApp();await app.listen({port:0,host:'127.0.0.1'});server=app.server;base='http://127.0.0.1:'+server.address().port;
   const admin=await User.create({name:'Admin',mobile:'9200090003',role:'admin',passwordHash:'test-fixture-only'});
@@ -45,12 +53,52 @@ async function main() {
   for(let i=0;i<2;i++) assert.equal((await setState('/admin/staff/'+staff._id+'/status',{isActive:false})).isActive,false);
   await setState('/admin/staff/'+staff._id+'/status',{isActive:true});
   console.log('PASS repeated desired-state admin requests remain idempotent');
+  const defaults=await raw('/properties/search');
+  const cards=JSON.parse(defaults.body);
+  assert.equal(defaults.status,200);assert.equal(cards.length,100);
+  assert.equal(defaults.headers['content-encoding'],undefined);
+  assert.ok(defaults.headers['x-next-cursor']);
+  assert.deepEqual(defaults.body,(await raw('/properties/search?view=cards','identity')).body);
+  for(const card of cards) {
+    for(const field of ['description','parcelPoints','disclosures','ownerId','verificationHistory']) assert.equal(card[field],undefined);
+    assert.deepEqual(card.media,{photos:[fixture.media.photos[0]]});
+  }
+  const full=await raw('/properties/search?view=full','identity');
+  const fullRows=JSON.parse(full.body);
+  assert.equal(full.status,200);assert.equal(fullRows.length,100);
+  assert.deepEqual(cards.map(p=>p._id),fullRows.map(p=>p._id));
+  assert.equal(fullRows[0].description,fixture.description);
+  assert.equal(fullRows[0].parcelPoints.length,3);
+  assert.deepEqual(fullRows[0].media.photos,fixture.media.photos);
+  assert.deepEqual(fullRows[0].media.videos,fixture.media.videos);
+  assert.ok(defaults.body.length < full.body.length / 2);
+  console.log('PASS compact default, unchanged page size, explicit full view', {cards:defaults.body.length,full:full.body.length});
+  const coldBefore=commands;
+  const cold=await raw('/properties/search?type=land','gzip');
+  assert.equal(cold.status,200);
+  const coldRows=JSON.parse(zlib.gunzipSync(cold.body));
+  assert.equal(coldRows.length,100);assert.ok(cold.headers['x-next-cursor']);
+  assert.equal(commands-coldBefore,2,'a cold 100-result page should use one property read and one owner read');
+  const tail=await raw('/properties/search?type=land&cursor='+encodeURIComponent(cold.headers['x-next-cursor']),'gzip');
+  const tailRows=JSON.parse(zlib.gunzipSync(tail.body));
+  assert.equal(tailRows.length,30);assert.equal(tail.headers['x-next-cursor'],'');
+  assert.equal(new Set([...coldRows,...tailRows].map(p=>p._id)).size,130);
+  console.log('PASS cold default page uses two database reads with complete cursor traversal');
   const route='/properties/search?view=cards&limit=50';
   const identity=await raw(route,'identity');assert.equal(identity.status,200);assert.equal(JSON.parse(identity.body).length,50);
   const before=commands;
   const gz=await raw(route,'gzip'),br=await raw(route,'br');
   assert.equal(commands,before,'warm HTTP cache hits must make zero Mongo reads');
   assert.deepEqual(zlib.gunzipSync(gz.body),identity.body);assert.deepEqual(zlib.brotliDecompressSync(br.body),identity.body);
+  for(const [response,encoding] of [[gz,'gzip'],[br,'br']]) {
+    assert.equal(response.headers['content-encoding'],encoding);
+    assert.equal(Number(response.headers['content-length']),response.body.length);
+    const head=await raw(route,encoding,'HEAD');
+    assert.equal(head.status,200);assert.equal(head.body.length,0);
+    assert.equal(head.headers['content-encoding'],encoding);
+    assert.equal(head.headers['content-length'],response.headers['content-length']);
+  }
+  assert.equal((await raw(route,'br;q=0, gzip;q=1, identity;q=0')).headers['content-encoding'],'gzip');
   assert.equal(gz.headers['x-next-cursor'],identity.headers['x-next-cursor']);assert.match(gz.headers.vary,/Accept-Encoding/);
   assert.equal((await raw(route,'identity;q=0, gzip;q=0, br;q=0')).status,406);
   assert.ok(gz.body.length<identity.body.length);assert.equal(JSON.parse(identity.body)[0].media.photos.length,1);

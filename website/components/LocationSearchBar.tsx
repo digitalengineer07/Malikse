@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     color: "#102B52",
     paddingVertical: 8,
     paddingHorizontal: 4,
-    ...(Platform.OS === "web" ? ({ outline: "none" } as any) : {}),
+    ...(Platform.OS === "web" ? { outlineWidth: 0 } : {}),
   },
   clearBtn: {
     padding: 6,
