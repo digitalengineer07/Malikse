@@ -22,6 +22,7 @@ import StateSelectorPanel from "./StateSelectorPanel";
 
 import {
   fetchRegionCounts,
+  cachedRegionCounts,
   fetchLocationSuggestions,
   type LocationSuggestion,
   type RegionGroup,
@@ -76,16 +77,20 @@ export default function MarketplaceScreen() {
     useCallback(() => {
       const controller = new AbortController();
       let active = true;
-      setLoading(true);
+      const filters = { state: state?.key, district: district?.key, type };
+      const cached = cachedRegionCounts(filters);
+      setLoading(!cached);
       setError("");
-      setGroups([]);
+      setGroups(cached?.groups ?? []);
 
-      fetchRegionCounts({ state: state?.key, district: district?.key, type }, controller.signal)
+      fetchRegionCounts(filters, controller.signal)
         .then((data) => {
           if (active) setGroups(data.groups);
         })
         .catch(() => {
-          if (active) setError("Could not load area counts. Please try again.");
+          if (active) setError(cached
+            ? "Showing saved area counts. Could not refresh; please try again."
+            : "Could not load area counts. Please try again.");
         })
         .finally(() => {
           if (active) setLoading(false);
@@ -421,7 +426,7 @@ export default function MarketplaceScreen() {
             <View style={styles.mapCardDesktop}>
               {/* Full Interactive Leaflet India Map */}
               <PremiumIndiaMap
-                groups={loading || error ? [] : groups}
+                groups={loading ? [] : groups}
                 level={level}
                 state={state?.key}
                 focus={mapFocus}
@@ -453,7 +458,7 @@ export default function MarketplaceScreen() {
               {/* Interactive Map Box */}
               <View style={styles.mapCardMobile}>
                 <PremiumIndiaMap
-                  groups={loading || error ? [] : groups}
+                  groups={loading ? [] : groups}
                   level={level}
                   state={state?.key}
                   focus={mapFocus}
