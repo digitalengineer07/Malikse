@@ -2,11 +2,11 @@ import "dotenv/config";
 import mongoose from "mongoose";
 import { createFastifyApp } from "./fastifyApp";
 import { positiveInteger } from "./middleware/runtime.middleware";
-import { startSubmissionWorker } from "./services/submissionQueue";
 import { mongoPoolOptions } from "./services/mongoPool";
-import { closeRedis } from "./services/redis";
 import { monitorPool } from "./services/performanceMetrics";
+import { closeRedis } from "./services/redis";
 import { startRegionCounts, stopRegionCounts } from "./services/regionCountStore";
+import { startSubmissionWorker } from "./services/submissionQueue";
 
 let stopping = false;
 let initialized = false;

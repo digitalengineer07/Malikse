@@ -76,9 +76,9 @@ assert.ok(!nativeMapHtml({ points: [] }).includes('leaflet.vectorgrid@'));
 const authSource = fs.readFileSync(path.join(root, 'src/services/authService.ts'), 'utf8');
 const resolver = authSource.slice(authSource.indexOf('function resolveApiUrl()'), authSource.indexOf('const API_URL'));
 for (const fixture of [
-  { url: 'http://localhost:5000', dev: false, platform: 'android', expected: 'https://malikse.onrender.com' },
-  { url: 'http://127.0.0.1:5000', dev: false, platform: 'android', expected: 'https://malikse.onrender.com' },
-  { url: 'http://10.0.2.2:5000', dev: false, platform: 'android', expected: 'https://malikse.onrender.com' },
+  { url: 'http://localhost:5000', dev: false, platform: 'android', expected: 'https://malikse.devoxa.in' },
+  { url: 'http://127.0.0.1:5000', dev: false, platform: 'android', expected: 'https://malikse.devoxa.in' },
+  { url: 'http://10.0.2.2:5000', dev: false, platform: 'android', expected: 'https://malikse.devoxa.in' },
   { url: 'https://staging.example.com', dev: false, platform: 'android', expected: 'https://staging.example.com' },
   { url: 'http://localhost:5000', dev: true, platform: 'android', expected: 'http://192.168.1.5:5000' },
   { url: 'http://localhost:5000', dev: false, platform: 'web', expected: 'http://localhost:5000' },

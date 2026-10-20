@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   floatingDock: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Platform.OS === "web" ? "#FFFFFF" : "rgba(255, 255, 255, 0.28)",
     borderRadius: 9999,
     paddingHorizontal: 26,
     paddingVertical: 8,
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Platform.OS === "web" ? "#FFFFFF" : "rgba(255, 255, 255, 0.28)",
     borderRadius: 32,
     paddingVertical: 8,
     width: "92%",
