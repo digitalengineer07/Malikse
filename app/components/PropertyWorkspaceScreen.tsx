@@ -72,13 +72,17 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
   };
   const captureGps = async () => {
     setBusy(true); setError("");
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== "granted") throw new Error("Location permission is required for a site check-in");
-      const result = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const result = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+        new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error("Location took too long. Check GPS and try again.")), 15000); }),
+      ]);
       setGps({ lat: result.coords.latitude, lng: result.coords.longitude });
     } catch (cause: any) { setError(cause.message || "Unable to capture location"); }
-    finally { setBusy(false); }
+    finally { clearTimeout(timeout); setBusy(false); }
   };
   const canReview = !publicView && property && ((user?.role === "advisor" && property.status === "pending" && actorId(property.assignedAdvisorId) === user.id) || (user?.role === "verifier" && property.status === "advisor_verified" && actorId(property.assignedVerifierId) === user.id));
   const keys = Object.keys(checks).filter(key => user?.role === "verifier" || key !== "advisorReport");

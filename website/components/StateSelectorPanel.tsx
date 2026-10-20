@@ -127,11 +127,11 @@ export default function StateSelectorPanel({
               ]}
             >
               {/* Regional Thumbnail */}
-              <Image
+              {state.image ? <Image
                 source={{ uri: state.image }}
                 style={styles.thumbnail}
                 resizeMode="cover"
-              />
+              /> : <View style={[styles.thumbnail, { alignItems: "center", justifyContent: "center", backgroundColor: "#E6F2FC" }]}><MaterialIcons name="location-city" size={24} color="#075D91" /></View>}
 
               {/* State Name and Subtitle */}
               <View style={styles.stateInfo}>
@@ -171,7 +171,7 @@ export default function StateSelectorPanel({
 
         {filteredStates.length === 0 && (
           <View style={styles.emptyWrap}>
-            <Text style={styles.emptyText}>No state found matching "{filterText}"</Text>
+            <Text style={styles.emptyText}>No state found matching &quot;{filterText}&quot;</Text>
           </View>
         )}
       </ScrollView>
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#102B52",
     paddingVertical: 2,
-    ...(Platform.OS === "web" ? ({ outline: "none" } as any) : {}),
+    ...(Platform.OS === "web" ? { outlineWidth: 0 } : {}),
   },
   searchClear: {
     padding: 2,

@@ -15,7 +15,7 @@ import {
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BlurView } from "expo-blur";
+import BlurView, { GlassBackdrop } from "./GlassSurface";
 
 import AppHeader from "./AppHeader";
 import PropertyTypeTabs from "./PropertyTypeTabs";
@@ -23,7 +23,6 @@ import HouseIllustration from "./HouseIllustration";
 import CitySkyline from "./CitySkyline";
 import { cachedPropertySearch, propertyService } from "../src/services/propertyService";
 import type { Property, PropertyType } from "../src/types/property.types";
-import { AppTheme } from "../constants/theme";
 
 const nameOf = (p: Property) => p.title || `${p.type} in ${p.location.district}`;
 const priceOf = (p: Property) => `₹${p.price.toLocaleString("en-IN")}`;
@@ -57,13 +56,11 @@ export default function VerifiedHomeScreen() {
     areaSelection?: string;
   }>();
 
-  const [type, setType] = useState<PropertyType | undefined>(initialType || undefined);
+  const type = initialType || undefined;
+  const setType = (value: PropertyType | undefined) => router.setParams({ type: value || "" });
   useEffect(() => {
     if (areaSelection) resultsScroll.current?.scrollTo({ y: 0, animated: false });
   }, [areaSelection]);
-  useEffect(() => {
-    setType(initialType || undefined);
-  }, [initialType]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -123,7 +120,9 @@ export default function VerifiedHomeScreen() {
         active = false;
         setSelected(null);
       };
-    }, [revision, type, query, min, max, district, state, pincode, address, areaSelection, page])
+    // Revision and areaSelection explicitly refresh an otherwise unchanged query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [revision, type, query, min, max, district, state, pincode, address, areaSelection, page, filterKey, pagination.key, pagination.cursors])
   );
 
   const openProperty = useCallback(
@@ -251,7 +250,7 @@ export default function VerifiedHomeScreen() {
                       activeOpacity={0.9}
                       style={[s.cardWrapper, { width: width < 800 ? "100%" : 460 }]}
                     >
-                      <View style={s.cardInner}>
+                      <BlurView intensity={35} tint="light" style={s.cardInner}>
                         <View style={s.cardImageContainer}>
                           {property.media?.photos?.[0] ? (
                             <Image
@@ -289,7 +288,7 @@ export default function VerifiedHomeScreen() {
                             | {property.negotiable ? "Negotiable" : "Fixed price"}
                           </Text>
                         </View>
-                      </View>
+                      </BlurView>
                     </TouchableOpacity>
                   ))}
               </View>
@@ -346,7 +345,7 @@ export default function VerifiedHomeScreen() {
             onPress={() => setSelected(null)}
           />
           {selected && (
-            <BlurView
+            <View style={s.sheetFrame}><GlassBackdrop androidOnly><BlurView
               intensity={90}
               tint="light"
               accessibilityViewIsModal
@@ -404,7 +403,7 @@ export default function VerifiedHomeScreen() {
                 <Text style={s.viewDetailsActionText}>View full property details</Text>
                 <MaterialIcons name="arrow-forward" size={20} color="white" />
               </TouchableOpacity>
-            </BlurView>
+            </BlurView></GlassBackdrop></View>
           )}
         </View>
       </Modal>
@@ -590,7 +589,7 @@ const s = StyleSheet.create({
   cardInner: {
     flex: 1,
     flexDirection: "row",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Platform.OS === "web" ? "#FFFFFF" : "rgba(255, 255, 255, 0.28)",
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#EEF2F6",
@@ -685,15 +684,19 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(15, 33, 55, 0.45)",
     justifyContent: "flex-end",
   },
+  sheetFrame: {
+    width: "100%", maxWidth: 640, maxHeight: "85%", alignSelf: "center",
+    borderTopLeftRadius: 32, borderTopRightRadius: 32, overflow: "hidden",
+  },
   sheet: {
     width: "100%",
     maxWidth: 640,
     alignSelf: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Platform.OS === "web" ? "#FFFFFF" : "rgba(255, 255, 255, 0.55)",
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     padding: 24,
-    maxHeight: "85%",
+    flexShrink: 1,
   },
   handle: {
     height: 4,

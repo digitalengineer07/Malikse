@@ -1,6 +1,9 @@
 import { Redirect } from "expo-router";
+import { Platform } from "react-native";
+import { resumeTabs, useResumeStore } from "../src/store/resumeStore";
 
 // The root layout owns the startup loader, including when opening a deep link.
 export default function Index() {
-  return <Redirect href="/home" />;
+  const tab = useResumeStore(state => state.tab);
+  return <Redirect href={Platform.OS !== "web" && resumeTabs.includes(tab) ? tab : "/home"} />;
 }

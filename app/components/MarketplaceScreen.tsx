@@ -10,7 +10,6 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import AppHeader from "./AppHeader";
@@ -23,6 +22,7 @@ import StateSelectorPanel from "./StateSelectorPanel";
 
 import {
   fetchRegionCounts,
+  cachedRegionCounts,
   fetchLocationSuggestions,
   type LocationSuggestion,
   type RegionGroup,
@@ -31,27 +31,32 @@ import type { PropertyType } from "../src/types/property.types";
 import type { MapFocus } from "../src/utils/nativeMapHtml";
 import type { IndiaStateInfo } from "../src/data/indiaStatesData";
 import { currentMapLocation } from "../src/services/currentMapLocation";
+import { useResumeStore } from "../src/store/resumeStore";
 
 export default function MarketplaceScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 980;
 
   // State management
-  const [state, setState] = useState<RegionGroup | undefined>();
-  const [district, setDistrict] = useState<RegionGroup | undefined>();
-  const [type, setType] = useState<PropertyType | undefined>();
+  const savedSearch = useResumeStore.getState().search;
+  const [state, setState] = useState<RegionGroup | undefined>(savedSearch.state);
+  const [district, setDistrict] = useState<RegionGroup | undefined>(savedSearch.district);
+  const [type, setType] = useState<PropertyType | undefined>(savedSearch.type);
   const [groups, setGroups] = useState<RegionGroup[]>([]);
-  const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
-  const [suggesting, setSuggesting] = useState(false);
-  const [suggestionError, setSuggestionError] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [query, setQuery] = useState(savedSearch.query);
+  const suggestionKey = JSON.stringify([query.trim(), type]);
+  const [suggestionResult, setSuggestionResult] = useState<{ key: string; items: LocationSuggestion[]; error: boolean }>();
+  const suggestions = suggestionResult?.key === suggestionKey ? suggestionResult.items : [];
+  const suggesting = query.trim().length >= 2 && suggestionResult?.key !== suggestionKey;
+  const suggestionError = !!(suggestionResult?.key === suggestionKey && suggestionResult.error);
+  const [loading, setLoading] = useState(true), [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   const [locating, setLocating] = useState(false);
-  const [customFocus, setCustomFocus] = useState<MapFocus | undefined>();
+  const [customFocus, setCustomFocus] = useState<MapFocus | undefined>(savedSearch.customFocus);
+  useEffect(() => {
+    useResumeStore.getState().setSearch({ state, district, type, query, customFocus });
+  }, [state, district, type, query, customFocus]);
 
   const level = district ? "pincode" : state ? "district" : "state";
 
@@ -77,16 +82,20 @@ export default function MarketplaceScreen() {
     useCallback(() => {
       const controller = new AbortController();
       let active = true;
-      setLoading(true);
+      const filters = { state: state?.key, district: district?.key, type };
+      const cached = cachedRegionCounts(filters);
+      setLoading(!cached);
       setError("");
-      setGroups([]);
+      setGroups(cached?.groups ?? []);
 
-      fetchRegionCounts({ state: state?.key, district: district?.key, type }, controller.signal)
+      fetchRegionCounts(filters, controller.signal)
         .then((data) => {
           if (active) setGroups(data.groups);
         })
         .catch(() => {
-          if (active) setError("Could not load area counts. Please try again.");
+          if (active) setError(cached
+            ? "Showing saved area counts. Could not refresh; please try again."
+            : "Could not load area counts. Please try again.");
         })
         .finally(() => {
           if (active) setLoading(false);
@@ -96,42 +105,24 @@ export default function MarketplaceScreen() {
         active = false;
         controller.abort();
       };
+    // Revision explicitly retries the same region query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state?.key, district?.key, type, revision])
   );
 
-  // Autocomplete suggestions debounce
+  // Ignore responses for superseded queries and property types.
   useEffect(() => {
     const term = query.trim();
-    if (term.length < 2) {
-      setSuggestions([]);
-      setSuggesting(false);
-      setSuggestionError(false);
-      return;
-    }
+    if (term.length < 2) return;
     const controller = new AbortController();
     let active = true;
-    setSuggesting(true);
-    setSuggestionError(false);
-
     const timer = setTimeout(() => {
       fetchLocationSuggestions(term, type, controller.signal)
-        .then((data) => {
-          if (active) setSuggestions(data);
-        })
-        .catch(() => {
-          if (active) setSuggestionError(true);
-        })
-        .finally(() => {
-          if (active) setSuggesting(false);
-        });
+        .then(items => { if (active) setSuggestionResult({ key: suggestionKey, items, error: false }); })
+        .catch(() => { if (active) setSuggestionResult({ key: suggestionKey, items: [], error: true }); });
     }, 250);
-
-    return () => {
-      active = false;
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [query, type]);
+    return () => { active = false;clearTimeout(timer);controller.abort(); };
+  }, [query, type, suggestionKey]);
 
   // Calculated Map Focus
   const mapFocus = useMemo<MapFocus | undefined>(() => {
@@ -145,7 +136,7 @@ export default function MarketplaceScreen() {
   const openPincode = useCallback(
     (selectedPincode: string, selectedState: string, selectedDistrict: string) => {
       setQuery("");
-      setSuggestions([]);
+      setSuggestionResult(undefined);
       router.navigate({
         pathname: "/(tabs)/home",
         params: {
@@ -225,7 +216,7 @@ export default function MarketplaceScreen() {
     (item: LocationSuggestion) => {
       const term = query.trim();
       setQuery("");
-      setSuggestions([]);
+      setSuggestionResult(undefined);
       setCustomFocus(undefined);
 
       const stateGroup: RegionGroup = {
@@ -280,7 +271,7 @@ export default function MarketplaceScreen() {
     const term = query.trim();
     if (term.length < 2) return;
     setQuery("");
-    setSuggestions([]);
+    setSuggestionResult(undefined);
     router.push({
       pathname: "/(tabs)/home",
       params: {
@@ -440,7 +431,7 @@ export default function MarketplaceScreen() {
             <View style={styles.mapCardDesktop}>
               {/* Full Interactive Leaflet India Map */}
               <PremiumIndiaMap
-                groups={loading || error ? [] : groups}
+                groups={loading ? [] : groups}
                 level={level}
                 state={state?.key}
                 focus={mapFocus}
@@ -472,7 +463,7 @@ export default function MarketplaceScreen() {
               {/* Interactive Map Box */}
               <View style={styles.mapCardMobile}>
                 <PremiumIndiaMap
-                  groups={loading || error ? [] : groups}
+                  groups={loading ? [] : groups}
                   level={level}
                   state={state?.key}
                   focus={mapFocus}

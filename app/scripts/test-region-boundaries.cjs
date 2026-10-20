@@ -4,11 +4,12 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
+require('./generate-native-map.cjs');
 function load(relative) {
   const filename = path.resolve(root, relative);
   const source = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const exports = {};
-  vm.runInNewContext(source, { exports, require: name => load(path.relative(root, path.resolve(path.dirname(filename), name + '.ts'))), document: { createElement: () => ({ style: {}, setAttribute() {}, appendChild() {} }) } });
+  vm.runInNewContext('Function.prototype.toString = function () { return "function () { [native code] }"; };\n' + source, { exports, require: name => load(path.relative(root, path.resolve(path.dirname(filename), name + '.ts'))), document: { createElement: () => ({ style: {}, setAttribute() {}, appendChild() {} }) } });
   return exports;
 }
 const { addRegionBoundaries } = load('src/utils/regionBoundaryLayer.ts');
@@ -26,6 +27,9 @@ const L = {
 };
 const group = (key) => ({ key, name: key, count: 10, lat: 25.6, lng: 85.1 });
 async function main() {
+const { regionBoundaryScript } = load('src/utils/regionBoundaryScript.ts');
+const embeddedBoundaries = vm.runInNewContext(regionBoundaryScript, { document: { createElement: () => ({ style: {}, setAttribute() {}, appendChild() {} }) } });
+for (const boundaries of [addRegionBoundaries, embeddedBoundaries]) {
 for (const fixture of [
   { level: 'state', key: 'Bihar', layer: 'SOI_States', properties: { STATE: 'BIHĀR', STATE_C: 'BIHAR' } },
   { level: 'district', key: 'Patna', layer: 'SOI_Districts', properties: { STATE_C: 'BIHAR', District_C: 'PATNA' } },
@@ -33,7 +37,7 @@ for (const fixture of [
 ]) {
   selection = undefined;
   markers.length = 0;
-  const cleanup = addRegionBoundaries(L, map, { level: fixture.level, state: 'Bihar', groups: [group(fixture.key), group('Another area')] }, key => { selection = key; }, () => assert.fail('Unexpected tile error'));
+  const cleanup = boundaries(L, map, { level: fixture.level, state: 'Bihar', groups: [group(fixture.key), group('Another area')] }, key => { selection = key; }, () => assert.fail('Unexpected tile error'));
   const style = grid.options.vectorTileLayerStyles[fixture.layer];
   assert.equal(style(fixture.properties)[1].fillOpacity, 0.16);
   const otherProperties = { STATE_C: 'Another area', District_C: 'Another area', Pincode: 'Another area' };
@@ -68,6 +72,19 @@ assert.ok(html.includes('leaflet.vectorgrid@1.3.0'));
 assert.ok(!html.includes('</script><script>bad'));
 for (const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) new vm.Script(match[1]);
 assert.ok(!nativeMapHtml({ points: [] }).includes('leaflet.vectorgrid@'));
+}
+const authSource = fs.readFileSync(path.join(root, 'src/services/authService.ts'), 'utf8');
+const resolver = authSource.slice(authSource.indexOf('function resolveApiUrl()'), authSource.indexOf('const API_URL'));
+for (const fixture of [
+  { url: 'http://localhost:5000', dev: false, platform: 'android', expected: 'https://malikse.devoxa.in' },
+  { url: 'http://127.0.0.1:5000', dev: false, platform: 'android', expected: 'https://malikse.devoxa.in' },
+  { url: 'http://10.0.2.2:5000', dev: false, platform: 'android', expected: 'https://malikse.devoxa.in' },
+  { url: 'https://staging.example.com', dev: false, platform: 'android', expected: 'https://staging.example.com' },
+  { url: 'http://localhost:5000', dev: true, platform: 'android', expected: 'http://192.168.1.5:5000' },
+  { url: 'http://localhost:5000', dev: false, platform: 'web', expected: 'http://localhost:5000' },
+]) {
+  assert.equal(vm.runInNewContext(resolver + '\nresolveApiUrl()', { configuredApiUrl: fixture.url, __DEV__: fixture.dev, Platform: { OS: fixture.platform }, Constants: { expoConfig: { hostUri: '192.168.1.5:8081' } } }), fixture.expected);
+}
 console.log('PASS hierarchy matching, different neon colors, one interior count tag per area, hole avoidance, boundary/tag clicks, cleanup, native script syntax and escaped labels');
 }
 main().catch(error => { console.error(error);process.exitCode = 1; });

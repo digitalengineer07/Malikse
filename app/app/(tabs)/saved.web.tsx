@@ -87,6 +87,8 @@ export default function SavedScreen() {
       });
       
     return () => { active = false; };
+  // The revision is an explicit user-requested reload of the same query.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, cursor, savedRevision]));
 
   const handleRemove = async (id: string) => {

@@ -13,10 +13,9 @@ import { ACCESS_SECRET, publicUser } from "../services/security";
  * Verifies the Bearer JWT in the Authorization header.
  * Attaches `req.user` on success.
  */
-export async function authGuard(req: AuthRequest, res: Response, next: NextFunction) {
-  const header = req.headers.authorization;
+export async function authenticateRequest(header: string | undefined) {
   if (!header || !header.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Authentication required. Please sign in as a verified owner to continue." });
+    return { status: 401, message: "Authentication required. Please sign in as a verified owner to continue." };
   }
   const token = header.slice(7);
 
@@ -24,28 +23,34 @@ export async function authGuard(req: AuthRequest, res: Response, next: NextFunct
   try {
     decoded = jwt.verify(token, ACCESS_SECRET, { algorithms: ["HS256"] }) as { id: string; role: string };
     if (typeof decoded.id !== "string" || !/^[a-f0-9]{24}$/i.test(decoded.id)) {
-      return res.status(401).json({ message: "Invalid account session" });
+      return { status: 401, message: "Invalid account session" };
     }
   } catch {
-    return res.status(401).json({ message: "Session expired or invalid. Please sign in again." });
+    return { status: 401, message: "Session expired or invalid. Please sign in again." };
   }
   try {
     const user = await User.findById(decoded.id).select("role passwordHash isSuspended isActive name mobile email isVerifiedIdentity demoKycComplete createdAt").lean();
     if (!user?.passwordHash) {
-      return res.status(401).json({ message: "Please sign in with your account credentials" });
+      return { status: 401, message: "Please sign in with your account credentials" };
     }
     if (user.isSuspended) {
-      return res.status(403).json({ message: "Your account has been suspended by the administrator." });
+      return { status: 403, message: "Your account has been suspended by the administrator." };
     }
     if (user.isActive === false) {
-      return res.status(403).json({ message: "Your staff account has been deactivated." });
+      return { status: 403, message: "Your staff account has been deactivated." };
     }
-    req.user = { id: user._id.toString(), role: user.role };
-    req.account = publicUser(user);
-    next();
+    return { user: { id: user._id.toString(), role: user.role }, account: publicUser(user) };
   } catch {
-    return res.status(503).json({ message: "Account service is temporarily unavailable. Please try again." });
+    return { status: 503, message: "Account service is temporarily unavailable. Please try again." };
   }
+}
+
+export async function authGuard(req: AuthRequest, res: Response, next: NextFunction) {
+  const result = await authenticateRequest(req.headers.authorization);
+  if (result.status) return res.status(result.status).json({ message: result.message });
+  req.user = result.user;
+  req.account = result.account;
+  next();
 }
 
 /**

@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { isAxiosError } from "axios";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { useAuthStore } from "../store/authStore";
@@ -7,6 +7,10 @@ import { invalidatePropertySearch } from "./searchCache";
 
 const configuredApiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
 function resolveApiUrl() {
+  // Local .env values must not send installed release APKs to the phone itself.
+  if (!__DEV__ && Platform.OS !== "web" && /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?(?:\/|$)/.test(configuredApiUrl)) {
+    return "https://malikse.devoxa.in";
+  }
   if (Platform.OS === "web" || !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(configuredApiUrl)) {
     return configuredApiUrl;
   }
@@ -49,7 +53,7 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !["/auth/login", "/auth/register", "/auth/refresh"].includes(originalRequest.url)) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !["/auth/login", "/auth/register", "/auth/register/verify", "/auth/refresh"].includes(originalRequest.url)) {
       
       originalRequest._retry = true;
       if (isRefreshing) {
@@ -91,7 +95,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (err) {
         processQueue(err, null);
-        if (axios.isAxiosError(err) && [401, 403].includes(err.response?.status || 0) && useAuthStore.getState().refreshToken === refreshToken) useAuthStore.getState().clearSession();
+        if (isAxiosError(err) && [401, 403].includes(err.response?.status || 0) && useAuthStore.getState().refreshToken === refreshToken) useAuthStore.getState().clearSession();
         return Promise.reject(err);
       } finally {
         isRefreshing = false;
@@ -103,8 +107,13 @@ api.interceptors.response.use(
 );
 
 export const authService = {
-  async register(name: string, mobile: string, password: string, email?: string): Promise<UserProfile> {
+  async register(name: string, mobile: string, password: string, email?: string): Promise<{ testOnly: true; message: string; resendAfterSeconds: number } | { testOnly?: false; challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }> {
     const res = await api.post("/auth/register", { name, mobile, email, password });
+    return res.data;
+  },
+
+  async verifyRegistration(mobile: string, challengeId: string, code: string): Promise<UserProfile> {
+    const res = await api.post("/auth/register/verify", { mobile, challengeId, code });
     const { accessToken, refreshToken, user } = res.data;
     useAuthStore.getState().setTokens({ accessToken, refreshToken });
     useAuthStore.getState().setUser(user);

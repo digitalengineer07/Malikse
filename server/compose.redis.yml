@@ -1,0 +1,16 @@
+services:
+  redis-cluster:
+    image: redis:7.4-alpine
+    entrypoint: ["/bin/sh", "/opt/redis/start.sh"]
+    ports:
+      - "127.0.0.1:7000-7005:7000-7005"
+    volumes:
+      - ./redis-local/start.sh:/opt/redis/start.sh:ro
+      - redis-cluster-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -p 7000 cluster info | grep -q 'cluster_state:ok'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  redis-cluster-data:

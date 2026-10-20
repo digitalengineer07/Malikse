@@ -1,6 +1,15 @@
 import api from "./authService";
 import type { Property } from "../types/property.types";
 import type { UserProfile } from "../types/auth.types";
+import { normalizePropertyMedia } from "../utils/propertyMedia";
+
+function normalizePhotos(properties: Property[]): Property[] {
+  // Preserve pagination metadata attached by the API response interceptor.
+  for (const property of properties) {
+    normalizePropertyMedia(property);
+  }
+  return properties;
+}
 
 export const userService = {
   async isWishlisted(id: string): Promise<boolean> { return (await api.get(`/users/wishlist/${id}`)).data.isWishlisted; },
@@ -16,12 +25,12 @@ export const userService = {
 
   async getMyProperties(): Promise<Property[]> {
     const res = await api.get("/users/my-properties");
-    return res.data;
+    return normalizePhotos(res.data);
   },
 
   async getWishlist(cursor?: string): Promise<Property[]> {
     const res = await api.get("/users/wishlist", { params: { cursor } });
-    return res.data;
+    return normalizePhotos(res.data);
   },
 
   async toggleWishlist(propertyId: string): Promise<{ success: boolean; isWishlisted: boolean }> {

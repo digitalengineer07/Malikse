@@ -1,13 +1,12 @@
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
-import AppBackground from "./AppBackground";
+import { GlassBackdrop } from "./GlassSurface";
 
 // Each navigation scene owns an opaque backdrop, including during transitions.
 export default function AppScreen({ children }: { children: ReactNode }) {
   return (
     <View style={styles.screen}>
-      <AppBackground />
-      <View style={styles.content}>{children}</View>
+      <GlassBackdrop><View style={styles.content}>{children}</View></GlassBackdrop>
     </View>
   );
 }

@@ -21,9 +21,13 @@
         "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "1098456944107",
         "EXPO_PUBLIC_FIREBASE_APP_ID": "1:1098456944107:web:0b3d1a5228083027175dae",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "1098456944107-0uthc86tghi4o2c80o9c6ejuiv1chpd2.apps.googleusercontent.com",
-        "EXPO_PUBLIC_API_BASE_URL": "https://malikse.onrender.com"
+        "EXPO_PUBLIC_API_BASE_URL": "https://malikse.devoxa.in"
       }
     },
-    "production": {}
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://malikse.devoxa.in"
+      }
+    }
   }
 }

@@ -2,6 +2,7 @@ process.env.EXPO_ROUTER_DISABLE_RN_NAVIGATION_CHECK = "1";
 
 const { getDefaultConfig } = require("expo/metro-config");
 const path = require("path");
+require("./scripts/generate-native-map.cjs");
 
 const config = getDefaultConfig(__dirname);
 

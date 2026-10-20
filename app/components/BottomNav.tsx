@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, Platform, StyleSheet, useWindowDimensions } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
+import BlurView from "./GlassSurface";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
@@ -54,7 +55,7 @@ export default function BottomNav() {
           </View>
 
           {/* Center Floating Dock (Pure White Pill) */}
-          <View style={styles.floatingDock}>
+          <BlurView intensity={70} tint="light" style={styles.floatingDock}>
             {/* Home */}
             <TouchableOpacity
               style={styles.dockItem}
@@ -148,7 +149,7 @@ export default function BottomNav() {
               </Text>
               {isProfileActive && <View style={styles.dockActiveBar} />}
             </TouchableOpacity>
-          </View>
+          </BlurView>
 
           {/* Right Watermark: Calligraphic Script Signature */}
           <View style={styles.rightWatermark}>
@@ -168,7 +169,7 @@ export default function BottomNav() {
   // Mobile Bottom Navigation
   return (
     <View style={[styles.mobileWrapper, { paddingBottom: bottomInset }]} pointerEvents="box-none">
-      <View style={styles.mobileDock}>
+      <BlurView intensity={70} tint="light" style={styles.mobileDock}>
         <TouchableOpacity style={styles.mobileTab} onPress={() => router.replace("/home")} activeOpacity={0.7}>
           <MaterialIcons name="home" size={24} color={isHomeActive ? "#0A192F" : "#64748B"} />
           <Text style={[styles.mobileLabel, isHomeActive && styles.mobileLabelActive]}>Home</Text>
@@ -203,7 +204,7 @@ export default function BottomNav() {
           <MaterialIcons name="person-outline" size={24} color={isProfileActive ? "#0A192F" : "#64748B"} />
           <Text style={[styles.mobileLabel, isProfileActive && styles.mobileLabelActive]}>Profile</Text>
         </TouchableOpacity>
-      </View>
+      </BlurView>
     </View>
   );
 }
@@ -246,7 +247,7 @@ const styles = StyleSheet.create({
   floatingDock: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Platform.OS === "web" ? "#FFFFFF" : "rgba(255, 255, 255, 0.28)",
     borderRadius: 9999,
     paddingHorizontal: 26,
     paddingVertical: 8,
@@ -321,7 +322,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Platform.OS === "web" ? "#FFFFFF" : "rgba(255, 255, 255, 0.28)",
     borderRadius: 32,
     paddingVertical: 8,
     width: "92%",

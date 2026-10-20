@@ -1,7 +1,7 @@
 import { renderAppScreen } from "../components/AppScreen";
 import React, { useState, useEffect } from "react";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -12,6 +12,7 @@ import { useAuthStore } from "../src/store/authStore";
 import { authService } from "../src/services/authService";
 
 import AppBackground from "../components/AppBackground";
+import { hydrateResume, resumeTabs, useResumeStore } from "../src/store/resumeStore";
 
 // Prevent native splash screen from auto hiding before JS initializes
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -36,6 +37,14 @@ export default function RootLayout() {
   });
   const [showOpeningScreen, setShowOpeningScreen] = useState(true);
   const hydrated = useAuthStore(state => state.hydrated);
+  const pathname = usePathname();
+  const [resumeReady, setResumeReady] = useState(Platform.OS === "web");
+  useEffect(() => { hydrateResume().finally(() => setResumeReady(true)); }, []);
+  useEffect(() => {
+    if (resumeReady && Platform.OS !== "web" && resumeTabs.includes(pathname as typeof resumeTabs[number])) {
+      useResumeStore.getState().setTab(pathname as typeof resumeTabs[number]);
+    }
+  }, [pathname, resumeReady]);
 
   useEffect(() => {
     useAuthStore.getState().hydrateSession().then(() => {
@@ -44,10 +53,10 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) SplashScreen.hideAsync().catch(() => {});
-  }, [fontsLoaded, fontError]);
+    if ((fontsLoaded || fontError) && resumeReady) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded, fontError, resumeReady]);
 
-  if (!fontsLoaded && !fontError) return null;
+  if ((!fontsLoaded && !fontError) || !resumeReady) return null;
 
   return (
     <SafeAreaProvider style={{ flex: 1, backgroundColor: "#F4F6F9" }}>

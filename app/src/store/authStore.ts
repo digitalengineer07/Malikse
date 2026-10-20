@@ -59,7 +59,10 @@ function saveSession(state: AuthStore) {
   } else {
     nativeWrite = nativeWrite.catch(() => {}).then(() => state.user && state.accessToken
       ? SecureStore.setItemAsync(sessionKey, value)
-      : SecureStore.deleteItemAsync(sessionKey));
+      : SecureStore.deleteItemAsync(sessionKey)).catch(() => {
+        // Keep an unavailable keystore from becoming an unhandled rejection.
+        console.warn("Could not persist the session on this device.");
+      });
   }
 }
 

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, Platform, Text, View } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
-import * as Location from "expo-location";
+import { currentMapLocation } from "../src/services/currentMapLocation";
 import { Action, Check, Field, ui, WorkflowScreen } from "./WorkflowUI";
 import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
 import { useAuthStore } from "../src/store/authStore";
@@ -125,10 +125,8 @@ export default function ListingEditorScreen() {
   const locate = async () => {
     setBusy(true); setError("");
     try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) throw new Error("Location permission denied. Enter coordinates manually.");
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      setForm(previous => ({ ...previous, lat: String(position.coords.latitude), lng: String(position.coords.longitude) }));
+      const position = await currentMapLocation();
+      setForm(previous => ({ ...previous, lat: String(position.lat), lng: String(position.lng) }));
     } catch (cause: any) { setError(cause.message || "Could not obtain location"); }
     finally { setBusy(false); }
   };

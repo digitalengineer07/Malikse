@@ -11,7 +11,7 @@ export function positiveInteger(name: string, fallback: number, maximum = 100000
   return value;
 }
 
-export function installRuntimeMiddleware(app: Express) {
+export function runtimeConfiguration() {
   const production = process.env.NODE_ENV === "production";
   const origins = (process.env.CORS_ORIGINS || "").split(",").map(value => value.trim()).filter(Boolean);
   if (production && !origins.length) throw new Error("Configure CORS_ORIGINS in production");
@@ -20,7 +20,16 @@ export function installRuntimeMiddleware(app: Express) {
     if (url.origin !== origin || !["http:", "https:"].includes(url.protocol) || (production && url.protocol !== "https:")) throw new Error("CORS_ORIGINS must contain exact HTTP(S) origins (HTTPS in production)");
   }
   const proxies = (process.env.TRUSTED_PROXIES || "").split(",").map(value => value.trim()).filter(Boolean);
-  app.set("trust proxy", proxies.length ? proxies : false);
+  const hops = process.env.TRUST_PROXY_HOPS?.trim();
+  if (proxies.length && hops) throw new Error("Configure only one of TRUSTED_PROXIES or TRUST_PROXY_HOPS");
+  const hopCount = hops ? positiveInteger("TRUST_PROXY_HOPS", 1, 32) : 0;
+  const trustProxy = proxies.length ? proxies : hopCount ? (_address: string, hop: number) => hop < hopCount : false;
+  return { production, origins, proxies, trustProxy };
+}
+
+export function installRuntimeMiddleware(app: Express) {
+  const { production, origins, trustProxy } = runtimeConfiguration();
+  app.set("trust proxy", trustProxy);
   app.disable("x-powered-by");
   app.use((req, res, next) => {
     performanceMetrics.requests++;

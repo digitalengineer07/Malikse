@@ -10,8 +10,9 @@ export const parcelStyle: Leaflet.PathOptions = {
   lineJoin: "round",
 };
 
+export const parcelTileUrl = "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}";
 export function addParcelBaseLayer(L: typeof Leaflet, map: Leaflet.Map) {
-  return L.tileLayer("https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", {
+  return L.tileLayer(parcelTileUrl, {
     maxZoom: 20,
     attribution: "Imagery © Google",
   }).addTo(map);

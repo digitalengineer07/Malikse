@@ -49,6 +49,12 @@ app-example
 
 data/
 data
+!app/src/data/
+app/src/data/*
+!app/src/data/indiaStatesData.ts
+!website/src/data/
+website/src/data/*
+!website/src/data/indiaStatesData.ts
 
 # Large Image Rasters
 *.tif
@@ -63,4 +69,4 @@ server/load/*
 !server/load/*.js
 !server/load/README.md
 .md
-
+autocannon.md
