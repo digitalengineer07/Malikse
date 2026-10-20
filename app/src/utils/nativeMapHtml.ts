@@ -44,7 +44,13 @@ const bounds=[];
  L.polygon(coordinates,{color:'#10B981',weight:2.5,fillColor:'#059669',fillOpacity:.35}).addTo(map).on('click',()=>send('select',parcel.id));
  coordinates.forEach(p=>bounds.push(p));
 });
-${options.regions ? `try { (${regionBoundaryScript})(L,map,data.regions,key=>send('select',key),()=>send('boundaryError')); } catch(error) { send('boundaryError'); }` : ""}
+${options.regions ? `let removeRegions;
+window.updateRegions = regions => {
+ if(removeRegions) { removeRegions(); removeRegions=undefined; }
+ if(!regions.groups.length)return;
+ try { removeRegions=(${regionBoundaryScript})(L,map,regions,key=>send('select',key),()=>send('boundaryError')); } catch(error) { send('boundaryError'); }
+};
+window.updateRegions(data.regions);` : ""}
 data.pins.forEach(pin=>{
  const label=document.createElement('div');label.className='price';label.textContent=pin.label;
  L.marker([pin.lat,pin.lng],{title:pin.title,icon:L.divIcon({html:label,className:'',iconSize:[90,40],iconAnchor:[45,40]})}).addTo(map).on('click',()=>send('select',pin.id));
@@ -63,6 +69,8 @@ if(data.editable){
  map.on('click',e=>{if(closed)return;points.push({lat:e.latlng.lat,lng:e.latlng.lng});draw();send('points',points);});
 }
 draw();
+// The controls are usable before slow tile servers deliver their first image.
+send('ready');
 window.addEventListener('resize',()=>map.invalidateSize());
 } catch(error){send('error');}
 </script></body></html>`;

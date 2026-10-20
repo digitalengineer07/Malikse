@@ -69,7 +69,8 @@ async function main() {
   const element = () => ({ appendChild() {}, style: {} });
   const L = {
     map: () => map,
-    tileLayer: url => { tileUrls.push(url); return { addTo() { return this; }, on(event, cb) { if (event === 'tileload') cb(); } }; },
+    // Simulate a slow connection: no tile has arrived when the map initializes.
+    tileLayer: url => { tileUrls.push(url); return { addTo() { return this; }, on() {} }; },
     layerGroup: () => ({ addTo() { return this; }, clearLayers() {} }),
     polygon: coords => { polygons.push(coords); return { addTo() { return this; }, on() {} }; },
     marker: () => ({ addTo() { return this; }, on() {} }), divIcon: value => value,
@@ -85,6 +86,20 @@ async function main() {
   window.focusMap(27, 86, 16);
   assert.equal(views.at(-1)[1], 16);
   assert.equal(polygons.length, 1, 'Changing focus must not recreate parcel geometry');
+  const regionHtml = load('src/utils/nativeMapHtml.ts', {
+    './regionBoundaryScript': { regionBoundaryScript: 'function(L,map,regions) { window.regionUpdates.push(regions); return () => window.regionDisposals++; }' },
+  }).nativeMapHtml({ regions: { level: 'state', groups: [] } });
+  const regionWindow = { ...window, regionUpdates: [], regionDisposals: 0 };
+  const regionContext = vm.createContext({ L, window: regionWindow, document: { createElement: element } });
+  for (const match of regionHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)) vm.runInContext(match[1], regionContext);
+  const tileLayers = tileUrls.length;
+  regionWindow.updateRegions({ level: 'state', groups: [{ key: 'Bihar' }] });
+  regionWindow.updateRegions({ level: 'district', groups: [{ key: 'Patna' }] });
+  assert.equal(regionWindow.regionUpdates.length, 2);
+  assert.equal(regionWindow.regionDisposals, 1, 'Old boundaries must be disposed on drill-down');
+  regionWindow.updateRegions({ level: 'district', groups: [] });
+  assert.equal(regionWindow.regionDisposals, 2, 'Empty results must clear previous boundaries');
+  assert.equal(tileUrls.length, tileLayers, 'Region updates must reuse the existing base map');
   console.log(`PASS ${nativeScreens} native route/component JSX checks, native/web uploads, secure media URLs, satellite tiles, parcel rendering and map focus`);
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -2,19 +2,22 @@ import "dotenv/config";
 import mongoose from "mongoose";
 import { createFastifyApp } from "./fastifyApp";
 import { positiveInteger } from "./middleware/runtime.middleware";
-import { startSubmissionWorker } from "./services/submissionQueue";
 import { mongoPoolOptions } from "./services/mongoPool";
-import { closeRedis } from "./services/redis";
 import { monitorPool } from "./services/performanceMetrics";
+import { closeRedis } from "./services/redis";
 import { startRegionCounts, stopRegionCounts } from "./services/regionCountStore";
+import { startSubmissionWorker } from "./services/submissionQueue";
 
 let stopping = false;
-const app = createFastifyApp(() => !stopping && mongoose.connection.readyState === 1);
+let initialized = false;
+const app = createFastifyApp(() => initialized && !stopping && mongoose.connection.readyState === 1);
 const PORT = positiveInteger("PORT", 5000, 65535);
 mongoose.set("bufferCommands", false);
 
-let startupStage = "Fastify route registration";
-Promise.resolve(app.ready()).then(() => {
+let startupStage = `listening on port ${PORT}`;
+// Bind before any remote database or region-count work to meet hosting startup deadlines.
+app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
+  console.log(`[MalikSe] Fastify server running on http://localhost:${PORT}`);
   startupStage = "MongoDB connection";
   return mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/malikse", {
   autoIndex: process.env.NODE_ENV !== "production",
@@ -25,10 +28,9 @@ Promise.resolve(app.ready()).then(() => {
   console.log("[MalikSe] MongoDB connected");
   startupStage = "region count initialization";
   await startRegionCounts();
-  startupStage = `listening on port ${PORT}`;
-  await app.listen({ port: PORT, host: "0.0.0.0" });
+  initialized = true;
   const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => {} : startSubmissionWorker();
-  console.log(`[MalikSe] Fastify server running on http://localhost:${PORT}`);
+  console.log("[MalikSe] API ready");
   const server = app.server;
   const shutdown = async () => {
     if (stopping) return;

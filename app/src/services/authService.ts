@@ -9,7 +9,7 @@ const configuredApiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXP
 function resolveApiUrl() {
   // Local .env values must not send installed release APKs to the phone itself.
   if (!__DEV__ && Platform.OS !== "web" && /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?(?:\/|$)/.test(configuredApiUrl)) {
-    return "https://malikse.onrender.com";
+    return "https://malikse.devoxa.in";
   }
   if (Platform.OS === "web" || !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(configuredApiUrl)) {
     return configuredApiUrl;
