@@ -154,22 +154,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
         >
           {/* Main Website Container - Same width (1340px) as Home & Explore */}
           <View style={styles.content}>
-            {/* Breadcrumb row */}
-            <View style={styles.breadcrumbRow}>
-              <TouchableOpacity
-                onPress={() => router.replace("/home")}
-                style={styles.breadcrumbItem}
-                activeOpacity={0.7}
-              >
-                <MaterialIcons name="home" size={16} color="#03456C" />
-                <Text style={styles.breadcrumbText}>{label("Home", "होम")}</Text>
-              </TouchableOpacity>
-              <MaterialIcons name="chevron-right" size={18} color="#94A3B8" />
-              <Text style={styles.breadcrumbActive}>
-                {isRegister ? label("Create Account", "खाता बनाएं") : label("Sign In", "साइन इन")}
-              </Text>
-            </View>
-
             {/* Main Dual-Pane Auth Card */}
             <View style={styles.authCardWrapper}>
               <View style={[styles.authCard, { flexDirection: isDesktop ? "row" : "column" }]}>
@@ -587,30 +571,7 @@ const styles = StyleSheet.create({
     maxWidth: 1340,
     alignSelf: "center",
     paddingHorizontal: 28,
-  },
-
-  /* Breadcrumb */
-  breadcrumbRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 18,
-    marginBottom: 16,
-  },
-  breadcrumbItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  breadcrumbText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#03456C",
-  },
-  breadcrumbActive: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0A192F",
+    paddingTop: 32,
   },
 
   /* Main Dual-Pane Auth Card */
