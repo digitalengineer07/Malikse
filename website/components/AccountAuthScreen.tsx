@@ -673,7 +673,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(3, 69, 108, 0.88)",
     ...Platform.select({
       web: {
-        background: "linear-gradient(155deg, rgba(3, 69, 108, 0.92) 0%, rgba(10, 25, 47, 0.96) 100%)",
+        backgroundImage: "linear-gradient(155deg, rgba(3, 69, 108, 0.92) 0%, rgba(10, 25, 47, 0.96) 100%)",
       },
     }),
   },
@@ -921,7 +921,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     ...Platform.select({
       web: {
-        background: "linear-gradient(135deg, #03456C 0%, #0284C7 100%)",
+        backgroundImage: "linear-gradient(135deg, #03456C 0%, #0284C7 100%)",
         boxShadow: "0 6px 18px -2px rgba(2, 132, 199, 0.35)",
         cursor: "pointer",
       },
