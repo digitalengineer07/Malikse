@@ -166,8 +166,13 @@ export default function VerifiedHomeScreen() {
 
             {/* Skyline Background Graphic */}
             {isWide && (
-              <View style={s.skylineWrapper}>
-                <CitySkyline width={width < 1100 ? 460 : 560} height={155} opacity={0.92} />
+              <View style={s.skylineWrapper} pointerEvents="none">
+                <CitySkyline
+                  width={width < 1100 ? 440 : 560}
+                  maxWidth="50%"
+                  height={160}
+                  opacity={0.96}
+                />
               </View>
             )}
 
@@ -499,7 +504,7 @@ const s = StyleSheet.create({
   skylineWrapper: {
     position: "absolute",
     right: 0,
-    bottom: -6,
+    bottom: 0,
     zIndex: 1,
     pointerEvents: "none",
   },

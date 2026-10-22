@@ -3,7 +3,8 @@ import { View, Image, Platform, StyleSheet, type StyleProp, type ViewStyle } fro
 
 interface CitySkylineProps {
   width?: number | string;
-  height?: number;
+  maxWidth?: number | string;
+  height?: number | string;
   opacity?: number;
   style?: StyleProp<ViewStyle>;
 }
@@ -11,9 +12,10 @@ interface CitySkylineProps {
 const skylineAsset = require("../assets/city_skyline_hero.png");
 
 export default function CitySkyline({
-  width = 540,
-  height = 155,
-  opacity = 0.95,
+  width = "100%",
+  maxWidth = 560,
+  height = 160,
+  opacity = 0.96,
   style,
 }: CitySkylineProps) {
   if (Platform.OS === "web") {
@@ -29,9 +31,9 @@ export default function CitySkyline({
       <div
         style={{
           width: typeof width === "number" ? `${width}px` : width,
-          height: `${height}px`,
+          maxWidth: typeof maxWidth === "number" ? `${maxWidth}px` : maxWidth,
+          height: typeof height === "number" ? `${height}px` : height,
           position: "relative",
-          overflow: "hidden",
           pointerEvents: "none",
           opacity,
           display: "flex",
@@ -40,7 +42,6 @@ export default function CitySkyline({
           ...(style as any),
         }}
       >
-        {/* Photographic Skyline with Feathered Left & Bottom Fade Masks */}
         <img
           src={resolvedUri}
           alt="MalikSe City Skyline"
@@ -48,45 +49,9 @@ export default function CitySkyline({
           style={{
             width: "100%",
             height: "100%",
-            objectFit: "cover",
-            objectPosition: "right 35%",
+            objectFit: "contain",
+            objectPosition: "right bottom",
             display: "block",
-            // Proper feathered edge effects around the image matching the reference:
-            maskImage:
-              "linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.05) 10%, rgba(0, 0, 0, 0.45) 30%, rgba(0, 0, 0, 0.9) 55%, #000 78%), linear-gradient(to bottom, #000 68%, rgba(0, 0, 0, 0.4) 88%, transparent 100%)",
-            WebkitMaskImage:
-              "linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.05) 10%, rgba(0, 0, 0, 0.45) 30%, rgba(0, 0, 0, 0.9) 55%, #000 78%), linear-gradient(to bottom, #000 68%, rgba(0, 0, 0, 0.4) 88%, transparent 100%)",
-            maskComposite: "intersect",
-            WebkitMaskComposite: "source-in",
-            filter: "contrast(1.02) brightness(1.02) saturate(0.92)",
-          }}
-        />
-
-        {/* Soft atmospheric mist / sky gradient overlay for seamless blending into MalikSe sky */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background:
-              "linear-gradient(to right, rgba(235, 245, 253, 0.85) 0%, rgba(217, 238, 252, 0.3) 38%, transparent 72%)",
-            mixBlendMode: "screen",
-            pointerEvents: "none",
-          }}
-        />
-
-        {/* Subtle lower mist blending towards the white main container */}
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: "28%",
-            background:
-              "linear-gradient(to bottom, transparent 0%, rgba(238, 247, 254, 0.5) 60%, rgba(255, 255, 255, 0.8) 100%)",
             pointerEvents: "none",
           }}
         />
@@ -94,12 +59,22 @@ export default function CitySkyline({
     );
   }
 
-  // React Native Native Fallback
+  // Native Fallback
   return (
-    <View style={[styles.container, { width: width as any, height, opacity }, style]}>
-      <Image source={skylineAsset} style={styles.image} resizeMode="cover" />
-      <View style={styles.leftFade} />
-      <View style={styles.bottomFade} />
+    <View
+      style={[
+        styles.container,
+        {
+          width: width as any,
+          maxWidth: maxWidth as any,
+          height: height as any,
+          opacity,
+        },
+        style,
+      ]}
+      pointerEvents="none"
+    >
+      <Image source={skylineAsset} style={styles.image} resizeMode="contain" />
     </View>
   );
 }
@@ -107,26 +82,11 @@ export default function CitySkyline({
 const styles = StyleSheet.create({
   container: {
     position: "relative",
-    overflow: "hidden",
+    justifyContent: "flex-end",
+    alignItems: "flex-end",
   },
   image: {
     width: "100%",
     height: "100%",
-  },
-  leftFade: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    bottom: 0,
-    width: "45%",
-    backgroundColor: "rgba(235, 245, 253, 0.6)",
-  },
-  bottomFade: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: "25%",
-    backgroundColor: "rgba(255, 255, 255, 0.4)",
   },
 });
