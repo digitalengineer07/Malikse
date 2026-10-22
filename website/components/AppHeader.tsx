@@ -55,19 +55,18 @@ export default function AppHeader(props: AppHeaderProps) {
             style={styles.logoRow}
           >
             {Platform.OS === "web" ? (
-              <svg width="28" height="28" viewBox="0 0 32 32" style={{ display: "block" }}>
-                {/* Roof Gable */}
-                <path d="M4,17 L16,6 L28,17 L25,17 L16,9 L7,17 Z" fill="#034870" />
-                {/* Chimney */}
-                <rect x="21" y="8" width="3" height="6" fill="#034870" />
+              <svg width="32" height="32" viewBox="0 0 32 32" style={{ display: "block" }}>
+                {/* Roof Gable with Chimney */}
+                <path d="M3,16 L16,5 L29,16 L25.5,16 L16,8.2 L6.5,16 Z" fill="#03456C" />
+                <rect x="22" y="7" width="3" height="6" fill="#03456C" rx="0.5" />
                 {/* Window Four-Square Grid */}
-                <rect x="9" y="19" width="6" height="6" fill="#0284C7" rx="1" />
-                <rect x="17" y="19" width="6" height="6" fill="#0284C7" rx="1" />
-                <rect x="9" y="26" width="6" height="4" fill="#38BDF8" rx="1" />
-                <rect x="17" y="26" width="6" height="4" fill="#38BDF8" rx="1" />
+                <rect x="8" y="18" width="6.5" height="5.5" fill="#0284C7" rx="0.8" />
+                <rect x="16.5" y="18" width="6.5" height="5.5" fill="#0284C7" rx="0.8" />
+                <rect x="8" y="24.8" width="6.5" height="5" fill="#38BDF8" rx="0.8" />
+                <rect x="16.5" y="24.8" width="6.5" height="5" fill="#38BDF8" rx="0.8" />
               </svg>
             ) : (
-              <MaterialIcons name="home" size={26} color="#034870" />
+              <MaterialIcons name="home" size={28} color="#03456C" />
             )}
             <Text style={styles.brandTitle}>MalikSe</Text>
           </TouchableOpacity>

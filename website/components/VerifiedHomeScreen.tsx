@@ -149,10 +149,19 @@ export default function VerifiedHomeScreen() {
         <View style={s.content}>
           {/* Hero Header Area */}
           <View style={s.heroSection}>
-            {/* Top row with Eyebrow and Dash */}
+            {/* Top row with Eyebrow and Dash on left, count on right */}
             <View style={s.eyebrowRow}>
-              <Text style={s.eyebrow}>A PLACE FOR YOUR NEXT CHAPTER</Text>
-              <View style={s.eyebrowDash} />
+              <View style={s.eyebrowLeft}>
+                <Text style={s.eyebrow}>A PLACE FOR YOUR NEXT CHAPTER</Text>
+                <View style={s.eyebrowDash} />
+              </View>
+
+              <View style={s.titleRight}>
+                <View style={s.countDivider} />
+                <Text style={s.countText}>
+                  {loading ? "Loading…" : `${properties.length} properties on page ${page}`}
+                </Text>
+              </View>
             </View>
 
             {/* Skyline Background Graphic */}
@@ -162,7 +171,7 @@ export default function VerifiedHomeScreen() {
               </View>
             )}
 
-            {/* Title Row with Right-aligned count */}
+            {/* Title Row */}
             <View style={s.titleRow}>
               <View style={s.titleLeft}>
                 <Text style={s.mainTitle}>
@@ -171,13 +180,6 @@ export default function VerifiedHomeScreen() {
                       ? "Properties without a pincode"
                       : `Properties in ${pincode}`
                     : "Explore our properties"}
-                </Text>
-              </View>
-
-              <View style={s.titleRight}>
-                <View style={s.countDivider} />
-                <Text style={s.countText}>
-                  {loading ? "Loading…" : `${properties.length} properties on page ${page}`}
                 </Text>
               </View>
             </View>
@@ -418,7 +420,7 @@ const s = StyleSheet.create({
     backgroundColor: "transparent",
   },
   scrollContainer: {
-    paddingBottom: 40,
+    paddingBottom: 110,
   },
   content: {
     width: "100%",
@@ -440,8 +442,14 @@ const s = StyleSheet.create({
   eyebrowRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+    zIndex: 2,
+  },
+  eyebrowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
-    marginBottom: 8,
   },
   eyebrow: {
     color: "#1E293B",
@@ -456,17 +464,18 @@ const s = StyleSheet.create({
   },
   titleRow: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
+    alignItems: "center",
     position: "relative",
-    minHeight: 52,
+    minHeight: 48,
+    marginBottom: 4,
+    zIndex: 2,
   },
   titleLeft: {
     flex: 1,
     zIndex: 2,
   },
   mainTitle: {
-    fontSize: 34,
+    fontSize: 36,
     fontWeight: "800",
     color: "#0A192F",
     letterSpacing: -0.6,
@@ -475,7 +484,6 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 6,
     zIndex: 2,
   },
   countDivider: {
@@ -513,18 +521,18 @@ const s = StyleSheet.create({
   mainCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 32,
-    minHeight: 380,
-    paddingVertical: 56,
+    minHeight: 360,
+    paddingVertical: 52,
     paddingHorizontal: 28,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.95)",
-    shadowColor: "#0A192F",
-    shadowOffset: { width: 0, height: 10 },
+    shadowColor: "#03456C",
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.06,
-    shadowRadius: 28,
-    elevation: 5,
+    shadowRadius: 24,
+    elevation: 4,
     marginVertical: 14,
   },
   loadingContainer: {
@@ -548,7 +556,7 @@ const s = StyleSheet.create({
   emptySubheading: {
     fontSize: 15,
     fontWeight: "500",
-    color: "#3B82F6",
+    color: "#475569",
     marginTop: 8,
     textAlign: "center",
   },

@@ -16,7 +16,7 @@ export default function AppBackground() {
           overflow: "hidden",
           pointerEvents: "none",
           zIndex: 0,
-          background: "linear-gradient(180deg, #C2DCF6 0%, #D8EAFC 26%, #E9F3FC 50%, #EDF5FD 64%, #E2EFF9 74%, #C7E0F4 88%, #B4D5EF 100%)",
+          background: "linear-gradient(180deg, #C5DEF7 0%, #D8EAFC 22%, #EAF3FC 48%, #EDF5FD 62%, #E0EEF9 74%, #C7E0F4 88%, #B4D5EF 100%)",
         }}
       >
         {/* Upper Floating Wave Layer */}
@@ -28,32 +28,33 @@ export default function AppBackground() {
             bottom: 0,
             left: 0,
             width: "100%",
-            height: "46%",
+            height: "44%",
             display: "block",
           }}
         >
           <defs>
-            <linearGradient id="waveGradTop" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#CDE5FA" stopOpacity="0.85" />
-              <stop offset="50%" stopColor="#BEDDF6" stopOpacity="0.75" />
+            <linearGradient id="waveGradTop" x1="0" y1="0" x2="1" y2="0.8">
+              <stop offset="0%" stopColor="#CBE4FA" stopOpacity="0.88" />
+              <stop offset="40%" stopColor="#D5ECFC" stopOpacity="0.8" />
+              <stop offset="80%" stopColor="#BCE0F8" stopOpacity="0.85" />
               <stop offset="100%" stopColor="#A8CEEE" stopOpacity="0.9" />
             </linearGradient>
-            <linearGradient id="waveGradBottom" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#A4CDEC" stopOpacity="0.95" />
-              <stop offset="50%" stopColor="#87BCE4" stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#6DA8DA" stopOpacity="0.95" />
+            <linearGradient id="waveGradBottom" x1="0" y1="0" x2="1" y2="0.8">
+              <stop offset="0%" stopColor="#9DCBEF" stopOpacity="0.95" />
+              <stop offset="45%" stopColor="#82B9E3" stopOpacity="0.92" />
+              <stop offset="100%" stopColor="#6CA7DA" stopOpacity="0.95" />
             </linearGradient>
           </defs>
 
           {/* Upper Graceful Wave */}
           <path
-            d="M0,130 C320,60 540,190 920,110 C1200,50 1340,140 1440,120 L1440,380 L0,380 Z"
+            d="M0,150 C340,95 620,210 1000,145 C1210,105 1340,165 1440,150 L1440,380 L0,380 Z"
             fill="url(#waveGradTop)"
           />
 
           {/* Lower Deep Blue Wave */}
           <path
-            d="M0,230 C260,170 580,290 960,200 C1240,130 1380,240 1440,220 L1440,380 L0,380 Z"
+            d="M0,245 C300,195 620,295 1020,225 C1240,180 1360,235 1440,225 L1440,380 L0,380 Z"
             fill="url(#waveGradBottom)"
           />
         </svg>

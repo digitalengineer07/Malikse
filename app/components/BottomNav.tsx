@@ -2,7 +2,6 @@ import React from "react";
 import { View, Text, TouchableOpacity, Platform, StyleSheet, useWindowDimensions } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
-import BlurView from "./GlassSurface";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
@@ -46,7 +45,7 @@ export default function BottomNav() {
         <View style={styles.webFooterContainer}>
           {/* Left Watermark: Monument + Vertical Divider + Text */}
           <View style={styles.leftWatermark}>
-            <BiharHeritageWatermark width={125} height={38} opacity={0.65} />
+            <BiharHeritageWatermark width={150} height={42} opacity={0.7} />
             <View style={styles.dividerBar} />
             <View>
               <Text style={styles.watermarkTextBold}>Building Trust in</Text>
@@ -55,7 +54,7 @@ export default function BottomNav() {
           </View>
 
           {/* Center Floating Dock (Pure White Pill) */}
-          <BlurView intensity={70} tint="light" style={styles.floatingDock}>
+          <View style={styles.floatingDock}>
             {/* Home */}
             <TouchableOpacity
               style={styles.dockItem}
@@ -149,7 +148,7 @@ export default function BottomNav() {
               </Text>
               {isProfileActive && <View style={styles.dockActiveBar} />}
             </TouchableOpacity>
-          </BlurView>
+          </View>
 
           {/* Right Watermark: Calligraphic Script Signature */}
           <View style={styles.rightWatermark}>
@@ -169,7 +168,7 @@ export default function BottomNav() {
   // Mobile Bottom Navigation
   return (
     <View style={[styles.mobileWrapper, { paddingBottom: bottomInset }]} pointerEvents="box-none">
-      <BlurView intensity={70} tint="light" style={styles.mobileDock}>
+      <View style={styles.mobileDock}>
         <TouchableOpacity style={styles.mobileTab} onPress={() => router.replace("/home")} activeOpacity={0.7}>
           <MaterialIcons name="home" size={24} color={isHomeActive ? "#0A192F" : "#64748B"} />
           <Text style={[styles.mobileLabel, isHomeActive && styles.mobileLabelActive]}>Home</Text>
@@ -204,7 +203,7 @@ export default function BottomNav() {
           <MaterialIcons name="person-outline" size={24} color={isProfileActive ? "#0A192F" : "#64748B"} />
           <Text style={[styles.mobileLabel, isProfileActive && styles.mobileLabelActive]}>Profile</Text>
         </TouchableOpacity>
-      </BlurView>
+      </View>
     </View>
   );
 }
@@ -239,39 +238,39 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   watermarkTextBold: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#0F172A",
     fontWeight: "700",
-    lineHeight: 16,
+    lineHeight: 18,
   },
   floatingDock: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Platform.OS === "web" ? "#FFFFFF" : "rgba(255, 255, 255, 0.28)",
+    backgroundColor: "#FFFFFF",
     borderRadius: 9999,
-    paddingHorizontal: 26,
-    paddingVertical: 8,
-    gap: 22,
+    paddingHorizontal: 28,
+    paddingVertical: 10,
+    gap: 24,
     borderWidth: 1,
-    borderColor: "rgba(226, 232, 240, 0.9)",
-    shadowColor: "#0F2137",
+    borderColor: "rgba(255, 255, 255, 0.95)",
+    shadowColor: "#0A192F",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 6,
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 8,
   },
   dockItem: {
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 2,
     position: "relative",
-    minWidth: 52,
+    minWidth: 54,
   },
   dockLabel: {
     fontSize: 11,
     color: "#475569",
     fontWeight: "600",
-    marginTop: 2,
+    marginTop: 3,
   },
   dockLabelActive: {
     color: "#0A192F",
@@ -282,19 +281,19 @@ const styles = StyleSheet.create({
     bottom: -6,
     width: 22,
     height: 3,
-    backgroundColor: "#0284C7",
+    backgroundColor: "#03456C",
     borderRadius: 2,
   },
   dockPostBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#0A192F",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#03456C",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#0A192F",
+    shadowColor: "#03456C",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
     shadowRadius: 4,
   },
   rightWatermark: {
@@ -302,12 +301,11 @@ const styles = StyleSheet.create({
     width: 240,
   },
   cursiveTagline: {
-    fontFamily: Platform.OS === "web" ? "'Segoe Script', 'Brush Script MT', 'Caveat', 'Kalam', cursive" : "System",
-    fontSize: 19,
-    lineHeight: 22,
+    fontFamily: Platform.OS === "web" ? "'Caveat', 'Segoe Script', 'Brush Script MT', cursive" : "System",
+    fontSize: 22,
+    lineHeight: 25,
     color: "#1E3A5F",
     fontWeight: "700",
-    fontStyle: "italic",
     textAlign: "right",
   },
   mobileWrapper: {
@@ -322,7 +320,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
-    backgroundColor: Platform.OS === "web" ? "#FFFFFF" : "rgba(255, 255, 255, 0.28)",
+    backgroundColor: "#FFFFFF",
     borderRadius: 32,
     paddingVertical: 8,
     width: "92%",

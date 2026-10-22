@@ -20,5 +20,5 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  bg: { flex: 1 }
+  bg: { flex: 1, backgroundColor: "transparent" }
 });

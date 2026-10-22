@@ -25,6 +25,14 @@ if (Platform.OS === "web" && typeof window !== "undefined") {
     link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
     document.head.appendChild(link);
   }
+  const fontId = "google-fonts-malikse";
+  if (!document.getElementById(fontId)) {
+    const link = document.createElement("link");
+    link.id = fontId;
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap";
+    document.head.appendChild(link);
+  }
 }
 
 export default function RootLayout() {
@@ -34,7 +42,7 @@ export default function RootLayout() {
     PoppinsSemiBold: require("../assets/fonts/Poppins-SemiBold.ttf"),
     PoppinsBold: require("../assets/fonts/Poppins-Bold.ttf"),
   });
-  const [showOpeningScreen, setShowOpeningScreen] = useState(true);
+  const [showOpeningScreen, setShowOpeningScreen] = useState(Platform.OS !== "web");
   const hydrated = useAuthStore(state => state.hydrated);
 
   useEffect(() => {
@@ -50,7 +58,7 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <SafeAreaProvider style={{ flex: 1, backgroundColor: "#F4F6F9" }}>
+    <SafeAreaProvider style={{ flex: 1, backgroundColor: "transparent" }}>
       <AppBackground />
       <Stack screenLayout={renderAppScreen} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "transparent" } }}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
@@ -67,7 +75,7 @@ export default function RootLayout() {
       </Stack>
       <StatusBar style="dark" />
 
-      {/* Opening screen with active loading bar */}
+      {/* Opening screen only on native mobile app */}
       {showOpeningScreen && (
         <AppOpeningScreen ready={hydrated} onFinish={() => setShowOpeningScreen(false)} />
       )}

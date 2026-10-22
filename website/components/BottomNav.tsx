@@ -45,7 +45,7 @@ export default function BottomNav() {
         <View style={styles.webFooterContainer}>
           {/* Left Watermark: Monument + Vertical Divider + Text */}
           <View style={styles.leftWatermark}>
-            <BiharHeritageWatermark width={125} height={38} opacity={0.65} />
+            <BiharHeritageWatermark width={150} height={42} opacity={0.7} />
             <View style={styles.dividerBar} />
             <View>
               <Text style={styles.watermarkTextBold}>Building Trust in</Text>
@@ -238,39 +238,39 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   watermarkTextBold: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#0F172A",
     fontWeight: "700",
-    lineHeight: 16,
+    lineHeight: 18,
   },
   floatingDock: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
     borderRadius: 9999,
-    paddingHorizontal: 26,
-    paddingVertical: 8,
-    gap: 22,
+    paddingHorizontal: 28,
+    paddingVertical: 10,
+    gap: 24,
     borderWidth: 1,
-    borderColor: "rgba(226, 232, 240, 0.9)",
-    shadowColor: "#0F2137",
+    borderColor: "rgba(255, 255, 255, 0.95)",
+    shadowColor: "#0A192F",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 6,
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 8,
   },
   dockItem: {
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 2,
     position: "relative",
-    minWidth: 52,
+    minWidth: 54,
   },
   dockLabel: {
     fontSize: 11,
     color: "#475569",
     fontWeight: "600",
-    marginTop: 2,
+    marginTop: 3,
   },
   dockLabelActive: {
     color: "#0A192F",
@@ -281,19 +281,19 @@ const styles = StyleSheet.create({
     bottom: -6,
     width: 22,
     height: 3,
-    backgroundColor: "#0284C7",
+    backgroundColor: "#03456C",
     borderRadius: 2,
   },
   dockPostBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#0A192F",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#03456C",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#0A192F",
+    shadowColor: "#03456C",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
     shadowRadius: 4,
   },
   rightWatermark: {
@@ -301,12 +301,11 @@ const styles = StyleSheet.create({
     width: 240,
   },
   cursiveTagline: {
-    fontFamily: Platform.OS === "web" ? "'Segoe Script', 'Brush Script MT', 'Caveat', 'Kalam', cursive" : "System",
-    fontSize: 19,
-    lineHeight: 22,
+    fontFamily: Platform.OS === "web" ? "'Caveat', 'Segoe Script', 'Brush Script MT', cursive" : "System",
+    fontSize: 22,
+    lineHeight: 25,
     color: "#1E3A5F",
     fontWeight: "700",
-    fontStyle: "italic",
     textAlign: "right",
   },
   mobileWrapper: {
