@@ -44,7 +44,7 @@ export default function StateSelectorPanel({
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.mapIconCircle}>
-            <MaterialIcons name="map" size={18} color="#075D91" />
+            <MaterialIcons name="map" size={18} color="#03456C" />
           </View>
           <Text style={styles.headerTitle}>All States</Text>
         </View>
@@ -58,7 +58,7 @@ export default function StateSelectorPanel({
       {!!selectedState && (
         <View style={styles.activeBanner}>
           <View style={styles.activeBannerLeft}>
-            <MaterialIcons name="check-circle" size={16} color="#075D91" />
+            <MaterialIcons name="check-circle" size={16} color="#0284C7" />
             <Text style={styles.activeBannerText} numberOfLines={1}>
               Selected: <Text style={{ fontWeight: "700" }}>{selectedState}</Text>
             </Text>
@@ -78,11 +78,11 @@ export default function StateSelectorPanel({
 
       {/* Search Input Field */}
       <View style={styles.searchBox}>
-        <MaterialIcons name="search" size={18} color="#64809E" style={{ marginRight: 6 }} />
+        <MaterialIcons name="search" size={18} color="#64748B" style={{ marginRight: 6 }} />
         <TextInput
           accessibilityLabel="Search state or union territory"
           placeholder="Search state or union territory..."
-          placeholderTextColor="#7E9EB8"
+          placeholderTextColor="#94A3B8"
           value={filterText}
           onChangeText={setFilterText}
           autoCorrect={false}
@@ -95,7 +95,7 @@ export default function StateSelectorPanel({
             onPress={() => setFilterText("")}
             style={styles.searchClear}
           >
-            <MaterialIcons name="close" size={16} color="#64809E" />
+            <MaterialIcons name="close" size={16} color="#64748B" />
           </TouchableOpacity>
         )}
       </View>
@@ -127,11 +127,30 @@ export default function StateSelectorPanel({
               ]}
             >
               {/* Regional Thumbnail */}
-              {state.image ? <Image
-                source={{ uri: state.image }}
-                style={styles.thumbnail}
-                resizeMode="cover"
-              /> : <View style={[styles.thumbnail, { alignItems: "center", justifyContent: "center", backgroundColor: "#E6F2FC" }]}><MaterialIcons name="location-city" size={24} color="#075D91" /></View>}
+              {state.image ? (
+                <Image
+                  source={{ uri: state.image }}
+                  style={styles.thumbnail}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.thumbnail,
+                    {
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: isSelected ? "#E0F2FE" : "#F1F5F9",
+                    },
+                  ]}
+                >
+                  <MaterialIcons
+                    name="location-city"
+                    size={22}
+                    color={isSelected ? "#03456C" : "#64748B"}
+                  />
+                </View>
+              )}
 
               {/* State Name and Subtitle */}
               <View style={styles.stateInfo}>
@@ -163,7 +182,7 @@ export default function StateSelectorPanel({
               <MaterialIcons
                 name="chevron-right"
                 size={22}
-                color={isSelected ? "#075D91" : "#94A3B8"}
+                color={isSelected ? "#03456C" : "#94A3B8"}
               />
             </TouchableOpacity>
           );
@@ -182,9 +201,9 @@ export default function StateSelectorPanel({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: "#D9E7F3",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     width: "100%",
     maxWidth: 340,
     maxHeight: 580,
@@ -193,12 +212,12 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...Platform.select({
       web: {
-        boxShadow: "0 12px 32px rgba(16, 43, 82, 0.12)",
+        boxShadow: "0 10px 30px rgba(10, 25, 47, 0.08)",
       },
       default: {
-        shadowColor: "#102B52",
+        shadowColor: "#0A192F",
         shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.12,
+        shadowOpacity: 0.1,
         shadowRadius: 14,
         elevation: 6,
       },
@@ -212,7 +231,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#EEF7FE",
+    borderBottomColor: "#F1F5F9",
   },
   headerLeft: {
     flexDirection: "row",
@@ -222,39 +241,39 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#EEF7FE",
+    backgroundColor: "#F0F9FF",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 10,
   },
   headerTitle: {
     fontSize: 16,
-    fontWeight: "700",
-    color: "#102B52",
+    fontWeight: "800",
+    color: "#0A192F",
     letterSpacing: -0.2,
   },
   countBadge: {
-    backgroundColor: "#EEF7FE",
+    backgroundColor: "#F0F9FF",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#D9EEFC",
+    borderColor: "#BAE6FD",
   },
   countText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#075D91",
+    color: "#03456C",
   },
   activeBanner: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#EEF7FE",
+    backgroundColor: "#F0F9FF",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#D9EEFC",
+    borderBottomColor: "#BAE6FD",
   },
   activeBannerLeft: {
     flexDirection: "row",
@@ -265,24 +284,24 @@ const styles = StyleSheet.create({
   },
   activeBannerText: {
     fontSize: 12,
-    color: "#102B52",
+    color: "#0A192F",
   },
   clearBtn: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
-    backgroundColor: "#D9EEFC",
+    backgroundColor: "#E0F2FE",
   },
   clearBtnText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#075D91",
+    color: "#03456C",
   },
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F8FAFC",
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "#E2E8F0",
     marginHorizontal: 14,
@@ -293,7 +312,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 13,
-    color: "#102B52",
+    color: "#0F172A",
     paddingVertical: 2,
     ...(Platform.OS === "web" ? { outlineWidth: 0 } : {}),
   },
@@ -313,7 +332,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 8,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     ...Platform.select({
       web: {
@@ -327,8 +346,8 @@ const styles = StyleSheet.create({
     borderColor: "#F1F5F9",
   },
   stateItemSelected: {
-    backgroundColor: "#EEF7FE",
-    borderColor: "#075D91",
+    backgroundColor: "#F0F9FF",
+    borderColor: "#0284C7",
   },
   thumbnail: {
     width: 40,
@@ -349,10 +368,11 @@ const styles = StyleSheet.create({
   stateName: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#102B52",
+    color: "#0A192F",
   },
   stateNameSelected: {
-    color: "#075D91",
+    color: "#03456C",
+    fontWeight: "800",
   },
   utBadge: {
     backgroundColor: "#F1F5F9",
@@ -367,7 +387,7 @@ const styles = StyleSheet.create({
   },
   stateSubtitle: {
     fontSize: 12,
-    color: "#64809E",
+    color: "#64748B",
     fontWeight: "500",
     marginTop: 2,
   },
@@ -377,6 +397,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13,
-    color: "#64809E",
+    color: "#64748B",
   },
 });

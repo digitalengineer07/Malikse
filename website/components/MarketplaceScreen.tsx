@@ -20,6 +20,7 @@ import LocationSearchBar from "./LocationSearchBar";
 import PremiumIndiaMap from "./PremiumIndiaMap";
 import MapIntroOverlay from "./MapIntroOverlay";
 import StateSelectorPanel from "./StateSelectorPanel";
+import WebFooter from "./WebFooter";
 
 import {
   fetchRegionCounts,
@@ -364,7 +365,7 @@ export default function MarketplaceScreen() {
             {/* Active Breadcrumbs Bar */}
             {(state || district) && (
               <View style={styles.breadcrumbsBar}>
-                <MaterialIcons name="navigation" size={16} color="#075D91" style={{ marginRight: 6 }} />
+                <MaterialIcons name="navigation" size={16} color="#03456C" style={{ marginRight: 6 }} />
                 <TouchableOpacity
                   accessibilityRole="button"
                   onPress={handleClearSelection}
@@ -405,7 +406,7 @@ export default function MarketplaceScreen() {
                   onPress={handleClearSelection}
                   style={styles.resetCrumbBtn}
                 >
-                  <MaterialIcons name="close" size={14} color="#075D91" />
+                  <MaterialIcons name="close" size={14} color="#03456C" />
                   <Text style={styles.resetCrumbText}>Reset</Text>
                 </TouchableOpacity>
               </View>
@@ -414,7 +415,7 @@ export default function MarketplaceScreen() {
             {/* Loading / Error Indicators */}
             {loading && (
               <View style={styles.statusBanner}>
-                <ActivityIndicator size="small" color="#075D91" />
+                <ActivityIndicator size="small" color="#03456C" />
                 <Text style={styles.statusBannerText}>Loading region verified counts…</Text>
               </View>
             )}
@@ -500,7 +501,38 @@ export default function MarketplaceScreen() {
               </View>
             </View>
           )}
+
+          {/* Regional Quick Jump & Verification Callout */}
+          <View style={styles.quickJumpSection}>
+            <View style={styles.quickJumpCard}>
+              <View style={styles.quickJumpLeft}>
+                <View style={styles.quickJumpIconCircle}>
+                  <MaterialIcons name="share-location" size={22} color="#0284C7" />
+                </View>
+                <View style={{ flex: 1, minWidth: 260 }}>
+                  <Text style={styles.quickJumpTitle}>
+                    Looking for Demarcated Land in Bihar?
+                  </Text>
+                  <Text style={styles.quickJumpSub}>
+                    Explore verified Khatiyan-cleared plots across Patna, Bihta, Danapur, Muzaffarpur and Gaya with surveyor-certified coordinates.
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.quickJumpBtn}
+                onPress={() => router.push("/home")}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.quickJumpBtnText}>Browse Available Land</Text>
+                <MaterialIcons name="arrow-forward" size={15} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
+
+        {/* Global Website Footer */}
+        <WebFooter />
       </ScrollView>
     </View>
   );
@@ -512,14 +544,15 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   scrollContent: {
-    paddingBottom: 140, // Generous padding so floating dock doesn't obscure content
+    paddingBottom: 0,
+    flexGrow: 1,
   },
   contentInner: {
     width: "100%",
-    maxWidth: 1320,
+    maxWidth: 1340,
     alignSelf: "center",
-    paddingHorizontal: 24,
-    paddingTop: 12,
+    paddingHorizontal: 28,
+    paddingTop: 24,
   },
   heroSection: {
     marginBottom: 20,
@@ -531,17 +564,16 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   eyebrow: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
-    color: "#075D91",
-    letterSpacing: 1.5,
+    color: "#0284C7",
+    letterSpacing: 1.2,
   },
   eyebrowDash: {
-    width: 36,
+    width: 32,
     height: 2,
-    backgroundColor: "#075D91",
+    backgroundColor: "#0284C7",
     borderRadius: 1,
-    opacity: 0.8,
   },
   titleRow: {
     flexDirection: "row",
@@ -555,14 +587,14 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   mainTitle: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: "800",
-    color: "#102B52",
+    color: "#0A192F",
     letterSpacing: -0.6,
   },
   subTitle: {
     fontSize: 14,
-    color: "#64809E",
+    color: "#64748B",
     fontWeight: "500",
     marginTop: 4,
     lineHeight: 20,
@@ -581,13 +613,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 9999,
     borderWidth: 1,
-    borderColor: "#D9E7F3",
+    borderColor: "#E2E8F0",
     paddingHorizontal: 16,
     paddingVertical: 8,
     marginBottom: 16,
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 8px rgba(7, 93, 145, 0.06)",
+        boxShadow: "0 2px 8px rgba(10, 25, 47, 0.04)",
       },
       default: {
         elevation: 2,
@@ -600,10 +632,10 @@ const styles = StyleSheet.create({
   crumbLink: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#075D91",
+    color: "#03456C",
   },
   crumbCurrent: {
-    color: "#102B52",
+    color: "#0A192F",
     fontWeight: "700",
   },
   crumbDivider: {
@@ -619,18 +651,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
-    backgroundColor: "#EEF7FE",
+    backgroundColor: "#E0F2FE",
   },
   resetCrumbText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#075D91",
+    color: "#03456C",
   },
   statusBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: "#EEF7FE",
+    backgroundColor: "#F0F9FF",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 12,
@@ -639,7 +671,7 @@ const styles = StyleSheet.create({
   },
   statusBannerText: {
     fontSize: 12,
-    color: "#075D91",
+    color: "#03456C",
     fontWeight: "600",
   },
   errorBanner: {
@@ -667,21 +699,21 @@ const styles = StyleSheet.create({
   /* Desktop Map Section */
   mapCardDesktop: {
     width: "100%",
-    height: 640,
-    borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: "rgba(255, 255, 255, 0.9)",
+    height: 660,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.9)",
     position: "relative",
     overflow: "hidden",
-    backgroundColor: "#EEF7FE",
+    backgroundColor: "#F8FAFC",
     ...Platform.select({
       web: {
-        boxShadow: "0 16px 44px rgba(16, 43, 82, 0.14)",
+        boxShadow: "0 10px 30px -5px rgba(10, 25, 47, 0.08)",
       },
       default: {
-        shadowColor: "#102B52",
+        shadowColor: "#0A192F",
         shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.15,
+        shadowOpacity: 0.12,
         shadowRadius: 20,
         elevation: 8,
       },
@@ -689,15 +721,15 @@ const styles = StyleSheet.create({
   },
   leftOverlayWrap: {
     position: "absolute",
-    top: 24,
-    left: 24,
+    top: 20,
+    left: 20,
     zIndex: 300,
   },
   rightPanelWrap: {
     position: "absolute",
-    top: 24,
-    right: 24,
-    bottom: 24,
+    top: 20,
+    right: 20,
+    bottom: 20,
     zIndex: 300,
     display: "flex",
     justifyContent: "flex-start",
@@ -709,15 +741,15 @@ const styles = StyleSheet.create({
   },
   mapCardMobile: {
     width: "100%",
-    height: 420,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: "#D9E7F3",
+    height: 440,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     overflow: "hidden",
-    backgroundColor: "#EEF7FE",
+    backgroundColor: "#F8FAFC",
     ...Platform.select({
       web: {
-        boxShadow: "0 8px 24px rgba(16, 43, 82, 0.1)",
+        boxShadow: "0 8px 24px rgba(10, 25, 47, 0.06)",
       },
       default: {
         elevation: 4,
@@ -729,5 +761,76 @@ const styles = StyleSheet.create({
   },
   mobileStatesCard: {
     width: "100%",
+  },
+
+  /* Quick Jump Section */
+  quickJumpSection: {
+    width: "100%",
+    marginTop: 24,
+    marginBottom: 28,
+  },
+  quickJumpCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 16,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(10, 25, 47, 0.03)",
+      },
+    }),
+  },
+  quickJumpLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    flex: 1,
+  },
+  quickJumpIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  quickJumpTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0A192F",
+  },
+  quickJumpSub: {
+    fontSize: 12.5,
+    color: "#64748B",
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  quickJumpBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#03456C",
+    paddingVertical: 11,
+    paddingHorizontal: 22,
+    borderRadius: 10,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 2px 6px rgba(3, 69, 108, 0.2)",
+      },
+    }),
+  },
+  quickJumpBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

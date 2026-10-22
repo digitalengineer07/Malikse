@@ -44,14 +44,14 @@ export default function LocationSearchBar({
       <View style={[styles.bar, isFocused && styles.barFocused]}>
         {/* Left Search Icon */}
         <View style={styles.iconWrap}>
-          <MaterialIcons name="search" size={22} color="#075D91" />
+          <MaterialIcons name="search" size={22} color="#03456C" />
         </View>
 
         {/* Input Field */}
         <TextInput
           accessibilityLabel="Search state, district, pincode or address"
           placeholder="Search state, district, pincode or address"
-          placeholderTextColor="#7E9EB8"
+          placeholderTextColor="#94A3B8"
           value={query}
           onChangeText={onChangeQuery}
           onSubmitEditing={onSearch}
@@ -74,7 +74,7 @@ export default function LocationSearchBar({
             style={styles.clearBtn}
             activeOpacity={0.7}
           >
-            <MaterialIcons name="close" size={18} color="#64809E" />
+            <MaterialIcons name="close" size={18} color="#64748B" />
           </TouchableOpacity>
         )}
 
@@ -89,9 +89,9 @@ export default function LocationSearchBar({
             activeOpacity={0.7}
           >
             {locating ? (
-              <ActivityIndicator size="small" color="#075D91" />
+              <ActivityIndicator size="small" color="#03456C" />
             ) : (
-              <MaterialIcons name="my-location" size={20} color="#075D91" />
+              <MaterialIcons name="my-location" size={20} color="#03456C" />
             )}
           </TouchableOpacity>
         )}
@@ -215,10 +215,10 @@ const styles = StyleSheet.create({
     }),
   },
   barFocused: {
-    borderColor: "#075D91",
+    borderColor: "#03456C",
     ...Platform.select({
       web: {
-        boxShadow: "0 6px 24px rgba(7, 93, 145, 0.16)",
+        boxShadow: "0 6px 24px rgba(3, 69, 108, 0.16)",
       },
       default: {
         elevation: 6,
@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: "500",
-    color: "#102B52",
+    color: "#0F172A",
     paddingVertical: 8,
     paddingHorizontal: 4,
     ...(Platform.OS === "web" ? { outlineWidth: 0 } : {}),
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     padding: 8,
     marginRight: 6,
     borderRadius: 999,
-    backgroundColor: "#EEF7FE",
+    backgroundColor: "#F0F9FF",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#075D91",
+    backgroundColor: "#03456C",
     paddingHorizontal: 22,
     paddingVertical: 11,
     borderRadius: 9999,
@@ -266,6 +266,7 @@ const styles = StyleSheet.create({
       web: {
         cursor: "pointer",
         transition: "background-color 0.2s ease, transform 0.1s ease",
+        boxShadow: "0 2px 6px rgba(3, 69, 108, 0.25)",
       },
       default: {
         elevation: 2,
@@ -284,18 +285,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#D9E7F3",
+    borderColor: "#E2E8F0",
     paddingVertical: 8,
     maxHeight: 280,
     zIndex: 100,
     ...Platform.select({
       web: {
-        boxShadow: "0 12px 32px rgba(16, 43, 82, 0.14)",
+        boxShadow: "0 12px 32px rgba(10, 25, 47, 0.12)",
       },
       default: {
-        shadowColor: "#102B52",
+        shadowColor: "#0A192F",
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.15,
         shadowRadius: 16,
@@ -325,7 +326,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: "#EEF7FE",
+    backgroundColor: "#F0F9FF",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 10,
@@ -333,11 +334,11 @@ const styles = StyleSheet.create({
   suggestionLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#102B52",
+    color: "#0A192F",
     flex: 1,
   },
   kindBadge: {
-    backgroundColor: "#D9EEFC",
+    backgroundColor: "#E0F2FE",
     paddingHorizontal: 9,
     paddingVertical: 3,
     borderRadius: 999,
@@ -345,7 +346,7 @@ const styles = StyleSheet.create({
   kindText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#075D91",
+    color: "#03456C",
     textTransform: "uppercase",
   },
   statusRow: {
@@ -357,7 +358,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 13,
-    color: "#64809E",
+    color: "#64748B",
     fontWeight: "500",
   },
 });

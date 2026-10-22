@@ -63,14 +63,14 @@ export default function PremiumIndiaMap({
           ],
         }).setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], DEFAULT_CENTER.zoom);
 
-        // Premium CartoDB Voyager tile layer for lush terrain & crisp waterways
+        // OpenStreetMap tile layer - Clean, reliable, and keyless
         L.tileLayer(
-          "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+          "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
           {
             attribution:
-              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
             maxZoom: 19,
-            subdomains: "abcd",
+            subdomains: "abc",
           }
         ).addTo(map);
 
@@ -131,12 +131,12 @@ export default function PremiumIndiaMap({
               display: flex;
               align-items: center;
               gap: 5px;
-              background: ${hasCount ? "#075D91" : "#FFFFFF"};
-              color: ${hasCount ? "#FFFFFF" : "#102B52"};
-              padding: 3px 8px;
+              background: ${hasCount ? "#03456C" : "#FFFFFF"};
+              color: ${hasCount ? "#FFFFFF" : "#0A192F"};
+              padding: 4px 9px;
               border-radius: 999px;
-              border: 1.5px solid ${hasCount ? "#FFFFFF" : "#D9E7F3"};
-              box-shadow: 0 2px 8px rgba(16,43,82,0.18);
+              border: 1.5px solid ${hasCount ? "#0284C7" : "#E2E8F0"};
+              box-shadow: 0 2px 8px rgba(3,69,108,0.22);
               font-family: system-ui, -apple-system, sans-serif;
               font-size: 11px;
               font-weight: 700;
@@ -148,17 +148,18 @@ export default function PremiumIndiaMap({
                 width: 6px;
                 height: 6px;
                 border-radius: 50%;
-                background: ${hasCount ? "#38BDF8" : "#075D91"};
+                background: ${hasCount ? "#38BDF8" : "#0284C7"};
                 display: inline-block;
               "></span>
               <span>${stateItem.name}</span>
               ${
                 hasCount
                   ? `<span style="
-                      background: rgba(255,255,255,0.22);
-                      padding: 1px 5px;
+                      background: rgba(255,255,255,0.25);
+                      padding: 1px 6px;
                       border-radius: 999px;
                       font-size: 10px;
+                      font-weight: 800;
                     ">${matchedGroup.count}</span>`
                   : ""
               }
@@ -278,7 +279,7 @@ export default function PremiumIndiaMap({
           style={styles.controlBtn}
           activeOpacity={0.8}
         >
-          <MaterialIcons name="add" size={20} color="#102B52" />
+          <MaterialIcons name="add" size={20} color="#03456C" />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -288,7 +289,7 @@ export default function PremiumIndiaMap({
           style={styles.controlBtn}
           activeOpacity={0.8}
         >
-          <MaterialIcons name="remove" size={20} color="#102B52" />
+          <MaterialIcons name="remove" size={20} color="#03456C" />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -298,7 +299,7 @@ export default function PremiumIndiaMap({
           style={styles.controlBtn}
           activeOpacity={0.8}
         >
-          <MaterialIcons name="refresh" size={18} color="#102B52" />
+          <MaterialIcons name="refresh" size={18} color="#03456C" />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -311,7 +312,7 @@ export default function PremiumIndiaMap({
           <MaterialIcons
             name="my-location"
             size={18}
-            color={locating ? "#075D91" : "#102B52"}
+            color={locating ? "#0284C7" : "#03456C"}
           />
         </TouchableOpacity>
       </View>
@@ -334,8 +335,8 @@ const styles = StyleSheet.create({
     height: "100%",
     position: "relative",
     overflow: "hidden",
-    borderRadius: 24,
-    backgroundColor: "#EEF7FE",
+    borderRadius: 20,
+    backgroundColor: "#F8FAFC",
   },
   controlsWrap: {
     position: "absolute",
@@ -346,28 +347,28 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   controlBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#D9E7F3",
+    borderColor: "#E2E8F0",
     justifyContent: "center",
     alignItems: "center",
     ...Platform.select({
       web: {
         cursor: "pointer",
-        boxShadow: "0 4px 12px rgba(16, 43, 82, 0.12)",
+        boxShadow: "0 2px 8px rgba(3, 69, 108, 0.12)",
         transition: "transform 0.15s ease, box-shadow 0.15s ease",
       },
       default: {
-        elevation: 4,
+        elevation: 3,
       },
     }),
   },
   controlBtnActive: {
-    borderColor: "#075D91",
-    backgroundColor: "#EEF7FE",
+    borderColor: "#03456C",
+    backgroundColor: "#F0F9FF",
   },
   errorBanner: {
     position: "absolute",

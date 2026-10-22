@@ -73,10 +73,10 @@ export default function MapIntroOverlay({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "rgba(16, 43, 82, 0.88)",
-    borderRadius: 20,
+    backgroundColor: "rgba(3, 69, 108, 0.92)",
+    borderRadius: 18,
     borderWidth: 1.5,
-    borderColor: "rgba(255, 255, 255, 0.22)",
+    borderColor: "rgba(255, 255, 255, 0.2)",
     padding: 22,
     maxWidth: 310,
     width: "100%",
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 13,
-    color: "rgba(217, 238, 252, 0.9)",
+    color: "#E0F2FE",
     lineHeight: 19,
     marginTop: 8,
     fontWeight: "400",
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.12)",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.18)",
+    borderColor: "rgba(255, 255, 255, 0.2)",
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginTop: 18,
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(7, 93, 145, 0.5)",
+    backgroundColor: "rgba(2, 132, 199, 0.4)",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statsNumber: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "800",
     color: "#FFFFFF",
     letterSpacing: -0.2,
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   statsLabel: {
     fontSize: 11,
     fontWeight: "600",
-    color: "rgba(217, 238, 252, 0.85)",
+    color: "#BAE6FD",
     marginTop: 1,
   },
   trustBadge: {
@@ -157,11 +157,11 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.12)",
+    borderTopColor: "rgba(255, 255, 255, 0.14)",
   },
   trustText: {
     fontSize: 11,
-    color: "rgba(217, 238, 252, 0.75)",
+    color: "#E0F2FE",
     fontWeight: "500",
   },
 });
