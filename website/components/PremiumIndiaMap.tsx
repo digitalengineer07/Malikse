@@ -28,10 +28,12 @@ export default function PremiumIndiaMap({
 }: PremiumIndiaMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
+  const tileLayerRef = useRef<any>(null);
   const stateMarkersLayerRef = useRef<any>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [layerMode, setLayerMode] = useState<"street" | "satellite">("street");
 
   // Initialize Leaflet Map
   useEffect(() => {
@@ -64,7 +66,7 @@ export default function PremiumIndiaMap({
         }).setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], DEFAULT_CENTER.zoom);
 
         // OpenStreetMap tile layer - Clean, reliable, and keyless
-        L.tileLayer(
+        const baseLayer = L.tileLayer(
           "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
           {
             attribution:
@@ -73,6 +75,7 @@ export default function PremiumIndiaMap({
             subdomains: "abc",
           }
         ).addTo(map);
+        tileLayerRef.current = baseLayer;
 
         // Group layer for state markers
         const markersGroup = L.layerGroup().addTo(map);
@@ -97,6 +100,46 @@ export default function PremiumIndiaMap({
       mapRef.current = null;
     };
   }, []);
+
+  // Switch between Street OpenStreetMap & ESRI World Imagery Satellite layers
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    import("leaflet").then((module) => {
+      const L = module.default || module;
+      const map = mapRef.current;
+      if (!map) return;
+
+      if (tileLayerRef.current) {
+        map.removeLayer(tileLayerRef.current);
+      }
+
+      if (layerMode === "satellite") {
+        tileLayerRef.current = L.tileLayer(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          {
+            attribution:
+              'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and GIS User Community',
+            maxZoom: 18,
+          }
+        ).addTo(map);
+      } else {
+        tileLayerRef.current = L.tileLayer(
+          "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          {
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+            subdomains: "abc",
+          }
+        ).addTo(map);
+      }
+
+      // Ensure state markers remain prominent on top of imagery
+      if (stateMarkersLayerRef.current && map.hasLayer(stateMarkersLayerRef.current)) {
+        stateMarkersLayerRef.current.bringToFront?.();
+      }
+    });
+  }, [layerMode, ready]);
 
   // Update Region Boundaries and State Markers
   useEffect(() => {
@@ -317,6 +360,88 @@ export default function PremiumIndiaMap({
         </TouchableOpacity>
       </View>
 
+      {/* Floating Bottom-Left Layer Mode Switcher & Quick Focus */}
+      <View style={styles.bottomControlsWrap} pointerEvents="box-none">
+        <View style={styles.layerModeWrap}>
+          <TouchableOpacity
+            style={[styles.layerModeBtn, layerMode === "street" && styles.layerModeBtnActive]}
+            onPress={() => setLayerMode("street")}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Switch to Standard Map"
+          >
+            <MaterialIcons
+              name="map"
+              size={14}
+              color={layerMode === "street" ? "#FFFFFF" : "#03456C"}
+            />
+            <Text
+              style={[
+                styles.layerModeText,
+                layerMode === "street" && styles.layerModeTextActive,
+              ]}
+            >
+              Map
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.layerModeBtn, layerMode === "satellite" && styles.layerModeBtnActive]}
+            onPress={() => setLayerMode("satellite")}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Switch to Satellite Imagery"
+          >
+            <MaterialIcons
+              name="satellite"
+              size={14}
+              color={layerMode === "satellite" ? "#FFFFFF" : "#03456C"}
+            />
+            <Text
+              style={[
+                styles.layerModeText,
+                layerMode === "satellite" && styles.layerModeTextActive,
+              ]}
+            >
+              Satellite
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Quick Regional Focus Presets */}
+        <View style={styles.presetsWrap}>
+          <TouchableOpacity
+            style={styles.presetPill}
+            onPress={() => mapRef.current?.setView([25.6, 85.1], 7.8)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+          >
+            <MaterialIcons name="near-me" size={13} color="#0284C7" />
+            <Text style={styles.presetText}>Bihar Hub</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.presetPill}
+            onPress={() => mapRef.current?.setView([25.61, 85.05], 11.2)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+          >
+            <MaterialIcons name="location-city" size={13} color="#0284C7" />
+            <Text style={styles.presetText}>Patna Metro</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.presetPill}
+            onPress={handleResetView}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+          >
+            <MaterialIcons name="public" size={13} color="#0284C7" />
+            <Text style={styles.presetText}>All India</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Failure Note if Tiles completely unavailable */}
       {failed && (
         <View style={styles.errorBanner}>
@@ -369,6 +494,80 @@ const styles = StyleSheet.create({
   controlBtnActive: {
     borderColor: "#03456C",
     backgroundColor: "#F0F9FF",
+  },
+  bottomControlsWrap: {
+    position: "absolute",
+    bottom: 20,
+    left: 20,
+    zIndex: 400,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  layerModeWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 3,
+    gap: 3,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(10, 25, 47, 0.12)",
+      },
+    }),
+  },
+  layerModeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 7,
+    backgroundColor: "transparent",
+    ...Platform.select({ web: { cursor: "pointer" } }),
+  },
+  layerModeBtnActive: {
+    backgroundColor: "#03456C",
+  },
+  layerModeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#03456C",
+  },
+  layerModeTextActive: {
+    color: "#FFFFFF",
+  },
+  presetsWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+  },
+  presetPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 8,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 2px 8px rgba(10, 25, 47, 0.08)",
+      },
+    }),
+  },
+  presetText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: "#03456C",
   },
   errorBanner: {
     position: "absolute",

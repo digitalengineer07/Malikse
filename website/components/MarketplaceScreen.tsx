@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -21,6 +21,7 @@ import PremiumIndiaMap from "./PremiumIndiaMap";
 import MapIntroOverlay from "./MapIntroOverlay";
 import StateSelectorPanel from "./StateSelectorPanel";
 import WebFooter from "./WebFooter";
+import PropertyCard from "./PropertyCard";
 
 import {
   fetchRegionCounts,
@@ -28,16 +29,122 @@ import {
   type LocationSuggestion,
   type RegionGroup,
 } from "../src/services/regionService";
-import type { PropertyType } from "../src/types/property.types";
+import { propertyService } from "../src/services/propertyService";
+import type { Property, PropertyType } from "../src/types/property.types";
 import type { MapFocus } from "../src/utils/nativeMapHtml";
 import type { IndiaStateInfo } from "../src/data/indiaStatesData";
 import { currentMapLocation } from "../src/services/currentMapLocation";
+
+export interface GrowthCorridor {
+  id: string;
+  name: string;
+  tag: string;
+  district: string;
+  subDistrict: string;
+  description: string;
+  priceRange: string;
+  growth: string;
+  lat: number;
+  lng: number;
+  zoom: number;
+  icon: keyof typeof MaterialIcons.glyphMap;
+}
+
+export const BIHAR_CORRIDORS: GrowthCorridor[] = [
+  {
+    id: "patna_bihta",
+    name: "Patna – Bihta Airport Corridor",
+    tag: "HIGH APPRECIATION",
+    district: "Patna",
+    subDistrict: "Bihta / Danapur",
+    description: "Mega civil airport expansion, IIT Patna campus, IT SEZ, and direct elevated 4-lane expressway connecting AIIMS.",
+    priceRange: "₹2,400 - ₹5,800 / sq.ft",
+    growth: "+34% Annual",
+    lat: 25.5688,
+    lng: 84.8694,
+    zoom: 12,
+    icon: "flight-takeoff",
+  },
+  {
+    id: "patna_kanhauli",
+    name: "Greater Patna – Kanhauli & AIIMS Hub",
+    tag: "RESIDENTIAL PLOTTING",
+    district: "Patna",
+    subDistrict: "Kanhauli / Naubatpur",
+    description: "Interstate Ring Road junction, ISBT connector, and high-demand master-planned gated residential townships.",
+    priceRange: "₹1,800 - ₹3,600 / sq.ft",
+    growth: "+28% Annual",
+    lat: 25.52,
+    lng: 85.04,
+    zoom: 12,
+    icon: "home-work",
+  },
+  {
+    id: "muzaffarpur_nh",
+    name: "Muzaffarpur – Motipur Industrial Corridor",
+    tag: "COMMERCIAL & LOGISTICS",
+    district: "Muzaffarpur",
+    subDistrict: "Motipur / Bairia NH-28",
+    description: "North Bihar commercial capital, Mega Food Park, East-West corridor logistics belt, and smart city infrastructure.",
+    priceRange: "₹1,400 - ₹3,200 / sq.ft",
+    growth: "+22% Annual",
+    lat: 26.1209,
+    lng: 85.3647,
+    zoom: 12,
+    icon: "store",
+  },
+  {
+    id: "gaya_dobhi",
+    name: "Gaya – Bodh Gaya Industrial & Tourism Belt",
+    tag: "HERITAGE & AKIC NODE",
+    district: "Gaya",
+    subDistrict: "Bodh Gaya / Dobhi",
+    description: "Amritsar-Kolkata Industrial Corridor (AKIC Node), international spiritual tourism hotspot, and GT Road corridor.",
+    priceRange: "₹1,200 - ₹2,900 / sq.ft",
+    growth: "+26% Annual",
+    lat: 24.6961,
+    lng: 84.9869,
+    zoom: 12,
+    icon: "business",
+  },
+  {
+    id: "darbhanga_airport",
+    name: "Darbhanga – Airport & AIIMS Healthcare Node",
+    tag: "AIRPORT EXPANSION",
+    district: "Darbhanga",
+    subDistrict: "Mabbi / NH-57 Bypass",
+    description: "Mithila region aviation gateway with highest regional passenger traffic, 2nd AIIMS of Bihar, and medical estates.",
+    priceRange: "₹1,600 - ₹3,500 / sq.ft",
+    growth: "+25% Annual",
+    lat: 26.1542,
+    lng: 85.8918,
+    zoom: 12,
+    icon: "local-hospital",
+  },
+  {
+    id: "vaishali_hajipur",
+    name: "Vaishali – Hajipur Paswan Chowk Twin-City",
+    tag: "TWIN-CITY EXPRESSWAY",
+    district: "Vaishali",
+    subDistrict: "Hajipur / Bidupur",
+    description: "Direct 6-lane JP Setu & Kacchi Dargah bridge access to Patna. Industrial warehousing and prime residential plotting.",
+    priceRange: "₹1,500 - ₹3,400 / sq.ft",
+    growth: "+24% Annual",
+    lat: 25.6858,
+    lng: 85.2146,
+    zoom: 12,
+    icon: "directions-car",
+  },
+];
 
 export default function MarketplaceScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 980;
+
+  // Scroll ref for smooth navigation
+  const scrollViewRef = useRef<ScrollView>(null);
 
   // State management
   const [state, setState] = useState<RegionGroup | undefined>();
@@ -311,12 +418,79 @@ export default function MarketplaceScreen() {
     }
   }, [locating]);
 
+  // Corridor and Property state
+  const [selectedCorridorId, setSelectedCorridorId] = useState<string | null>(null);
+  const [verifiedProperties, setVerifiedProperties] = useState<Property[]>([]);
+  const [propertiesLoading, setPropertiesLoading] = useState(true);
+
+  // Fetch verified properties based on current state / district / type
+  useEffect(() => {
+    let active = true;
+    setPropertiesLoading(true);
+
+    const targetState = state?.name || "Bihar";
+    const filters: any = {
+      state: targetState,
+    };
+    if (district?.name) filters.district = district.name;
+    if (type) filters.type = type;
+
+    propertyService
+      .searchProperties(filters)
+      .then((results) => {
+        if (active) {
+          setVerifiedProperties(results || []);
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not load verified properties for explore:", err);
+        if (active) setVerifiedProperties([]);
+      })
+      .finally(() => {
+        if (active) setPropertiesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [state?.name, district?.name, type]);
+
+  // Corridor focus handler
+  const handleSelectCorridor = useCallback((corridor: GrowthCorridor) => {
+    setSelectedCorridorId(corridor.id);
+    setQuery("");
+    setSuggestions([]);
+
+    setState({
+      key: "Bihar",
+      name: "Bihar",
+      count: 0,
+      lat: 25.6,
+      lng: 85.1,
+    });
+    setDistrict({
+      key: corridor.district,
+      name: corridor.district,
+      count: 0,
+      lat: corridor.lat,
+      lng: corridor.lng,
+    });
+    setCustomFocus({
+      lat: corridor.lat,
+      lng: corridor.lng,
+      zoom: corridor.zoom,
+    });
+
+    scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+  }, []);
+
   return (
     <View style={styles.screen}>
       {/* Brand Header */}
       <AppHeader />
 
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -501,6 +675,266 @@ export default function MarketplaceScreen() {
               </View>
             </View>
           )}
+
+          {/* Curated High-Growth Investment Corridors */}
+          <View style={styles.corridorsSection}>
+            <View style={styles.corridorsHeaderRow}>
+              <View style={styles.corridorsTitleCol}>
+                <View style={styles.eyebrowRow}>
+                  <Text style={styles.eyebrow}>INVESTMENT HOTSPOTS</Text>
+                  <View style={styles.eyebrowDash} />
+                </View>
+                <Text style={styles.sectionHeading}>
+                  Curated High-Growth Corridors in Bihar
+                </Text>
+                <Text style={styles.sectionSubtitle}>
+                  Select any high-potential growth belt to inspect on the satellite map, review connectivity nodes, and browse surveyor-verified plots.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.corridorsGrid}>
+              {BIHAR_CORRIDORS.map((corridor) => {
+                const isSelected = selectedCorridorId === corridor.id;
+                return (
+                  <TouchableOpacity
+                    key={corridor.id}
+                    style={[
+                      styles.corridorCard,
+                      { width: isDesktop ? "31.8%" : width >= 680 ? "48.5%" : "100%" },
+                      isSelected && styles.corridorCardSelected,
+                    ]}
+                    onPress={() => handleSelectCorridor(corridor)}
+                    activeOpacity={0.88}
+                  >
+                    <View style={styles.corridorTopRow}>
+                      <View style={styles.corridorTagBadge}>
+                        <Text style={styles.corridorTagText}>{corridor.tag}</Text>
+                      </View>
+                      <View style={styles.corridorGrowthBadge}>
+                        <MaterialIcons name="trending-up" size={13} color="#059669" />
+                        <Text style={styles.corridorGrowthText}>{corridor.growth}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.corridorTitleRow}>
+                      <View style={styles.corridorIconBox}>
+                        <MaterialIcons name={corridor.icon} size={20} color="#03456C" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.corridorName} numberOfLines={1}>
+                          {corridor.name}
+                        </Text>
+                        <View style={styles.corridorLocRow}>
+                          <MaterialIcons name="place" size={13} color="#64748B" />
+                          <Text style={styles.corridorLocText}>{corridor.subDistrict}</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <Text style={styles.corridorDesc} numberOfLines={2}>
+                      {corridor.description}
+                    </Text>
+
+                    <View style={styles.corridorDivider} />
+
+                    <View style={styles.corridorFooter}>
+                      <View>
+                        <Text style={styles.corridorPriceLabel}>Est. Land Benchmark</Text>
+                        <Text style={styles.corridorPriceVal}>{corridor.priceRange}</Text>
+                      </View>
+                      <View style={[styles.corridorActionBtn, isSelected && styles.corridorActionBtnActive]}>
+                        <Text style={[styles.corridorActionText, isSelected && styles.corridorActionTextActive]}>
+                          {isSelected ? "Focused" : "View Map"}
+                        </Text>
+                        <MaterialIcons
+                          name={isSelected ? "my-location" : "arrow-forward"}
+                          size={13}
+                          color={isSelected ? "#FFFFFF" : "#03456C"}
+                        />
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Trending Verified Properties */}
+          <View style={styles.trendingSection}>
+            <View style={styles.trendingHeaderRow}>
+              <View style={styles.trendingTitleCol}>
+                <View style={styles.eyebrowRow}>
+                  <Text style={styles.eyebrow}>LIVE VERIFIED INVENTORY</Text>
+                  <View style={styles.eyebrowDash} />
+                </View>
+                <Text style={styles.sectionHeading}>
+                  {district
+                    ? `Verified Properties in ${district.name}`
+                    : state
+                    ? `Verified Properties in ${state.name}`
+                    : "Trending Verified Properties in Bihar"}
+                </Text>
+                <Text style={styles.sectionSubtitle}>
+                  Surveyor-demarcated plots, commercial land, and vetted residential properties with certified Khatiyan clearance.
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.browseAllLinkBtn}
+                onPress={() =>
+                  router.push({
+                    pathname: "/(tabs)/home",
+                    params: {
+                      state: state?.name || "Bihar",
+                      district: district?.name || "",
+                      type: type || "",
+                    },
+                  })
+                }
+                activeOpacity={0.8}
+              >
+                <Text style={styles.browseAllLinkText}>View All in Directory</Text>
+                <MaterialIcons name="arrow-forward" size={15} color="#03456C" />
+              </TouchableOpacity>
+            </View>
+
+            {propertiesLoading ? (
+              <View style={styles.propertiesLoadingBox}>
+                <ActivityIndicator size="small" color="#03456C" />
+                <Text style={styles.propertiesLoadingText}>Loading certified property listings…</Text>
+              </View>
+            ) : verifiedProperties.length > 0 ? (
+              <View style={styles.propertiesGrid}>
+                {verifiedProperties.slice(0, 6).map((property, idx) => (
+                  <View
+                    key={property.id || property._id || String(idx)}
+                    style={{ width: isDesktop ? "31.8%" : width >= 680 ? "48.5%" : "100%" }}
+                  >
+                    <PropertyCard property={property} />
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyPropertiesBox}>
+                <MaterialIcons name="landscape" size={38} color="#94A3B8" />
+                <Text style={styles.emptyTitle}>No verified listings found matching this exact filter</Text>
+                <Text style={styles.emptySub}>
+                  Our land surveyors are adding new Khatiyan-verified plots weekly across Bihar. Browse all live listings on MalikSe Home.
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyBrowseBtn}
+                  onPress={() => router.push("/(tabs)/home")}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.emptyBrowseText}>Browse All Verified Properties</Text>
+                  <MaterialIcons name="arrow-forward" size={14} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* Institutional Land Revenue & MVR Knowledge Guide */}
+          <View style={styles.knowledgeSection}>
+            <View style={styles.knowledgeHeader}>
+              <View style={styles.eyebrowRow}>
+                <Text style={styles.eyebrow}>TRANSPARENCY & DUE DILIGENCE</Text>
+                <View style={styles.eyebrowDash} />
+              </View>
+              <Text style={styles.sectionHeading}>
+                Institutional Land Verification Standard in Bihar
+              </Text>
+              <Text style={styles.sectionSubtitle}>
+                Purchasing land without institutional title checks leads to boundary disputes. Here is how MalikSe protects every transaction.
+              </Text>
+            </View>
+
+            <View style={styles.knowledgeGrid}>
+              {/* Card 1: Circle Rate / MVR */}
+              <View
+                style={[
+                  styles.knowledgeCard,
+                  { width: isDesktop ? "31.8%" : "100%" },
+                ]}
+              >
+                <View style={styles.knowledgeIconCircle}>
+                  <MaterialIcons name="account-balance" size={24} color="#03456C" />
+                </View>
+                <View style={styles.knowledgeTagBadge}>
+                  <Text style={styles.knowledgeTagText}>GOVERNMENT BENCHMARK</Text>
+                </View>
+                <Text style={styles.knowledgeCardTitle}>Minimum Value Register (MVR)</Text>
+                <Text style={styles.knowledgeCardDesc}>
+                  Bihar government official Circle Rates dictate minimum registry valuation and stamp duty. MalikSe lists official MVR benchmarks alongside asking rates to protect you against arbitrary market pricing.
+                </Text>
+                <View style={styles.knowledgeDivider} />
+                <View style={styles.knowledgeFeatureRow}>
+                  <MaterialIcons name="check-circle" size={15} color="#059669" />
+                  <Text style={styles.knowledgeFeatureText}>Circle Rates for all 38 Bihar Districts</Text>
+                </View>
+                <View style={styles.knowledgeFeatureRow}>
+                  <MaterialIcons name="check-circle" size={15} color="#059669" />
+                  <Text style={styles.knowledgeFeatureText}>Accurate Stamp Duty & Registry Estimates</Text>
+                </View>
+              </View>
+
+              {/* Card 2: Jamabandi & Mutation */}
+              <View
+                style={[
+                  styles.knowledgeCard,
+                  { width: isDesktop ? "31.8%" : "100%" },
+                ]}
+              >
+                <View style={styles.knowledgeIconCircle}>
+                  <MaterialIcons name="verified-user" size={24} color="#0284C7" />
+                </View>
+                <View style={[styles.knowledgeTagBadge, { backgroundColor: "#E0F2FE" }]}>
+                  <Text style={[styles.knowledgeTagText, { color: "#03456C" }]}>PEDIGREE & CLEARANCE</Text>
+                </View>
+                <Text style={styles.knowledgeCardTitle}>Jamabandi & Dakhil-Kharij Audit</Text>
+                <Text style={styles.knowledgeCardDesc}>
+                  Every parcel is cross-verified on the Bihar Bhumi Revenue Portal. We audit Khatiyan chain-of-title, active mutation (Dakhil-Kharij) clearance, and up-to-date Land Possession Certificate (LPC) receipts.
+                </Text>
+                <View style={styles.knowledgeDivider} />
+                <View style={styles.knowledgeFeatureRow}>
+                  <MaterialIcons name="check-circle" size={15} color="#059669" />
+                  <Text style={styles.knowledgeFeatureText}>100% Chain-of-Title Pedigree Check</Text>
+                </View>
+                <View style={styles.knowledgeFeatureRow}>
+                  <MaterialIcons name="check-circle" size={15} color="#059669" />
+                  <Text style={styles.knowledgeFeatureText}>Dispute-Free Revenue Portal Verification</Text>
+                </View>
+              </View>
+
+              {/* Card 3: DGPS Demarcation */}
+              <View
+                style={[
+                  styles.knowledgeCard,
+                  { width: isDesktop ? "31.8%" : "100%" },
+                ]}
+              >
+                <View style={styles.knowledgeIconCircle}>
+                  <MaterialIcons name="satellite-alt" size={24} color="#059669" />
+                </View>
+                <View style={[styles.knowledgeTagBadge, { backgroundColor: "#D1FAE5" }]}>
+                  <Text style={[styles.knowledgeTagText, { color: "#065F46" }]}>PHYSICAL ACCURACY</Text>
+                </View>
+                <Text style={styles.knowledgeCardTitle}>DGPS & Bhu-Naksha Demarcation</Text>
+                <Text style={styles.knowledgeCardDesc}>
+                  Physical plot corners are mapped by certified surveyors using Electronic Total Stations (ETS) and Bhu-Naksha revenue maps. Corner pillars are geo-tagged with exact GPS latitude and longitude coordinates.
+                </Text>
+                <View style={styles.knowledgeDivider} />
+                <View style={styles.knowledgeFeatureRow}>
+                  <MaterialIcons name="check-circle" size={15} color="#059669" />
+                  <Text style={styles.knowledgeFeatureText}>Sub-Centimeter Corner Pillar Demarcation</Text>
+                </View>
+                <View style={styles.knowledgeFeatureRow}>
+                  <MaterialIcons name="check-circle" size={15} color="#059669" />
+                  <Text style={styles.knowledgeFeatureText}>Geo-Tagged High-Resolution Satellite Map</Text>
+                </View>
+              </View>
+            </View>
+          </View>
 
           {/* Regional Quick Jump & Verification Callout */}
           <View style={styles.quickJumpSection}>
@@ -761,6 +1195,353 @@ const styles = StyleSheet.create({
   },
   mobileStatesCard: {
     width: "100%",
+  },
+
+  /* Common Section Headers */
+  sectionHeading: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#0A192F",
+    letterSpacing: -0.5,
+    marginTop: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 13.5,
+    color: "#64748B",
+    marginTop: 4,
+    lineHeight: 20,
+    fontWeight: "500",
+  },
+
+  /* Curated High-Growth Corridors */
+  corridorsSection: {
+    marginTop: 36,
+    marginBottom: 8,
+  },
+  corridorsHeaderRow: {
+    marginBottom: 18,
+  },
+  corridorsTitleCol: {
+    flex: 1,
+  },
+  corridorsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+  },
+  corridorCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 18,
+    justifyContent: "space-between",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(10, 25, 47, 0.04)",
+        cursor: "pointer",
+        transition: "transform 0.2s ease, border-color 0.2s ease",
+      },
+    }),
+  },
+  corridorCardSelected: {
+    borderColor: "#0284C7",
+    borderWidth: 1.5,
+    backgroundColor: "#F0F9FF",
+  },
+  corridorTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  corridorTagBadge: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  corridorTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#03456C",
+    letterSpacing: 0.6,
+  },
+  corridorGrowthBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  corridorGrowthText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  corridorTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 10,
+  },
+  corridorIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  corridorName: {
+    fontSize: 14.5,
+    fontWeight: "800",
+    color: "#0A192F",
+  },
+  corridorLocRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    marginTop: 2,
+  },
+  corridorLocText: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  corridorDesc: {
+    fontSize: 12,
+    color: "#475569",
+    lineHeight: 17,
+    marginBottom: 14,
+  },
+  corridorDivider: {
+    height: 1,
+    backgroundColor: "#F1F5F9",
+    marginBottom: 12,
+  },
+  corridorFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  corridorPriceLabel: {
+    fontSize: 10,
+    color: "#94A3B8",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  corridorPriceVal: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#03456C",
+    marginTop: 2,
+  },
+  corridorActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: "#E0F2FE",
+  },
+  corridorActionBtnActive: {
+    backgroundColor: "#03456C",
+  },
+  corridorActionText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#03456C",
+  },
+  corridorActionTextActive: {
+    color: "#FFFFFF",
+  },
+
+  /* Trending Verified Properties */
+  trendingSection: {
+    marginTop: 36,
+    marginBottom: 8,
+  },
+  trendingHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    flexWrap: "wrap",
+    gap: 14,
+    marginBottom: 18,
+  },
+  trendingTitleCol: {
+    flex: 1,
+    minWidth: 260,
+  },
+  browseAllLinkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#E0F2FE",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  browseAllLinkText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#03456C",
+  },
+  propertiesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+  },
+  propertiesLoadingBox: {
+    paddingVertical: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  propertiesLoadingText: {
+    fontSize: 13,
+    color: "#03456C",
+    fontWeight: "600",
+  },
+  emptyPropertiesBox: {
+    paddingVertical: 36,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0A192F",
+    marginTop: 10,
+    textAlign: "center",
+  },
+  emptySub: {
+    fontSize: 12.5,
+    color: "#64748B",
+    marginTop: 6,
+    textAlign: "center",
+    maxWidth: 540,
+    lineHeight: 18,
+  },
+  emptyBrowseBtn: {
+    marginTop: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#03456C",
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 8,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  emptyBrowseText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+
+  /* Institutional Knowledge Guide */
+  knowledgeSection: {
+    marginTop: 36,
+    marginBottom: 8,
+  },
+  knowledgeHeader: {
+    marginBottom: 20,
+  },
+  knowledgeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+  },
+  knowledgeCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 22,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 12px rgba(10, 25, 47, 0.04)",
+      },
+    }),
+  },
+  knowledgeIconCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  knowledgeTagBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginBottom: 10,
+  },
+  knowledgeTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#03456C",
+    letterSpacing: 0.6,
+  },
+  knowledgeCardTitle: {
+    fontSize: 15.5,
+    fontWeight: "800",
+    color: "#0A192F",
+    marginBottom: 8,
+  },
+  knowledgeCardDesc: {
+    fontSize: 12.5,
+    color: "#475569",
+    lineHeight: 19,
+    marginBottom: 16,
+  },
+  knowledgeDivider: {
+    height: 1,
+    backgroundColor: "#F1F5F9",
+    marginBottom: 14,
+  },
+  knowledgeFeatureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  knowledgeFeatureText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1E293B",
   },
 
   /* Quick Jump Section */
