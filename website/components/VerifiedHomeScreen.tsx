@@ -362,7 +362,6 @@ export default function VerifiedHomeScreen() {
                     {filteredProperties.map((property) => (
                       <TouchableOpacity
                         key={property._id || property.id}
-                        accessibilityRole="button"
                         onPress={() => setSelected(property)}
                         activeOpacity={0.92}
                         style={s.horizontalCard}
@@ -435,15 +434,10 @@ export default function VerifiedHomeScreen() {
                             </View>
                           </View>
 
-                          <TouchableOpacity
-                            accessibilityRole="button"
-                            onPress={() => setSelected(property)}
-                            style={s.viewDetailsBtn}
-                            activeOpacity={0.85}
-                          >
+                          <View style={s.viewDetailsBtn}>
                             <Text style={s.viewDetailsText}>View Details</Text>
                             <MaterialIcons name="arrow-forward" size={14} color="#03456C" />
-                          </TouchableOpacity>
+                          </View>
                         </View>
                       </TouchableOpacity>
                     ))}
