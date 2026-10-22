@@ -29,6 +29,38 @@ import { AppTheme } from "../constants/theme";
 const nameOf = (p: Property) => p.title || `${p.type} in ${p.location.district}`;
 const priceOf = (p: Property) => `₹${p.price.toLocaleString("en-IN")}`;
 
+const compactPrice = (price: number) => {
+  if (price >= 10000000) {
+    const cr = (price / 10000000).toFixed(2);
+    return `₹${cr.replace(/\.00$/, "")} Cr`;
+  }
+  if (price >= 100000) {
+    const lakh = (price / 100000).toFixed(2);
+    return `₹${lakh.replace(/\.00$/, "")} Lakh`;
+  }
+  return `₹${price.toLocaleString("en-IN")}`;
+};
+
+const typeIcon = (t: string): keyof typeof MaterialIcons.glyphMap => {
+  switch (t?.toLowerCase()) {
+    case "house":
+    case "villa":
+      return "villa";
+    case "flat":
+    case "apartment":
+      return "apartment";
+    case "land":
+    case "plot":
+      return "terrain";
+    case "shop":
+      return "storefront";
+    case "office":
+      return "business-center";
+    default:
+      return "home";
+  }
+};
+
 export default function VerifiedHomeScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -161,32 +193,20 @@ export default function VerifiedHomeScreen() {
         <View style={s.content}>
           {/* Hero Header Area */}
           <View style={s.heroSection}>
-            {/* Top row with Eyebrow and Dash on left, count on right */}
+            {/* Top row with Eyebrow Badge on left, count on right */}
             <View style={s.eyebrowRow}>
-              <View style={s.eyebrowLeft}>
-                <Text style={s.eyebrow}>A PLACE FOR YOUR NEXT CHAPTER</Text>
-                <View style={s.eyebrowDash} />
+              <View style={s.badgeCapsule}>
+                <MaterialIcons name="verified" size={14} color="#03456C" />
+                <Text style={s.badgeCapsuleText}>BIHAR'S #1 VERIFIED REAL ESTATE PORTAL</Text>
               </View>
 
               <View style={s.titleRight}>
-                <View style={s.countDivider} />
+                <View style={s.countDot} />
                 <Text style={s.countText}>
-                  {loading ? "Loading…" : `${properties.length} properties on page ${page}`}
+                  {loading ? "Loading…" : `${properties.length} verified listings on page ${page}`}
                 </Text>
               </View>
             </View>
-
-            {/* Skyline Background Graphic sitting flush on top edge of main card */}
-            {isWide && (
-              <View style={s.skylineWrapper} pointerEvents="none">
-                <CitySkyline
-                  width={width < 1100 ? 520 : 640}
-                  maxWidth="55%"
-                  height={width < 1100 ? 175 : 205}
-                  opacity={0.96}
-                />
-              </View>
-            )}
 
             {/* Title Row */}
             <View style={s.titleRow}>
@@ -196,7 +216,10 @@ export default function VerifiedHomeScreen() {
                     ? pincode === "__missing__"
                       ? "Properties without a pincode"
                       : `Properties in ${pincode}`
-                    : "Explore our properties"}
+                    : "Explore Verified Properties"}
+                </Text>
+                <Text style={s.heroSubtitle}>
+                  Direct title-checked plots, verified flats, and independent houses across Bihar with zero brokerage.
                 </Text>
               </View>
             </View>
@@ -225,180 +248,209 @@ export default function VerifiedHomeScreen() {
               </View>
             )}
 
-            {/* Filter Pills (All properties, Land, Flats, Houses, Shops, Offices) */}
+            {/* Filter Pills */}
             <PropertyTypeTabs value={type} onChange={setType} />
           </View>
 
-          {/* Elevated Pure White Main Card */}
-          <View style={s.mainCard}>
-            {loading ? (
-              <View style={s.loadingContainer}>
-                <ActivityIndicator size="large" color="#03456C" />
+          {/* Elevated Pure White Main Card Section with Flush Skyline Horizon */}
+          <View style={s.mainCardContainer}>
+            {/* Skyline sitting DIRECTLY on the top edge of mainCard */}
+            {isWide && (
+              <View style={s.skylineHorizonAnchor} pointerEvents="none">
+                <CitySkyline
+                  width={width < 1100 ? 560 : 700}
+                  maxWidth="58%"
+                  height={width < 1100 ? 180 : 215}
+                  opacity={0.96}
+                />
               </View>
-            ) : error ? (
-              <View style={s.emptyStateWrapper}>
-                <Text accessibilityRole="alert" style={s.errorNote}>
-                  {error}
-                </Text>
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  onPress={() => setRevision((v) => v + 1)}
-                  style={s.retryButton}
-                >
-                  <Text style={s.retryButtonText}>Try again</Text>
-                </TouchableOpacity>
-              </View>
-            ) : filteredProperties.length === 0 ? (
-              /* Empty State (Overall or for specific filtered type) */
-              <View style={s.emptyStateWrapper}>
-                <HouseIllustration width={width < 600 ? 220 : 280} height={width < 600 ? 120 : 155} />
-                <Text style={s.emptyHeading}>
-                  {type ? `No ${type} properties available yet` : "More places are on the way"}
-                </Text>
-                <Text style={s.emptySubheading}>
-                  {type
-                    ? `We have verified listings in other categories. Switch to "All properties" or "Land" to view them.`
-                    : "Properties will appear here after Advisor and Verifier approval."}
-                </Text>
-                {!!type && (
+            )}
+
+            <View style={s.mainCard}>
+              {loading ? (
+                <View style={s.loadingContainer}>
+                  <ActivityIndicator size="large" color="#03456C" />
+                </View>
+              ) : error ? (
+                <View style={s.emptyStateWrapper}>
+                  <Text accessibilityRole="alert" style={s.errorNote}>
+                    {error}
+                  </Text>
                   <TouchableOpacity
                     accessibilityRole="button"
-                    onPress={() => setType(undefined)}
-                    style={[s.retryButton, { marginTop: 16 }]}
+                    onPress={() => setRevision((v) => v + 1)}
+                    style={s.retryButton}
                   >
-                    <Text style={s.retryButtonText}>View all properties</Text>
+                    <Text style={s.retryButtonText}>Try again</Text>
                   </TouchableOpacity>
-                )}
-              </View>
-            ) : (
-              /* Horizontal Scrollable Carousel */
-              <View style={s.carouselWrapper}>
-                {/* Header bar with total available count and navigation arrows */}
-                <View style={s.carouselHeader}>
-                  <View style={s.carouselTitleRow}>
-                    <Text style={s.carouselTitle}>
-                      {type
-                        ? `${type.charAt(0).toUpperCase() + type.slice(1)} Properties`
-                        : "Verified Properties"}
-                    </Text>
-                    <View style={s.countBadge}>
-                      <Text style={s.countBadgeText}>{filteredProperties.length} available</Text>
+                </View>
+              ) : filteredProperties.length === 0 ? (
+                /* Empty State */
+                <View style={s.emptyStateWrapper}>
+                  <HouseIllustration width={width < 600 ? 220 : 280} height={width < 600 ? 120 : 155} />
+                  <Text style={s.emptyHeading}>
+                    {type ? `No ${type} properties available yet` : "More places are on the way"}
+                  </Text>
+                  <Text style={s.emptySubheading}>
+                    {type
+                      ? `We have verified listings in other categories. Switch to "All properties" or "Land" to view them.`
+                      : "Properties will appear here after Advisor and Verifier approval."}
+                  </Text>
+                  {!!type && (
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      onPress={() => setType(undefined)}
+                      style={[s.retryButton, { marginTop: 16 }]}
+                    >
+                      <Text style={s.retryButtonText}>View all properties</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ) : (
+                /* Horizontal Scrollable Carousel */
+                <View style={s.carouselWrapper}>
+                  {/* Header bar with total available count and navigation arrows */}
+                  <View style={s.carouselHeader}>
+                    <View style={s.carouselTitleRow}>
+                      <Text style={s.carouselTitle}>
+                        {type
+                          ? `${type.charAt(0).toUpperCase() + type.slice(1)} Properties`
+                          : "Featured Verified Listings"}
+                      </Text>
+                      <View style={s.verifiedShieldBadge}>
+                        <MaterialIcons name="verified" size={13} color="#059669" />
+                        <Text style={s.verifiedShieldText}>100% Legal Clearance</Text>
+                      </View>
+                      <View style={s.countBadge}>
+                        <Text style={s.countBadgeText}>{filteredProperties.length} available</Text>
+                      </View>
+                    </View>
+
+                    <View style={s.arrowControls}>
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        accessibilityLabel="Previous properties"
+                        onPress={() => handleCarouselScroll("left")}
+                        style={s.arrowBtn}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialIcons name="chevron-left" size={24} color="#03456C" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        accessibilityLabel="Next properties"
+                        onPress={() => handleCarouselScroll("right")}
+                        style={s.arrowBtn}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialIcons name="chevron-right" size={24} color="#03456C" />
+                      </TouchableOpacity>
                     </View>
                   </View>
 
-                  <View style={s.arrowControls}>
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      accessibilityLabel="Previous properties"
-                      onPress={() => handleCarouselScroll("left")}
-                      style={s.arrowBtn}
-                      activeOpacity={0.7}
-                    >
-                      <MaterialIcons name="chevron-left" size={24} color="#03456C" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      accessibilityLabel="Next properties"
-                      onPress={() => handleCarouselScroll("right")}
-                      style={s.arrowBtn}
-                      activeOpacity={0.7}
-                    >
-                      <MaterialIcons name="chevron-right" size={24} color="#03456C" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Horizontal Scroll Area */}
-                <ScrollView
-                  ref={carouselScroll}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={s.carouselContent}
-                  onScroll={(e) => {
-                    scrollOffset.current = e.nativeEvent.contentOffset.x;
-                  }}
-                  scrollEventThrottle={16}
-                >
-                  {filteredProperties.map((property) => (
-                    <TouchableOpacity
-                      key={property._id || property.id}
-                      accessibilityRole="button"
-                      onPress={() => setSelected(property)}
-                      activeOpacity={0.92}
-                      style={s.horizontalCard}
-                    >
-                      {/* Card Top: Image & Badges */}
-                      <View style={s.cardTopImage}>
-                        {property.media?.photos?.[0] ? (
-                          <Image
-                            source={{ uri: property.media.photos[0] }}
-                            style={StyleSheet.absoluteFill}
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <View style={s.noPhoto}>
-                            <MaterialIcons name="landscape" size={36} color="#94A3B8" />
+                  {/* Horizontal Scroll Area */}
+                  <ScrollView
+                    ref={carouselScroll}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={s.carouselContent}
+                    onScroll={(e) => {
+                      scrollOffset.current = e.nativeEvent.contentOffset.x;
+                    }}
+                    scrollEventThrottle={16}
+                  >
+                    {filteredProperties.map((property) => (
+                      <TouchableOpacity
+                        key={property._id || property.id}
+                        accessibilityRole="button"
+                        onPress={() => setSelected(property)}
+                        activeOpacity={0.92}
+                        style={s.horizontalCard}
+                      >
+                        {/* Card Top: Image & Badges */}
+                        <View style={s.cardTopImage}>
+                          {property.media?.photos?.[0] ? (
+                            <Image
+                              source={{ uri: property.media.photos[0] }}
+                              style={StyleSheet.absoluteFill}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={s.noPhoto}>
+                              <MaterialIcons name="landscape" size={36} color="#94A3B8" />
+                            </View>
+                          )}
+                          <View style={s.imageBadge}>
+                            <MaterialIcons name={typeIcon(property.type)} size={11} color="#FFFFFF" style={{ marginRight: 4 }} />
+                            <Text style={s.imageBadgeText}>{property.type.toUpperCase()}</Text>
                           </View>
-                        )}
-                        <View style={s.imageBadge}>
-                          <Text style={s.imageBadgeText}>{property.type.toUpperCase()}</Text>
+                          <View style={s.verifiedTag}>
+                            <MaterialIcons name="verified" size={12} color="#10B981" />
+                            <Text style={s.verifiedTagText}>Title Verified</Text>
+                          </View>
+                          <TouchableOpacity
+                            style={s.heartPill}
+                            accessibilityRole="button"
+                            accessibilityLabel="Save property"
+                            onPress={(e: any) => {
+                              e?.stopPropagation?.();
+                            }}
+                          >
+                            <MaterialIcons name="favorite-border" size={17} color="#03456C" />
+                          </TouchableOpacity>
                         </View>
-                        <TouchableOpacity
-                          style={s.heartPill}
-                          accessibilityRole="button"
-                          accessibilityLabel="Save property"
-                          onPress={(e: any) => {
-                            e?.stopPropagation?.();
-                          }}
-                        >
-                          <MaterialIcons name="favorite-border" size={17} color="#03456C" />
-                        </TouchableOpacity>
-                      </View>
 
-                      {/* Card Body */}
-                      <View style={s.horizontalCardBody}>
-                        <Text style={s.horizontalCardTitle} numberOfLines={2}>
-                          {property.title || `${property.type} in ${property.location.district}`}
-                        </Text>
+                        {/* Card Body */}
+                        <View style={s.horizontalCardBody}>
+                          <View style={s.priceLocationRow}>
+                            <View style={s.priceRow}>
+                              <Text style={s.compactPriceText}>{compactPrice(property.price)}</Text>
+                              <Text style={s.fullPriceText}>({priceOf(property)})</Text>
+                            </View>
+                            <View style={s.locationRow}>
+                              <MaterialIcons name="location-on" size={13} color="#0284C7" />
+                              <Text style={s.locationText} numberOfLines={1}>
+                                {property.location.district}, {property.location.state}
+                              </Text>
+                            </View>
+                          </View>
 
-                        <View style={s.priceLocationRow}>
-                          <Text style={s.priceText}>{priceOf(property)}</Text>
-                          <Text style={s.locationText} numberOfLines={1}>
-                            {property.location.district}, {property.location.state}
+                          <Text style={s.horizontalCardTitle} numberOfLines={2}>
+                            {property.title || `${property.type} in ${property.location.district}`}
                           </Text>
-                        </View>
 
-                        <View style={s.specsRow}>
-                          <View style={s.specChip}>
-                            <MaterialIcons name="square-foot" size={15} color="#64748B" />
-                            <Text style={s.specText}>
-                              {property.sellableArea
-                                ? `${property.sellableArea.toLocaleString("en-IN")} sq ft`
-                                : "Area unlisted"}
-                            </Text>
+                          <View style={s.specsRow}>
+                            <View style={s.specChip}>
+                              <MaterialIcons name="square-foot" size={14} color="#64748B" />
+                              <Text style={s.specText}>
+                                {property.sellableArea
+                                  ? `${property.sellableArea.toLocaleString("en-IN")} sq ft`
+                                  : "Area unlisted"}
+                              </Text>
+                            </View>
+                            <View style={[s.specChip, property.negotiable ? s.negotiableChip : s.fixedChip]}>
+                              <Text style={[s.negotiableText, property.negotiable ? s.negotiableColor : s.fixedColor]}>
+                                {property.negotiable ? "Negotiable" : "Fixed price"}
+                              </Text>
+                            </View>
                           </View>
-                          <View style={[s.specChip, property.negotiable ? s.negotiableChip : s.fixedChip]}>
-                            <Text style={[s.negotiableText, property.negotiable ? s.negotiableColor : s.fixedColor]}>
-                              {property.negotiable ? "Negotiable" : "Fixed price"}
-                            </Text>
-                          </View>
-                        </View>
 
-                        <TouchableOpacity
-                          accessibilityRole="button"
-                          onPress={() => setSelected(property)}
-                          style={s.viewDetailsBtn}
-                          activeOpacity={0.85}
-                        >
-                          <Text style={s.viewDetailsText}>View Details</Text>
-                          <MaterialIcons name="arrow-forward" size={14} color="#03456C" />
-                        </TouchableOpacity>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
+                          <TouchableOpacity
+                            accessibilityRole="button"
+                            onPress={() => setSelected(property)}
+                            style={s.viewDetailsBtn}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={s.viewDetailsText}>View Details</Text>
+                            <MaterialIcons name="arrow-forward" size={14} color="#03456C" />
+                          </TouchableOpacity>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
           </View>
 
           {/* Pagination Controls */}
@@ -438,6 +490,242 @@ export default function VerifiedHomeScreen() {
               )}
             </View>
           )}
+
+          {/* Section 1: The 4-Step Verification Guarantee */}
+          <View style={s.trustSection}>
+            <View style={s.sectionHeader}>
+              <View style={s.sectionBadge}>
+                <MaterialIcons name="security" size={14} color="#03456C" />
+                <Text style={s.sectionBadgeText}>100% DISPUTE-FREE ASSURANCE</Text>
+              </View>
+              <Text style={s.sectionTitle}>Why Buyers & Investors Choose MalikSe</Text>
+              <Text style={s.sectionSubtitle}>
+                Every property undergoes Bihar’s strictest 4-stage legal, revenue, and physical boundary audit before being listed.
+              </Text>
+            </View>
+
+            <View style={[s.trustGrid, { flexDirection: isWide ? "row" : "column" }]}>
+              {/* Card 1 */}
+              <View style={[s.trustCard, { width: isWide ? "23.5%" : "100%" }]}>
+                <View style={[s.trustIconBox, { backgroundColor: "#E0F2FE" }]}>
+                  <MaterialIcons name="account-balance" size={26} color="#03456C" />
+                </View>
+                <Text style={s.trustCardTitle}>Revenue Record Audit</Text>
+                <Text style={s.trustCardDesc}>
+                  Jamabandi, Khatiyan, LPC, and Mutation records verified directly at the Circle Office (Anchal Adhikari).
+                </Text>
+              </View>
+
+              {/* Card 2 */}
+              <View style={[s.trustCard, { width: isWide ? "23.5%" : "100%" }]}>
+                <View style={[s.trustIconBox, { backgroundColor: "#ECFDF5" }]}>
+                  <MaterialIcons name="gps-fixed" size={26} color="#059669" />
+                </View>
+                <Text style={s.trustCardTitle}>GPS Demarcation</Text>
+                <Text style={s.trustCardDesc}>
+                  On-ground satellite coordinates mapped with surveyor pegs to ensure zero boundary encroachment disputes.
+                </Text>
+              </View>
+
+              {/* Card 3 */}
+              <View style={[s.trustCard, { width: isWide ? "23.5%" : "100%" }]}>
+                <View style={[s.trustIconBox, { backgroundColor: "#FEF3C7" }]}>
+                  <MaterialIcons name="gavel" size={26} color="#D97706" />
+                </View>
+                <Text style={s.trustCardTitle}>30-Year Title Search</Text>
+                <Text style={s.trustCardDesc}>
+                  Empanelled High Court advocates audit 30 years of registered sale deeds, ensuring non-encumbrance clearance.
+                </Text>
+              </View>
+
+              {/* Card 4 */}
+              <View style={[s.trustCard, { width: isWide ? "23.5%" : "100%" }]}>
+                <View style={[s.trustIconBox, { backgroundColor: "#F3E8FF" }]}>
+                  <MaterialIcons name="handshake" size={26} color="#7C3AED" />
+                </View>
+                <Text style={s.trustCardTitle}>Direct Deals, ₹0 Brokerage</Text>
+                <Text style={s.trustCardDesc}>
+                  Connect directly with verified title holders. Complete documentation transparency with zero hidden middleman cuts.
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Section 2: Explore Bihar's Top Investment Corridors */}
+          <View style={s.districtsSection}>
+            <View style={s.sectionHeader}>
+              <View style={s.sectionBadge}>
+                <MaterialIcons name="trending-up" size={14} color="#03456C" />
+                <Text style={s.sectionBadgeText}>PRIME CORRIDORS</Text>
+              </View>
+              <Text style={s.sectionTitle}>Explore High-Growth Hubs in Bihar</Text>
+              <Text style={s.sectionSubtitle}>
+                High-appreciation residential belts, commercial retail hotspots, and emerging infrastructure corridors.
+              </Text>
+            </View>
+
+            <View style={[s.districtsGrid, { flexDirection: isWide ? "row" : "column" }]}>
+              {/* Patna Sadar */}
+              <TouchableOpacity
+                style={[s.districtCard, { width: isWide ? "23.5%" : "100%" }]}
+                activeOpacity={0.88}
+                onPress={() => router.push({ pathname: "/home", params: { district: "Patna" } })}
+              >
+                <View style={s.districtImageWrap}>
+                  <Image
+                    source={{ uri: "https://images.unsplash.com/photo-1570129477492-45c003edd2be?auto=format&fit=crop&w=600&q=80" }}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode="cover"
+                  />
+                  <View style={s.districtOverlay} />
+                  <View style={s.districtCountBadge}>
+                    <Text style={s.districtCountText}>18 Verified</Text>
+                  </View>
+                </View>
+                <View style={s.districtInfo}>
+                  <Text style={s.districtName}>Patna Sadar & Central</Text>
+                  <Text style={s.districtHighlights}>Bailey Road · Fraser Road · Kankarbagh</Text>
+                  <Text style={s.districtPriceRange}>From ₹4,500 / sq ft</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Danapur & Saguna More */}
+              <TouchableOpacity
+                style={[s.districtCard, { width: isWide ? "23.5%" : "100%" }]}
+                activeOpacity={0.88}
+                onPress={() => router.push({ pathname: "/home", params: { district: "Patna" } })}
+              >
+                <View style={s.districtImageWrap}>
+                  <Image
+                    source={{ uri: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=600&q=80" }}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode="cover"
+                  />
+                  <View style={s.districtOverlay} />
+                  <View style={s.districtCountBadge}>
+                    <Text style={s.districtCountText}>12 Verified</Text>
+                  </View>
+                </View>
+                <View style={s.districtInfo}>
+                  <Text style={s.districtName}>Danapur & Saguna More</Text>
+                  <Text style={s.districtHighlights}>Khagaul Road · RPS More · Danapur Cantt</Text>
+                  <Text style={s.districtPriceRange}>From ₹3,800 / sq ft</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Bihta Hub */}
+              <TouchableOpacity
+                style={[s.districtCard, { width: isWide ? "23.5%" : "100%" }]}
+                activeOpacity={0.88}
+                onPress={() => router.push({ pathname: "/home", params: { district: "Patna" } })}
+              >
+                <View style={s.districtImageWrap}>
+                  <Image
+                    source={{ uri: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=600&q=80" }}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode="cover"
+                  />
+                  <View style={s.districtOverlay} />
+                  <View style={s.districtCountBadge}>
+                    <Text style={s.districtCountText}>9 Verified</Text>
+                  </View>
+                </View>
+                <View style={s.districtInfo}>
+                  <Text style={s.districtName}>Bihta IT & Airport Belt</Text>
+                  <Text style={s.districtHighlights}>IIT Patna · Airport Corridor · Commercial</Text>
+                  <Text style={s.districtPriceRange}>From ₹1,800 / sq ft</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Muzaffarpur & Regional */}
+              <TouchableOpacity
+                style={[s.districtCard, { width: isWide ? "23.5%" : "100%" }]}
+                activeOpacity={0.88}
+                onPress={() => router.push({ pathname: "/home", params: { district: "Muzaffarpur" } })}
+              >
+                <View style={s.districtImageWrap}>
+                  <Image
+                    source={{ uri: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=600&q=80" }}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode="cover"
+                  />
+                  <View style={s.districtOverlay} />
+                  <View style={s.districtCountBadge}>
+                    <Text style={s.districtCountText}>14 Verified</Text>
+                  </View>
+                </View>
+                <View style={s.districtInfo}>
+                  <Text style={s.districtName}>Muzaffarpur & Gaya</Text>
+                  <Text style={s.districtHighlights}>Mithila Hub · Magadh Corridor · NH-22</Text>
+                  <Text style={s.districtPriceRange}>From ₹2,200 / sq ft</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Section 3: Owner / Seller Call To Action Banner */}
+          <View style={s.ctaBanner}>
+            <View style={[s.ctaContent, { flexDirection: isWide ? "row" : "column" }]}>
+              <View style={[s.ctaLeft, { maxWidth: isWide ? "75%" : "100%" }]}>
+                <View style={s.ctaBadge}>
+                  <MaterialIcons name="stars" size={14} color="#38BDF8" />
+                  <Text style={s.ctaBadgeText}>FOR PROPERTY OWNERS & BUILDERS</Text>
+                </View>
+                <Text style={s.ctaTitle}>Own Land or a Home in Bihar? Sell with 100% Free Verification.</Text>
+                <Text style={s.ctaDesc}>
+                  List your property on MalikSe. We audit your Khatiyan & boundary, award the MalikSe Verified Seal, and connect you directly with genuine buyers with ₹0 commission.
+                </Text>
+                <View style={s.ctaButtonsRow}>
+                  <TouchableOpacity
+                    style={s.ctaPrimaryBtn}
+                    onPress={() => router.push("/listing/create")}
+                    activeOpacity={0.85}
+                  >
+                    <MaterialIcons name="add-circle" size={18} color="#03456C" />
+                    <Text style={s.ctaPrimaryBtnText}>Post Your Property Free</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={s.ctaSecondaryBtn}
+                    onPress={() => router.push("/search")}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.ctaSecondaryBtnText}>Explore Verification Benefits</Text>
+                    <MaterialIcons name="arrow-forward" size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {isWide && (
+                <View style={s.ctaRightGraphic}>
+                  <MaterialIcons name="verified-user" size={110} color="rgba(255, 255, 255, 0.12)" />
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Section 4: Live Trust Numbers Strip */}
+          <View style={[s.statsStrip, { flexDirection: isWide ? "row" : "column" }]}>
+            <View style={s.statItem}>
+              <Text style={s.statNumber}>100%</Text>
+              <Text style={s.statLabel}>Revenue-Verified Titles</Text>
+            </View>
+            {isWide && <View style={s.statDivider} />}
+            <View style={s.statItem}>
+              <Text style={s.statNumber}>38</Text>
+              <Text style={s.statLabel}>Districts of Bihar Covered</Text>
+            </View>
+            {isWide && <View style={s.statDivider} />}
+            <View style={s.statItem}>
+              <Text style={s.statNumber}>₹0</Text>
+              <Text style={s.statLabel}>Brokerage on Direct Deals</Text>
+            </View>
+            {isWide && <View style={s.statDivider} />}
+            <View style={s.statItem}>
+              <Text style={s.statNumber}>48h</Text>
+              <Text style={s.statLabel}>Legal Audit Turnaround</Text>
+            </View>
+          </View>
         </View>
 
         {/* Global Website Footer */}
@@ -466,7 +754,7 @@ export default function VerifiedHomeScreen() {
               {!isWide && <View style={s.handle} />}
               <ScrollView>
                 <View style={s.sheetHeader}>
-                  <Text style={s.eyebrow}>PROPERTY PREVIEW</Text>
+                  <Text style={s.modalEyebrow}>PROPERTY PREVIEW</Text>
                   <TouchableOpacity
                     accessibilityRole="button"
                     accessibilityLabel="Close preview"
@@ -544,7 +832,7 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   heroSection: {
-    marginTop: 20,
+    marginTop: 24,
     marginBottom: 0,
     position: "relative",
   },
@@ -552,42 +840,29 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 6,
+    marginBottom: 10,
     zIndex: 2,
   },
-  eyebrowLeft: {
+  badgeCapsule: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 6,
+    backgroundColor: "rgba(224, 242, 254, 0.9)",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(186, 230, 253, 0.95)",
+    shadowColor: "#03456C",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
   },
-  eyebrow: {
-    color: "#1E293B",
+  badgeCapsuleText: {
     fontSize: 11,
-    letterSpacing: 2,
-    fontWeight: "700",
-  },
-  eyebrowDash: {
-    width: 28,
-    height: 1.5,
-    backgroundColor: "#94A3B8",
-  },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    position: "relative",
-    minHeight: 48,
-    marginBottom: 4,
-    zIndex: 2,
-  },
-  titleLeft: {
-    flex: 1,
-    zIndex: 2,
-  },
-  mainTitle: {
-    fontSize: 36,
     fontWeight: "800",
-    color: "#0A192F",
-    letterSpacing: -0.6,
+    color: "#03456C",
+    letterSpacing: 1.2,
   },
   titleRight: {
     flexDirection: "row",
@@ -595,22 +870,43 @@ const s = StyleSheet.create({
     gap: 8,
     zIndex: 2,
   },
-  countDivider: {
-    width: 1.5,
-    height: 16,
-    backgroundColor: "#94A3B8",
+  countDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#10B981",
   },
   countText: {
     fontSize: 13,
     color: "#475569",
-    fontWeight: "500",
+    fontWeight: "600",
   },
-  skylineWrapper: {
-    position: "absolute",
-    right: 14,
-    bottom: -18,
-    zIndex: 1,
-    pointerEvents: "none",
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    position: "relative",
+    minHeight: 52,
+    marginBottom: 6,
+    zIndex: 2,
+  },
+  titleLeft: {
+    flex: 1,
+    zIndex: 2,
+  },
+  mainTitle: {
+    fontSize: 38,
+    fontWeight: "800",
+    color: "#0A192F",
+    letterSpacing: -0.8,
+    lineHeight: 44,
+  },
+  heroSubtitle: {
+    fontSize: 15,
+    color: "#475569",
+    fontWeight: "500",
+    marginTop: 6,
+    maxWidth: 680,
+    lineHeight: 22,
   },
   filterInfoRow: {
     flexDirection: "row",
@@ -627,6 +923,23 @@ const s = StyleSheet.create({
     fontWeight: "600",
     color: "#03456C",
   },
+
+  /* Main Card with Anchored Skyline Horizon */
+  mainCardContainer: {
+    position: "relative",
+    width: "100%",
+    marginTop: 16,
+    marginBottom: 28,
+    zIndex: 2,
+  },
+  skylineHorizonAnchor: {
+    position: "absolute",
+    right: 18,
+    bottom: "100%",
+    marginBottom: -16,
+    zIndex: 1,
+    pointerEvents: "none",
+  },
   mainCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 32,
@@ -634,14 +947,14 @@ const s = StyleSheet.create({
     paddingVertical: 28,
     paddingHorizontal: 24,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.95)",
+    borderColor: "rgba(226, 232, 240, 0.8)",
     shadowColor: "#03456C",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.07,
+    shadowRadius: 28,
     elevation: 4,
-    marginVertical: 14,
     width: "100%",
+    zIndex: 2,
   },
   loadingContainer: {
     padding: 60,
@@ -686,6 +999,8 @@ const s = StyleSheet.create({
     fontWeight: "700",
     fontSize: 14,
   },
+
+  /* Carousel */
   carouselWrapper: {
     width: "100%",
   },
@@ -693,19 +1008,35 @@ const s = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 18,
     paddingHorizontal: 6,
   },
   carouselTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
   },
   carouselTitle: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: "800",
     color: "#0A192F",
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
+  },
+  verifiedShieldBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  verifiedShieldText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#059669",
   },
   countBadge: {
     backgroundColor: "#EBF3F8",
@@ -742,8 +1073,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 4,
     gap: 18,
   },
+
+  /* Property Cards */
   horizontalCard: {
-    width: 310,
+    width: 325,
     backgroundColor: "#FFFFFF",
     borderRadius: 22,
     borderWidth: 1,
@@ -771,16 +1104,40 @@ const s = StyleSheet.create({
     position: "absolute",
     top: 10,
     left: 10,
-    backgroundColor: "rgba(3, 69, 108, 0.9)",
+    backgroundColor: "rgba(10, 25, 47, 0.88)",
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
   },
   imageBadgeText: {
     fontSize: 10,
     fontWeight: "800",
     color: "#FFFFFF",
     letterSpacing: 0.5,
+  },
+  verifiedTag: {
+    position: "absolute",
+    bottom: 10,
+    left: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.94)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  verifiedTagText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#059669",
+    letterSpacing: 0.2,
   },
   heartPill: {
     position: "absolute",
@@ -800,26 +1157,43 @@ const s = StyleSheet.create({
   horizontalCardBody: {
     padding: 16,
   },
+  priceLocationRow: {
+    marginBottom: 8,
+  },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+  },
+  compactPriceText: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#03456C",
+    letterSpacing: -0.3,
+  },
+  fullPriceText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    marginTop: 3,
+  },
+  locationText: {
+    fontSize: 12,
+    color: "#475569",
+    fontWeight: "500",
+  },
   horizontalCardTitle: {
     fontSize: 15,
     fontWeight: "700",
     color: "#0A192F",
     minHeight: 42,
     lineHeight: 21,
-  },
-  priceLocationRow: {
-    marginTop: 6,
-    marginBottom: 8,
-  },
-  priceText: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#03456C",
-  },
-  locationText: {
-    fontSize: 12,
-    color: "#64748B",
-    marginTop: 2,
+    marginBottom: 10,
   },
   specsRow: {
     flexDirection: "row",
@@ -864,7 +1238,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    paddingVertical: 9,
+    paddingVertical: 10,
     borderRadius: 12,
     backgroundColor: "#F0F7FB",
     borderWidth: 1,
@@ -875,12 +1249,14 @@ const s = StyleSheet.create({
     fontWeight: "700",
     color: "#03456C",
   },
+
+  /* Pagination */
   paginationRow: {
     flexDirection: "row",
     justifyContent: "center",
     gap: 12,
-    marginTop: 10,
-    marginBottom: 20,
+    marginTop: 6,
+    marginBottom: 32,
   },
   pagePill: {
     paddingHorizontal: 20,
@@ -895,6 +1271,298 @@ const s = StyleSheet.create({
     fontWeight: "600",
     color: "#0A192F",
   },
+
+  /* Section 1: Trust Section */
+  trustSection: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.75)",
+    borderRadius: 32,
+    padding: 32,
+    marginVertical: 20,
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.8)",
+    shadowColor: "#03456C",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+  },
+  sectionHeader: {
+    marginBottom: 24,
+  },
+  sectionBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "#E0F2FE",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  sectionBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#03456C",
+    letterSpacing: 0.8,
+  },
+  sectionTitle: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#0A192F",
+    letterSpacing: -0.5,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: "#64748B",
+    marginTop: 6,
+    maxWidth: 720,
+    lineHeight: 21,
+  },
+  trustGrid: {
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  trustCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+    shadowColor: "#03456C",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  trustIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  trustCardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0A192F",
+    marginBottom: 8,
+  },
+  trustCardDesc: {
+    fontSize: 13,
+    color: "#64748B",
+    lineHeight: 19,
+  },
+
+  /* Section 2: Districts */
+  districtsSection: {
+    width: "100%",
+    marginVertical: 24,
+  },
+  districtsGrid: {
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  districtCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#03456C",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  districtImageWrap: {
+    width: "100%",
+    height: 150,
+    position: "relative",
+    backgroundColor: "#E2E8F0",
+  },
+  districtOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(10, 25, 47, 0.25)",
+  },
+  districtCountBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    backgroundColor: "rgba(3, 69, 108, 0.9)",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  districtCountText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  districtInfo: {
+    padding: 16,
+  },
+  districtName: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0A192F",
+    marginBottom: 4,
+  },
+  districtHighlights: {
+    fontSize: 12,
+    color: "#64748B",
+    marginBottom: 6,
+  },
+  districtPriceRange: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0284C7",
+  },
+
+  /* Section 3: Owner CTA Banner */
+  ctaBanner: {
+    width: "100%",
+    backgroundColor: "#03456C",
+    borderRadius: 28,
+    marginVertical: 24,
+    overflow: "hidden",
+    shadowColor: "#03456C",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 28,
+    elevation: 8,
+  },
+  ctaContent: {
+    padding: 36,
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  ctaLeft: {
+    zIndex: 2,
+  },
+  ctaBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+    marginBottom: 12,
+  },
+  ctaBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#38BDF8",
+    letterSpacing: 0.8,
+  },
+  ctaTitle: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: -0.4,
+    lineHeight: 34,
+    marginBottom: 10,
+  },
+  ctaDesc: {
+    fontSize: 14,
+    color: "#E2E8F0",
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  ctaButtonsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  ctaPrimaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  ctaPrimaryBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#03456C",
+  },
+  ctaSecondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 20,
+  },
+  ctaSecondaryBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  ctaRightGraphic: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingRight: 20,
+  },
+
+  /* Section 4: Stats Strip */
+  statsStrip: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    paddingVertical: 24,
+    paddingHorizontal: 32,
+    marginVertical: 18,
+    justifyContent: "space-around",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+    shadowColor: "#03456C",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    gap: 16,
+  },
+  statItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  statNumber: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: "#03456C",
+    letterSpacing: -0.6,
+  },
+  statLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748B",
+    marginTop: 4,
+    textAlign: "center",
+  },
+  statDivider: {
+    width: 1.5,
+    height: 36,
+    backgroundColor: "#E2E8F0",
+  },
+
+  /* Modal */
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(15, 33, 55, 0.45)",
@@ -934,6 +1602,12 @@ const s = StyleSheet.create({
     backgroundColor: "#CBD5E1",
     alignSelf: "center",
     marginBottom: 18,
+  },
+  modalEyebrow: {
+    color: "#1E293B",
+    fontSize: 11,
+    letterSpacing: 2,
+    fontWeight: "700",
   },
   sheetHeader: {
     flexDirection: "row",

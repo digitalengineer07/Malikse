@@ -16,45 +16,77 @@ export default function AppBackground() {
           overflow: "hidden",
           pointerEvents: "none",
           zIndex: 0,
-          background: "linear-gradient(180deg, #C5DEF7 0%, #D8EAFC 22%, #EAF3FC 48%, #EDF5FD 62%, #E0EEF9 74%, #C7E0F4 88%, #B4D5EF 100%)",
+          background: "linear-gradient(180deg, #D5E8FA 0%, #E2F0FC 22%, #EEF6FD 45%, #F7FAFE 70%, #FFFFFF 100%)",
         }}
       >
-        {/* Upper Floating Wave Layer */}
+        {/* Ambient Radiant Sunburst in Top-Right */}
+        <div
+          style={{
+            position: "absolute",
+            top: "-10%",
+            right: "5%",
+            width: "60vw",
+            height: "60vw",
+            maxWidth: "800px",
+            maxHeight: "800px",
+            background: "radial-gradient(circle, rgba(186, 224, 253, 0.55) 0%, rgba(224, 242, 254, 0.25) 45%, rgba(255, 255, 255, 0) 70%)",
+            filter: "blur(40px)",
+            pointerEvents: "none",
+          }}
+        />
+
+        {/* Ambient Soft Cyan Aura in Top-Left */}
+        <div
+          style={{
+            position: "absolute",
+            top: "5%",
+            left: "-5%",
+            width: "45vw",
+            height: "45vw",
+            maxWidth: "600px",
+            maxHeight: "600px",
+            background: "radial-gradient(circle, rgba(207, 233, 254, 0.45) 0%, rgba(255, 255, 255, 0) 65%)",
+            filter: "blur(30px)",
+            pointerEvents: "none",
+          }}
+        />
+
+        {/* Elegant Organic Waves at Bottom */}
         <svg
-          viewBox="0 0 1440 380"
+          viewBox="0 0 1440 320"
           preserveAspectRatio="none"
           style={{
             position: "absolute",
             bottom: 0,
             left: 0,
             width: "100%",
-            height: "44%",
+            height: "32%",
             display: "block",
+            opacity: 0.65,
           }}
         >
           <defs>
             <linearGradient id="waveGradTop" x1="0" y1="0" x2="1" y2="0.8">
-              <stop offset="0%" stopColor="#CBE4FA" stopOpacity="0.88" />
-              <stop offset="40%" stopColor="#D5ECFC" stopOpacity="0.8" />
-              <stop offset="80%" stopColor="#BCE0F8" stopOpacity="0.85" />
-              <stop offset="100%" stopColor="#A8CEEE" stopOpacity="0.9" />
+              <stop offset="0%" stopColor="#C3E0FA" stopOpacity="0.7" />
+              <stop offset="50%" stopColor="#D2E8FC" stopOpacity="0.6" />
+              <stop offset="100%" stopColor="#B6DAF8" stopOpacity="0.75" />
             </linearGradient>
             <linearGradient id="waveGradBottom" x1="0" y1="0" x2="1" y2="0.8">
-              <stop offset="0%" stopColor="#9DCBEF" stopOpacity="0.95" />
-              <stop offset="45%" stopColor="#82B9E3" stopOpacity="0.92" />
-              <stop offset="100%" stopColor="#6CA7DA" stopOpacity="0.95" />
+              <stop offset="0%" stopColor="#9BCBF3" stopOpacity="0.6" />
+              <stop offset="50%" stopColor="#87BDEB" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="#76B0E3" stopOpacity="0.65" />
             </linearGradient>
           </defs>
 
-          {/* Upper Graceful Wave */}
+          {/* Upper Soft Wave */}
           <path
-            d="M0,150 C340,95 620,210 1000,145 C1210,105 1340,165 1440,150 L1440,380 L0,380 Z"
+            d="M0,140 C320,80 620,180 980,120 C1200,80 1340,140 1440,125 L1440,320 L0,320 Z"
             fill="url(#waveGradTop)"
           />
 
           {/* Lower Deep Blue Wave */}
           <path
-            d="M0,245 C300,195 620,295 1020,225 C1240,180 1360,235 1440,225 L1440,380 L0,380 Z"
+            d="M0,210 C280,160 600,240 990,185 C1220,150 1350,195 1440,190 L1440,320 L0,320 Z"
             fill="url(#waveGradBottom)"
           />
         </svg>
