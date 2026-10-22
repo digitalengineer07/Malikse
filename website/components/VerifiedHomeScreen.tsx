@@ -135,6 +135,7 @@ export default function VerifiedHomeScreen() {
   );
 
   const isWide = width >= 800;
+  const filteredProperties = properties.filter((p) => type === undefined || p.type === type);
 
   return (
     <View style={s.screen}>
@@ -236,21 +237,32 @@ export default function VerifiedHomeScreen() {
                   <Text style={s.retryButtonText}>Try again</Text>
                 </TouchableOpacity>
               </View>
-            ) : properties.length === 0 ? (
-              /* Exact Empty State from Uploaded Design */
+            ) : filteredProperties.length === 0 ? (
+              /* Empty State (Overall or for specific filtered type) */
               <View style={s.emptyStateWrapper}>
                 <HouseIllustration width={width < 600 ? 220 : 280} height={width < 600 ? 120 : 155} />
-                <Text style={s.emptyHeading}>More places are on the way</Text>
-                <Text style={s.emptySubheading}>
-                  Properties will appear here after Advisor and Verifier approval.
+                <Text style={s.emptyHeading}>
+                  {type ? `No ${type} properties available yet` : "More places are on the way"}
                 </Text>
+                <Text style={s.emptySubheading}>
+                  {type
+                    ? `We have verified listings in other categories. Switch to "All properties" or "Land" to view them.`
+                    : "Properties will appear here after Advisor and Verifier approval."}
+                </Text>
+                {!!type && (
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    onPress={() => setType(undefined)}
+                    style={[s.retryButton, { marginTop: 16 }]}
+                  >
+                    <Text style={s.retryButtonText}>View all properties</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               /* Property Cards Grid */
               <View style={s.propertyGrid}>
-                {properties
-                  .filter((p) => type === undefined || p.type === type)
-                  .map((property) => (
+                {filteredProperties.map((property) => (
                     <TouchableOpacity
                       key={property._id || property.id}
                       accessibilityRole="button"
@@ -267,7 +279,9 @@ export default function VerifiedHomeScreen() {
                               resizeMode="cover"
                             />
                           ) : (
-                            <View style={s.noPhoto} />
+                            <View style={s.noPhoto}>
+                              <MaterialIcons name="landscape" size={32} color="#94A3B8" />
+                            </View>
                           )}
                           <View style={s.imageBadge}>
                             <Text style={s.imageBadgeText}>{property.type.toUpperCase()}</Text>
@@ -619,7 +633,9 @@ const s = StyleSheet.create({
   },
   noPhoto: {
     flex: 1,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
   },
   imageBadge: {
     position: "absolute",
