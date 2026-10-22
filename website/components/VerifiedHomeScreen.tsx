@@ -136,6 +136,16 @@ export default function VerifiedHomeScreen() {
 
   const isWide = width >= 800;
   const filteredProperties = properties.filter((p) => type === undefined || p.type === type);
+  const carouselScroll = useRef<ScrollView>(null);
+  const scrollOffset = useRef(0);
+
+  const handleCarouselScroll = (direction: "left" | "right") => {
+    if (!carouselScroll.current) return;
+    const delta = direction === "left" ? -340 : 340;
+    const target = Math.max(0, scrollOffset.current + delta);
+    scrollOffset.current = target;
+    carouselScroll.current.scrollTo({ x: target, animated: true });
+  };
 
   return (
     <View style={s.screen}>
@@ -260,59 +270,132 @@ export default function VerifiedHomeScreen() {
                 )}
               </View>
             ) : (
-              /* Property Cards Grid */
-              <View style={s.propertyGrid}>
-                {filteredProperties.map((property) => (
+              /* Horizontal Scrollable Carousel */
+              <View style={s.carouselWrapper}>
+                {/* Header bar with total available count and navigation arrows */}
+                <View style={s.carouselHeader}>
+                  <View style={s.carouselTitleRow}>
+                    <Text style={s.carouselTitle}>
+                      {type
+                        ? `${type.charAt(0).toUpperCase() + type.slice(1)} Properties`
+                        : "Verified Properties"}
+                    </Text>
+                    <View style={s.countBadge}>
+                      <Text style={s.countBadgeText}>{filteredProperties.length} available</Text>
+                    </View>
+                  </View>
+
+                  <View style={s.arrowControls}>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel="Previous properties"
+                      onPress={() => handleCarouselScroll("left")}
+                      style={s.arrowBtn}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialIcons name="chevron-left" size={24} color="#03456C" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel="Next properties"
+                      onPress={() => handleCarouselScroll("right")}
+                      style={s.arrowBtn}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialIcons name="chevron-right" size={24} color="#03456C" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Horizontal Scroll Area */}
+                <ScrollView
+                  ref={carouselScroll}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={s.carouselContent}
+                  onScroll={(e) => {
+                    scrollOffset.current = e.nativeEvent.contentOffset.x;
+                  }}
+                  scrollEventThrottle={16}
+                >
+                  {filteredProperties.map((property) => (
                     <TouchableOpacity
                       key={property._id || property.id}
                       accessibilityRole="button"
                       onPress={() => setSelected(property)}
-                      activeOpacity={0.9}
-                      style={[s.cardWrapper, { width: width < 800 ? "100%" : 460 }]}
+                      activeOpacity={0.92}
+                      style={s.horizontalCard}
                     >
-                      <View style={s.cardInner}>
-                        <View style={s.cardImageContainer}>
-                          {property.media?.photos?.[0] ? (
-                            <Image
-                              source={{ uri: property.media.photos[0] }}
-                              style={StyleSheet.absoluteFill}
-                              resizeMode="cover"
-                            />
-                          ) : (
-                            <View style={s.noPhoto}>
-                              <MaterialIcons name="landscape" size={32} color="#94A3B8" />
-                            </View>
-                          )}
-                          <View style={s.imageBadge}>
-                            <Text style={s.imageBadgeText}>{property.type.toUpperCase()}</Text>
+                      {/* Card Top: Image & Badges */}
+                      <View style={s.cardTopImage}>
+                        {property.media?.photos?.[0] ? (
+                          <Image
+                            source={{ uri: property.media.photos[0] }}
+                            style={StyleSheet.absoluteFill}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={s.noPhoto}>
+                            <MaterialIcons name="landscape" size={36} color="#94A3B8" />
+                          </View>
+                        )}
+                        <View style={s.imageBadge}>
+                          <Text style={s.imageBadgeText}>{property.type.toUpperCase()}</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={s.heartPill}
+                          accessibilityRole="button"
+                          accessibilityLabel="Save property"
+                          onPress={(e: any) => {
+                            e?.stopPropagation?.();
+                          }}
+                        >
+                          <MaterialIcons name="favorite-border" size={17} color="#03456C" />
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Card Body */}
+                      <View style={s.horizontalCardBody}>
+                        <Text style={s.horizontalCardTitle} numberOfLines={2}>
+                          {property.title || `${property.type} in ${property.location.district}`}
+                        </Text>
+
+                        <View style={s.priceLocationRow}>
+                          <Text style={s.priceText}>{priceOf(property)}</Text>
+                          <Text style={s.locationText} numberOfLines={1}>
+                            {property.location.district}, {property.location.state}
+                          </Text>
+                        </View>
+
+                        <View style={s.specsRow}>
+                          <View style={s.specChip}>
+                            <MaterialIcons name="square-foot" size={15} color="#64748B" />
+                            <Text style={s.specText}>
+                              {property.sellableArea
+                                ? `${property.sellableArea.toLocaleString("en-IN")} sq ft`
+                                : "Area unlisted"}
+                            </Text>
+                          </View>
+                          <View style={[s.specChip, property.negotiable ? s.negotiableChip : s.fixedChip]}>
+                            <Text style={[s.negotiableText, property.negotiable ? s.negotiableColor : s.fixedColor]}>
+                              {property.negotiable ? "Negotiable" : "Fixed price"}
+                            </Text>
                           </View>
                         </View>
 
-                        <View style={s.cardContent}>
-                          <View style={s.cardHeader}>
-                            <Text style={s.cardTitle} numberOfLines={1}>
-                              {property.title || `${property.type} in ${property.location.district}`}
-                            </Text>
-                            <TouchableOpacity style={s.heartBtn}>
-                              <MaterialIcons name="favorite-border" size={18} color="#4A5568" />
-                            </TouchableOpacity>
-                          </View>
-                          <Text style={s.cardPriceRow}>
-                            <Text style={s.priceText}>{priceOf(property)}</Text>{" "}
-                            <Text style={s.locationText}>
-                              | {property.location.district}, {property.location.state}
-                            </Text>
-                          </Text>
-                          <Text style={s.cardSpecs}>
-                            {property.sellableArea
-                              ? `${property.sellableArea.toLocaleString("en-IN")} sq ft`
-                              : "Area not provided"}{" "}
-                            | {property.negotiable ? "Negotiable" : "Fixed price"}
-                          </Text>
-                        </View>
+                        <TouchableOpacity
+                          accessibilityRole="button"
+                          onPress={() => setSelected(property)}
+                          style={s.viewDetailsBtn}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={s.viewDetailsText}>View Details</Text>
+                          <MaterialIcons name="arrow-forward" size={14} color="#03456C" />
+                        </TouchableOpacity>
                       </View>
                     </TouchableOpacity>
                   ))}
+                </ScrollView>
               </View>
             )}
           </View>
@@ -541,10 +624,8 @@ const s = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 32,
     minHeight: 360,
-    paddingVertical: 52,
-    paddingHorizontal: 28,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingVertical: 28,
+    paddingHorizontal: 24,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.95)",
     shadowColor: "#03456C",
@@ -553,6 +634,7 @@ const s = StyleSheet.create({
     shadowRadius: 24,
     elevation: 4,
     marginVertical: 14,
+    width: "100%",
   },
   loadingContainer: {
     padding: 60,
@@ -563,6 +645,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
+    paddingVertical: 32,
   },
   emptyHeading: {
     fontSize: 26,
@@ -596,40 +679,80 @@ const s = StyleSheet.create({
     fontWeight: "700",
     fontSize: 14,
   },
-  propertyGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 16,
+  carouselWrapper: {
     width: "100%",
   },
-  cardWrapper: {
-    minHeight: 170,
-    borderRadius: 20,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
-    marginBottom: 10,
-  },
-  cardInner: {
-    flex: 1,
+  carouselHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingHorizontal: 6,
+  },
+  carouselTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  carouselTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0A192F",
+    letterSpacing: -0.3,
+  },
+  countBadge: {
+    backgroundColor: "#EBF3F8",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  countBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#03456C",
+  },
+  arrowControls: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  arrowBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#03456C",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  carouselContent: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    gap: 18,
+  },
+  horizontalCard: {
+    width: 310,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: "#EEF2F6",
     overflow: "hidden",
+    shadowColor: "#03456C",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
   },
-  cardImageContainer: {
-    width: "36%",
-    minHeight: 150,
+  cardTopImage: {
+    width: "100%",
+    height: 185,
     position: "relative",
-    borderRadius: 16,
-    margin: 8,
-    overflow: "hidden",
+    backgroundColor: "#F1F5F9",
   },
   noPhoto: {
     flex: 1,
@@ -639,55 +762,111 @@ const s = StyleSheet.create({
   },
   imageBadge: {
     position: "absolute",
-    top: 8,
-    left: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    top: 10,
+    left: 10,
+    backgroundColor: "rgba(3, 69, 108, 0.9)",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 8,
   },
   imageBadgeText: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#0A192F",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
   },
-  cardContent: {
-    flex: 1,
-    padding: 12,
+  heartPill: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
   },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+  horizontalCardBody: {
+    padding: 16,
   },
-  cardTitle: {
-    fontSize: 16,
+  horizontalCardTitle: {
+    fontSize: 15,
     fontWeight: "700",
     color: "#0A192F",
-    flex: 1,
-    marginRight: 6,
+    minHeight: 42,
+    lineHeight: 21,
   },
-  heartBtn: {
-    padding: 4,
-  },
-  cardPriceRow: {
-    marginTop: 4,
-    marginBottom: 4,
+  priceLocationRow: {
+    marginTop: 6,
+    marginBottom: 8,
   },
   priceText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "800",
-    color: "#0A192F",
+    color: "#03456C",
   },
   locationText: {
-    fontSize: 13,
-    color: "#64748B",
-  },
-  cardSpecs: {
     fontSize: 12,
     color: "#64748B",
-    marginTop: 4,
+    marginTop: 2,
+  },
+  specsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  specChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  specText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  negotiableChip: {
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  negotiableText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  negotiableColor: {
+    color: "#059669",
+  },
+  fixedChip: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  fixedColor: {
+    color: "#64748B",
+  },
+  viewDetailsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: "#F0F7FB",
+    borderWidth: 1,
+    borderColor: "#D0E4F0",
+  },
+  viewDetailsText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#03456C",
   },
   paginationRow: {
     flexDirection: "row",
