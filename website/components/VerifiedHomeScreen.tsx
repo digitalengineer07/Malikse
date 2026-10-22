@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -110,6 +111,38 @@ export default function VerifiedHomeScreen() {
   });
   const [nextCursor, setNextCursor] = useState<string>();
   const page = pagination.key === filterKey ? pagination.page : 1;
+
+  // Website Ad Lead Capture Modal State
+  const [adModalData, setAdModalData] = useState<{
+    title: string;
+    subtitle: string;
+    tag: string;
+    submitted: boolean;
+  } | null>(null);
+  const [leadName, setLeadName] = useState("");
+  const [leadPhone, setLeadPhone] = useState("");
+  const [leadError, setLeadError] = useState("");
+
+  const handleOpenAdModal = (title: string, subtitle: string, tag: string) => {
+    setAdModalData({ title, subtitle, tag, submitted: false });
+    setLeadName("");
+    setLeadPhone("");
+    setLeadError("");
+  };
+
+  const handleAdLeadSubmit = () => {
+    if (!leadName.trim() || leadName.trim().length < 2) {
+      setLeadError("Please enter your name.");
+      return;
+    }
+    const clean = leadPhone.trim().replace(/\D/g, "");
+    if (!/^[0-9]{10}$/.test(clean)) {
+      setLeadError("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+    setLeadError("");
+    setAdModalData((prev) => (prev ? { ...prev, submitted: true } : null));
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -485,6 +518,112 @@ export default function VerifiedHomeScreen() {
             </View>
           )}
 
+          {/* Ad Unit 1: Panoramic Featured Developer / Township Showcase Ad (Website Only) */}
+          <View style={s.adShowcaseWrapper}>
+            <View style={[s.adShowcaseCard, { flexDirection: isWide ? "row" : "column" }]}>
+              {/* Left Photo & Badges */}
+              <View style={[s.adShowcaseMedia, { width: isWide ? "48%" : "100%" }]}>
+                <Image
+                  source={{
+                    uri: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80",
+                  }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                />
+                <View style={s.adMediaOverlay} />
+                <View style={s.adBadgeRow}>
+                  <View style={s.adSponsoredTag}>
+                    <MaterialIcons name="star" size={12} color="#FFFFFF" />
+                    <Text style={s.adSponsoredTagText}>SPONSORED SHOWCASE</Text>
+                  </View>
+                  <View style={s.adReraTag}>
+                    <MaterialIcons name="verified" size={12} color="#10B981" />
+                    <Text style={s.adReraTagText}>BIHAR RERA APPROVED</Text>
+                  </View>
+                </View>
+                <View style={s.adPrivilegePill}>
+                  <Text style={s.adPrivilegeText}>Pre-Launch Privilege: Up to ₹3.5 Lakh Off Booking</Text>
+                </View>
+              </View>
+
+              {/* Right Content & Action */}
+              <View style={[s.adShowcaseBody, { width: isWide ? "52%" : "100%" }]}>
+                <View style={s.adDeveloperRow}>
+                  <View style={s.adDeveloperBrand}>
+                    <MaterialIcons name="business" size={15} color="#03456C" />
+                    <Text style={s.adDeveloperName}>PATLIPUTRA REALTY & INFRASTRUCTURE</Text>
+                  </View>
+                  <Text style={s.adReraNumber}>Ad · RERA: BRERAP00184-1/102</Text>
+                </View>
+
+                <Text style={s.adProjectTitle}>Patliputra Green Meadows & Luxury Residences</Text>
+                <View style={s.adLocationRow}>
+                  <MaterialIcons name="place" size={15} color="#0284C7" />
+                  <Text style={s.adLocationText}>Bailey Road Extension · Saguna More Corridor, Patna</Text>
+                </View>
+
+                <View style={s.adAmenitiesRow}>
+                  <View style={s.adAmenityItem}>
+                    <MaterialIcons name="park" size={14} color="#059669" />
+                    <Text style={s.adAmenityText}>45% Green Central Park</Text>
+                  </View>
+                  <View style={s.adAmenityItem}>
+                    <MaterialIcons name="pool" size={14} color="#0284C7" />
+                    <Text style={s.adAmenityText}>Olympic Clubhouse & Gym</Text>
+                  </View>
+                  <View style={s.adAmenityItem}>
+                    <MaterialIcons name="flight" size={14} color="#D97706" />
+                    <Text style={s.adAmenityText}>15 Mins to Patna Airport</Text>
+                  </View>
+                </View>
+
+                <View style={s.adPriceBox}>
+                  <View>
+                    <Text style={s.adPriceStarting}>Starting from</Text>
+                    <Text style={s.adPriceValue}>₹54.9 Lakh*</Text>
+                  </View>
+                  <View style={s.adPriceDivider} />
+                  <View>
+                    <Text style={s.adEmiLabel}>EMI from ₹38,500/mo</Text>
+                    <Text style={s.adBankApproval}>Bank Approved: SBI · HDFC · ICICI</Text>
+                  </View>
+                </View>
+
+                <View style={s.adActionsRow}>
+                  <TouchableOpacity
+                    style={s.adBrochureBtn}
+                    onPress={() =>
+                      handleOpenAdModal(
+                        "Patliputra Green Meadows & Luxury Residences",
+                        "Bailey Road Extension, Patna · 2 & 3 BHK",
+                        "SPONSORED SHOWCASE"
+                      )
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <MaterialIcons name="file-download" size={16} color="#FFFFFF" />
+                    <Text style={s.adBrochureBtnText}>Download Brochure</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={s.adVisitBtn}
+                    onPress={() =>
+                      handleOpenAdModal(
+                        "Patliputra Green Meadows & Luxury Residences",
+                        "Bailey Road Extension, Patna · Free Site Visit",
+                        "FREE SITE VISIT"
+                      )
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.adVisitBtnText}>Book Free Site Visit</Text>
+                    <MaterialIcons name="arrow-forward" size={15} color="#03456C" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+
           {/* Section 1: The 4-Step Verification Guarantee */}
           <View style={s.trustSection}>
             <View style={s.sectionHeader}>
@@ -657,6 +796,124 @@ export default function VerifiedHomeScreen() {
             </View>
           </View>
 
+          {/* Ad Unit 2: Dual Sponsored Partner Opportunities (Website Only) */}
+          <View style={s.sponsoredPartnersSection}>
+            <View style={s.sectionHeader}>
+              <View style={s.sectionBadge}>
+                <MaterialIcons name="campaign" size={14} color="#03456C" />
+                <Text style={s.sectionBadgeText}>FEATURED PARTNER OPPORTUNITIES</Text>
+              </View>
+              <Text style={s.sectionTitle}>Exclusive Sponsored Solutions for Buyers</Text>
+              <Text style={s.sectionSubtitle}>
+                Pre-approved home loans and RERA-compliant plotted developments from MalikSe certified institutional partners.
+              </Text>
+            </View>
+
+            <View style={[s.sponsoredGrid, { flexDirection: isWide ? "row" : "column" }]}>
+              {/* Partner Card 1: Home Loans */}
+              <View style={[s.sponsoredCard, { width: isWide ? "48.8%" : "100%" }]}>
+                <View style={s.partnerCardHeader}>
+                  <View style={s.partnerBadge}>
+                    <MaterialIcons name="account-balance" size={13} color="#0284C7" />
+                    <Text style={s.partnerBadgeText}>BANKING PARTNER AD</Text>
+                  </View>
+                  <View style={s.rateTag}>
+                    <Text style={s.rateTagText}>8.35% p.a.</Text>
+                  </View>
+                </View>
+
+                <Text style={s.partnerCardTitle}>Fast-Track Home Loans with Zero Processing Fee</Text>
+                <Text style={s.partnerCardDesc}>
+                  Get instant in-principle sanction on MalikSe revenue-verified properties across Bihar with empanelled national banks.
+                </Text>
+
+                <View style={s.partnerPerksList}>
+                  <View style={s.partnerPerkRow}>
+                    <MaterialIcons name="check-circle" size={15} color="#10B981" />
+                    <Text style={s.partnerPerkText}>Zero processing fee for MalikSe verified titles</Text>
+                  </View>
+                  <View style={s.partnerPerkRow}>
+                    <MaterialIcons name="check-circle" size={15} color="#10B981" />
+                    <Text style={s.partnerPerkText}>Instant digital approval in 48 hours</Text>
+                  </View>
+                  <View style={s.partnerPerkRow}>
+                    <MaterialIcons name="check-circle" size={15} color="#10B981" />
+                    <Text style={s.partnerPerkText}>Loan tenure up to 30 years with EMI flexibility</Text>
+                  </View>
+                </View>
+
+                <View style={s.partnerFooter}>
+                  <Text style={s.partnerCoBrand}>Empanelled: SBI · HDFC · ICICI Bank</Text>
+                  <TouchableOpacity
+                    style={s.partnerActionBtn}
+                    onPress={() =>
+                      handleOpenAdModal(
+                        "Fast-Track Home Loan Assistance @ 8.35%",
+                        "Exclusive for MalikSe Verified Properties",
+                        "BANKING PARTNER AD"
+                      )
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.partnerActionBtnText}>Check Loan Eligibility</Text>
+                    <MaterialIcons name="arrow-forward" size={14} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Partner Card 2: Plotted Township */}
+              <View style={[s.sponsoredCard, { width: isWide ? "48.8%" : "100%" }]}>
+                <View style={s.partnerCardHeader}>
+                  <View style={[s.partnerBadge, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
+                    <MaterialIcons name="landscape" size={13} color="#D97706" />
+                    <Text style={[s.partnerBadgeText, { color: "#D97706" }]}>FEATURED PLOTTED TOWNSHIP</Text>
+                  </View>
+                  <View style={[s.rateTag, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
+                    <Text style={[s.rateTagText, { color: "#059669" }]}>IMMEDIATE REGISTRY</Text>
+                  </View>
+                </View>
+
+                <Text style={s.partnerCardTitle}>The Imperial Palms: Gated Villa Plotted Enclave</Text>
+                <Text style={s.partnerCardDesc}>
+                  Prime residential plots on Danapur-Bihta Expressway near IIT Patna campus. 30 ft wide blacktop roads with 24/7 solar security.
+                </Text>
+
+                <View style={s.partnerPerksList}>
+                  <View style={s.partnerPerkRow}>
+                    <MaterialIcons name="check-circle" size={15} color="#10B981" />
+                    <Text style={s.partnerPerkText}>Immediate circle registry & mutation guarantee</Text>
+                  </View>
+                  <View style={s.partnerPerkRow}>
+                    <MaterialIcons name="check-circle" size={15} color="#10B981" />
+                    <Text style={s.partnerPerkText}>Underground drainage, electricity & clubhouse</Text>
+                  </View>
+                  <View style={s.partnerPerkRow}>
+                    <MaterialIcons name="check-circle" size={15} color="#10B981" />
+                    <Text style={s.partnerPerkText}>Plot sizes: 1,200 · 1,800 · 2,400 sq ft</Text>
+                  </View>
+                </View>
+
+                <View style={s.partnerFooter}>
+                  <Text style={s.partnerCoBrand}>From ₹18.5 Lakh / Katha onwards</Text>
+                  <TouchableOpacity
+                    style={s.partnerActionBtn}
+                    onPress={() =>
+                      handleOpenAdModal(
+                        "The Imperial Palms: Gated Villa Plots",
+                        "Danapur-Bihta Expressway, Patna",
+                        "PLOTTED TOWNSHIP AD"
+                      )
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.partnerActionBtnText}>Explore Masterplan</Text>
+                    <MaterialIcons name="arrow-forward" size={14} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+
           {/* Section 3: Owner / Seller Call To Action Banner */}
           <View style={s.ctaBanner}>
             <View style={[s.ctaContent, { flexDirection: isWide ? "row" : "column" }]}>
@@ -725,6 +982,113 @@ export default function VerifiedHomeScreen() {
         {/* Global Website Footer */}
         <WebFooter />
       </ScrollView>
+
+      {/* Interactive Ad Inquiry / Lead Capture Modal (Website Only) */}
+      <Modal
+        visible={!!adModalData}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAdModalData(null)}
+      >
+        <View style={s.modalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setAdModalData(null)}
+          />
+          {adModalData && (
+            <View style={s.adModalDialog}>
+              <View style={s.adModalTopBar}>
+                <View style={s.adModalBadge}>
+                  <Text style={s.adModalBadgeText}>{adModalData.tag}</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setAdModalData(null)}
+                  style={s.adModalCloseBtn}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons name="close" size={20} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              {!adModalData.submitted ? (
+                <>
+                  <Text style={s.adModalTitle}>{adModalData.title}</Text>
+                  <Text style={s.adModalSubtitle}>{adModalData.subtitle}</Text>
+                  <Text style={s.adModalPrompt}>
+                    Enter your details below to receive the official brochure, masterplan, and special pricing directly on WhatsApp.
+                  </Text>
+
+                  {!!leadError && (
+                    <View style={s.leadErrorBox}>
+                      <MaterialIcons name="error-outline" size={16} color="#DC2626" />
+                      <Text style={s.leadErrorText}>{leadError}</Text>
+                    </View>
+                  )}
+
+                  <View style={s.leadField}>
+                    <Text style={s.leadLabel}>Full Name</Text>
+                    <TextInput
+                      style={s.leadInput}
+                      value={leadName}
+                      onChangeText={setLeadName}
+                      placeholder="e.g. Rahul Sharma"
+                      placeholderTextColor="#94A3B8"
+                    />
+                  </View>
+
+                  <View style={s.leadField}>
+                    <Text style={s.leadLabel}>Mobile / WhatsApp Number</Text>
+                    <View style={s.leadPhoneWrap}>
+                      <View style={s.leadCountryCode}>
+                        <Text style={s.leadCountryCodeText}>+91</Text>
+                      </View>
+                      <TextInput
+                        style={s.leadPhoneInput}
+                        value={leadPhone}
+                        onChangeText={(t) => setLeadPhone(t.replace(/\D/g, "").slice(0, 10))}
+                        placeholder="10-digit mobile number"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="phone-pad"
+                        maxLength={10}
+                      />
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={s.leadSubmitBtn}
+                    onPress={handleAdLeadSubmit}
+                    activeOpacity={0.88}
+                  >
+                    <MaterialIcons name="send" size={16} color="#FFFFFF" />
+                    <Text style={s.leadSubmitBtnText}>Get Instant Brochure on WhatsApp</Text>
+                  </TouchableOpacity>
+
+                  <Text style={s.leadPrivacyNote}>
+                    🔒 Zero spam guaranteed. Your number is only used to share the requested project information.
+                  </Text>
+                </>
+              ) : (
+                <View style={s.leadSuccessView}>
+                  <View style={s.leadSuccessIconBox}>
+                    <MaterialIcons name="check-circle" size={48} color="#10B981" />
+                  </View>
+                  <Text style={s.leadSuccessTitle}>Request Received!</Text>
+                  <Text style={s.leadSuccessDesc}>
+                    The official digital brochure and pricing sheet for <Text style={{ fontWeight: "700" }}>{adModalData.title}</Text> will be sent to your WhatsApp number shortly.
+                  </Text>
+                  <TouchableOpacity
+                    style={s.leadCloseDoneBtn}
+                    onPress={() => setAdModalData(null)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.leadCloseDoneText}>Close Window</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+      </Modal>
 
       {/* Property Preview Modal */}
       <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
@@ -1652,4 +2016,563 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
+
+  /* Ad Unit 1: Panoramic Showcase Styles (Website Only) */
+  adShowcaseWrapper: {
+    width: "100%",
+    marginVertical: 36,
+  },
+  adShowcaseCard: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.9)",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 20px 48px -12px rgba(10, 25, 47, 0.12), 0 1px 3px 0 rgba(0, 0, 0, 0.05)",
+      },
+      default: {
+        elevation: 6,
+      },
+    }),
+  },
+  adShowcaseMedia: {
+    minHeight: 280,
+    position: "relative",
+    overflow: "hidden",
+    backgroundColor: "#03456C",
+  },
+  adMediaOverlay: {
+    ...StyleSheet.absoluteFill as any,
+    backgroundColor: "rgba(3, 69, 108, 0.35)",
+    ...Platform.select({
+      web: {
+        backgroundImage: "linear-gradient(180deg, rgba(10, 25, 47, 0.25) 0%, rgba(3, 69, 108, 0.6) 100%)",
+      },
+    }),
+  },
+  adBadgeRow: {
+    position: "absolute",
+    top: 18,
+    left: 18,
+    flexDirection: "row",
+    gap: 8,
+    zIndex: 2,
+    flexWrap: "wrap",
+  },
+  adSponsoredTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#D97706",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  adSponsoredTagText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.8,
+  },
+  adReraTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(16, 185, 129, 0.92)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  adReraTagText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.6,
+  },
+  adPrivilegePill: {
+    position: "absolute",
+    bottom: 18,
+    left: 18,
+    right: 18,
+    backgroundColor: "rgba(10, 25, 47, 0.85)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.15)",
+  },
+  adPrivilegeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FDE68A",
+  },
+  adShowcaseBody: {
+    padding: 32,
+    justifyContent: "space-between",
+  },
+  adDeveloperRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  adDeveloperBrand: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  adDeveloperName: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#03456C",
+    letterSpacing: 0.8,
+  },
+  adReraNumber: {
+    fontSize: 11,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  adProjectTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#0A192F",
+    letterSpacing: -0.5,
+    marginBottom: 6,
+    lineHeight: 30,
+  },
+  adLocationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 16,
+  },
+  adLocationText: {
+    fontSize: 13,
+    color: "#475569",
+    fontWeight: "500",
+  },
+  adAmenitiesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 20,
+  },
+  adAmenityItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  adAmenityText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#334155",
+  },
+  adPriceBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 20,
+    gap: 18,
+  },
+  adPriceStarting: {
+    fontSize: 11,
+    color: "#03456C",
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  adPriceValue: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#03456C",
+    letterSpacing: -0.4,
+  },
+  adPriceDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: "#BAE6FD",
+  },
+  adEmiLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0284C7",
+    marginBottom: 2,
+  },
+  adBankApproval: {
+    fontSize: 11,
+    color: "#64748B",
+  },
+  adActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  adBrochureBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#03456C",
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 12,
+    ...Platform.select({
+      web: {
+        backgroundImage: "linear-gradient(135deg, #03456C 0%, #0284C7 100%)",
+        cursor: "pointer",
+      },
+    }),
+  },
+  adBrochureBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  adVisitBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#03456C",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  adVisitBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#03456C",
+  },
+
+  /* Ad Unit 2: Dual Sponsored Partner Opportunities Styles */
+  sponsoredPartnersSection: {
+    marginVertical: 40,
+  },
+  sponsoredGrid: {
+    gap: 20,
+    justifyContent: "space-between",
+  },
+  sponsoredCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    padding: 28,
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.9)",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 12px 30px -10px rgba(10, 25, 47, 0.08)",
+      },
+      default: {
+        elevation: 4,
+      },
+    }),
+  },
+  partnerCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  partnerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#E0F2FE",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  partnerBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#0284C7",
+    letterSpacing: 0.6,
+  },
+  rateTag: {
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  rateTagText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#1D4ED8",
+  },
+  partnerCardTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0A192F",
+    lineHeight: 24,
+    marginBottom: 8,
+  },
+  partnerCardDesc: {
+    fontSize: 13,
+    color: "#64748B",
+    lineHeight: 19,
+    marginBottom: 16,
+  },
+  partnerPerksList: {
+    gap: 8,
+    marginBottom: 20,
+  },
+  partnerPerkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  partnerPerkText: {
+    fontSize: 13,
+    color: "#334155",
+    fontWeight: "500",
+  },
+  partnerFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  partnerCoBrand: {
+    fontSize: 11,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  partnerActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#03456C",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 10,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  partnerActionBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+
+  /* Ad Lead Capture Modal Styles */
+  adModalDialog: {
+    width: "92%",
+    maxWidth: 520,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 28,
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.9)",
+    zIndex: 10,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 24px 56px -12px rgba(10, 25, 47, 0.25)",
+      },
+      default: {
+        elevation: 12,
+      },
+    }),
+  },
+  adModalTopBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  adModalBadge: {
+    backgroundColor: "#E0F2FE",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  adModalBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#03456C",
+    letterSpacing: 0.6,
+  },
+  adModalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  adModalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0A192F",
+    marginBottom: 4,
+  },
+  adModalSubtitle: {
+    fontSize: 13,
+    color: "#0284C7",
+    fontWeight: "600",
+    marginBottom: 10,
+  },
+  adModalPrompt: {
+    fontSize: 13,
+    color: "#64748B",
+    lineHeight: 19,
+    marginBottom: 18,
+  },
+  leadErrorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 14,
+  },
+  leadErrorText: {
+    fontSize: 12,
+    color: "#DC2626",
+    fontWeight: "600",
+  },
+  leadField: {
+    gap: 6,
+    marginBottom: 14,
+  },
+  leadLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  leadInput: {
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontSize: 14,
+    color: "#0F172A",
+    backgroundColor: "#F8FAFC",
+  },
+  leadPhoneWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC",
+    overflow: "hidden",
+  },
+  leadCountryCode: {
+    backgroundColor: "#E2E8F0",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRightWidth: 1,
+    borderRightColor: "#CBD5E1",
+  },
+  leadCountryCodeText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  leadPhoneInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    fontSize: 14,
+    color: "#0F172A",
+  },
+  leadSubmitBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#03456C",
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 6,
+    marginBottom: 12,
+    ...Platform.select({
+      web: {
+        backgroundImage: "linear-gradient(135deg, #03456C 0%, #0284C7 100%)",
+        cursor: "pointer",
+      },
+    }),
+  },
+  leadSubmitBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  leadPrivacyNote: {
+    fontSize: 11,
+    color: "#94A3B8",
+    textAlign: "center",
+  },
+  leadSuccessView: {
+    alignItems: "center",
+    paddingVertical: 16,
+  },
+  leadSuccessIconBox: {
+    marginBottom: 14,
+  },
+  leadSuccessTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#0A192F",
+    marginBottom: 8,
+  },
+  leadSuccessDesc: {
+    fontSize: 13,
+    color: "#475569",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  leadCloseDoneBtn: {
+    backgroundColor: "#03456C",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  leadCloseDoneText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
 });
+
