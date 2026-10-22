@@ -15,6 +15,7 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import AppHeader from "../../components/AppHeader";
+import WebFooter from "../../components/WebFooter";
 import { useLanguageStore } from "../../src/store/languageStore";
 import { t } from "../../src/i18n/translations";
 import { useAuthStore } from "../../src/store/authStore";
@@ -129,53 +130,38 @@ export default function SavedScreen() {
         showLanguageToggle={true}
         showPostPropertyBtn={true}
       />
-      {!!savedError && <Text accessibilityRole="alert">{savedError}</Text>}
-      <View style={{ flexDirection: "row", gap: 20, padding: 12 }}>
-        <TouchableOpacity onPress={() => { setCursor(undefined); setPreviousCursors([]); setSavedRevision(old => old + 1); }}><Text>Refresh saved properties</Text></TouchableOpacity>
-        {previousCursors.length > 0 && <TouchableOpacity onPress={() => { setCursor(previousCursors.at(-1)); setPreviousCursors(old => old.slice(0, -1)); }}><Text>Previous saved properties</Text></TouchableOpacity>}
-        {nextCursor && <TouchableOpacity onPress={() => { setPreviousCursors(old => [...old, cursor]); setCursor(nextCursor); }}><Text>More saved properties</Text></TouchableOpacity>}
-      </View>
-      {loading && <ActivityIndicator accessibilityLabel="Loading saved properties" />}
+
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        {/* ================= 2. HERO BANNER ================= */}
-        <View style={styles.heroWrapper}>
-          <View style={styles.heroCard}>
-            {/* Background Landscape Photo (Matching home page aesthetic) */}
-            {/* Soft Translucent Light Gradient Overlay */}
-
-            {/* Left Content Column */}
-            <View style={styles.heroLeftContent}>
-              <Text style={styles.heroTitle}>
-                {t(language, "saved_hero_title") || "Saved Properties"}
-              </Text>
-              <Text style={styles.heroSubtitle}>
-                {t(language, "saved_hero_sub") || "Properties you've saved for later"}
-              </Text>
-            </View>
-
-            {/* Right Top Cursive Script */}
-            <View style={styles.heroCursiveWrap}>
-              <Text style={styles.heroCursiveText}>
-                Save Today{"\n"}Build Tomorrows
-              </Text>
-            </View>
-
-            {/* Right Bottom Floating Info Card */}
-            <View style={styles.heroFloatingCard}>
-              <View style={styles.heroFloatingIconBox}>
-                <MaterialIcons name="bookmark" size={18} color="#059669" />
+        {/* Main Website Container - Same width (1340px) as Home & Sign In */}
+        <View style={styles.content}>
+          {/* ================= 2. HERO BANNER ================= */}
+          <View style={styles.heroWrapper}>
+            <View style={styles.heroCard}>
+              {/* Left Content Column */}
+              <View style={styles.heroLeftContent}>
+                <Text style={styles.heroEyebrow}>SHORTLIST & WATCHLIST</Text>
+                <Text style={styles.heroTitle}>
+                  {t(language, "saved_hero_title") || "Saved Properties"}
+                </Text>
+                <Text style={styles.heroSubtitle}>
+                  {t(language, "saved_hero_sub") || "Properties you've saved for later · Compare legal records, prices & genuine title holders"}
+                </Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.heroFloatingTitle}>
-                  {t(language, "saved_hero_card_title") || "Keep track of properties"}
-                </Text>
-                <Text style={styles.heroFloatingSubtitle}>
-                  {t(language, "saved_hero_card_sub") || "that match your goals."}
-                </Text>
+
+              {/* Right Floating Summary Badge */}
+              <View style={styles.heroRightBadge}>
+                <View style={styles.heroBadgeIconBox}>
+                  <MaterialIcons name="bookmark" size={20} color="#0284C7" />
+                </View>
+                <View>
+                  <Text style={styles.heroBadgeTitle}>
+                    {savedList.length} {savedList.length === 1 ? "Property Shortlisted" : "Properties Shortlisted"}
+                  </Text>
+                  <Text style={styles.heroBadgeSub}>100% Verified Titles · ₹0 Brokerage</Text>
+                </View>
               </View>
             </View>
           </View>
-        </View>
 
         {/* ================= 3. MAIN BODY SECTION ================= */}
         <View style={[styles.mainLayout, isDesktop && styles.mainLayoutDesktop]}>
@@ -300,64 +286,28 @@ export default function SavedScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Card 2: Promo / Value Proposition Mini Card (Cleanly proportioned) */}
+            {/* Card 2: Promo / Value Proposition Mini Card */}
             <View style={styles.promoCard}>
-              <View style={styles.promoHeartCircle}>
-                <MaterialIcons name="favorite" size={15} color="#059669" />
+              <View style={styles.promoIconCircle}>
+                <MaterialIcons name="bookmark-added" size={16} color="#0284C7" />
               </View>
               <Text style={styles.promoTitle}>
-                {t(language, "saved_promo_title") || "Shortlist. Compare."}
+                {t(language, "saved_promo_title") || "Shortlist & Compare"}
               </Text>
               <Text style={styles.promoSubtitle}>
-                {t(language, "saved_promo_sub") || "Make the right move."}
+                {t(language, "saved_promo_sub") ||
+                  "Review verified revenue records, compare prices per sq.ft, and connect directly with genuine title holders."}
               </Text>
 
-              {/* Refined Minimalist Landscape Vector Graphic */}
-              <View style={styles.promoGraphicWrap}>
-                {Platform.OS === "web" ? (
-                  <svg
-                    viewBox="0 0 200 68"
-                    width="100%"
-                    height="68"
-                    style={{ display: "block", overflow: "hidden", borderBottomLeftRadius: 13, borderBottomRightRadius: 13 }}
-                  >
-                    <defs>
-                      <linearGradient id="hillBackGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#86EFAC" stopOpacity="0.8" />
-                        <stop offset="100%" stopColor="#4ADE80" stopOpacity="0.9" />
-                      </linearGradient>
-                      <linearGradient id="hillFrontGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#22C55E" stopOpacity="0.9" />
-                        <stop offset="100%" stopColor="#15803D" stopOpacity="1" />
-                      </linearGradient>
-                    </defs>
-
-                    {/* Back Rolling Hill */}
-                    <path d="M0,68 L0,36 Q55,14 125,28 Q165,36 200,30 L200,68 Z" fill="url(#hillBackGrad)" />
-
-                    {/* Back Trees */}
-                    <circle cx="28" cy="24" r="8" fill="#15803D" />
-                    <rect x="26.5" y="30" width="3" height="8" fill="#78350F" />
-                    <circle cx="44" cy="20" r="10" fill="#166534" />
-                    <rect x="42.5" y="28" width="3" height="9" fill="#78350F" />
-
-                    {/* Front Hill */}
-                    <path d="M0,68 L0,45 Q70,24 140,40 Q175,48 200,42 L200,68 Z" fill="url(#hillFrontGrad)" />
-
-                    {/* Front Tree */}
-                    <circle cx="78" cy="34" r="7" fill="#14532D" />
-                    <rect x="76.5" y="40" width="3" height="8" fill="#78350F" />
-
-                    {/* Modern Clean House on Right Slope */}
-                    <polygon points="158,28 176,16 194,28" fill="#065F46" />
-                    <rect x="162" y="28" width="28" height="20" fill="#FFFFFF" />
-                    <rect x="166" y="32" width="7" height="7" fill="#93C5FD" />
-                    <rect x="178" y="34" width="8" height="14" fill="#047857" />
-                    <rect x="186" y="20" width="3" height="8" fill="#991B1B" />
-                  </svg>
-                ) : (
-                  <View style={styles.fallbackPromoGraphic} />
-                )}
+              <View style={styles.promoPillsRow}>
+                <View style={styles.promoPill}>
+                  <MaterialIcons name="verified" size={12} color="#059669" />
+                  <Text style={styles.promoPillText}>100% Verified</Text>
+                </View>
+                <View style={styles.promoPill}>
+                  <MaterialIcons name="handshake" size={12} color="#0284C7" />
+                  <Text style={styles.promoPillText}>₹0 Brokerage</Text>
+                </View>
               </View>
             </View>
           </View>
@@ -379,6 +329,21 @@ export default function SavedScreen() {
                   onChangeText={setSearchQuery}
                 />
               </View>
+
+              {/* Refresh button */}
+              <TouchableOpacity
+                style={styles.refreshControlBtn}
+                onPress={() => {
+                  setCursor(undefined);
+                  setPreviousCursors([]);
+                  setSavedRevision((old) => old + 1);
+                }}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Refresh saved properties"
+              >
+                <MaterialIcons name="refresh" size={18} color="#64748B" />
+              </TouchableOpacity>
 
               {/* Sort by dropdown */}
               <TouchableOpacity style={styles.sortDropdown} activeOpacity={0.8}>
@@ -582,11 +547,43 @@ export default function SavedScreen() {
               </View>
             )}
 
+            {/* Pagination Controls (When applicable) */}
+            {(previousCursors.length > 0 || !!nextCursor) && (
+              <View style={styles.paginationRow}>
+                {previousCursors.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.paginationBtn}
+                    onPress={() => {
+                      setCursor(previousCursors.at(-1));
+                      setPreviousCursors((old) => old.slice(0, -1));
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="chevron-left" size={18} color="#03456C" />
+                    <Text style={styles.paginationBtnText}>Previous</Text>
+                  </TouchableOpacity>
+                )}
+                {nextCursor && (
+                  <TouchableOpacity
+                    style={styles.paginationBtn}
+                    onPress={() => {
+                      setPreviousCursors((old) => [...old, cursor]);
+                      setCursor(nextCursor);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.paginationBtnText}>Next</Text>
+                    <MaterialIcons name="chevron-right" size={18} color="#03456C" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
             {/* Bottom Callout Banner */}
             <View style={styles.bottomBanner}>
               <View style={styles.bottomBannerLeft}>
                 <View style={styles.bottomBannerIconCircle}>
-                  <MaterialIcons name="favorite-border" size={20} color="#059669" />
+                  <MaterialIcons name="favorite-border" size={20} color="#0284C7" />
                 </View>
                 <View style={{ flex: 1, minWidth: 240 }}>
                   <Text style={styles.bottomBannerTitle}>
@@ -607,55 +604,16 @@ export default function SavedScreen() {
                 <Text style={styles.bottomBannerBtnText}>
                   {t(language, "saved_explore_btn") || "Explore Properties"}
                 </Text>
-                <MaterialIcons name="arrow-forward" size={15} color="#065F46" />
+                <MaterialIcons name="arrow-forward" size={15} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
           </View>
         </View>
+      </View>
 
-        {/* ================= 4. PIXEL-PERFECT FOOTER ================= */}
-        <View style={styles.footerSection}>
-          <View style={styles.footerContent}>
-            {/* Left: Brand Logo & Tagline */}
-            <View style={styles.footerBrand}>
-              <View style={styles.footerLogoIcon}>
-                <FontAwesome5 name="shield-alt" size={16} color="#FFFFFF" />
-              </View>
-              <View>
-                <Text style={styles.footerBrandName}>MalikSe</Text>
-                <Text style={styles.footerBrandTagline}>Your Land. A Safer Future.</Text>
-              </View>
-            </View>
-
-            {/* Center: Legal & Navigation Links */}
-            <View style={styles.footerLinksRow}>
-              <TouchableOpacity activeOpacity={0.7}>
-                <Text style={styles.footerLink}>About</Text>
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.7}>
-                <Text style={styles.footerLink}>Contact</Text>
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.7}>
-                <Text style={styles.footerLink}>Privacy Policy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.7}>
-                <Text style={styles.footerLink}>Terms</Text>
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.7}>
-                <Text style={styles.footerLink}>Support</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Right: Signature Cursive Watermark */}
-            <View style={styles.footerSignatureWrap}>
-              <Text style={styles.footerSignatureText}>
-                Verified Land{"\n"}Brighter Tomorrows
-              </Text>
-              <View style={styles.signatureSwoosh} />
-            </View>
-          </View>
-        </View>
-      </ScrollView>
+      {/* Global Website Footer */}
+      <WebFooter />
+    </ScrollView>
     </View>
   );
 }
@@ -666,117 +624,100 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   scrollContainer: {
-    paddingBottom: 40,
+    paddingBottom: 0,
+    flexGrow: 1,
+  },
+  content: {
+    width: "100%",
+    maxWidth: 1340,
+    alignSelf: "center",
+    paddingHorizontal: 28,
+    paddingTop: 24,
   },
 
   /* ================= HERO BANNER ================= */
   heroWrapper: {
     width: "100%",
-    paddingHorizontal: 24,
-    paddingTop: 16,
+    marginBottom: 8,
   },
   heroCard: {
     width: "100%",
-    height: 195,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
     borderRadius: 20,
-    overflow: "hidden",
-    position: "relative",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-  },
-  heroBackground: {
-    ...StyleSheet.absoluteFill,
-    width: "100%",
-    height: "100%",
-  },
-  heroOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.85)",
+    paddingHorizontal: 28,
+    paddingVertical: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 16,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 20px -2px rgba(10, 25, 47, 0.04)",
+      },
+    }),
   },
   heroLeftContent: {
-    maxWidth: 420,
-    zIndex: 2,
+    flex: 1,
+    minWidth: 260,
+  },
+  heroEyebrow: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#0284C7",
+    letterSpacing: 0.8,
+    marginBottom: 4,
   },
   heroTitle: {
-    fontSize: 28,
-    fontWeight: "900",
-    color: AppTheme.colors.text,
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#0A192F",
     letterSpacing: -0.5,
   },
   heroSubtitle: {
-    fontSize: 14,
-    color: "#334155",
-    fontWeight: "600",
-    marginTop: 4,
-  },
-  heroCount: {
     fontSize: 13,
-    color: AppTheme.colors.textSecondary,
+    color: "#64748B",
     fontWeight: "500",
     marginTop: 4,
   },
-  heroCursiveWrap: {
-    position: "absolute",
-    top: 20,
-    right: 32,
-    zIndex: 2,
-    alignItems: "flex-end",
-  },
-  heroCursiveText: {
-    fontFamily: Platform.OS === "web" ? "Kalam, Caveat, 'Segoe Script', cursive" : "System",
-    fontSize: 18,
-    color: "#1E293B",
-    fontStyle: "italic",
-    textAlign: "right",
-    lineHeight: 22,
-    transform: [{ rotate: "-3deg" }],
-    opacity: 0.85,
-  },
-  heroFloatingCard: {
-    position: "absolute",
-    bottom: 16,
-    right: 28,
-    zIndex: 2,
+  heroRightBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.94)",
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    gap: 12,
+    backgroundColor: "#F0F9FF",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.8)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    borderColor: "#BAE6FD",
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
   },
-  heroFloatingIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "#E6F4EA",
-    justifyContent: "center",
+  heroBadgeIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#E0F2FE",
     alignItems: "center",
+    justifyContent: "center",
   },
-  heroFloatingTitle: {
-    fontSize: 11.5,
+  heroBadgeTitle: {
+    fontSize: 13,
     fontWeight: "700",
-    color: AppTheme.colors.text,
+    color: "#03456C",
   },
-  heroFloatingSubtitle: {
+  heroBadgeSub: {
     fontSize: 11,
-    color: AppTheme.colors.textSecondary,
-    marginTop: 1,
+    color: "#0284C7",
+    fontWeight: "600",
   },
 
   /* ================= MAIN LAYOUT ================= */
   mainLayout: {
     width: "100%",
-    paddingHorizontal: 24,
     marginTop: 20,
-    gap: 20,
+    gap: 24,
+    marginBottom: 32,
   },
   mainLayoutDesktop: {
     flexDirection: "row",
@@ -788,39 +729,45 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   sidebarDesktop: {
-    width: 240,
+    width: 250,
   },
   categoryCard: {
-    backgroundColor: "transparent",
-    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: AppTheme.colors.border,
+    borderColor: "rgba(226, 232, 240, 0.9)",
     padding: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.02,
-    shadowRadius: 3,
-    elevation: 1,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(10, 25, 47, 0.03)",
+      },
+    }),
   },
   categoryItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 9,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     gap: 10,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "all 0.15s ease",
+      },
+    }),
   },
   categoryItemActive: {
-    backgroundColor: "#E6F4EA",
+    backgroundColor: "#E0F2FE",
   },
   categoryLabel: {
     fontSize: 13,
     fontWeight: "600",
-    color: AppTheme.colors.textSecondary,
+    color: "#475569",
     flex: 1,
   },
   categoryLabelActive: {
-    color: "#065F46",
+    color: "#03456C",
     fontWeight: "800",
   },
   countPill: {
@@ -829,14 +776,14 @@ const styles = StyleSheet.create({
     borderRadius: 9999,
   },
   countPillActive: {
-    backgroundColor: "#A7F3D0",
+    backgroundColor: "#0284C7",
   },
   countPillText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: "700",
   },
   countPillTextActive: {
-    color: "#065F46",
+    color: "#FFFFFF",
     fontWeight: "800",
   },
   countPillMuted: {
@@ -844,55 +791,61 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   countPillMutedText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: "600",
     color: "#94A3B8",
   },
 
-  /* PROMO MINI CARD (Cleanly proportioned) */
+  /* PROMO MINI CARD */
   promoCard: {
-    backgroundColor: "#F0FDF4",
-    borderRadius: 14,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#BBF7D0",
-    paddingTop: 14,
-    paddingHorizontal: 14,
+    borderColor: "#E2E8F0",
+    padding: 16,
     marginTop: 16,
-    overflow: "hidden",
   },
-  promoHeartCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#DCFCE7",
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
+  promoIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "#E0F2FE",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   promoTitle: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: "800",
-    color: "#065F46",
+    color: "#0A192F",
   },
   promoSubtitle: {
     fontSize: 11.5,
-    color: AppTheme.colors.textSecondary,
-    marginTop: 2,
-    marginBottom: 10,
-  },
-  promoGraphicWrap: {
-    width: "100%",
+    color: "#64748B",
     marginTop: 4,
-    marginHorizontal: -14,
-    marginBottom: -1,
+    marginBottom: 12,
+    lineHeight: 16,
   },
-  fallbackPromoGraphic: {
-    height: 38,
-    backgroundColor: "#86EFAC",
-    borderBottomLeftRadius: 13,
-    borderBottomRightRadius: 13,
+  promoPillsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  promoPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  promoPillText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#334155",
   },
 
   /* CONTENT AREA */
@@ -911,30 +864,57 @@ const styles = StyleSheet.create({
     minWidth: 240,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
-    borderRadius: 8,
-    height: 40,
-    paddingHorizontal: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    height: 42,
+    paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: AppTheme.colors.border,
+    borderColor: "#E2E8F0",
     gap: 8,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+      },
+    }),
   },
   searchInput: {
     flex: 1,
     fontSize: 13,
-    color: AppTheme.colors.text,
+    color: "#0F172A",
     outlineStyle: "none" as any,
+  },
+  refreshControlBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+      },
+    }),
   },
   sortDropdown: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.7)",
-    borderRadius: 8,
-    height: 40,
-    paddingHorizontal: 12,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+    height: 42,
+    paddingHorizontal: 14,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+      },
+    }),
   },
   sortDropdownText: {
     fontSize: 12.5,
@@ -945,17 +925,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    backgroundColor: "#FFFFFF",
+    padding: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   viewModeBtn: {
     width: 36,
     height: 36,
-    borderRadius: 6,
+    borderRadius: 8,
     backgroundColor: "transparent",
     justifyContent: "center",
     alignItems: "center",
+    ...Platform.select({ web: { cursor: "pointer" } }),
   },
   viewModeBtnActive: {
-    backgroundColor: "#0B4D3C",
+    backgroundColor: "#03456C",
   },
 
   /* PROPERTY CARDS */
@@ -963,17 +949,16 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   propertyCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.6)",
-    backdropFilter: "none",
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.8)",
+    borderColor: "#E2E8F0",
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 5,
-    elevation: 2,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 12px rgba(10, 25, 47, 0.04)",
+      },
+    }),
   },
   propertyCardDesktop: {
     flexDirection: "row",
@@ -1228,7 +1213,7 @@ const styles = StyleSheet.create({
   priceValue: {
     fontSize: 20,
     fontWeight: "900",
-    color: "#065F46",
+    color: "#03456C",
     letterSpacing: -0.4,
     marginTop: 2,
   },
@@ -1236,15 +1221,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#0B4D3C",
+    backgroundColor: "#03456C",
     paddingVertical: 9,
     paddingHorizontal: 18,
-    borderRadius: 9999,
-    shadowColor: "#0B4D3C",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 8,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 2px 6px rgba(3, 69, 108, 0.25)",
+      },
+    }),
   },
   viewDetailsBtnText: {
     color: "#FFFFFF",
@@ -1254,172 +1240,147 @@ const styles = StyleSheet.create({
 
   /* BOTTOM CALLOUT BANNER */
   bottomBanner: {
-    backgroundColor: "transparent",
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: AppTheme.colors.border,
-    padding: 16,
-    marginTop: 16,
+    borderColor: "#E2E8F0",
+    padding: 18,
+    marginTop: 20,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     flexWrap: "wrap",
     gap: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.02,
-    shadowRadius: 4,
-    elevation: 1,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(10, 25, 47, 0.03)",
+      },
+    }),
   },
   bottomBannerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 14,
     flex: 1,
   },
   bottomBannerIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#ECFDF5",
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "#F0F9FF",
     borderWidth: 1,
-    borderColor: "#A7F3D0",
+    borderColor: "#BAE6FD",
     justifyContent: "center",
     alignItems: "center",
   },
   bottomBannerTitle: {
-    fontSize: 14,
+    fontSize: 14.5,
     fontWeight: "800",
-    color: AppTheme.colors.text,
+    color: "#0A192F",
   },
   bottomBannerSub: {
     fontSize: 12,
-    color: AppTheme.colors.textSecondary,
-    marginTop: 2,
+    color: "#64748B",
+    marginTop: 3,
   },
   bottomBannerBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: "#E6F4EA",
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-    paddingVertical: 9,
-    paddingHorizontal: 18,
-    borderRadius: 9999,
-  },
-  bottomBannerBtnText: {
-    color: "#065F46",
-    fontSize: 12.5,
-    fontWeight: "800",
-  },
-
-  /* EMPTY STATE */
-  emptyCard: {
-    backgroundColor: "transparent",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: AppTheme.colors.border,
-    padding: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: AppTheme.colors.text,
-    marginTop: 14,
-  },
-  emptySub: {
-    fontSize: 13,
-    color: AppTheme.colors.textSecondary,
-    marginTop: 4,
-    textAlign: "center",
-  },
-  emptyExploreBtn: {
-    marginTop: 16,
-    backgroundColor: AppTheme.colors.primary,
+    gap: 8,
+    backgroundColor: "#03456C",
     paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 9999,
+    borderRadius: 10,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 2px 6px rgba(3, 69, 108, 0.2)",
+      },
+    }),
   },
-  emptyExploreBtnText: {
+  bottomBannerBtnText: {
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "700",
   },
 
-  /* ================= FOOTER SECTION ================= */
-  footerSection: {
-    marginTop: 40,
-    borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
-    paddingTop: 24,
-    paddingBottom: 20,
-    width: "100%",
+  /* EMPTY STATE */
+  emptyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingVertical: 56,
     paddingHorizontal: 24,
-  },
-  footerContent: {
-    width: "100%",
-    maxWidth: 1240,
-    alignSelf: "center",
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-    gap: 20,
+    justifyContent: "center",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 20px -2px rgba(10, 25, 47, 0.03)",
+      },
+    }),
   },
-  footerBrand: {
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0A192F",
+    marginTop: 16,
+  },
+  emptySub: {
+    fontSize: 13.5,
+    color: "#64748B",
+    marginTop: 6,
+    textAlign: "center",
+    maxWidth: 420,
+  },
+  emptyExploreBtn: {
+    marginTop: 20,
+    backgroundColor: "#03456C",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 2px 8px rgba(3, 69, 108, 0.25)",
+      },
+    }),
+  },
+  emptyExploreBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13.5,
+    fontWeight: "700",
+  },
+
+  /* PAGINATION */
+  paginationRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  footerLogoIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "#0B4D3C",
     justifyContent: "center",
     alignItems: "center",
+    gap: 12,
+    marginTop: 24,
+    marginBottom: 8,
   },
-  footerBrandName: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: AppTheme.colors.text,
-  },
-  footerBrandTagline: {
-    fontSize: 11,
-    color: AppTheme.colors.textSecondary,
-  },
-  footerLinksRow: {
+  paginationBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 20,
-    flexWrap: "wrap",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+      },
+    }),
   },
-  footerLink: {
+  paginationBtnText: {
     fontSize: 12.5,
-    color: AppTheme.colors.textSecondary,
-    fontWeight: "500",
-  },
-  footerSignatureWrap: {
-    alignItems: "flex-end",
-    position: "relative",
-  },
-  footerSignatureText: {
-    fontFamily: Platform.OS === "web" ? "Kalam, Caveat, 'Segoe Script', cursive" : "System",
-    fontSize: 14,
-    color: AppTheme.colors.textSecondary,
-    fontStyle: "italic",
-    textAlign: "right",
-    lineHeight: 17,
-    transform: [{ rotate: "-4deg" }],
-  },
-  signatureSwoosh: {
-    width: 60,
-    height: 2,
-    backgroundColor: "#10B981",
-    borderRadius: 1,
-    marginTop: 2,
+    fontWeight: "600",
+    color: "#03456C",
   },
 });

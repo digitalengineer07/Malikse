@@ -185,13 +185,13 @@ export default function SavedScreen() {
         showPostPropertyBtn={true}
       />
 
-      {!!savedError && <Text accessibilityRole="alert">{savedError}</Text>}
-      <View style={{ flexDirection: "row", gap: 20, padding: 12 }}>
-        <TouchableOpacity onPress={() => { setCursor(undefined); setPreviousCursors([]); setSavedRevision(old => old + 1); }}><Text>Refresh saved properties</Text></TouchableOpacity>
-        {previousCursors.length > 0 && <TouchableOpacity onPress={() => { setCursor(previousCursors.at(-1)); setPreviousCursors(old => old.slice(0, -1)); }}><Text>Previous saved properties</Text></TouchableOpacity>}
-        {nextCursor && <TouchableOpacity onPress={() => { setPreviousCursors(old => [...old, cursor]); setCursor(nextCursor); }}><Text>More saved properties</Text></TouchableOpacity>}
-      </View>
-      {loading && <ActivityIndicator accessibilityLabel="Loading saved properties" />}
+      {!!savedError && (
+        <View style={styles.errorBanner}>
+          <MaterialIcons name="error-outline" size={16} color="#DC2626" />
+          <Text style={styles.errorBannerText}>{savedError}</Text>
+        </View>
+      )}
+      {loading && <ActivityIndicator accessibilityLabel="Loading saved properties" color="#03456C" style={{ marginVertical: 12 }} />}
       <ScrollView
         contentContainerStyle={[
           styles.scrollContainer,
@@ -1300,5 +1300,47 @@ const styles = StyleSheet.create({
   modalOptionTextActive: {
     color: "#059669",
     fontWeight: "800",
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FEE2E2",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderRadius: 8,
+  },
+  errorBannerText: {
+    fontSize: 12.5,
+    color: "#B91C1C",
+    fontWeight: "600",
+  },
+  paginationRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  paginationBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  paginationBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#03456C",
   },
 });
