@@ -21,6 +21,7 @@ import AppHeader from "./AppHeader";
 import PropertyTypeTabs from "./PropertyTypeTabs";
 import HouseIllustration from "./HouseIllustration";
 import CitySkyline from "./CitySkyline";
+import WebFooter from "./WebFooter";
 import { cachedPropertySearch, propertyService } from "../src/services/propertyService";
 import type { Property, PropertyType } from "../src/types/property.types";
 import { AppTheme } from "../constants/theme";
@@ -156,7 +157,7 @@ export default function VerifiedHomeScreen() {
         </Text>
       )}
 
-      <ScrollView ref={resultsScroll} contentContainerStyle={s.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={resultsScroll} contentContainerStyle={s.scrollContainer} showsVerticalScrollIndicator={true}>
         <View style={s.content}>
           {/* Hero Header Area */}
           <View style={s.heroSection}>
@@ -175,13 +176,13 @@ export default function VerifiedHomeScreen() {
               </View>
             </View>
 
-            {/* Skyline Background Graphic */}
+            {/* Skyline Background Graphic sitting flush on top edge of main card */}
             {isWide && (
               <View style={s.skylineWrapper} pointerEvents="none">
                 <CitySkyline
-                  width={width < 1100 ? 440 : 560}
-                  maxWidth="50%"
-                  height={160}
+                  width={width < 1100 ? 520 : 640}
+                  maxWidth="55%"
+                  height={width < 1100 ? 175 : 205}
                   opacity={0.96}
                 />
               </View>
@@ -438,11 +439,14 @@ export default function VerifiedHomeScreen() {
             </View>
           )}
         </View>
+
+        {/* Global Website Footer */}
+        <WebFooter />
       </ScrollView>
 
       {/* Property Preview Modal */}
       <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
-        <View style={s.modalBackdrop}>
+        <View style={[s.modalBackdrop, isWide && s.modalBackdropDesktop]}>
           <Pressable
             style={StyleSheet.absoluteFill}
             accessibilityRole="button"
@@ -454,9 +458,12 @@ export default function VerifiedHomeScreen() {
               intensity={90}
               tint="light"
               accessibilityViewIsModal
-              style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 22) }]}
+              style={[
+                s.sheet,
+                isWide ? s.sheetDesktop : { paddingBottom: Math.max(insets.bottom, 22) },
+              ]}
             >
-              <View style={s.handle} />
+              {!isWide && <View style={s.handle} />}
               <ScrollView>
                 <View style={s.sheetHeader}>
                   <Text style={s.eyebrow}>PROPERTY PREVIEW</Text>
@@ -522,7 +529,7 @@ const s = StyleSheet.create({
     backgroundColor: "transparent",
   },
   scrollContainer: {
-    paddingBottom: 110,
+    paddingBottom: 0,
   },
   content: {
     width: "100%",
@@ -538,7 +545,7 @@ const s = StyleSheet.create({
   },
   heroSection: {
     marginTop: 20,
-    marginBottom: 10,
+    marginBottom: 0,
     position: "relative",
   },
   eyebrowRow: {
@@ -600,8 +607,8 @@ const s = StyleSheet.create({
   },
   skylineWrapper: {
     position: "absolute",
-    right: 0,
-    bottom: 0,
+    right: 14,
+    bottom: -18,
     zIndex: 1,
     pointerEvents: "none",
   },
@@ -893,6 +900,11 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(15, 33, 55, 0.45)",
     justifyContent: "flex-end",
   },
+  modalBackdropDesktop: {
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
   sheet: {
     width: "100%",
     maxWidth: 640,
@@ -902,6 +914,18 @@ const s = StyleSheet.create({
     borderTopRightRadius: 32,
     padding: 24,
     maxHeight: "85%",
+  },
+  sheetDesktop: {
+    borderRadius: 28,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: "82%",
+    paddingBottom: 28,
+    shadowColor: "#03456C",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 30,
+    elevation: 10,
   },
   handle: {
     height: 4,

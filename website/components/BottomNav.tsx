@@ -39,7 +39,8 @@ export default function BottomNav() {
     );
   }
 
-  if (isDesktop) {
+  if (isDesktop) return null;
+  if (false as boolean) {
     return (
       <View style={[styles.webWrapper, { paddingBottom: bottomInset }]} pointerEvents="box-none">
         <View style={styles.webFooterContainer}>
