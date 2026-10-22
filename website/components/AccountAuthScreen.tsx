@@ -493,14 +493,63 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                   {/* Security Footnote */}
                   <View style={styles.securityFootnote}>
-                    <MaterialIcons name="verified-user" size={14} color="#059669" />
+                    <MaterialIcons name="security" size={15} color="#15803D" />
                     <Text style={styles.securityText}>
                       {label(
-                        "256-bit encrypted · 100% dispute-free guarantee · Zero broker spam",
+                        "Bank-Grade 256-Bit SSL · 100% Title Guarantee · Zero Broker Spam",
                         "256-बिट सुरक्षित · शून्य स्पैम · 100% सत्यापन गारंटी"
                       )}
                     </Text>
                   </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Under-Card Trust Assurance Bar */}
+            <View style={styles.authTrustBar}>
+              <View style={styles.authTrustItem}>
+                <View style={[styles.authTrustIconWrap, { backgroundColor: "#E0F2FE" }]}>
+                  <MaterialIcons name="gavel" size={18} color="#0284C7" />
+                </View>
+                <View style={styles.authTrustTextBox}>
+                  <Text style={styles.authTrustTitle}>
+                    {label("Revenue Record Verification", "राजस्व रिकॉर्ड सत्यापन")}
+                  </Text>
+                  <Text style={styles.authTrustSub}>
+                    {label("Jamabandi, Khatiyan & Circle Office LPC audit", "जमाबंदी, खतियान व अंचल कार्यालय एलपीसी जांच")}
+                  </Text>
+                </View>
+              </View>
+
+              {isDesktop && <View style={styles.authTrustDivider} />}
+
+              <View style={styles.authTrustItem}>
+                <View style={[styles.authTrustIconWrap, { backgroundColor: "#DCFCE7" }]}>
+                  <MaterialIcons name="gps-fixed" size={18} color="#059669" />
+                </View>
+                <View style={styles.authTrustTextBox}>
+                  <Text style={styles.authTrustTitle}>
+                    {label("Physical GPS Demarcation", "मौके पर जीपीएस पैमाइश")}
+                  </Text>
+                  <Text style={styles.authTrustSub}>
+                    {label("Official surveyor pegs with cadastral mapping", "सरकारी अमीन द्वारा सीमांकन व सैटेलाइट मैपिंग")}
+                  </Text>
+                </View>
+              </View>
+
+              {isDesktop && <View style={styles.authTrustDivider} />}
+
+              <View style={styles.authTrustItem}>
+                <View style={[styles.authTrustIconWrap, { backgroundColor: "#FEF3C7" }]}>
+                  <MaterialIcons name="handshake" size={18} color="#D97706" />
+                </View>
+                <View style={styles.authTrustTextBox}>
+                  <Text style={styles.authTrustTitle}>
+                    {label("Direct Verified Owners", "सीधे असली ज़मीन मालिक")}
+                  </Text>
+                  <Text style={styles.authTrustSub}>
+                    {label("₹0 broker commission · Zero hidden costs", "शून्य ब्रोकरेज · सीधे पारदर्शी सौदे")}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -568,7 +617,7 @@ const styles = StyleSheet.create({
   authCardWrapper: {
     width: "100%",
     alignItems: "center",
-    marginBottom: 44,
+    marginBottom: 18,
   },
   authCard: {
     width: "100%",
@@ -685,14 +734,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.14)",
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.28)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 12,
   },
   leftTrustText: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#BAE6FD",
+    letterSpacing: 0.3,
   },
 
   /* Right Form Pane */
@@ -848,13 +902,13 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: "#03456C",
     borderRadius: 12,
-    paddingVertical: 13,
-    marginTop: 2,
+    paddingVertical: 14,
+    marginTop: 4,
     marginBottom: 16,
     ...Platform.select({
       web: {
         backgroundImage: "linear-gradient(135deg, #03456C 0%, #0284C7 100%)",
-        boxShadow: "0 6px 18px -2px rgba(2, 132, 199, 0.35)",
+        boxShadow: "0 6px 20px -2px rgba(2, 132, 199, 0.38)",
         cursor: "pointer",
       },
       default: {
@@ -894,14 +948,75 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
+    gap: 8,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#DCFCE7",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginTop: 4,
   },
   securityText: {
     fontSize: 11,
-    color: "#94A3B8",
-    fontWeight: "500",
+    color: "#166534",
+    fontWeight: "600",
+  },
+
+  /* Under-Card Trust Assurance Bar */
+  authTrustBar: {
+    width: "100%",
+    maxWidth: 1040,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.9)",
+    paddingVertical: 16,
+    paddingHorizontal: 22,
+    marginBottom: 20,
+    flexWrap: "wrap",
+    gap: 16,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 6px 20px -4px rgba(10, 25, 47, 0.04)",
+      },
+    }),
+  },
+  authTrustItem: {
+    flex: 1,
+    minWidth: 220,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  authTrustIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  authTrustTextBox: {
+    flex: 1,
+  },
+  authTrustTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A192F",
+    marginBottom: 2,
+  },
+  authTrustSub: {
+    fontSize: 11,
+    color: "#64748B",
+    lineHeight: 15,
+  },
+  authTrustDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: "#E2E8F0",
   },
 });

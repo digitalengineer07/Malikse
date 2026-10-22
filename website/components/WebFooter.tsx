@@ -2,7 +2,6 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
-import BiharHeritageWatermark from "./BiharHeritageWatermark";
 
 export default function WebFooter() {
   const router = useRouter();
@@ -12,19 +11,31 @@ export default function WebFooter() {
   return (
     <View style={styles.footerContainer}>
       <View style={styles.footerInner}>
-        {/* Top Decorative Trust Strip */}
-        <View style={styles.trustStrip}>
-          <View style={styles.trustLeft}>
-            <BiharHeritageWatermark width={140} height={38} opacity={0.8} />
-            <View style={styles.trustDivider} />
+        {/* Top Institutional Trust Ribbon */}
+        <View style={[styles.trustRibbon, { flexDirection: isDesktop ? "row" : "column" }]}>
+          <View style={styles.trustRibbonLeft}>
+            <View style={styles.trustIconPill}>
+              <MaterialIcons name="verified-user" size={22} color="#0284C7" />
+            </View>
             <View>
-              <Text style={styles.trustTitle}>Building Trust in</Text>
-              <Text style={styles.trustTitle}>Every Square Foot</Text>
+              <Text style={styles.trustEyebrow}>BIHAR REVENUE & PROPERTY INTEGRITY ASSURANCE</Text>
+              <Text style={styles.trustTitle}>Building Trust in Every Square Foot</Text>
             </View>
           </View>
 
-          <View style={styles.trustRight}>
-            <Text style={styles.calligraphyTagline}>Verified Land, Brighter Tomorrows</Text>
+          <View style={styles.trustBadgesRow}>
+            <View style={styles.ribbonBadgeItem}>
+              <MaterialIcons name="gavel" size={14} color="#059669" />
+              <Text style={styles.ribbonBadgeText}>100% Jamabandi & Khatiyan Audited</Text>
+            </View>
+            <View style={styles.ribbonBadgeItem}>
+              <MaterialIcons name="gps-fixed" size={14} color="#0284C7" />
+              <Text style={styles.ribbonBadgeText}>Surveyor GPS Demarcated</Text>
+            </View>
+            <View style={styles.ribbonBadgeItem}>
+              <MaterialIcons name="handshake" size={14} color="#D97706" />
+              <Text style={styles.ribbonBadgeText}>Direct Owners · ₹0 Brokerage</Text>
+            </View>
           </View>
         </View>
 
@@ -147,12 +158,12 @@ export default function WebFooter() {
 const styles = StyleSheet.create({
   footerContainer: {
     width: "100%",
-    backgroundColor: "rgba(255, 255, 255, 0.75)",
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
     borderTopWidth: 1,
-    borderTopColor: "rgba(3, 69, 108, 0.12)",
-    paddingTop: 36,
+    borderTopColor: "rgba(3, 69, 108, 0.1)",
+    paddingTop: 28,
     paddingBottom: 32,
-    marginTop: 40,
+    marginTop: 20,
   },
   footerInner: {
     maxWidth: 1340,
@@ -160,44 +171,77 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     paddingHorizontal: 28,
   },
-  trustStrip: {
-    flexDirection: "row",
+  trustRibbon: {
     alignItems: "center",
     justifyContent: "space-between",
-    flexWrap: "wrap",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.85)",
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginBottom: 24,
     gap: 16,
-    paddingBottom: 22,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(10, 25, 47, 0.03)",
+      },
+    }),
   },
-  trustLeft: {
+  trustRibbonLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 14,
   },
-  trustDivider: {
-    width: 1.5,
-    height: 32,
-    backgroundColor: "#94A3B8",
+  trustIconPill: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "#E0F2FE",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+  },
+  trustEyebrow: {
+    fontSize: 9.5,
+    fontWeight: "800",
+    color: "#0284C7",
+    letterSpacing: 0.8,
+    marginBottom: 2,
   },
   trustTitle: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "800",
     color: "#0A192F",
-    lineHeight: 18,
+    letterSpacing: -0.3,
   },
-  trustRight: {
-    justifyContent: "center",
+  trustBadgesRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
   },
-  calligraphyTagline: {
-    fontSize: 22,
+  ribbonBadgeItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  ribbonBadgeText: {
+    fontSize: 11,
     fontWeight: "700",
-    color: "#03456C",
-    fontFamily: Platform.OS === "web" ? "Caveat, cursive" : undefined,
-    letterSpacing: 0.5,
+    color: "#334155",
   },
   dividerLine: {
     height: 1,
     backgroundColor: "rgba(3, 69, 108, 0.08)",
-    marginBottom: 30,
+    marginBottom: 28,
   },
   columnsGrid: {
     justifyContent: "space-between",
