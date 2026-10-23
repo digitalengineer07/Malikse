@@ -11,9 +11,10 @@ export const parcelStyle: Leaflet.PathOptions = {
 };
 
 export function addParcelBaseLayer(L: typeof Leaflet, map: Leaflet.Map) {
-  return L.tileLayer("https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", {
-    maxZoom: 20,
-    attribution: "Imagery © Google",
+  return L.tileLayer("https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", {
+    maxZoom: 21,
+    subdomains: "0123",
+    attribution: "Imagery &copy; Google",
   }).addTo(map);
 }
 

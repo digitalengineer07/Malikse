@@ -115,11 +115,11 @@ export default function PremiumIndiaMap({
 
       if (layerMode === "satellite") {
         tileLayerRef.current = L.tileLayer(
-          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          "https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
           {
-            attribution:
-              'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and GIS User Community',
-            maxZoom: 18,
+            attribution: "Imagery &copy; Google",
+            maxZoom: 20,
+            subdomains: "0123",
           }
         ).addTo(map);
       } else {

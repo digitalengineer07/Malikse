@@ -33,6 +33,19 @@ if (Platform.OS === "web" && typeof window !== "undefined") {
     link.href = "https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap";
     document.head.appendChild(link);
   }
+
+  // Preload Google Maps Platform JS SDK if API key is provided
+  if (process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY) {
+    const mapsScriptId = "google-maps-js-sdk";
+    if (!document.getElementById(mapsScriptId)) {
+      const script = document.createElement("script");
+      script.id = mapsScriptId;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`;
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+  }
 }
 
 export default function RootLayout() {

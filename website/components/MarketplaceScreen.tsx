@@ -34,6 +34,7 @@ import type { Property, PropertyType } from "../src/types/property.types";
 import type { MapFocus } from "../src/utils/nativeMapHtml";
 import type { IndiaStateInfo } from "../src/data/indiaStatesData";
 import { currentMapLocation } from "../src/services/currentMapLocation";
+import { geocodePlaceId } from "../src/utils/googleMaps";
 
 export interface GrowthCorridor {
   id: string;
@@ -366,13 +367,21 @@ export default function MarketplaceScreen() {
         return;
       }
 
+      if (item.placeId) {
+        geocodePlaceId(item.placeId).then((geo) => {
+          if (geo) {
+            setCustomFocus({ lat: geo.lat, lng: geo.lng, zoom: 14 });
+          }
+        });
+      }
+
       router.push({
         pathname: "/(tabs)/home",
         params: {
-          address: term,
-          state: "",
-          district: "",
-          pincode: "",
+          address: item.label || term,
+          state: item.state !== "India" ? item.state : "",
+          district: item.district || "",
+          pincode: item.pincode || "",
           type: type || "",
           query: "",
           min: "",
