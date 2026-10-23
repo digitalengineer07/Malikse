@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -92,6 +93,7 @@ export default function ListingEditorScreen() {
   const [photoFiles, setPhotoFiles] = useState<DocumentPicker.DocumentPickerAsset[]>([]);
   const [picked, setPicked] = useState<Picked[]>([]);
   const [existingDocs, setExistingDocs] = useState<any[]>([]);
+  const [submissionSuccess, setSubmissionSuccess] = useState(false);
   const submitting = useRef(false);
 
   const change = (key: keyof typeof initialForm, value: string) =>
@@ -399,7 +401,7 @@ export default function ListingEditorScreen() {
         setPicked((previous) => previous.filter((item) => item !== document));
       }
       await workflowService.submit(savedId!);
-      router.replace("/my-properties");
+      setSubmissionSuccess(true);
     } catch (cause: any) {
       setError(
         cause.response?.data?.message ||
@@ -622,18 +624,15 @@ export default function ListingEditorScreen() {
             {/* STEP 1: Property Details */}
             {step === 1 && (
               <View style={styles.formContainer}>
-                {/* Card Top Notice */}
+                {/* Card Top Header */}
                 <View style={styles.cardHeaderBox}>
                   <View style={styles.cardBadge}>
                     <Text style={styles.cardBadgeText}>STEP 1 OF 3</Text>
                   </View>
                   <Text style={styles.cardTitle}>Basic Details & Location</Text>
-                  <View style={styles.privacyNote}>
-                    <MaterialIcons name="verified-user" size={15} color="#059669" />
-                    <Text style={styles.privacyNoteText}>
-                      Submitted listings remain private until an Advisor and a Verifier inspect & approve them.
-                    </Text>
-                  </View>
+                  <Text style={styles.cardDesc}>
+                    Provide property classification, revenue jurisdiction, and area specifications.
+                  </Text>
                 </View>
 
                 {/* Section 1: Basic Info */}
@@ -1178,6 +1177,14 @@ export default function ListingEditorScreen() {
                   </Text>
                 </TouchableOpacity>
 
+                {/* Pre-submission Reassurance Note */}
+                <View style={styles.submissionNoticeBox}>
+                  <MaterialIcons name="security" size={17} color="#0284C7" />
+                  <Text style={styles.submissionNoticeText}>
+                    Upon submission, your listing will remain private until approved by an Advisor and a Verifier.
+                  </Text>
+                </View>
+
                 {/* Step 3 Actions */}
                 <View style={styles.actionRowSplit}>
                   <TouchableOpacity
@@ -1217,6 +1224,44 @@ export default function ListingEditorScreen() {
             )}
           </View>
         ) : null}
+
+        {/* Submission Success Confirmation Modal */}
+        <Modal
+          visible={submissionSuccess}
+          transparent
+          animationType="fade"
+          onRequestClose={() => router.replace("/my-properties")}
+        >
+          <View style={styles.successModalOverlay}>
+            <View style={styles.successCard}>
+              <View style={styles.successIconBadge}>
+                <MaterialIcons name="check-circle" size={48} color="#059669" />
+              </View>
+              <Text style={styles.successTitle}>Listing Submitted Successfully!</Text>
+
+              <View style={styles.successPrivacyBanner}>
+                <MaterialIcons name="security" size={18} color="#059669" />
+                <Text style={styles.successPrivacyBannerText}>
+                  Submitted listings remain private until an Advisor and a Verifier inspect & approve them.
+                </Text>
+              </View>
+
+              <Text style={styles.successSubtext}>
+                Your property has been queued for verification. Our certified legal advisors will review your documents and schedule an on-site GPS inspection.
+              </Text>
+
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={styles.successDoneBtn}
+                onPress={() => router.replace("/my-properties")}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.successDoneBtnText}>Go to My Properties</Text>
+                <MaterialIcons name="arrow-forward" size={17} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </WorkflowScreen>
   );
@@ -1439,23 +1484,115 @@ const styles = StyleSheet.create({
     color: "#64748B",
     lineHeight: 20,
   },
-  privacyNote: {
+  submissionNoticeBox: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    padding: 12,
+    borderRadius: 12,
+  },
+  submissionNoticeText: {
+    fontSize: 12.5,
+    color: "#03456C",
+    fontWeight: "500",
+    flex: 1,
+  },
+  successModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(10, 25, 47, 0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+    ...Platform.select({
+      web: {
+        backdropFilter: "blur(8px)",
+      },
+    }),
+  },
+  successCard: {
+    width: "100%",
+    maxWidth: 500,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 30,
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    gap: 16,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 24px 60px rgba(15, 23, 42, 0.2)",
+      },
+      default: {
+        elevation: 8,
+      },
+    }),
+  },
+  successIconBadge: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: "#ECFDF5",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  successTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#0F172A",
+    textAlign: "center",
+    letterSpacing: -0.4,
+  },
+  successPrivacyBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#ECFDF5",
     borderWidth: 1,
     borderColor: "#A7F3D0",
-    marginTop: 4,
+    padding: 14,
+    borderRadius: 14,
+    width: "100%",
   },
-  privacyNoteText: {
-    fontSize: 12,
+  successPrivacyBannerText: {
+    fontSize: 12.5,
     color: "#047857",
-    fontWeight: "600",
+    fontWeight: "700",
+    lineHeight: 18,
     flex: 1,
+  },
+  successSubtext: {
+    fontSize: 13,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  successDoneBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#03456C",
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    width: "100%",
+    marginTop: 4,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        backgroundImage: "linear-gradient(135deg, #03456C 0%, #0A2540 100%)",
+        boxShadow: "0 4px 16px rgba(3, 69, 108, 0.3)",
+      },
+    }),
+  },
+  successDoneBtnText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
 
   /* Section Blocks */
