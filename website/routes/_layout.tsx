@@ -34,6 +34,38 @@ if (Platform.OS === "web" && typeof window !== "undefined") {
     document.head.appendChild(link);
   }
 
+  const styleOverrideId = "google-maps-attribution-override";
+  if (!document.getElementById(styleOverrideId)) {
+    const style = document.createElement("style");
+    style.id = styleOverrideId;
+    style.innerHTML = `
+      .leaflet-control-attribution {
+        background: rgba(255, 255, 255, 0.92) !important;
+        font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif !important;
+        font-size: 10.5px !important;
+        color: #5F6368 !important;
+        padding: 2px 8px !important;
+        border-top-left-radius: 4px !important;
+        border: 1px solid rgba(0,0,0,0.08) !important;
+        border-right: none !important;
+        border-bottom: none !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+      }
+      .leaflet-control-attribution a {
+        color: #1A73E8 !important;
+        text-decoration: none !important;
+      }
+      .leaflet-control-attribution a:hover {
+        text-decoration: underline !important;
+      }
+      .leaflet-control-attribution a[href*="leafletjs.com"],
+      .leaflet-control-attribution a[href*="openstreetmap.org"] {
+        display: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   // Preload Google Maps Platform JS SDK if API key is provided
   if (process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY) {
     const mapsScriptId = "google-maps-js-sdk";

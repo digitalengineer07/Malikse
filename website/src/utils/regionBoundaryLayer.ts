@@ -88,7 +88,7 @@ export function addRegionBoundaries(L: any, map: any, options: RegionBoundaryOpt
   const grid = new BoundaryGrid(`https://indianopenmaps.com/${source.path}/{z}/{x}/{y}.pbf`, {
     vectorTileLayerStyles: { [source.layer]: style }, interactive: true,
     maxNativeZoom: 14, maxZoom: 19, bounds: [[6, 67], [38, 98]],
-    attribution: 'Boundaries: <a href="https://indianopenmaps.com/">Indian Open Maps</a> · Survey of India / Department of Posts',
+    attribution: 'Boundaries: Survey of India',
   });
   const tooltip = L.tooltip({ sticky: true, direction: "top" });
   grid.on("mouseover", (event: any) => {

@@ -64,13 +64,14 @@ export default function PremiumIndiaMap({
             [39.0, 101.0],
           ],
         }).setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], DEFAULT_CENTER.zoom);
+        map.attributionControl.setPrefix(false);
 
         // Google Maps Roadmap tile layer - Official Google Maps layout
         const baseLayer = L.tileLayer(
           "https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
           {
             attribution:
-              '&copy; <a href="https://maps.google.com" target="_blank" rel="noopener">Google Maps</a>',
+              'Map data &copy; <a href="https://maps.google.com" target="_blank" rel="noopener">Google</a>',
             maxZoom: 20,
             subdomains: "0123",
           }
@@ -127,7 +128,7 @@ export default function PremiumIndiaMap({
           "https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
           {
             attribution:
-              '&copy; <a href="https://maps.google.com" target="_blank" rel="noopener">Google Maps</a>',
+              'Map data &copy; <a href="https://maps.google.com" target="_blank" rel="noopener">Google</a>',
             maxZoom: 20,
             subdomains: "0123",
           }

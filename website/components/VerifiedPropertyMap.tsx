@@ -16,12 +16,13 @@ export default function VerifiedPropertyMap({ properties, onSelect, focus }: { p
       if (!active || !container.current) return;
       const L = module.default || module;
       map = L.map(container.current, { scrollWheelZoom: true, zoomControl: false }).setView([25.6, 85.1], 7);
+      map.attributionControl?.setPrefix(false);
       
-      // Use satellite base layer if viewing a single property (popup from details), else use OSM for marketplace.
+      // Use satellite base layer if viewing a single property (popup from details), else use Google Maps for marketplace.
       if (properties.length === 1 && hasParcelBoundary(properties[0].parcelPoints)) {
         addParcelBaseLayer(L, map);
       } else {
-        L.tileLayer("https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", { attribution: '&copy; <a href="https://maps.google.com" target="_blank" rel="noopener">Google Maps</a>', maxZoom: 20, subdomains: "0123" }).addTo(map);
+        L.tileLayer("https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", { attribution: 'Map data &copy; <a href="https://maps.google.com" target="_blank" rel="noopener">Google</a>', maxZoom: 20, subdomains: "0123" }).addTo(map);
       }
       
       const points: [number, number][] = [];
