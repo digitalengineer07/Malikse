@@ -55,6 +55,7 @@ app/src/data/*
 !website/src/data/
 website/src/data/*
 !website/src/data/indiaStatesData.ts
+!website/src/data/biharDistrictsData.ts
 
 # Large Image Rasters
 *.tif

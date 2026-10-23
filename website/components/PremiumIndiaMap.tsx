@@ -16,7 +16,7 @@ interface PremiumIndiaMapProps {
   onSelectStateInfo?: (state: IndiaStateInfo) => void;
 }
 
-const DEFAULT_CENTER = { lat: 22.8, lng: 79.2, zoom: 4.5 };
+const DEFAULT_CENTER = { lat: 25.65, lng: 85.35, zoom: 7.5 };
 
 export default function PremiumIndiaMap({
   groups,
@@ -451,7 +451,7 @@ export default function PremiumIndiaMap({
             accessibilityRole="button"
           >
             <MaterialIcons name="public" size={13} color="#0284C7" />
-            <Text style={styles.presetText}>All India</Text>
+            <Text style={styles.presetText}>All Bihar</Text>
           </TouchableOpacity>
         </View>
       </View>

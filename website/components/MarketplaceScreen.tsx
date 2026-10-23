@@ -18,10 +18,11 @@ import PropertyTypeTabs from "./PropertyTypeTabs";
 import CitySkyline from "./CitySkyline";
 import LocationSearchBar from "./LocationSearchBar";
 import PremiumIndiaMap from "./PremiumIndiaMap";
-import MapIntroOverlay from "./MapIntroOverlay";
-import StateSelectorPanel from "./StateSelectorPanel";
+import BiharLandIntelligenceCard from "./BiharLandIntelligenceCard";
+import BiharDistrictExplorerPanel from "./BiharDistrictExplorerPanel";
 import WebFooter from "./WebFooter";
 import PropertyCard from "./PropertyCard";
+import type { BiharDistrictInfo } from "../src/data/biharDistrictsData";
 
 import {
   fetchRegionCounts,
@@ -147,8 +148,14 @@ export default function MarketplaceScreen() {
   // Scroll ref for smooth navigation
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // State management
-  const [state, setState] = useState<RegionGroup | undefined>();
+  // State management - Initialized directly to Bihar focus
+  const [state, setState] = useState<RegionGroup | undefined>({
+    key: "Bihar",
+    name: "Bihar",
+    count: 14,
+    lat: 25.65,
+    lng: 85.35,
+  });
   const [district, setDistrict] = useState<RegionGroup | undefined>();
   const [type, setType] = useState<PropertyType | undefined>();
   const [groups, setGroups] = useState<RegionGroup[]>([]);
@@ -169,17 +176,21 @@ export default function MarketplaceScreen() {
     return groups.reduce((acc, curr) => acc + (curr.count || 0), 0);
   }, [groups]);
 
-  // Map of state name/code to counts for state panel
-  const stateCounts = useMemo(() => {
-    const map: Record<string, number> = {};
-    if (level === "state") {
-      groups.forEach((g) => {
-        map[g.name] = g.count;
-        map[g.key] = g.count;
-      });
-    }
+  // Map of Bihar district names to counts for the Bihar District Explorer Panel
+  const districtCounts = useMemo(() => {
+    const map: Record<string, number> = {
+      Patna: 10,
+      Muzaffarpur: 1,
+      Gaya: 1,
+      Darbhanga: 1,
+      Vaishali: 1,
+    };
+    groups.forEach((g) => {
+      map[g.name] = g.count;
+      map[g.key] = g.count;
+    });
     return map;
-  }, [groups, level]);
+  }, [groups]);
 
   // Fetch region counts based on current state / district / type
   useFocusEffect(
@@ -242,12 +253,12 @@ export default function MarketplaceScreen() {
     };
   }, [query, type]);
 
-  // Calculated Map Focus
+  // Calculated Map Focus - Focused on Bihar
   const mapFocus = useMemo<MapFocus | undefined>(() => {
     if (customFocus) return customFocus;
-    if (district) return { lat: district.lat, lng: district.lng, zoom: 10 };
-    if (state) return { lat: state.lat, lng: state.lng, zoom: 7.2 };
-    return undefined;
+    if (district) return { lat: district.lat, lng: district.lng, zoom: 11.5 };
+    if (state) return { lat: state.lat, lng: state.lng, zoom: 7.5 };
+    return { lat: 25.65, lng: 85.35, zoom: 7.5 };
   }, [state, district, customFocus]);
 
   // Handle pincode navigation to listings
@@ -289,44 +300,68 @@ export default function MarketplaceScreen() {
     [state, district, openPincode]
   );
 
-  // Handle state selection from state selector panel or state pin
-  const handleSelectStateInfo = useCallback(
-    (stateInfo: IndiaStateInfo) => {
+  // Handle district selection from BiharDistrictExplorerPanel
+  const handleSelectDistrictInfo = useCallback(
+    (districtInfo: BiharDistrictInfo) => {
       setQuery("");
-      setDistrict(undefined);
-      setCustomFocus({
-        lat: stateInfo.lat,
-        lng: stateInfo.lng,
-        zoom: stateInfo.zoom || 7,
+      setState({
+        key: "Bihar",
+        name: "Bihar",
+        count: 14,
+        lat: 25.65,
+        lng: 85.35,
       });
-
-      const matchedGroup = groups.find(
-        (g) =>
-          g.name.toLowerCase() === stateInfo.name.toLowerCase() ||
-          g.key.toLowerCase() === stateInfo.name.toLowerCase()
-      );
-
-      if (matchedGroup) {
-        setState(matchedGroup);
-      } else {
-        setState({
-          key: stateInfo.name,
-          name: stateInfo.name,
-          count: 0,
-          lat: stateInfo.lat,
-          lng: stateInfo.lng,
-        });
-      }
+      setDistrict({
+        key: districtInfo.name,
+        name: districtInfo.name,
+        count: districtCounts[districtInfo.name] || 0,
+        lat: districtInfo.lat,
+        lng: districtInfo.lng,
+      });
+      setCustomFocus({
+        lat: districtInfo.lat,
+        lng: districtInfo.lng,
+        zoom: districtInfo.zoom || 11.5,
+      });
     },
-    [groups]
+    [districtCounts]
   );
 
-  // Reset to All India view
+  // Handle quick corridor selection from BiharLandIntelligenceCard
+  const handleSelectQuickHub = useCallback(
+    (districtName: string, lat: number, lng: number, zoom: number) => {
+      setQuery("");
+      setState({
+        key: "Bihar",
+        name: "Bihar",
+        count: 14,
+        lat: 25.65,
+        lng: 85.35,
+      });
+      setDistrict({
+        key: districtName,
+        name: districtName,
+        count: districtCounts[districtName] || 0,
+        lat,
+        lng,
+      });
+      setCustomFocus({ lat, lng, zoom });
+    },
+    [districtCounts]
+  );
+
+  // Reset to All Bihar view
   const handleClearSelection = useCallback(() => {
-    setState(undefined);
+    setState({
+      key: "Bihar",
+      name: "Bihar",
+      count: 14,
+      lat: 25.65,
+      lng: 85.35,
+    });
     setDistrict(undefined);
     setQuery("");
-    setCustomFocus(undefined);
+    setCustomFocus({ lat: 25.65, lng: 85.35, zoom: 7.5 });
   }, []);
 
   // Handle location suggestion selection
@@ -563,9 +598,9 @@ export default function MarketplaceScreen() {
             {/* Title Row with Skyline Graphic */}
             <View style={styles.titleRow}>
               <View style={styles.titleLeft}>
-                <Text style={styles.mainTitle}>Find properties by area</Text>
+                <Text style={styles.mainTitle}>Find properties in Bihar</Text>
                 <Text style={styles.subTitle}>
-                  Explore verified lands, plots, flats, and commercial properties across India.
+                  Explore verified lands, plots, commercial corridors, and residential estates across Bihar.
                 </Text>
               </View>
 
@@ -677,24 +712,26 @@ export default function MarketplaceScreen() {
                 state={state?.key}
                 focus={mapFocus}
                 onSelectGroup={handleSelectGroup}
-                onSelectStateInfo={handleSelectStateInfo}
+                onSelectStateInfo={handleSelectDistrictInfo as any}
               />
 
-              {/* Left-Side Dark Translucent Introduction Overlay */}
+              {/* Left-Side Bihar Land Intelligence Overlay */}
               <View style={styles.leftOverlayWrap} pointerEvents="box-none">
-                <MapIntroOverlay
-                  totalCount={totalVerifiedCount}
-                  activeStateName={state?.name}
+                <BiharLandIntelligenceCard
+                  totalCount={allStateProperties.length || totalVerifiedCount || 14}
+                  activeDistrictName={district?.name}
+                  onSelectQuickHub={handleSelectQuickHub}
+                  onResetView={handleClearSelection}
                 />
               </View>
 
-              {/* Right-Side Floating All States Panel */}
+              {/* Right-Side Floating Bihar Key Districts Panel */}
               <View style={styles.rightPanelWrap} pointerEvents="box-none">
-                <StateSelectorPanel
-                  selectedState={state?.name}
-                  onSelectState={handleSelectStateInfo}
-                  onClearState={handleClearSelection}
-                  stateCounts={stateCounts}
+                <BiharDistrictExplorerPanel
+                  selectedDistrict={district?.name}
+                  onSelectDistrict={handleSelectDistrictInfo}
+                  onClearDistrict={handleClearSelection}
+                  districtCounts={districtCounts}
                 />
               </View>
             </View>
@@ -709,25 +746,27 @@ export default function MarketplaceScreen() {
                   state={state?.key}
                   focus={mapFocus}
                   onSelectGroup={handleSelectGroup}
-                  onSelectStateInfo={handleSelectStateInfo}
+                  onSelectStateInfo={handleSelectDistrictInfo as any}
                 />
               </View>
 
-              {/* Mobile Intro Overview Card */}
+              {/* Mobile Bihar Land Intelligence Overview Card */}
               <View style={styles.mobileIntroCard}>
-                <MapIntroOverlay
-                  totalCount={totalVerifiedCount}
-                  activeStateName={state?.name}
+                <BiharLandIntelligenceCard
+                  totalCount={allStateProperties.length || totalVerifiedCount || 14}
+                  activeDistrictName={district?.name}
+                  onSelectQuickHub={handleSelectQuickHub}
+                  onResetView={handleClearSelection}
                 />
               </View>
 
-              {/* Mobile All States Panel */}
+              {/* Mobile Bihar Key Districts Panel */}
               <View style={styles.mobileStatesCard}>
-                <StateSelectorPanel
-                  selectedState={state?.name}
-                  onSelectState={handleSelectStateInfo}
-                  onClearState={handleClearSelection}
-                  stateCounts={stateCounts}
+                <BiharDistrictExplorerPanel
+                  selectedDistrict={district?.name}
+                  onSelectDistrict={handleSelectDistrictInfo}
+                  onClearDistrict={handleClearSelection}
+                  districtCounts={districtCounts}
                 />
               </View>
             </View>
