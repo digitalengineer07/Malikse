@@ -33,6 +33,7 @@ export default function MapParcelPicker({
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
+  const baseLayerRef = useRef<any>(null);
 
   const polygonLayerRef = useRef<any>(null);
   const markerLayersRef = useRef<any[]>([]);
@@ -43,6 +44,10 @@ export default function MapParcelPicker({
 
   // Search input state
   const [searchLocation, setSearchLocation] = useState("");
+  // Layer Mode: satellite (default) or street
+  const [mapLayerMode, setMapLayerMode] = useState<"satellite" | "street">("satellite");
+  // Floating Guide HUD toggle state
+  const [showGuideHUD, setShowGuideHUD] = useState<boolean>(true);
   // Current polygon points - default empty until user clicks/plots
   const [points, setPoints] = useState<LatLngPoint[]>(
     initialPoints && initialPoints.length > 0 ? initialPoints : []
@@ -502,17 +507,54 @@ export default function MapParcelPicker({
   };
 
   // Crosshair - Center to plot
+  // Center to plot / GPS
   const handleCenterToPlot = () => {
     if (mapInstanceRef.current && points.length > 0) {
       const centroid = calculateCentroid(pointsRef.current);
-      mapInstanceRef.current.flyTo([centroid.lat, centroid.lng], 17, { duration: 1 });
+      mapInstanceRef.current.flyTo([centroid.lat, centroid.lng], 18, { duration: 1 });
     }
   };
 
-  // Search Location Dispatcher (Patna, Danapur, Bihta, Bailey Road etc.)
+  // Zoom In / Out Handlers
+  const handleZoomIn = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.zoomIn();
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.zoomOut();
+    }
+  };
+
+  // Satellite vs Street Map Layer Switcher
+  const handleToggleLayer = () => {
+    if (!baseLayerRef.current) return;
+    const nextMode = mapLayerMode === "satellite" ? "street" : "satellite";
+    setMapLayerMode(nextMode);
+    const url =
+      nextMode === "satellite"
+        ? "https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+        : "https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}";
+    baseLayerRef.current.setUrl(url);
+  };
+
+  // Search Location Dispatcher (Supports Lat,Lng coordinates or Bihar cities/places)
   const handleSearchSubmit = () => {
     if (!mapInstanceRef.current || !searchLocation.trim()) return;
     const query = searchLocation.toLowerCase().trim();
+
+    // Check if user entered direct GPS coordinates: "lat, lng"
+    const coordMatch = query.match(/^([-+]?\d{1,2}(?:\.\d+)?)[,\s]+([-+]?\d{1,3}(?:\.\d+)?)$/);
+    if (coordMatch) {
+      const lat = parseFloat(coordMatch[1]);
+      const lng = parseFloat(coordMatch[2]);
+      if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+        mapInstanceRef.current.flyTo([lat, lng], 18, { duration: 1.2 });
+        return;
+      }
+    }
 
     const KNOWN_PLACES: Record<string, [number, number]> = {
       patna: [25.5941, 85.1376],
@@ -522,6 +564,25 @@ export default function MapParcelPicker({
       kankarbagh: [25.5941, 85.155],
       hajipur: [25.6858, 85.214],
       naubatpur: [25.5342, 84.9741],
+      muzaffarpur: [26.1209, 85.3647],
+      gaya: [24.7914, 85.0002],
+      bhagalpur: [25.2425, 86.9842],
+      darbhanga: [26.1542, 85.8918],
+      purnia: [25.7771, 87.4753],
+      ara: [25.5541, 84.6667],
+      arrah: [25.5541, 84.6667],
+      begusarai: [25.4182, 86.1272],
+      rajgir: [25.0298, 85.4221],
+      nalanda: [25.1357, 85.4578],
+      vaishali: [25.9866, 85.1277],
+      buxar: [25.5647, 83.9777],
+      chhapra: [25.7811, 84.7466],
+      motihari: [26.6473, 84.9126],
+      saharsa: [25.8835, 86.6006],
+      samastipur: [25.8634, 85.7813],
+      katihar: [25.5541, 87.5714],
+      deoghar: [24.4826, 86.7001],
+      sasaram: [24.9525, 84.0299],
     };
 
     let targetCoord: [number, number] | null = null;
@@ -603,7 +664,8 @@ export default function MapParcelPicker({
       });
       mapInstanceRef.current = map;
 
-      addParcelBaseLayer(L, map);
+      const baseLayer = addParcelBaseLayer(L, map);
+      baseLayerRef.current = baseLayer;
 
       // Map Click to Add New Boundary Point
       map.on("click", (e: any) => {
@@ -714,9 +776,11 @@ export default function MapParcelPicker({
 
 
 
+  const areaDetails = getAreaDetails(points);
+
   return (
     <View style={styles.workspaceContainer}>
-      {/* ================= LEFT / MAIN: MAP CANVASES WITH OVERLAYS ================= */}
+      {/* ================= MAIN FULL-WIDTH MAP CANVAS WITH ADVANCED OVERLAYS ================= */}
       <View style={styles.mapCanvasCard}>
         {/* Leaflet DOM Node */}
         {Platform.OS === "web" ? (
@@ -728,8 +792,7 @@ export default function MapParcelPicker({
               position: "absolute",
               top: 0,
               left: 0,
-              backgroundColor: "transparent",
-              borderRadius: 16,
+              backgroundColor: "#0A2540",
             }}
           />
         ) : (
@@ -741,23 +804,28 @@ export default function MapParcelPicker({
 
         {/* OVERLAY: Top-Left Search Location Bar */}
         <View style={styles.mapSearchBox}>
-          <MaterialIcons name="search" size={18} color="#065F46" style={{ marginRight: 6 }} />
+          <MaterialIcons name="search" size={20} color="#03456C" style={{ marginRight: 8 }} />
           <TextInput
             style={styles.mapSearchInput}
             placeholder={
-              t(language, "search_map_location") || "Search location (village, landmark, or area)"
+              t(language, "search_map_location") || "Search city, village, or GPS (e.g. 25.61, 85.14)..."
             }
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor="#64748B"
             value={searchLocation}
             onChangeText={setSearchLocation}
             onSubmitEditing={handleSearchSubmit}
           />
-          <TouchableOpacity onPress={handleSearchSubmit} activeOpacity={0.7} style={{ padding: 4 }}>
-            <MaterialIcons name="place" size={18} color="#059669" />
+          <TouchableOpacity
+            onPress={handleSearchSubmit}
+            activeOpacity={0.8}
+            style={styles.searchSubmitBtn}
+            accessibilityLabel="Search map location"
+          >
+            <MaterialIcons name="arrow-forward" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
-        {/* OVERLAY: Top-Right Toolbar (Quick Template, Finish, Undo, Redo, Delete) */}
+        {/* OVERLAY: Top-Right Toolbar (Quick Template, Finish, Undo, Redo, Delete, Guide) */}
         <View style={styles.mapDrawingToolbar}>
           {/* Quick 4-Corner Plot Button */}
           <TouchableOpacity
@@ -766,7 +834,7 @@ export default function MapParcelPicker({
             activeOpacity={0.8}
             accessibilityLabel="Drop Standard Plot"
           >
-            <MaterialIcons name="crop-square" size={15} color="#065F46" />
+            <MaterialIcons name="crop-square" size={16} color="#0284C7" />
             <Text style={styles.quickPresetBtnText}>
               {language === "hi" ? "त्वरित प्लॉट" : "Quick Plot"}
             </Text>
@@ -774,19 +842,17 @@ export default function MapParcelPicker({
 
           {/* Finish Boundary Button (when >= 3 points and not closed) */}
           {points.length >= 3 && !isDrawingClosed && (
-            <>
-              <View style={styles.toolDivider} />
-              <TouchableOpacity
-                style={styles.finishShapeBtn}
-                onPress={handleFinishBoundary}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name="check" size={15} color="#FFFFFF" />
-                <Text style={styles.finishShapeBtnText}>
-                  {language === "hi" ? "पूरा करें" : "Complete"}
-                </Text>
-              </TouchableOpacity>
-            </>
+            <TouchableOpacity
+              style={styles.finishShapeBtn}
+              onPress={handleFinishBoundary}
+              activeOpacity={0.8}
+              accessibilityLabel="Complete boundary"
+            >
+              <MaterialIcons name="check-circle" size={16} color="#FFFFFF" />
+              <Text style={styles.finishShapeBtnText}>
+                {language === "hi" ? "पूरा करें" : "Complete"}
+              </Text>
+            </TouchableOpacity>
           )}
 
           <View style={styles.toolDivider} />
@@ -802,11 +868,9 @@ export default function MapParcelPicker({
             <FontAwesome5
               name="undo-alt"
               size={13}
-              color={history.length === 0 ? "#94A3B8" : "#065F46"}
+              color={history.length === 0 ? "#94A3B8" : "#0F172A"}
             />
           </TouchableOpacity>
-
-          <View style={styles.toolDivider} />
 
           {/* Redo */}
           <TouchableOpacity
@@ -819,7 +883,7 @@ export default function MapParcelPicker({
             <FontAwesome5
               name="redo-alt"
               size={13}
-              color={redoHistory.length === 0 ? "#94A3B8" : "#065F46"}
+              color={redoHistory.length === 0 ? "#94A3B8" : "#0F172A"}
             />
           </TouchableOpacity>
 
@@ -827,25 +891,227 @@ export default function MapParcelPicker({
 
           {/* Clear */}
           <TouchableOpacity
-            style={styles.toolBtn}
+            style={styles.clearToolBtn}
             onPress={handleClear}
             activeOpacity={0.7}
             accessibilityLabel="Clear Boundary"
           >
-            <FontAwesome5 name="trash-alt" size={13} color="#EF4444" />
+            <FontAwesome5 name="trash-alt" size={13} color="#DC2626" />
+          </TouchableOpacity>
+
+          <View style={styles.toolDivider} />
+
+          {/* Guide / HUD Toggle Button */}
+          <TouchableOpacity
+            style={[styles.guideToggleBtn, showGuideHUD && styles.guideToggleBtnActive]}
+            onPress={() => setShowGuideHUD((prev) => !prev)}
+            activeOpacity={0.8}
+            accessibilityLabel="Toggle Cadastral Guide"
+          >
+            <MaterialIcons
+              name="layers"
+              size={16}
+              color={showGuideHUD ? "#059669" : "#475569"}
+            />
+            <Text
+              style={[
+                styles.guideToggleBtnText,
+                showGuideHUD && styles.guideToggleBtnTextActive,
+              ]}
+            >
+              {language === "hi" ? "गाइड व जानकारी" : "Guide & Stats"}
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Parcel navigation controls */}
+        {/* OVERLAY: Middle-Left Navigation & Zoom Controls */}
         <View style={styles.mapLeftControls}>
           <TouchableOpacity
             style={styles.standaloneIconBtn}
             onPress={handleCenterToPlot}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
+            accessibilityLabel="Center on property boundary"
           >
-            <MaterialIcons name="my-location" size={17} color="#065F46" />
+            <MaterialIcons name="my-location" size={19} color="#03456C" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.standaloneIconBtn}
+            onPress={handleZoomIn}
+            activeOpacity={0.8}
+            accessibilityLabel="Zoom in"
+          >
+            <MaterialIcons name="add" size={20} color="#0F172A" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.standaloneIconBtn}
+            onPress={handleZoomOut}
+            activeOpacity={0.8}
+            accessibilityLabel="Zoom out"
+          >
+            <MaterialIcons name="remove" size={20} color="#0F172A" />
           </TouchableOpacity>
         </View>
+
+        {/* OVERLAY: Floating Cadastral Drawing Guide & Parcel Stats HUD */}
+        {showGuideHUD && (
+          <View style={styles.hudCard}>
+            {/* HUD Header */}
+            <View style={styles.hudHeader}>
+              <View style={styles.hudHeaderTitleRow}>
+                <View style={styles.hudIconBadge}>
+                  <MaterialIcons name="map" size={16} color="#03456C" />
+                </View>
+                <Text style={styles.hudTitle}>
+                  {t(language, "cadastral_guide") || "Cadastral Guide & Live Stats"}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.hudCloseBtn}
+                onPress={() => setShowGuideHUD(false)}
+                activeOpacity={0.7}
+                accessibilityLabel="Minimize guide"
+              >
+                <MaterialIcons name="close" size={16} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Live Metrics Box */}
+            {points.length >= 3 && areaDetails ? (
+              <View style={styles.hudMetricsBox}>
+                <View style={styles.hudMetricsHeader}>
+                  <View
+                    style={[
+                      styles.hudLiveDot,
+                      !isDrawingClosed && styles.hudLiveDotAmber,
+                    ]}
+                  />
+                  <Text style={styles.hudMetricsStatus}>
+                    {isDrawingClosed
+                      ? language === "hi"
+                        ? "प्लॉट सीमा पूर्ण व मान्य"
+                        : "Boundary Locked & Verified"
+                      : language === "hi"
+                      ? "सीमा अभी खुली है"
+                      : "Outline In Progress"}
+                  </Text>
+                  <Text style={styles.hudPointsCount}>
+                    {points.length} {language === "hi" ? "कोने" : "Corners"}
+                  </Text>
+                </View>
+
+                <View style={styles.hudMetricsGrid}>
+                  <View style={styles.hudMetricItem}>
+                    <Text style={styles.hudMetricValue}>{areaDetails.formattedSqFt}</Text>
+                    <Text style={styles.hudMetricUnit}>Sq.Ft</Text>
+                  </View>
+                  <View style={styles.hudMetricDivider} />
+                  <View style={styles.hudMetricItem}>
+                    <Text style={styles.hudMetricValue}>{areaDetails.kattha}</Text>
+                    <Text style={styles.hudMetricUnit}>
+                      {language === "hi" ? "कट्ठा" : "Kattha"}
+                    </Text>
+                  </View>
+                  <View style={styles.hudMetricDivider} />
+                  <View style={styles.hudMetricItem}>
+                    <Text style={styles.hudMetricValue}>{areaDetails.decimal}</Text>
+                    <Text style={styles.hudMetricUnit}>
+                      {language === "hi" ? "डेसिमल" : "Decimal"}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.hudTipRow}>
+                  <MaterialIcons name="touch-app" size={14} color="#059669" />
+                  <Text style={styles.hudAdjustmentTip}>
+                    {language === "hi"
+                      ? "सीमा बदलने के लिए हरे कोनों या '+' को खींचें"
+                      : "Drag green handles or '+' midpoints to adjust shape"}
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.hudEmptyMetricsBox}>
+                <MaterialIcons name="straighten" size={18} color="#0284C7" />
+                <Text style={styles.hudEmptyText}>
+                  {points.length === 0
+                    ? language === "hi"
+                      ? "मानचित्र पर प्लॉट के कोने छूकर सीमा बनाएं"
+                      : "Tap points on satellite map to start boundary"
+                    : `${points.length} of 3 minimum corner points marked`}
+                </Text>
+              </View>
+            )}
+
+            {/* How to Draw Stepped Instructions */}
+            <View style={styles.hudStepsContainer}>
+              <Text style={styles.hudStepsHeading}>
+                {t(language, "how_to_draw") || "How to Mark Your Plot"}
+              </Text>
+
+              <View style={styles.hudStepRow}>
+                <View style={styles.hudStepBadge}>
+                  <Text style={styles.hudStepNum}>1</Text>
+                </View>
+                <Text style={styles.hudStepText}>
+                  {t(language, "draw_step_1") || "Tap on map to place boundary corner points"}
+                </Text>
+              </View>
+
+              <View style={styles.hudStepRow}>
+                <View style={styles.hudStepBadge}>
+                  <Text style={styles.hudStepNum}>2</Text>
+                </View>
+                <Text style={styles.hudStepText}>
+                  {t(language, "draw_step_2") || "Continue clicking around the land perimeter"}
+                </Text>
+              </View>
+
+              <View style={styles.hudStepRow}>
+                <View style={styles.hudStepBadge}>
+                  <Text style={styles.hudStepNum}>3</Text>
+                </View>
+                <Text style={styles.hudStepText}>
+                  {t(language, "draw_step_5") || "Click the pulsing 1st point or 'Complete' to close"}
+                </Text>
+              </View>
+
+              <View style={styles.hudStepRow}>
+                <View style={styles.hudStepBadge}>
+                  <Text style={styles.hudStepNum}>4</Text>
+                </View>
+                <Text style={styles.hudStepText}>
+                  {t(language, "draw_step_3") || "Drag points to fine-tune exact cadastral area"}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* OVERLAY: Bottom-Left Layer Switcher (Satellite vs Street) */}
+        <TouchableOpacity
+          style={styles.mapLayerModePill}
+          onPress={handleToggleLayer}
+          activeOpacity={0.8}
+          accessibilityLabel="Switch map layer"
+        >
+          <MaterialIcons
+            name={mapLayerMode === "satellite" ? "satellite" : "map"}
+            size={16}
+            color="#03456C"
+          />
+          <Text style={styles.mapLayerModeText}>
+            {mapLayerMode === "satellite"
+              ? language === "hi"
+                ? "गूगल सैटेलाइट"
+                : "Satellite (Hybrid)"
+              : language === "hi"
+              ? "सड़क मानचित्र"
+              : "Street Map"}
+          </Text>
+          <MaterialIcons name="swap-horiz" size={14} color="#64748B" />
+        </TouchableOpacity>
 
         {/* OVERLAY: Live Interactive Guidance Status Pill */}
         <View style={styles.liveGuidancePill}>
@@ -854,81 +1120,56 @@ export default function MapParcelPicker({
             {getGuidanceText()}
           </Text>
         </View>
-
       </View>
 
-      {/* ================= RIGHT: CLEAN MINIMAL SIDEBAR ================= */}
-      <View style={styles.sidebarCol}>
-        {/* Card 1: How to Draw */}
-        <View style={styles.sidebarCard}>
-          <View style={styles.sidebarTitleRow}>
-            <MaterialIcons name="place" size={18} color="#059669" style={{ marginRight: 6 }} />
-            <Text style={styles.sidebarHeading}>{t(language, "how_to_draw") || "How to Draw"}</Text>
+      {/* ================= HORIZONTAL FEATURE & INFORMATION BAR ================= */}
+      <View style={styles.quickFeatureRow}>
+        <View style={styles.featureCard}>
+          <View style={styles.featureIconBadge}>
+            <MaterialIcons name="edit-location-alt" size={20} color="#0284C7" />
           </View>
-
-          <View style={styles.stepsList}>
-            {/* Step 1 */}
-            <View style={styles.instructionStep}>
-              <View style={styles.stepNumCircle}>
-                <Text style={styles.stepNumText}>1</Text>
-              </View>
-              <Text style={styles.instructionText}>
-                {t(language, "draw_step_1") || "Tap on the map to add boundary points"}
-              </Text>
-            </View>
-
-            {/* Step 2 */}
-            <View style={styles.instructionStep}>
-              <View style={styles.stepNumCircle}>
-                <Text style={styles.stepNumText}>2</Text>
-              </View>
-              <Text style={styles.instructionText}>
-                {t(language, "draw_step_2") || "Continue tapping to complete the outline"}
-              </Text>
-            </View>
-
-            {/* Step 3 */}
-            <View style={styles.instructionStep}>
-              <View style={styles.stepNumCircle}>
-                <Text style={styles.stepNumText}>3</Text>
-              </View>
-              <Text style={styles.instructionText}>
-                {t(language, "draw_step_3") || "Drag points to adjust if needed"}
-              </Text>
-            </View>
-
-            {/* Step 4 */}
-            <View style={styles.instructionStep}>
-              <View style={styles.stepNumCircle}>
-                <Text style={styles.stepNumText}>4</Text>
-              </View>
-              <Text style={styles.instructionText}>
-                {t(language, "draw_step_4") || "Make sure the boundary covers your exact land area"}
-              </Text>
-            </View>
-
-            {/* Step 5 */}
-            <View style={styles.instructionStep}>
-              <View style={styles.stepNumCircle}>
-                <Text style={styles.stepNumText}>5</Text>
-              </View>
-              <Text style={styles.instructionText}>
-                {t(language, "draw_step_5") || "Close the shape by clicking on the first point"}
-              </Text>
-            </View>
+          <View style={styles.featureCardContent}>
+            <Text style={styles.featureTitle}>
+              {language === "hi" ? "सटीक भूखंड सीमा" : "Cadastral Plot Pinning"}
+            </Text>
+            <Text style={styles.featureDesc}>
+              {language === "hi"
+                ? "हाई-रेसोल्यूशन सैटेलाइट पर जमीन के सभी कोने सटीक रूप से चिह्नित करें।"
+                : "Place corners directly on high-res Google Satellite imagery with sub-meter accuracy."}
+            </Text>
           </View>
         </View>
 
-        {/* Card 2: Need Help? */}
-        <View style={[styles.sidebarCard, styles.needHelpCard]}>
-          <View style={styles.sidebarTitleRow}>
-            <MaterialIcons name="help" size={18} color="#059669" style={{ marginRight: 6 }} />
-            <Text style={styles.sidebarHeading}>{t(language, "need_help") || "Need Help?"}</Text>
+        <View style={styles.featureCard}>
+          <View style={[styles.featureIconBadge, { backgroundColor: "#ECFDF5" }]}>
+            <MaterialIcons name="straighten" size={20} color="#059669" />
           </View>
-          <Text style={styles.needHelpDesc}>
-            {t(language, "need_help_desc") ||
-              "Make sure you are at the correct location and zoom in for better accuracy."}
-          </Text>
+          <View style={styles.featureCardContent}>
+            <Text style={styles.featureTitle}>
+              {language === "hi" ? "वास्तविक दूरी व आयाम" : "Live Edge Dimensions"}
+            </Text>
+            <Text style={styles.featureDesc}>
+              {language === "hi"
+                ? "प्रत्येक भुजा की लंबाई फीट में तुरंत देखें व '+' से नए बिंदु जोड़ें।"
+                : "Real-time edge distances in feet with midpoint '+' handles for precise shaping."}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.featureCard}>
+          <View style={[styles.featureIconBadge, { backgroundColor: "#F5F3FF" }]}>
+            <MaterialIcons name="calculate" size={20} color="#7C3AED" />
+          </View>
+          <View style={styles.featureCardContent}>
+            <Text style={styles.featureTitle}>
+              {language === "hi" ? "बिहार प्रमाणित क्षेत्रफल" : "Bihar Land Units"}
+            </Text>
+            <Text style={styles.featureDesc}>
+              {language === "hi"
+                ? "स्क्वायर फीट, कट्ठा और डेसिमल में स्वतः गणना जो सीधे रजिस्ट्री से मेल खाए।"
+                : "Instant automatic conversion into Sq.Ft, Kattha, and Decimal matching registry records."}
+            </Text>
+          </View>
         </View>
       </View>
     </View>
@@ -938,306 +1179,483 @@ export default function MapParcelPicker({
 const styles = StyleSheet.create({
   workspaceContainer: {
     width: "100%",
-    flexDirection: Platform.OS === "web" ? "row" : "column",
-    gap: 24,
+    gap: 20,
     alignItems: "stretch",
   },
 
-  /* Left / Main Map Canvas */
+  /* Main Map Canvas */
   mapCanvasCard: {
-    flex: 1,
-    minHeight: 520,
-    height: 520,
+    width: "100%",
+    minHeight: 580,
+    height: 580,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
     position: "relative",
     overflow: "hidden",
-    backgroundColor: "transparent",
+    backgroundColor: "#0A2540",
   },
   fallbackBox: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    height: 520,
-    backgroundColor: "transparent",
+    height: 580,
+    backgroundColor: "#0A2540",
   },
 
   /* Overlay: Top-Left Location Search Bar */
   mapSearchBox: {
     position: "absolute",
-    top: 14,
-    left: 14,
+    top: 16,
+    left: 16,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "transparent",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 40,
-    width: 310,
-    maxWidth: "70%",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingLeft: 12,
+    paddingRight: 6,
+    height: 44,
+    width: 340,
+    maxWidth: "50%",
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
     zIndex: 1000,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 6px 20px rgba(15, 23, 42, 0.22)",
+      },
+    }),
   },
   mapSearchInput: {
     flex: 1,
-    fontSize: 12.5,
+    fontSize: 13,
     color: "#0F172A",
-    fontWeight: "500",
+    fontWeight: "600",
     outlineStyle: "none" as any,
+  },
+  searchSubmitBtn: {
+    backgroundColor: "#03456C",
+    borderRadius: 8,
+    padding: 7,
+    justifyContent: "center",
+    alignItems: "center",
+    ...Platform.select({ web: { cursor: "pointer" } }),
   },
 
   /* Overlay: Top-Right Drawing Tools Bar */
   mapDrawingToolbar: {
     position: "absolute",
-    top: 14,
-    right: 14,
+    top: 16,
+    right: 16,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "transparent",
-    borderRadius: 10,
-    padding: 3,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 6,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
     zIndex: 1000,
-    gap: 2,
+    gap: 6,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 6px 20px rgba(15, 23, 42, 0.22)",
+      },
+    }),
   },
   quickPresetBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "#E6F4EA",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 6,
+    gap: 5,
+    backgroundColor: "#E0F2FE",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#A7F3D0",
+    borderColor: "#BAE6FD",
+    ...Platform.select({ web: { cursor: "pointer" } }),
   },
   quickPresetBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
-    color: "#065F46",
+    color: "#0284C7",
   },
   finishShapeBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     backgroundColor: "#059669",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    ...Platform.select({ web: { cursor: "pointer" } }),
   },
   finishShapeBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     color: "#FFFFFF",
   },
   toolBtn: {
-    width: 32,
-    height: 30,
+    width: 34,
+    height: 32,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 6,
+    borderRadius: 8,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    ...Platform.select({ web: { cursor: "pointer" } }),
   },
   toolBtnDisabled: {
-    opacity: 0.4,
+    opacity: 0.35,
+  },
+  clearToolBtn: {
+    width: 34,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 8,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECDD3",
+    ...Platform.select({ web: { cursor: "pointer" } }),
+  },
+  guideToggleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    ...Platform.select({ web: { cursor: "pointer" } }),
+  },
+  guideToggleBtnActive: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  guideToggleBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  guideToggleBtnTextActive: {
+    color: "#059669",
   },
   toolDivider: {
     width: 1,
-    height: 18,
+    height: 20,
     backgroundColor: "#E2E8F0",
-    marginHorizontal: 2,
+    marginHorizontal: 1,
   },
 
   /* Overlay: Middle-Left Navigation Controls */
   mapLeftControls: {
     position: "absolute",
-    top: 68,
-    left: 14,
+    top: 72,
+    left: 16,
     gap: 8,
     zIndex: 1000,
   },
   standaloneIconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    backgroundColor: "transparent",
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-  },
-
-  /* Overlay: Bottom-Left Mode Switcher Pill (Map / Satellite ⌵) */
-  satelliteModePill: {
-    position: "absolute",
-    bottom: 14,
-    left: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "transparent",
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 9999,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    gap: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    zIndex: 1000,
-  },
-  satelliteThumbBox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    backgroundColor: "#E6F4EA",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  satelliteModeText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#065F46",
-  },
-
-  /* Overlay: Live Interactive Guidance Status Pill */
-  liveGuidancePill: {
-    position: "absolute",
-    bottom: 14,
-    alignSelf: "center",
-    left: "50%",
-    transform: [{ translateX: -190 }],
-    width: 380,
-    maxWidth: "88%",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: 9999,
     borderWidth: 1.5,
-    borderColor: "#A7F3D0",
-    shadowColor: "#059669",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 5,
-    zIndex: 1000,
+    borderColor: "#CBD5E1",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 4px 14px rgba(15, 23, 42, 0.18)",
+      },
+    }),
   },
-  pulsingStatusDot: {
+
+  /* Overlay: Floating Cadastral Drawing Guide & Parcel Stats HUD */
+  hudCard: {
+    position: "absolute",
+    top: 72,
+    right: 16,
+    width: 310,
+    maxWidth: "85%",
+    backgroundColor: "rgba(255, 255, 255, 0.98)",
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    padding: 14,
+    zIndex: 1000,
+    gap: 12,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 8px 28px rgba(15, 23, 42, 0.22)",
+        backdropFilter: "blur(12px)",
+      },
+    }),
+  },
+  hudHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    paddingBottom: 10,
+  },
+  hudHeaderTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  hudIconBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    backgroundColor: "#F0F9FF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  hudTitle: {
+    fontSize: 12.5,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  hudCloseBtn: {
+    padding: 4,
+    ...Platform.select({ web: { cursor: "pointer" } }),
+  },
+  hudMetricsBox: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    gap: 8,
+  },
+  hudMetricsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  hudLiveDot: {
     width: 7,
     height: 7,
     borderRadius: 4,
     backgroundColor: "#10B981",
   },
-  liveGuidanceText: {
-    fontSize: 11.5,
-    fontWeight: "700",
-    color: "#065F46",
+  hudLiveDotAmber: {
+    backgroundColor: "#F59E0B",
   },
-
-  /* Overlay: Bottom-Right Scale Indicator Bar */
-  scaleIndicator: {
-    position: "absolute",
-    bottom: 14,
-    right: 14,
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.8)",
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 4,
-    zIndex: 1000,
-  },
-  scaleText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 2,
-  },
-  scaleLine: {
-    width: 40,
-    height: 2,
-    backgroundColor: "#0F172A",
-  },
-
-  /* ================= RIGHT: SIDEBAR ================= */
-  sidebarCol: {
-    width: Platform.OS === "web" ? 330 : "100%",
-    gap: 16,
-  },
-  sidebarCard: {
-    backgroundColor: "transparent",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-  },
-  sidebarTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  sidebarHeading: {
-    fontSize: 14,
+  hudMetricsStatus: {
+    fontSize: 11,
     fontWeight: "800",
     color: "#0F172A",
+    flex: 1,
+    marginLeft: 6,
   },
-  stepsList: {
-    gap: 12,
+  hudPointsCount: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#64748B",
   },
-  instructionStep: {
+  hudMetricsGrid: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+  },
+  hudMetricItem: {
+    alignItems: "center",
+  },
+  hudMetricValue: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: "#03456C",
+  },
+  hudMetricUnit: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#64748B",
+    marginTop: 1,
+  },
+  hudMetricDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: "#E2E8F0",
+  },
+  hudTipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  hudAdjustmentTip: {
+    fontSize: 10.5,
+    color: "#059669",
+    fontWeight: "600",
+    flex: 1,
+  },
+  hudEmptyMetricsBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#F0F9FF",
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+  },
+  hudEmptyText: {
+    fontSize: 11.5,
+    color: "#03456C",
+    fontWeight: "600",
+    flex: 1,
+  },
+  hudStepsContainer: {
+    gap: 8,
+  },
+  hudStepsHeading: {
+    fontSize: 11.5,
+    fontWeight: "800",
+    color: "#475569",
+    letterSpacing: 0.2,
+  },
+  hudStepRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
+    gap: 8,
   },
-  stepNumCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#E6F4EA",
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
+  hudStepBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#E0F2FE",
     justifyContent: "center",
     alignItems: "center",
     marginTop: 1,
   },
-  stepNumText: {
-    fontSize: 10.5,
+  hudStepNum: {
+    fontSize: 10,
     fontWeight: "800",
+    color: "#0284C7",
+  },
+  hudStepText: {
+    fontSize: 11,
+    color: "#334155",
+    fontWeight: "500",
+    flex: 1,
+    lineHeight: 15,
+  },
+
+  /* Overlay: Bottom-Left Mode Switcher Pill */
+  mapLayerModePill: {
+    position: "absolute",
+    bottom: 16,
+    left: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 9999,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    zIndex: 1000,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 4px 14px rgba(15, 23, 42, 0.18)",
+      },
+    }),
+  },
+  mapLayerModeText: {
+    fontSize: 11.5,
+    fontWeight: "800",
+    color: "#03456C",
+  },
+
+  /* Overlay: Live Interactive Guidance Status Pill */
+  liveGuidancePill: {
+    position: "absolute",
+    bottom: 16,
+    alignSelf: "center",
+    left: "50%",
+    transform: [{ translateX: -190 }],
+    width: 380,
+    maxWidth: "85%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 9999,
+    borderWidth: 1.5,
+    borderColor: "#10B981",
+    zIndex: 1000,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 18px rgba(16, 185, 129, 0.22)",
+      },
+    }),
+  },
+  pulsingStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#10B981",
+  },
+  liveGuidanceText: {
+    fontSize: 12,
+    fontWeight: "700",
     color: "#065F46",
   },
-  instructionText: {
+
+  /* Horizontal Quick Feature & Information Bar */
+  quickFeatureRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 14,
+    marginTop: 4,
+  },
+  featureCard: {
     flex: 1,
-    fontSize: 12,
-    color: "#475569",
-    lineHeight: 16,
-    fontWeight: "500",
+    minWidth: 260,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    padding: 14,
   },
-  needHelpCard: {
-    backgroundColor: "#FAFAFA",
+  featureIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#E0F2FE",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  needHelpDesc: {
-    fontSize: 12,
+  featureCardContent: {
+    flex: 1,
+    gap: 2,
+  },
+  featureTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  featureDesc: {
+    fontSize: 11.5,
     color: "#64748B",
     lineHeight: 16,
   },

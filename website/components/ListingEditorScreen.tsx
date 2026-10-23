@@ -1270,7 +1270,7 @@ export default function ListingEditorScreen() {
 const styles = StyleSheet.create({
   pageContainer: {
     width: "100%",
-    maxWidth: 880,
+    maxWidth: 1180,
     alignSelf: "center",
     paddingTop: 8,
   },
@@ -1811,11 +1811,18 @@ const styles = StyleSheet.create({
 
   /* Step 2 Specific */
   mapContainerBox: {
-    minHeight: Platform.OS === "web" ? 520 : 440,
-    borderRadius: 16,
+    width: "100%",
+    minHeight: Platform.OS === "web" ? 580 : 440,
+    borderRadius: 18,
     overflow: "hidden",
     borderWidth: 1.5,
-    borderColor: "#E2E8F0",
+    borderColor: "#CBD5E1",
+    backgroundColor: "#0A2540",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 8px 30px rgba(15, 23, 42, 0.1)",
+      },
+    }),
   },
   gpsLocateBtn: {
     flexDirection: "row",
