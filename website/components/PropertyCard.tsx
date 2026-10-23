@@ -35,11 +35,10 @@ export default function PropertyCard({ property, onSave, isSaved }: PropertyCard
     : `${property.location?.district || "Patna"}, ${property.location?.state || "Bihar"}`;
   
   const sqftText = t(language, "unit_sqft") || "sq.ft";
-  const areaStr = property.sellableArea 
-    ? `${property.sellableArea} ${sqftText}` 
-    : property.totalArea 
-    ? `${property.totalArea} ${sqftText}` 
-    : `2,400 ${sqftText}`;
+  const areaValue = property.sellableArea || property.totalArea;
+  const areaStr = areaValue 
+    ? `${Number(areaValue).toLocaleString("en-IN")} ${sqftText}` 
+    : "Area unlisted";
 
   return (
     <TouchableOpacity
@@ -49,7 +48,13 @@ export default function PropertyCard({ property, onSave, isSaved }: PropertyCard
     >
       {/* Property Image Header */}
       <View style={styles.imageContainer}>
-        {property.media?.photos?.[0] ? <Image source={{ uri: property.media.photos[0] }} accessibilityLabel="Property photo" style={styles.image} resizeMode="cover" /> : <Text>No property photo uploaded</Text>}
+        {property.media?.photos?.[0] ? (
+          <Image source={{ uri: property.media.photos[0] }} accessibilityLabel="Property photo" style={styles.image} resizeMode="cover" />
+        ) : (
+          <View style={[styles.image, { backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" }]}>
+            <MaterialIcons name="landscape" size={42} color="#94A3B8" />
+          </View>
+        )}
         <View style={styles.imageOverlay} />
 
         {/* Verification Status Badge */}
@@ -110,27 +115,27 @@ export default function PropertyCard({ property, onSave, isSaved }: PropertyCard
 
         {/* 4-Pillar Verification Trust Signals */}
         <View style={styles.trustSignals}>
-          <View style={[styles.trustPill, styles.trustPillActive]}>
-            <MaterialIcons name="fingerprint" size={12} color={AppTheme.colors.badgeIdentity} />
-            <Text style={[styles.trustPillText, { color: AppTheme.colors.badgeIdentity }]}>
+          <View style={[styles.trustPill, (property.badges?.identityVerified ?? true) ? styles.trustPillActive : styles.trustPillMuted]}>
+            <MaterialIcons name="fingerprint" size={12} color={(property.badges?.identityVerified ?? true) ? AppTheme.colors.badgeIdentity : AppTheme.colors.textMuted} />
+            <Text style={[styles.trustPillText, { color: (property.badges?.identityVerified ?? true) ? AppTheme.colors.badgeIdentity : AppTheme.colors.textMuted }]}>
               {language === "hi" ? "KYC जाँचा" : "ID KYC"}
             </Text>
           </View>
-          <View style={[styles.trustPill, styles.trustPillActive]}>
-            <MaterialIcons name="description" size={12} color={AppTheme.colors.badgeDocument} />
-            <Text style={[styles.trustPillText, { color: AppTheme.colors.badgeDocument }]}>
+          <View style={[styles.trustPill, (property.badges?.documentsChecked ?? true) ? styles.trustPillActive : styles.trustPillMuted]}>
+            <MaterialIcons name="description" size={12} color={(property.badges?.documentsChecked ?? true) ? AppTheme.colors.badgeDocument : AppTheme.colors.textMuted} />
+            <Text style={[styles.trustPillText, { color: (property.badges?.documentsChecked ?? true) ? AppTheme.colors.badgeDocument : AppTheme.colors.textMuted }]}>
               {t(language, "badge_registry") || "Registry"}
             </Text>
           </View>
-          <View style={[styles.trustPill, styles.trustPillActive]}>
-            <MaterialIcons name="location-pin" size={12} color={AppTheme.colors.badgeSite} />
-            <Text style={[styles.trustPillText, { color: AppTheme.colors.badgeSite }]}>
+          <View style={[styles.trustPill, (property.badges?.siteVisited ?? true) ? styles.trustPillActive : styles.trustPillMuted]}>
+            <MaterialIcons name="location-pin" size={12} color={(property.badges?.siteVisited ?? true) ? AppTheme.colors.badgeSite : AppTheme.colors.textMuted} />
+            <Text style={[styles.trustPillText, { color: (property.badges?.siteVisited ?? true) ? AppTheme.colors.badgeSite : AppTheme.colors.textMuted }]}>
               {t(language, "badge_gps_visit") || "GPS Visit"}
             </Text>
           </View>
-          <View style={[styles.trustPill, isVerified ? styles.trustPillActive : styles.trustPillMuted]}>
-            <MaterialIcons name="gavel" size={12} color={isVerified ? AppTheme.colors.badgeLawyer : AppTheme.colors.textMuted} />
-            <Text style={[styles.trustPillText, { color: isVerified ? AppTheme.colors.badgeLawyer : AppTheme.colors.textMuted }]}>
+          <View style={[styles.trustPill, (property.badges?.lawyerReviewed ?? isVerified) ? styles.trustPillActive : styles.trustPillMuted]}>
+            <MaterialIcons name="gavel" size={12} color={(property.badges?.lawyerReviewed ?? isVerified) ? AppTheme.colors.badgeLawyer : AppTheme.colors.textMuted} />
+            <Text style={[styles.trustPillText, { color: (property.badges?.lawyerReviewed ?? isVerified) ? AppTheme.colors.badgeLawyer : AppTheme.colors.textMuted }]}>
               {language === "hi" ? "कानूनी" : "Legal"}
             </Text>
           </View>

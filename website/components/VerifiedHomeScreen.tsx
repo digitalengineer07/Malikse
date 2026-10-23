@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -204,6 +204,81 @@ export default function VerifiedHomeScreen() {
 
   const isWide = width >= 800;
   const filteredProperties = properties.filter((p) => type === undefined || p.type === type);
+
+  // Dynamic investment corridors synchronized with live database properties
+  const hubCorridors = useMemo(() => {
+    // 1. Patna Sadar & Central (Fraser Road, Boring Road, Exhibition Road, Kankarbagh)
+    const centralProps = properties.filter((p) => {
+      const loc = `${p.location?.mauza || ""} ${p.location?.block || ""} ${p.title || ""}`.toLowerCase();
+      return (
+        loc.includes("boring") ||
+        loc.includes("fraser") ||
+        loc.includes("exhibition") ||
+        loc.includes("kankarbagh") ||
+        p.location?.pincode === "800020"
+      );
+    });
+
+    // 2. Danapur & Roadside (Danapur, Saguna, 801503)
+    const danapurProps = properties.filter((p) => {
+      const loc = `${p.location?.mauza || ""} ${p.location?.block || ""} ${p.location?.policeStation || ""} ${p.title || ""}`.toLowerCase();
+      return loc.includes("danapur") || loc.includes("saguna") || p.location?.pincode === "801503";
+    });
+
+    // 3. Patna Prime Plots & Land (Land parcels in Patna)
+    const plotProps = properties.filter(
+      (p) => p.type === "land" && !danapurProps.some((dp) => (dp._id || dp.id) === (p._id || p.id))
+    );
+
+    // 4. Greater Patna & Bihar Regional Properties
+    const allBiharProps = properties;
+
+    const getMinRate = (list: Property[], fallback: number) => {
+      const rates = list
+        .map((p) => (p.sellableArea || p.totalArea ? Math.round(p.price / (p.sellableArea || p.totalArea || 1)) : 0))
+        .filter((r) => r > 0);
+      return rates.length > 0 ? Math.min(...rates) : fallback;
+    };
+
+    return [
+      {
+        id: "central",
+        name: "Patna Sadar & Central",
+        highlights: "Bailey Road · Fraser Road · Kankarbagh",
+        count: centralProps.length,
+        minRate: getMinRate(centralProps, 4700),
+        image: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=600&q=80",
+        onPress: () => router.push({ pathname: "/home", params: { district: "Patna" } }),
+      },
+      {
+        id: "danapur",
+        name: "Danapur & Saguna More",
+        highlights: "Khagaul Road · Danapur Station · RPS More",
+        count: danapurProps.length,
+        minRate: getMinRate(danapurProps, 1875),
+        image: "https://images.unsplash.com/photo-1582407947304-fd86f028f716?auto=format&fit=crop&w=600&q=80",
+        onPress: () => router.push({ pathname: "/home", params: { district: "Patna", pincode: "801503" } }),
+      },
+      {
+        id: "plots",
+        name: "Patna Prime Plots & Land",
+        highlights: "Main Road Frontage · Gated Layouts · Title Verified",
+        count: plotProps.length,
+        minRate: getMinRate(plotProps, 1875),
+        image: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=600&q=80",
+        onPress: () => router.push({ pathname: "/home", params: { type: "land", district: "Patna" } }),
+      },
+      {
+        id: "all_bihar",
+        name: "Greater Patna & Bihar Belts",
+        highlights: "Apartments · Houses · Commercial Shops · Offices",
+        count: allBiharProps.length,
+        minRate: getMinRate(allBiharProps, 1875),
+        image: "https://images.unsplash.com/photo-1570129477492-45c003edd2be?auto=format&fit=crop&w=600&q=80",
+        onPress: () => router.push({ pathname: "/home", params: { state: "Bihar" } }),
+      },
+    ];
+  }, [properties, router]);
   const carouselScroll = useRef<ScrollView>(null);
   const scrollOffset = useRef(0);
 
@@ -594,101 +669,35 @@ export default function VerifiedHomeScreen() {
             </View>
 
             <View style={[s.districtsGrid, { flexDirection: isWide ? "row" : "column" }]}>
-              {/* Patna Sadar */}
-              <TouchableOpacity
-                style={[s.districtCard, { width: isWide ? "23.5%" : "100%" }]}
-                activeOpacity={0.88}
-                onPress={() => router.push({ pathname: "/home", params: { district: "Patna" } })}
-              >
-                <View style={s.districtImageWrap}>
-                  <Image
-                    source={{ uri: "https://images.unsplash.com/photo-1570129477492-45c003edd2be?auto=format&fit=crop&w=600&q=80" }}
-                    style={StyleSheet.absoluteFill}
-                    resizeMode="cover"
-                  />
-                  <View style={s.districtOverlay} />
-                  <View style={s.districtCountBadge}>
-                    <Text style={s.districtCountText}>18 Verified</Text>
+              {hubCorridors.map((hub) => (
+                <TouchableOpacity
+                  key={hub.id}
+                  style={[s.districtCard, { width: isWide ? "23.5%" : "100%" }]}
+                  activeOpacity={0.88}
+                  onPress={hub.onPress}
+                >
+                  <View style={s.districtImageWrap}>
+                    <Image
+                      source={{ uri: hub.image }}
+                      style={StyleSheet.absoluteFill}
+                      resizeMode="cover"
+                    />
+                    <View style={s.districtOverlay} />
+                    <View style={s.districtCountBadge}>
+                      <Text style={s.districtCountText}>
+                        {hub.count > 0 ? `${hub.count} Verified` : "Coming Soon"}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-                <View style={s.districtInfo}>
-                  <Text style={s.districtName}>Patna Sadar & Central</Text>
-                  <Text style={s.districtHighlights}>Bailey Road · Fraser Road · Kankarbagh</Text>
-                  <Text style={s.districtPriceRange}>From ₹4,500 / sq ft</Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* Danapur & Saguna More */}
-              <TouchableOpacity
-                style={[s.districtCard, { width: isWide ? "23.5%" : "100%" }]}
-                activeOpacity={0.88}
-                onPress={() => router.push({ pathname: "/home", params: { district: "Patna" } })}
-              >
-                <View style={s.districtImageWrap}>
-                  <Image
-                    source={{ uri: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=600&q=80" }}
-                    style={StyleSheet.absoluteFill}
-                    resizeMode="cover"
-                  />
-                  <View style={s.districtOverlay} />
-                  <View style={s.districtCountBadge}>
-                    <Text style={s.districtCountText}>12 Verified</Text>
+                  <View style={s.districtInfo}>
+                    <Text style={s.districtName}>{hub.name}</Text>
+                    <Text style={s.districtHighlights}>{hub.highlights}</Text>
+                    <Text style={s.districtPriceRange}>
+                      {hub.count > 0 ? `From ₹${hub.minRate.toLocaleString("en-IN")} / sq ft` : "Register Interest"}
+                    </Text>
                   </View>
-                </View>
-                <View style={s.districtInfo}>
-                  <Text style={s.districtName}>Danapur & Saguna More</Text>
-                  <Text style={s.districtHighlights}>Khagaul Road · RPS More · Danapur Cantt</Text>
-                  <Text style={s.districtPriceRange}>From ₹3,800 / sq ft</Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* Bihta Hub */}
-              <TouchableOpacity
-                style={[s.districtCard, { width: isWide ? "23.5%" : "100%" }]}
-                activeOpacity={0.88}
-                onPress={() => router.push({ pathname: "/home", params: { district: "Patna" } })}
-              >
-                <View style={s.districtImageWrap}>
-                  <Image
-                    source={{ uri: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=600&q=80" }}
-                    style={StyleSheet.absoluteFill}
-                    resizeMode="cover"
-                  />
-                  <View style={s.districtOverlay} />
-                  <View style={s.districtCountBadge}>
-                    <Text style={s.districtCountText}>9 Verified</Text>
-                  </View>
-                </View>
-                <View style={s.districtInfo}>
-                  <Text style={s.districtName}>Bihta IT & Airport Belt</Text>
-                  <Text style={s.districtHighlights}>IIT Patna · Airport Corridor · Commercial</Text>
-                  <Text style={s.districtPriceRange}>From ₹1,800 / sq ft</Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* Muzaffarpur & Regional */}
-              <TouchableOpacity
-                style={[s.districtCard, { width: isWide ? "23.5%" : "100%" }]}
-                activeOpacity={0.88}
-                onPress={() => router.push({ pathname: "/home", params: { district: "Muzaffarpur" } })}
-              >
-                <View style={s.districtImageWrap}>
-                  <Image
-                    source={{ uri: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=600&q=80" }}
-                    style={StyleSheet.absoluteFill}
-                    resizeMode="cover"
-                  />
-                  <View style={s.districtOverlay} />
-                  <View style={s.districtCountBadge}>
-                    <Text style={s.districtCountText}>14 Verified</Text>
-                  </View>
-                </View>
-                <View style={s.districtInfo}>
-                  <Text style={s.districtName}>Muzaffarpur & Gaya</Text>
-                  <Text style={s.districtHighlights}>Mithila Hub · Magadh Corridor · NH-22</Text>
-                  <Text style={s.districtPriceRange}>From ₹2,200 / sq ft</Text>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
 
@@ -741,8 +750,8 @@ export default function VerifiedHomeScreen() {
             </View>
             {isWide && <View style={s.statDivider} />}
             <View style={s.statItem}>
-              <Text style={s.statNumber}>38</Text>
-              <Text style={s.statLabel}>Districts of Bihar Covered</Text>
+              <Text style={s.statNumber}>{properties.length > 0 ? properties.length : "8+"}</Text>
+              <Text style={s.statLabel}>Live Verified Properties</Text>
             </View>
             {isWide && <View style={s.statDivider} />}
             <View style={s.statItem}>

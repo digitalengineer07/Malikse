@@ -12,9 +12,11 @@ export default function MapIntroOverlay({
   activeStateName,
 }: MapIntroOverlayProps) {
   const displayCount =
-    totalCount && totalCount > 0
-      ? `${totalCount.toLocaleString("en-IN")}+`
-      : "12,000+";
+    typeof totalCount === "number" && totalCount > 0
+      ? `${totalCount.toLocaleString("en-IN")}`
+      : totalCount === 0
+      ? "0"
+      : "Verified";
 
   return (
     <View style={styles.card}>
