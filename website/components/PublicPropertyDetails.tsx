@@ -92,7 +92,7 @@ export default function PublicPropertyDetails({
   return (
     <View style={styles.screen}>
       {/* Top Application Header */}
-      <AppHeader showBack fallbackRoute="/search" />
+      <AppHeader showBack={false} fallbackRoute="/search" />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -102,9 +102,22 @@ export default function PublicPropertyDetails({
         ]}
       >
         <View style={styles.mainContainer}>
-          {/* Top Breadcrumb Navigation & Share Strip */}
+          {/* Top Action & Breadcrumb Strip */}
           <View style={styles.breadcrumbBar}>
             <View style={styles.breadcrumbLeft}>
+              <TouchableOpacity
+                onPress={() => (router.canGoBack() ? router.back() : router.replace("/search"))}
+                style={styles.backButtonPill}
+                accessibilityRole="button"
+                accessibilityLabel="Back to map"
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="arrow-back" size={16} color="#03456C" />
+                <Text style={styles.backButtonPillText}>Back</Text>
+              </TouchableOpacity>
+
+              <View style={styles.breadcrumbDivider} />
+
               <TouchableOpacity
                 onPress={() => (router.canGoBack() ? router.back() : router.replace("/search"))}
                 style={styles.breadcrumbLink}
@@ -825,8 +838,40 @@ const styles = StyleSheet.create({
   breadcrumbLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
     flexWrap: "wrap",
+  },
+  backButtonPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 9999,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "all 0.15s ease",
+        boxShadow: "0 2px 6px rgba(15, 23, 42, 0.05)",
+      },
+      default: {
+        elevation: 1,
+      },
+    }),
+  },
+  backButtonPillText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#03456C",
+  },
+  breadcrumbDivider: {
+    width: 1,
+    height: 18,
+    backgroundColor: "#CBD5E1",
+    marginHorizontal: 4,
   },
   breadcrumbLink: {
     flexDirection: "row",
