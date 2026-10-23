@@ -8,10 +8,13 @@ import {
   ActivityIndicator,
   Text,
   TouchableOpacity,
-  } from "react-native";
+  ScrollView,
+} from "react-native";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import { useLanguageStore } from "../src/store/languageStore";
 import { t } from "../src/i18n/translations";
+import { geocodeAddress, geocodePlaceId } from "../src/utils/googleMaps";
+import { fetchLocationSuggestions, type LocationSuggestion } from "../src/services/regionService";
 
 export interface LatLngPoint {
   lat: number;
@@ -44,6 +47,11 @@ export default function MapParcelPicker({
 
   // Search input state
   const [searchLocation, setSearchLocation] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchMarkerRef = useRef<any>(null);
+  const searchTimeoutRef = useRef<any>(null);
   // Layer Mode: satellite (default) or street
   const [mapLayerMode, setMapLayerMode] = useState<"satellite" | "street">("satellite");
   // Floating Guide HUD toggle state
@@ -540,64 +548,217 @@ export default function MapParcelPicker({
     baseLayerRef.current.setUrl(url);
   };
 
-  // Search Location Dispatcher (Supports Lat,Lng coordinates or Bihar cities/places)
-  const handleSearchSubmit = () => {
+  // Show prominent searched location marker pin on the map
+  const displaySearchPin = (lat: number, lng: number, label: string) => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+
+    import("leaflet").then((leafletModule) => {
+      const L = (leafletModule as any).default || leafletModule;
+
+      if (searchMarkerRef.current) {
+        map.removeLayer(searchMarkerRef.current);
+        searchMarkerRef.current = null;
+      }
+
+      const pinIcon = L.divIcon({
+        className: "malikse-searched-location-pin",
+        html: `
+          <div style="position:relative;display:flex;flex-direction:column;align-items:center;transform:translate(-50%, -100%);pointer-events:none;">
+            <div style="
+              background: linear-gradient(135deg, #EF4444 0%, #B91C1C 100%);
+              width: 34px;
+              height: 34px;
+              border-radius: 50% 50% 50% 0;
+              transform: rotate(-45deg);
+              box-shadow: 0 6px 16px rgba(239, 68, 68, 0.45);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              border: 2.5px solid #FFFFFF;
+            ">
+              <span style="transform: rotate(45deg);font-size:15px;line-height:1;">📍</span>
+            </div>
+            <div style="
+              background-color: rgba(15, 23, 42, 0.94);
+              color: #FFFFFF;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              font-size: 11px;
+              font-weight: 800;
+              padding: 3px 10px;
+              border-radius: 6px;
+              margin-top: 6px;
+              white-space: nowrap;
+              border: 1px solid rgba(255, 255, 255, 0.2);
+              box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+              letter-spacing: 0.2px;
+            ">${label}</div>
+          </div>
+        `,
+        iconSize: [34, 52],
+        iconAnchor: [17, 52],
+      });
+
+      const marker = L.marker([lat, lng], { icon: pinIcon }).addTo(map);
+      searchMarkerRef.current = marker;
+      map.flyTo([lat, lng], 18, { duration: 1.4 });
+    });
+  };
+
+  // Auto-suggest as user types in the search box
+  const handleSearchChange = (text: string) => {
+    setSearchLocation(text);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    if (text.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const results = await fetchLocationSuggestions(text.trim());
+        setSuggestions(results);
+        setShowSuggestions(results.length > 0);
+      } catch {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    }, 250);
+  };
+
+  // When a user selects a suggestion from the dropdown
+  const handleSelectSuggestion = async (item: LocationSuggestion) => {
+    setSearchLocation(item.label);
+    setShowSuggestions(false);
+    setIsSearching(true);
+
+    try {
+      if (item.lat && item.lng && item.lat !== 0 && item.lng !== 0) {
+        displaySearchPin(item.lat, item.lng, item.label);
+        return;
+      }
+
+      if (item.placeId) {
+        const geocoded = await geocodePlaceId(item.placeId);
+        if (geocoded) {
+          displaySearchPin(geocoded.lat, geocoded.lng, item.label);
+          return;
+        }
+      }
+
+      const addrGeocoded = await geocodeAddress(item.label);
+      if (addrGeocoded) {
+        displaySearchPin(addrGeocoded.lat, addrGeocoded.lng, item.label);
+        return;
+      }
+
+      const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        item.label + ", Bihar, India"
+      )}&countrycodes=in&limit=1`;
+      const res = await fetch(nominatimUrl);
+      const data = await res.json();
+      if (data && data[0]) {
+        displaySearchPin(parseFloat(data[0].lat), parseFloat(data[0].lon), item.label);
+      }
+    } catch (e) {
+      console.warn("Geocoding failed for suggestion:", e);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Search Location Dispatcher (Google Maps Geocoder + Places + Coordinates + Nominatim)
+  const handleSearchSubmit = async () => {
     if (!mapInstanceRef.current || !searchLocation.trim()) return;
+    setShowSuggestions(false);
     const query = searchLocation.toLowerCase().trim();
 
-    // Check if user entered direct GPS coordinates: "lat, lng"
+    // 1. Direct GPS coordinates: "lat, lng"
     const coordMatch = query.match(/^([-+]?\d{1,2}(?:\.\d+)?)[,\s]+([-+]?\d{1,3}(?:\.\d+)?)$/);
     if (coordMatch) {
       const lat = parseFloat(coordMatch[1]);
       const lng = parseFloat(coordMatch[2]);
       if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-        mapInstanceRef.current.flyTo([lat, lng], 18, { duration: 1.2 });
+        displaySearchPin(lat, lng, `GPS: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
         return;
       }
     }
 
-    const KNOWN_PLACES: Record<string, [number, number]> = {
-      patna: [25.5941, 85.1376],
-      danapur: [25.6152, 85.0485],
-      bihta: [25.5684, 84.8582],
-      "bailey road": [25.6127, 85.0456],
-      kankarbagh: [25.5941, 85.155],
-      hajipur: [25.6858, 85.214],
-      naubatpur: [25.5342, 84.9741],
-      muzaffarpur: [26.1209, 85.3647],
-      gaya: [24.7914, 85.0002],
-      bhagalpur: [25.2425, 86.9842],
-      darbhanga: [26.1542, 85.8918],
-      purnia: [25.7771, 87.4753],
-      ara: [25.5541, 84.6667],
-      arrah: [25.5541, 84.6667],
-      begusarai: [25.4182, 86.1272],
-      rajgir: [25.0298, 85.4221],
-      nalanda: [25.1357, 85.4578],
-      vaishali: [25.9866, 85.1277],
-      buxar: [25.5647, 83.9777],
-      chhapra: [25.7811, 84.7466],
-      motihari: [26.6473, 84.9126],
-      saharsa: [25.8835, 86.6006],
-      samastipur: [25.8634, 85.7813],
-      katihar: [25.5541, 87.5714],
-      deoghar: [24.4826, 86.7001],
-      sasaram: [24.9525, 84.0299],
-    };
+    setIsSearching(true);
+    try {
+      const KNOWN_PLACES: Record<string, [number, number]> = {
+        patna: [25.5941, 85.1376],
+        danapur: [25.6152, 85.0485],
+        bihta: [25.5684, 84.8582],
+        "bailey road": [25.6127, 85.0456],
+        kankarbagh: [25.5941, 85.155],
+        hajipur: [25.6858, 85.214],
+        naubatpur: [25.5342, 84.9741],
+        muzaffarpur: [26.1209, 85.3647],
+        gaya: [24.7914, 85.0002],
+        bhagalpur: [25.2425, 86.9842],
+        darbhanga: [26.1542, 85.8918],
+        purnia: [25.7771, 87.4753],
+        ara: [25.5541, 84.6667],
+        arrah: [25.5541, 84.6667],
+        begusarai: [25.4182, 86.1272],
+        rajgir: [25.0298, 85.4221],
+        nalanda: [25.1357, 85.4578],
+        vaishali: [25.9866, 85.1277],
+        buxar: [25.5647, 83.9777],
+        chhapra: [25.7811, 84.7466],
+        motihari: [26.6473, 84.9126],
+        saharsa: [25.8835, 86.6006],
+        samastipur: [25.8634, 85.7813],
+        katihar: [25.5541, 87.5714],
+        deoghar: [24.4826, 86.7001],
+        sasaram: [24.9525, 84.0299],
+        "boring road": [25.6186, 85.1166],
+        "saguna more": [25.6195, 85.0345],
+        "gola road": [25.6267, 85.0682],
+        rukanpura: [25.6139, 85.0745],
+        anisabad: [25.5802, 85.0931],
+        "rajendra nagar": [25.5975, 85.1678],
+      };
 
-    let targetCoord: [number, number] | null = null;
-    for (const key of Object.keys(KNOWN_PLACES)) {
-      if (query.includes(key)) {
-        targetCoord = KNOWN_PLACES[key];
-        break;
+      for (const key of Object.keys(KNOWN_PLACES)) {
+        if (query.includes(key)) {
+          const [lat, lng] = KNOWN_PLACES[key];
+          displaySearchPin(lat, lng, searchLocation.toUpperCase());
+          return;
+        }
       }
-    }
 
-    if (!targetCoord) {
-      targetCoord = [25.6152, 85.0485]; // Default prime Danapur plot
-    }
+      // 2. Google Maps Geocoder API
+      const googleRes = await geocodeAddress(searchLocation);
+      if (googleRes) {
+        displaySearchPin(googleRes.lat, googleRes.lng, googleRes.formattedAddress || searchLocation);
+        return;
+      }
 
-    mapInstanceRef.current.flyTo(targetCoord, 17, { duration: 1.2 });
+      // 3. OpenStreetMap Nominatim Geocoder
+      const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        searchLocation + ", Bihar, India"
+      )}&countrycodes=in&limit=1`;
+      const res = await fetch(nominatimUrl);
+      const data = await res.json();
+      if (data && data[0]) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        displaySearchPin(lat, lon, data[0].display_name?.split(",")[0] || searchLocation);
+        return;
+      }
+
+      // Fallback
+      displaySearchPin(25.6152, 85.0485, "Danapur, Patna");
+    } catch (err) {
+      console.warn("Location search error:", err);
+      displaySearchPin(25.6152, 85.0485, "Danapur, Patna");
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   // Get current guidance message for status pill
@@ -803,26 +964,81 @@ export default function MapParcelPicker({
         )}
 
         {/* OVERLAY: Top-Left Search Location Bar */}
-        <View style={styles.mapSearchBox}>
-          <MaterialIcons name="search" size={20} color="#03456C" style={{ marginRight: 8 }} />
-          <TextInput
-            style={styles.mapSearchInput}
-            placeholder={
-              t(language, "search_map_location") || "Search city, village, or GPS (e.g. 25.61, 85.14)..."
-            }
-            placeholderTextColor="#64748B"
-            value={searchLocation}
-            onChangeText={setSearchLocation}
-            onSubmitEditing={handleSearchSubmit}
-          />
-          <TouchableOpacity
-            onPress={handleSearchSubmit}
-            activeOpacity={0.8}
-            style={styles.searchSubmitBtn}
-            accessibilityLabel="Search map location"
-          >
-            <MaterialIcons name="arrow-forward" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
+        <View style={styles.mapSearchContainer}>
+          <View style={styles.mapSearchBox}>
+            <MaterialIcons name="search" size={20} color="#03456C" style={{ marginRight: 8 }} />
+            <TextInput
+              style={styles.mapSearchInput}
+              placeholder={
+                t(language, "search_map_location") || "Search city, village, or GPS (e.g. 25.61, 85.14)..."
+              }
+              placeholderTextColor="#64748B"
+              value={searchLocation}
+              onChangeText={handleSearchChange}
+              onSubmitEditing={handleSearchSubmit}
+              returnKeyType="search"
+            />
+            {searchLocation.length > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  setSearchLocation("");
+                  setSuggestions([]);
+                  setShowSuggestions(false);
+                }}
+                activeOpacity={0.7}
+                style={{ padding: 4, marginRight: 4 }}
+                accessibilityLabel="Clear search"
+              >
+                <MaterialIcons name="close" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              onPress={handleSearchSubmit}
+              activeOpacity={0.8}
+              style={styles.searchSubmitBtn}
+              disabled={isSearching}
+              accessibilityLabel="Search map location"
+            >
+              {isSearching ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <MaterialIcons name="arrow-forward" size={16} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Live Google Places & Location Autocomplete Dropdown */}
+          {showSuggestions && suggestions.length > 0 && (
+            <View style={styles.suggestionsDropdown}>
+              <ScrollView style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled">
+                {suggestions.map((item, idx) => (
+                  <TouchableOpacity
+                    key={`${item.label}-${idx}`}
+                    style={styles.suggestionRow}
+                    onPress={() => handleSelectSuggestion(item)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons
+                      name={item.kind === "district" ? "location-city" : "place"}
+                      size={18}
+                      color="#0284C7"
+                      style={{ marginRight: 8, marginTop: 2 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.suggestionLabel} numberOfLines={1}>
+                        {item.label}
+                      </Text>
+                      {item.district && (
+                        <Text style={styles.suggestionSub} numberOfLines={1}>
+                          {item.district}, {item.state}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </View>
 
         {/* OVERLAY: Top-Right Toolbar (Quick Template, Finish, Undo, Redo, Delete, Guide) */}
@@ -1124,12 +1340,12 @@ export default function MapParcelPicker({
 
       {/* ================= HORIZONTAL FEATURE & INFORMATION BAR ================= */}
       <View style={styles.quickFeatureRow}>
-        <View style={styles.featureCard}>
-          <View style={styles.featureIconBadge}>
+        <View style={[styles.featureCard, styles.featureCardPinning]}>
+          <View style={[styles.featureIconBadge, styles.featureIconBadgePinning]}>
             <MaterialIcons name="edit-location-alt" size={20} color="#0284C7" />
           </View>
           <View style={styles.featureCardContent}>
-            <Text style={styles.featureTitle}>
+            <Text style={[styles.featureTitle, styles.featureTitlePinning]}>
               {language === "hi" ? "सटीक भूखंड सीमा" : "Cadastral Plot Pinning"}
             </Text>
             <Text style={styles.featureDesc}>
@@ -1140,12 +1356,12 @@ export default function MapParcelPicker({
           </View>
         </View>
 
-        <View style={styles.featureCard}>
-          <View style={[styles.featureIconBadge, { backgroundColor: "#ECFDF5" }]}>
+        <View style={[styles.featureCard, styles.featureCardDimensions]}>
+          <View style={[styles.featureIconBadge, styles.featureIconBadgeDimensions]}>
             <MaterialIcons name="straighten" size={20} color="#059669" />
           </View>
           <View style={styles.featureCardContent}>
-            <Text style={styles.featureTitle}>
+            <Text style={[styles.featureTitle, styles.featureTitleDimensions]}>
               {language === "hi" ? "वास्तविक दूरी व आयाम" : "Live Edge Dimensions"}
             </Text>
             <Text style={styles.featureDesc}>
@@ -1156,12 +1372,12 @@ export default function MapParcelPicker({
           </View>
         </View>
 
-        <View style={styles.featureCard}>
-          <View style={[styles.featureIconBadge, { backgroundColor: "#F5F3FF" }]}>
+        <View style={[styles.featureCard, styles.featureCardUnits]}>
+          <View style={[styles.featureIconBadge, styles.featureIconBadgeUnits]}>
             <MaterialIcons name="calculate" size={20} color="#7C3AED" />
           </View>
           <View style={styles.featureCardContent}>
-            <Text style={styles.featureTitle}>
+            <Text style={[styles.featureTitle, styles.featureTitleUnits]}>
               {language === "hi" ? "बिहार प्रमाणित क्षेत्रफल" : "Bihar Land Units"}
             </Text>
             <Text style={styles.featureDesc}>
@@ -1203,11 +1419,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#0A2540",
   },
 
-  /* Overlay: Top-Left Location Search Bar */
-  mapSearchBox: {
+  /* Overlay: Top-Left Location Search Container */
+  mapSearchContainer: {
     position: "absolute",
     top: 16,
     left: 16,
+    zIndex: 2000,
+    width: 350,
+    maxWidth: "50%",
+  },
+  mapSearchBox: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
@@ -1215,11 +1436,8 @@ const styles = StyleSheet.create({
     paddingLeft: 12,
     paddingRight: 6,
     height: 44,
-    width: 340,
-    maxWidth: "50%",
     borderWidth: 1.5,
     borderColor: "#CBD5E1",
-    zIndex: 1000,
     ...Platform.select({
       web: {
         boxShadow: "0 6px 20px rgba(15, 23, 42, 0.22)",
@@ -1240,6 +1458,40 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     ...Platform.select({ web: { cursor: "pointer" } }),
+  },
+  suggestionsDropdown: {
+    marginTop: 6,
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    overflow: "hidden",
+    maxHeight: 220,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 10px 30px rgba(15, 23, 42, 0.25)",
+      },
+    }),
+  },
+  suggestionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    ...Platform.select({ web: { cursor: "pointer" } }),
+  },
+  suggestionLabel: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  suggestionSub: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 1,
   },
 
   /* Overlay: Top-Right Drawing Tools Bar */
@@ -1623,7 +1875,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 14,
-    marginTop: 4,
+    marginTop: 6,
   },
   featureCard: {
     flex: 1,
@@ -1631,32 +1883,68 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-    backgroundColor: "#F8FAFC",
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    padding: 14,
+    padding: 15,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(15, 23, 42, 0.04)",
+      },
+      default: {
+        elevation: 1,
+      },
+    }),
+  },
+  featureCardPinning: {
+    backgroundColor: "#F0F9FF",
+    borderColor: "#BAE6FD",
+  },
+  featureCardDimensions: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  featureCardUnits: {
+    backgroundColor: "#FAF5FF",
+    borderColor: "#E9D5FF",
   },
   featureIconBadge: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     borderRadius: 10,
-    backgroundColor: "#E0F2FE",
     justifyContent: "center",
     alignItems: "center",
   },
+  featureIconBadgePinning: {
+    backgroundColor: "#E0F2FE",
+  },
+  featureIconBadgeDimensions: {
+    backgroundColor: "#D1FAE5",
+  },
+  featureIconBadgeUnits: {
+    backgroundColor: "#EDE9FE",
+  },
   featureCardContent: {
     flex: 1,
-    gap: 2,
+    gap: 3,
   },
   featureTitle: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: "800",
-    color: "#0F172A",
+  },
+  featureTitlePinning: {
+    color: "#03456C",
+  },
+  featureTitleDimensions: {
+    color: "#065F46",
+  },
+  featureTitleUnits: {
+    color: "#5B21B6",
   },
   featureDesc: {
-    fontSize: 11.5,
-    color: "#64748B",
-    lineHeight: 16,
+    fontSize: 12,
+    color: "#475569",
+    lineHeight: 18,
+    fontWeight: "500",
   },
 });
+

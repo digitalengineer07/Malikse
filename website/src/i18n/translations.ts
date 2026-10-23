@@ -310,7 +310,13 @@ const translations: Record<string, Record<string, string>> = {
     save: "Save",
     edit: "Edit",
     delete: "Delete",
-    share: "Share",
+    // Cadastral Map
+    cadastral_guide: "Cadastral Guide & Live Stats",
+    boundary_closed: "Boundary Locked & Verified",
+    boundary_in_progress: "Outline In Progress",
+    corners: "Corners",
+    drag_to_adjust: "Drag green handles or '+' midpoints to adjust shape",
+    no_points_yet: "Tap points on satellite map to start boundary",
   },
 
   hi: {
@@ -622,6 +628,13 @@ const translations: Record<string, Record<string, string>> = {
     save: "सहेजें",
     edit: "संपादित करें",
     delete: "हटाएं",
+    // Cadastral Map
+    cadastral_guide: "कैडस्ट्रल गाइड व आंकड़े",
+    boundary_closed: "प्लॉट सीमा पूर्ण व मान्य",
+    boundary_in_progress: "सीमा अभी खुली है",
+    corners: "कोने",
+    drag_to_adjust: "सीमा बदलने के लिए हरे कोनों या '+' को खींचें",
+    no_points_yet: "मानचित्र पर प्लॉट के कोने छूकर सीमा बनाएं",
     share: "साझा करें",
   },
 };
