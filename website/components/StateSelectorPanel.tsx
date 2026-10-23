@@ -314,7 +314,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#0F172A",
     paddingVertical: 2,
-    ...(Platform.OS === "web" ? { outlineWidth: 0 } : {}),
+    ...Platform.select({
+      web: {
+        outlineStyle: "none",
+        outlineWidth: 0,
+        outline: "none",
+      } as any,
+    }),
   },
   searchClear: {
     padding: 2,

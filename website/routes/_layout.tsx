@@ -62,6 +62,16 @@ if (Platform.OS === "web" && typeof window !== "undefined") {
       .leaflet-control-attribution a[href*="openstreetmap.org"] {
         display: none !important;
       }
+      /* Remove browser default black rectangular focus outlines on text inputs */
+      input, textarea, [contenteditable="true"] {
+        outline: none !important;
+        outline-style: none !important;
+      }
+      input:focus, textarea:focus, [contenteditable="true"]:focus {
+        outline: none !important;
+        outline-style: none !important;
+        box-shadow: none !important;
+      }
     `;
     document.head.appendChild(style);
   }

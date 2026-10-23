@@ -61,7 +61,15 @@ export default function LocationSearchBar({
           }}
           returnKeyType="search"
           autoCorrect={false}
-          style={styles.input}
+          style={[
+            styles.input,
+            Platform.OS === "web" && ({
+              outlineStyle: "none",
+              outlineWidth: 0,
+              outline: "none",
+              boxShadow: "none",
+            } as any),
+          ]}
         />
 
         {/* Clear query button */}
@@ -285,7 +293,14 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     paddingVertical: 8,
     paddingHorizontal: 4,
-    ...(Platform.OS === "web" ? { outlineWidth: 0 } : {}),
+    backgroundColor: "transparent",
+    ...Platform.select({
+      web: {
+        outlineStyle: "none",
+        outlineWidth: 0,
+        outline: "none",
+      } as any,
+    }),
   },
   clearBtn: {
     padding: 6,
