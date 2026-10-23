@@ -49,7 +49,7 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !["/auth/login", "/auth/register", "/auth/refresh"].includes(originalRequest.url)) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !["/auth/login", "/auth/register", "/auth/register/verify", "/auth/refresh"].includes(originalRequest.url)) {
       
       originalRequest._retry = true;
       if (isRefreshing) {
@@ -102,9 +102,31 @@ api.interceptors.response.use(
   }
 );
 
+export interface RegisterResponse {
+  challengeId: string;
+  expiresInSeconds: number;
+  resendAfterSeconds: number;
+  stubCode?: string;
+  testOnly?: boolean;
+}
+
 export const authService = {
-  async register(name: string, mobile: string, password: string, email?: string): Promise<UserProfile> {
+  async register(
+    name: string,
+    mobile: string,
+    password: string,
+    email?: string
+  ): Promise<RegisterResponse> {
     const res = await api.post("/auth/register", { name, mobile, email, password });
+    return res.data;
+  },
+
+  async verifyRegistration(
+    mobile: string,
+    challengeId: string,
+    code: string
+  ): Promise<UserProfile> {
+    const res = await api.post("/auth/register/verify", { mobile, challengeId, code });
     const { accessToken, refreshToken, user } = res.data;
     useAuthStore.getState().setTokens({ accessToken, refreshToken });
     useAuthStore.getState().setUser(user);
@@ -112,8 +134,14 @@ export const authService = {
     return user;
   },
 
-  async login(mobile: string, password: string): Promise<UserProfile> {
-    const res = await api.post("/auth/login", { mobile, password });
+  async login(identifier: string, password: string): Promise<UserProfile> {
+    const cleanMobile = identifier.trim().replace(/\D/g, "");
+    const isMobile = /^[0-9]{10}$/.test(cleanMobile);
+    const payload = isMobile
+      ? { mobile: cleanMobile, identifier: cleanMobile, password }
+      : { email: identifier.trim().toLowerCase(), identifier: identifier.trim().toLowerCase(), password };
+
+    const res = await api.post("/auth/login", payload);
     const { accessToken, refreshToken, user } = res.data;
     
     useAuthStore.getState().setTokens({ accessToken, refreshToken });

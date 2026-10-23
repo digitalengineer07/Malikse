@@ -17,8 +17,9 @@ const mobilePattern = /^[0-9]{10}$/;
 // POST /auth/register
 router.post("/register", async (req, res) => {
   try {
-    const { name, mobile, email, password } = req.body;
-    const cleanName = typeof name === "string" ? name.trim() : "";
+    const { name, fullName, mobile, email, password } = req.body;
+    const rawName = name || fullName;
+    const cleanName = typeof rawName === "string" ? rawName.trim() : "";
     const cleanMobile = typeof mobile === "string" ? mobile.trim() : "";
     const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
     if (cleanName.length < 2 || cleanName.length > 200 || !mobilePattern.test(cleanMobile)) {
@@ -55,15 +56,31 @@ router.post("/register", async (req, res) => {
           message: "Trial test SMS requested. This sample code cannot verify registration. No account was created." });
       }
       const passwordHash = await bcrypt.hash(password, 10);
-      const code = randomInt(0, 1000000).toString().padStart(6, "0");
-      await sendSMS(cleanMobile, `Your MalikSe verification code is ${code}. It expires in 2 minutes. Do not share this code.`);
+      const stubCode = process.env.OTP_STUB_CODE?.trim();
+      const code = stubCode || randomInt(0, 1000000).toString().padStart(6, "0");
+      let smsDelivered = false;
+      try {
+        await sendSMS(cleanMobile, `Your MalikSe verification code is ${code}. It expires in 2 minutes. Do not share this code.`);
+        smsDelivered = true;
+      } catch (smsErr) {
+        if (stubCode || !process.env.TWILIO_ACCOUNT_SID || process.env.NODE_ENV !== "production") {
+          console.log(`[AUTH] SMS delivery skipped (Twilio not configured or dev mode). Verification OTP for ${cleanMobile} is: ${code}`);
+        } else {
+          throw smsErr;
+        }
+      }
       const expiresAt = new Date(Date.now() + 120000);
       const resendAt = new Date(Date.now() + 100000);
       await Registration.updateOne({ _id: cleanMobile, challengeId }, { $set: {
         name: cleanName, email: cleanEmail, passwordHash, otpHash: otpDigest(challengeId, code),
         expiresAt, resendAt, lockUntil: new Date(0), deleteAt: new Date(Date.now() + 86400000),
       } });
-      return res.status(202).json({ challengeId, expiresInSeconds: 120, resendAfterSeconds: 100 });
+      return res.status(202).json({
+        challengeId,
+        expiresInSeconds: 120,
+        resendAfterSeconds: 100,
+        stubCode: (!smsDelivered || stubCode) ? code : undefined,
+      });
     } catch (error) {
       await Registration.updateOne({ _id: cleanMobile, challengeId }, { $set: { lockUntil: new Date(0), expiresAt: new Date(0) } });
       throw error;
@@ -110,19 +127,33 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
 // POST /auth/login
 router.post("/login", async (req, res) => {
   try {
-    const { mobile, password } = req.body;
-    if (typeof mobile !== "string" || !mobilePattern.test(mobile.trim()) || typeof password !== "string" || password.length > 1024) {
-      return res.status(400).json({ message: "Enter a 10-digit mobile number and password" });
+    const rawInput = req.body.mobile || req.body.identifier || req.body.email;
+    const { password } = req.body;
+    if (typeof rawInput !== "string" || !rawInput.trim() || typeof password !== "string" || password.length > 1024) {
+      return res.status(400).json({ message: "Enter your mobile number or email and password" });
     }
-    const user = await User.findOne({ mobile: mobile.trim() });
+    const input = rawInput.trim();
+    const cleanMobile = input.replace(/\D/g, "");
+    const isMobile = /^[0-9]{10}$/.test(cleanMobile);
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.toLowerCase());
+
+    if (!isMobile && !isEmail) {
+      return res.status(400).json({ message: "Enter a valid 10-digit mobile number or email address" });
+    }
+
+    const query = isMobile
+      ? { $or: [{ mobile: cleanMobile }, { email: input.toLowerCase() }] }
+      : { email: input.toLowerCase() };
+
+    const user = await User.findOne(query);
 
     if (!user || !user.passwordHash) {
-      return res.status(401).json({ message: "Invalid mobile number or password" });
+      return res.status(401).json({ message: "Invalid mobile number/email or password" });
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid mobile number or password" });
+      return res.status(401).json({ message: "Invalid mobile number/email or password" });
     }
 
     if (!accountEnabled(user)) return res.status(403).json({ message: "This account is suspended or inactive" });

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { Redirect, useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
-import { authService } from "../src/services/authService";
+import { authService, type RegisterResponse } from "../src/services/authService";
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
 import AppHeader from "./AppHeader";
@@ -36,6 +36,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   const { language } = useLanguageStore();
   const label = (en: string, hi: string) => (language === "hi" ? hi : en);
 
+  // Form Fields
   const [name, setName] = useState("");
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
@@ -45,35 +46,224 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   const [error, setError] = useState("");
   const submitting = useRef(false);
 
+  // Sign In: Mobile or Email method
+  const [loginMethod, setLoginMethod] = useState<"mobile" | "email">("mobile");
+  const [loginEmail, setLoginEmail] = useState("");
+
+  // Registration: 2-step OTP verification flow
+  const [registrationStep, setRegistrationStep] = useState<"details" | "otp">("details");
+  const [challenge, setChallenge] = useState<{
+    challengeId: string;
+    expiresAt: number;
+    resendAt: number;
+    stubCode?: string;
+  } | null>(null);
+  const [otp, setOtp] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const expireSecondsLeft = challenge ? Math.max(0, Math.ceil((challenge.expiresAt - now) / 1000)) : 0;
+  const resendSecondsLeft = challenge ? Math.max(0, Math.ceil((challenge.resendAt - now) / 1000)) : 0;
+
   const handleTabSwitch = (tab: "login" | "register") => {
     setActiveTab(tab);
     setError("");
     setShowPassword(false);
+    setRegistrationStep("details");
+    setChallenge(null);
+    setOtp("");
+  };
+
+  const handleResendOtp = async () => {
+    if (loading || resendSecondsLeft > 0) return;
+    setError("");
+    setLoading(true);
+    try {
+      const cleanMobile = mobile.trim().replace(/\D/g, "");
+      const res = await authService.register(
+        name.trim(),
+        cleanMobile,
+        password,
+        email.trim().toLowerCase() || undefined
+      );
+      const currentTime = Date.now();
+      setChallenge({
+        challengeId: res.challengeId,
+        expiresAt: currentTime + (res.expiresInSeconds || 120) * 1000,
+        resendAt: currentTime + (res.resendAfterSeconds || 100) * 1000,
+        stubCode: res.stubCode,
+      });
+      if (res.stubCode) {
+        setOtp(res.stubCode);
+      }
+    } catch (cause: any) {
+      setError(
+        cause?.response?.data?.message ||
+          label("Unable to resend OTP. Please try again.", "OTP फिर से नहीं भेजा जा सका। कृपया पुनः प्रयास करें।")
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async () => {
     if (submitting.current) return;
     setError("");
 
-    if (isRegister && name.trim().length < 2) {
-      setError(
-        label(
-          "Please enter your full name (at least 2 characters).",
-          "कृपया अपना पूरा नाम दर्ज करें (कम से कम 2 अक्षर)।"
-        )
-      );
+    if (isRegister) {
+      if (registrationStep === "details") {
+        if (name.trim().length < 2) {
+          setError(
+            label(
+              "Please enter your full name (at least 2 characters).",
+              "कृपया अपना पूरा नाम दर्ज करें (कम से कम 2 अक्षर)।"
+            )
+          );
+          return;
+        }
+
+        const cleanMobile = mobile.trim().replace(/\D/g, "");
+        if (!/^[0-9]{10}$/.test(cleanMobile)) {
+          setError(
+            label(
+              "Please enter a valid 10-digit mobile number.",
+              "कृपया सही 10 अंकों का मोबाइल नंबर दर्ज करें।"
+            )
+          );
+          return;
+        }
+
+        if (password.length < 6) {
+          setError(
+            label(
+              "Password must be at least 6 characters long.",
+              "पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।"
+            )
+          );
+          return;
+        }
+
+        if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+          setError(
+            label(
+              "Please enter a valid email address or leave it blank.",
+              "कृपया सही ईमेल पता दर्ज करें या इसे खाली छोड़ दें।"
+            )
+          );
+          return;
+        }
+
+        submitting.current = true;
+        setLoading(true);
+
+        try {
+          const res = await authService.register(
+            name.trim(),
+            cleanMobile,
+            password,
+            email.trim().toLowerCase() || undefined
+          );
+          const currentTime = Date.now();
+          setChallenge({
+            challengeId: res.challengeId,
+            expiresAt: currentTime + (res.expiresInSeconds || 120) * 1000,
+            resendAt: currentTime + (res.resendAfterSeconds || 100) * 1000,
+            stubCode: res.stubCode,
+          });
+          if (res.stubCode) {
+            setOtp(res.stubCode);
+          }
+          setRegistrationStep("otp");
+        } catch (cause: any) {
+          const serverMsg = cause?.response?.data?.message;
+          setError(
+            serverMsg ||
+              label(
+                "Unable to send verification code. Please check your credentials.",
+                "सत्यापन कोड नहीं भेजा जा सका। कृपया विवरण जांचें।"
+              )
+          );
+        } finally {
+          submitting.current = false;
+          setLoading(false);
+        }
+        return;
+      }
+
+      // Registration Step: OTP
+      if (!/^\d{6}$/.test(otp.trim())) {
+        setError(
+          label(
+            "Please enter the 6-digit OTP sent to your mobile.",
+            "कृपया अपने मोबाइल पर भेजा गया 6 अंकों का OTP दर्ज करें।"
+          )
+        );
+        return;
+      }
+
+      if (!challenge) {
+        setError(
+          label(
+            "Verification session expired. Please request a new code.",
+            "सत्यापन सत्र समाप्त हो गया। कृपया नया कोड मांगें।"
+          )
+        );
+        setRegistrationStep("details");
+        return;
+      }
+
+      submitting.current = true;
+      setLoading(true);
+
+      try {
+        const cleanMobile = mobile.trim().replace(/\D/g, "");
+        await authService.verifyRegistration(cleanMobile, challenge.challengeId, otp.trim());
+        router.replace("/home");
+      } catch (cause: any) {
+        const serverMsg = cause?.response?.data?.message;
+        setError(
+          serverMsg ||
+            label(
+              "Incorrect OTP or verification failed. Please try again.",
+              "गलत OTP या सत्यापन विफल रहा। कृपया पुनः प्रयास करें।"
+            )
+        );
+      } finally {
+        submitting.current = false;
+        setLoading(false);
+      }
       return;
     }
 
-    const cleanMobile = mobile.trim().replace(/\D/g, "");
-    if (!/^[0-9]{10}$/.test(cleanMobile)) {
-      setError(
-        label(
-          "Please enter a valid 10-digit mobile number.",
-          "कृपया सही 10 अंकों का मोबाइल नंबर दर्ज करें।"
-        )
-      );
-      return;
+    // Sign In (Login) Flow
+    let identifier = "";
+    if (loginMethod === "mobile") {
+      const cleanMobile = mobile.trim().replace(/\D/g, "");
+      if (!/^[0-9]{10}$/.test(cleanMobile)) {
+        setError(
+          label(
+            "Please enter a valid 10-digit mobile number.",
+            "कृपया सही 10 अंकों का मोबाइल नंबर दर्ज करें।"
+          )
+        );
+        return;
+      }
+      identifier = cleanMobile;
+    } else {
+      if (!loginEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail.trim())) {
+        setError(
+          label(
+            "Please enter a valid email address.",
+            "कृपया सही ईमेल पता दर्ज करें।"
+          )
+        );
+        return;
+      }
+      identifier = loginEmail.trim().toLowerCase();
     }
 
     if (password.length < 6) {
@@ -86,38 +276,19 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
       return;
     }
 
-    if (isRegister && email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError(
-        label(
-          "Please enter a valid email address or leave it blank.",
-          "कृपया सही ईमेल पता दर्ज करें या इसे खाली छोड़ दें।"
-        )
-      );
-      return;
-    }
-
     submitting.current = true;
     setLoading(true);
 
     try {
-      if (isRegister) {
-        await authService.register(
-          name.trim(),
-          cleanMobile,
-          password,
-          email.trim().toLowerCase() || undefined
-        );
-      } else {
-        await authService.login(cleanMobile, password);
-      }
+      await authService.login(identifier, password);
       router.replace("/home");
     } catch (cause: any) {
       const serverMsg = cause?.response?.data?.message;
       setError(
         serverMsg ||
           label(
-            "Unable to connect to server. Please check your credentials.",
-            "सर्वर से कनेक्ट नहीं हो सका। कृपया विवरण जांचें।"
+            "Invalid credentials. Please check your details and password.",
+            "अमान्य विवरण। कृपया अपना मोबाइल/ईमेल और पासवर्ड जांचें।"
           )
       );
     } finally {
@@ -281,18 +452,25 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                   <View style={styles.formHeader}>
                     <Text style={styles.formTitle}>
                       {isRegister
-                        ? label("Create your account", "अपना खाता बनाएं")
+                        ? registrationStep === "otp"
+                          ? label("Verify Your Mobile Number", "मोबाइल नंबर सत्यापित करें")
+                          : label("Create your account", "अपना खाता बनाएं")
                         : label("Welcome back", "वापस स्वागत है")}
                     </Text>
                     <Text style={styles.formSubtitle}>
                       {isRegister
-                        ? label(
-                            "Join Bihar's verified property platform in 60 seconds.",
-                            "बिहार के सबसे भरोसेमंद रियल एस्टेट पोर्टल से जुड़ें।"
-                          )
+                        ? registrationStep === "otp"
+                          ? label(
+                              `We've sent a 6-digit verification code to +91 ${mobile}`,
+                              `हमने +91 ${mobile} पर 6 अंकों का सत्यापन कोड भेजा है`
+                            )
+                          : label(
+                              "Join Bihar's verified property platform in 60 seconds.",
+                              "बिहार के सबसे भरोसेमंद रियल एस्टेट पोर्टल से जुड़ें।"
+                            )
                         : label(
-                            "Enter your 10-digit mobile number and password to sign in.",
-                            "साइन इन करने के लिए अपना 10 अंकों का मोबाइल नंबर और पासवर्ड दर्ज करें।"
+                            "Sign in with your mobile number or registered email.",
+                            "अपने 10 अंकों के मोबाइल नंबर या पंजीकृत ईमेल से साइन इन करें।"
                           )}
                     </Text>
                   </View>
@@ -307,139 +485,295 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                   {/* Input Fields */}
                   <View style={styles.fieldsContainer}>
-                    {/* Full Name (Register Only) */}
-                    {isRegister && (
-                      <View style={styles.fieldGroup}>
-                        <Text style={styles.fieldLabel}>
-                          {label("Full Name", "पूरा नाम")} <Text style={styles.requiredStar}>*</Text>
-                        </Text>
-                        <View style={styles.inputWrap}>
-                          <MaterialIcons name="person-outline" size={20} color="#64748B" style={styles.inputIcon} />
-                          <TextInput
-                            style={styles.textInput}
-                            value={name}
-                            onChangeText={setName}
-                            editable={!loading}
-                            placeholder={label("e.g. Ramesh Kumar", "उदा. रमेश कुमार")}
-                            placeholderTextColor="#94A3B8"
-                            autoCapitalize="words"
-                            autoComplete="name"
-                          />
-                        </View>
-                      </View>
-                    )}
-
-                    {/* Mobile Number */}
-                    <View style={styles.fieldGroup}>
-                      <Text style={styles.fieldLabel}>
-                        {label("Mobile Number", "मोबाइल नंबर")} <Text style={styles.requiredStar}>*</Text>
-                      </Text>
-                      <View style={styles.inputWrap}>
-                        <View style={styles.countryCodeBadge}>
-                          <Text style={styles.countryCodeText}>+91</Text>
-                        </View>
-                        <TextInput
-                          style={[styles.textInput, styles.phoneInput]}
-                          value={mobile}
-                          onChangeText={(t) => setMobile(t.replace(/\D/g, "").slice(0, 10))}
-                          editable={!loading}
-                          placeholder={label("10-digit mobile number", "10 अंकों का मोबाइल नंबर")}
-                          placeholderTextColor="#94A3B8"
-                          keyboardType="phone-pad"
-                          maxLength={10}
-                          autoComplete="tel"
-                        />
-                      </View>
-                    </View>
-
-                    {/* Password */}
-                    <View style={styles.fieldGroup}>
-                      <View style={styles.labelWithAction}>
-                        <Text style={styles.fieldLabel}>
-                          {label("Password", "पासवर्ड")} <Text style={styles.requiredStar}>*</Text>
-                        </Text>
-                        {!isRegister && (
-                          <TouchableOpacity
-                            onPress={() =>
-                              setError(
-                                label(
-                                  "Password reset: Contact our support at support@malikse.com",
-                                  "पासवर्ड रीसेट: हमारे सपोर्ट से support@malikse.com पर संपर्क करें"
-                                )
-                              )
-                            }
-                          >
-                            <Text style={styles.forgotLink}>
-                              {label("Forgot password?", "पासवर्ड भूल गए?")}
+                    {/* REGISTRATION STEP 2: OTP VERIFICATION */}
+                    {isRegister && registrationStep === "otp" ? (
+                      <View style={styles.otpStepContainer}>
+                        {challenge?.stubCode && (
+                          <View style={styles.stubNoticeBox}>
+                            <MaterialIcons name="info" size={16} color="#03456C" />
+                            <Text style={styles.stubNoticeText}>
+                              {label(
+                                `Test/Dev OTP: ${challenge.stubCode} (auto-filled)`,
+                                `डेमो OTP: ${challenge.stubCode} (स्वतः भरा गया)`
+                              )}
                             </Text>
-                          </TouchableOpacity>
+                          </View>
                         )}
-                      </View>
-                      <View style={styles.inputWrap}>
-                        <MaterialIcons name="lock-outline" size={20} color="#64748B" style={styles.inputIcon} />
-                        <TextInput
-                          style={[styles.textInput, { paddingRight: 48 }]}
-                          value={password}
-                          onChangeText={setPassword}
-                          editable={!loading}
-                          secureTextEntry={!showPassword}
-                          placeholder={
-                            isRegister
-                              ? label("Minimum 6 characters", "कम से कम 6 अक्षर")
-                              : label("Enter your password", "अपना पासवर्ड दर्ज करें")
-                          }
-                          placeholderTextColor="#94A3B8"
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          onSubmitEditing={isRegister ? undefined : handleSubmit}
-                          returnKeyType={isRegister ? "next" : "go"}
-                        />
+
+                        <View style={styles.fieldGroup}>
+                          <Text style={styles.fieldLabel}>
+                            {label("6-Digit Verification Code (OTP)", "6 अंकों का सत्यापन कोड (OTP)")}{" "}
+                            <Text style={styles.requiredStar}>*</Text>
+                          </Text>
+                          <View style={styles.inputWrap}>
+                            <MaterialIcons name="vpn-key" size={20} color="#64748B" style={styles.inputIcon} />
+                            <TextInput
+                              style={[styles.textInput, styles.otpTextInput]}
+                              value={otp}
+                              onChangeText={(t) => setOtp(t.replace(/\D/g, "").slice(0, 6))}
+                              editable={!loading && expireSecondsLeft > 0}
+                              placeholder="123456"
+                              placeholderTextColor="#94A3B8"
+                              keyboardType="number-pad"
+                              maxLength={6}
+                              autoFocus
+                              onSubmitEditing={handleSubmit}
+                              returnKeyType="go"
+                            />
+                          </View>
+
+                          <View style={styles.otpMetaRow}>
+                            <Text style={styles.otpTimerText}>
+                              {expireSecondsLeft > 0
+                                ? label(
+                                    `Code expires in ${expireSecondsLeft}s`,
+                                    `सत्यापन कोड ${expireSecondsLeft}s में समाप्त होगा`
+                                  )
+                                : label("Code expired. Please request a new code.", "कोड समाप्त हो गया। नया कोड मांगें।")}
+                            </Text>
+
+                            <TouchableOpacity
+                              onPress={handleResendOtp}
+                              disabled={loading || resendSecondsLeft > 0}
+                              activeOpacity={0.7}
+                            >
+                              <Text
+                                style={[
+                                  styles.resendLink,
+                                  (loading || resendSecondsLeft > 0) && styles.resendLinkDisabled,
+                                ]}
+                              >
+                                {resendSecondsLeft > 0
+                                  ? label(`Resend in ${resendSecondsLeft}s`, `पुनः भेजें: ${resendSecondsLeft}s`)
+                                  : label("Resend OTP", "OTP पुनः भेजें")}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+
                         <TouchableOpacity
-                          style={styles.eyeBtn}
-                          onPress={() => setShowPassword(!showPassword)}
-                          activeOpacity={0.7}
+                          style={styles.changeDetailsBtn}
+                          onPress={() => {
+                            setRegistrationStep("details");
+                            setError("");
+                          }}
+                          disabled={loading}
+                          activeOpacity={0.75}
                         >
-                          <MaterialIcons
-                            name={showPassword ? "visibility-off" : "visibility"}
-                            size={20}
-                            color="#64748B"
-                          />
+                          <MaterialIcons name="arrow-back" size={14} color="#03456C" />
+                          <Text style={styles.changeDetailsText}>
+                            {label("Change mobile number or details", "मोबाइल नंबर या विवरण बदलें")}
+                          </Text>
                         </TouchableOpacity>
                       </View>
-                    </View>
+                    ) : (
+                      <>
+                        {/* SIGN IN: METHOD SWITCHER (Mobile vs Email) */}
+                        {!isRegister && (
+                          <View style={styles.methodToggleRow}>
+                            <TouchableOpacity
+                              style={[styles.methodPill, loginMethod === "mobile" && styles.methodPillActive]}
+                              onPress={() => {
+                                setLoginMethod("mobile");
+                                setError("");
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <MaterialIcons
+                                name="phone-iphone"
+                                size={14}
+                                color={loginMethod === "mobile" ? "#03456C" : "#64748B"}
+                              />
+                              <Text style={[styles.methodPillText, loginMethod === "mobile" && styles.methodPillTextActive]}>
+                                {label("Mobile Number", "मोबाइल नंबर")}
+                              </Text>
+                            </TouchableOpacity>
 
-                    {/* Email (Optional, Register Only) */}
-                    {isRegister && (
-                      <View style={styles.fieldGroup}>
-                        <Text style={styles.fieldLabel}>
-                          {label("Email Address (Optional)", "ईमेल पता (वैकल्पिक)")}
-                        </Text>
-                        <View style={styles.inputWrap}>
-                          <MaterialIcons name="mail-outline" size={20} color="#64748B" style={styles.inputIcon} />
-                          <TextInput
-                            style={styles.textInput}
-                            value={email}
-                            onChangeText={setEmail}
-                            editable={!loading}
-                            placeholder="name@example.com"
-                            placeholderTextColor="#94A3B8"
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            autoComplete="email"
-                            returnKeyType="go"
-                            onSubmitEditing={handleSubmit}
-                          />
+                            <TouchableOpacity
+                              style={[styles.methodPill, loginMethod === "email" && styles.methodPillActive]}
+                              onPress={() => {
+                                setLoginMethod("email");
+                                setError("");
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <MaterialIcons
+                                name="mail-outline"
+                                size={14}
+                                color={loginMethod === "email" ? "#03456C" : "#64748B"}
+                              />
+                              <Text style={[styles.methodPillText, loginMethod === "email" && styles.methodPillTextActive]}>
+                                {label("Email Address", "ईमेल पता")}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+
+                        {/* Full Name (Register Only) */}
+                        {isRegister && (
+                          <View style={styles.fieldGroup}>
+                            <Text style={styles.fieldLabel}>
+                              {label("Full Name", "पूरा नाम")} <Text style={styles.requiredStar}>*</Text>
+                            </Text>
+                            <View style={styles.inputWrap}>
+                              <MaterialIcons name="person-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                              <TextInput
+                                style={styles.textInput}
+                                value={name}
+                                onChangeText={setName}
+                                editable={!loading}
+                                placeholder={label("e.g. Ramesh Kumar", "उदा. रमेश कुमार")}
+                                placeholderTextColor="#94A3B8"
+                                autoCapitalize="words"
+                                autoComplete="name"
+                              />
+                            </View>
+                          </View>
+                        )}
+
+                        {/* Mobile Number Field (Register or Sign In with Mobile) */}
+                        {(isRegister || loginMethod === "mobile") && (
+                          <View style={styles.fieldGroup}>
+                            <Text style={styles.fieldLabel}>
+                              {label("Mobile Number", "मोबाइल नंबर")} <Text style={styles.requiredStar}>*</Text>
+                            </Text>
+                            <View style={styles.inputWrap}>
+                              <View style={styles.countryCodeBadge}>
+                                <Text style={styles.countryCodeText}>+91</Text>
+                              </View>
+                              <TextInput
+                                style={[styles.textInput, styles.phoneInput]}
+                                value={mobile}
+                                onChangeText={(t) => setMobile(t.replace(/\D/g, "").slice(0, 10))}
+                                editable={!loading}
+                                placeholder={label("10-digit mobile number", "10 अंकों का मोबाइल नंबर")}
+                                placeholderTextColor="#94A3B8"
+                                keyboardType="phone-pad"
+                                maxLength={10}
+                                autoComplete="tel"
+                              />
+                            </View>
+                          </View>
+                        )}
+
+                        {/* Email Address (Sign In with Email) */}
+                        {!isRegister && loginMethod === "email" && (
+                          <View style={styles.fieldGroup}>
+                            <Text style={styles.fieldLabel}>
+                              {label("Email Address", "ईमेल पता")} <Text style={styles.requiredStar}>*</Text>
+                            </Text>
+                            <View style={styles.inputWrap}>
+                              <MaterialIcons name="mail-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                              <TextInput
+                                style={styles.textInput}
+                                value={loginEmail}
+                                onChangeText={setLoginEmail}
+                                editable={!loading}
+                                placeholder={label("e.g. name@example.com", "उदा. name@example.com")}
+                                placeholderTextColor="#94A3B8"
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                autoComplete="email"
+                              />
+                            </View>
+                          </View>
+                        )}
+
+                        {/* Password */}
+                        <View style={styles.fieldGroup}>
+                          <View style={styles.labelWithAction}>
+                            <Text style={styles.fieldLabel}>
+                              {label("Password", "पासवर्ड")} <Text style={styles.requiredStar}>*</Text>
+                            </Text>
+                            {!isRegister && (
+                              <TouchableOpacity
+                                onPress={() =>
+                                  setError(
+                                    label(
+                                      "Password reset: Contact our support at support@malikse.com",
+                                      "पासवर्ड रीसेट: हमारे सपोर्ट से support@malikse.com पर संपर्क करें"
+                                    )
+                                  )
+                                }
+                              >
+                                <Text style={styles.forgotLink}>
+                                  {label("Forgot password?", "पासवर्ड भूल गए?")}
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                          <View style={styles.inputWrap}>
+                            <MaterialIcons name="lock-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                            <TextInput
+                              style={[styles.textInput, { paddingRight: 48 }]}
+                              value={password}
+                              onChangeText={setPassword}
+                              editable={!loading}
+                              secureTextEntry={!showPassword}
+                              placeholder={
+                                isRegister
+                                  ? label("Minimum 6 characters", "कम से कम 6 अक्षर")
+                                  : label("Enter your password", "अपना पासवर्ड दर्ज करें")
+                              }
+                              placeholderTextColor="#94A3B8"
+                              autoCapitalize="none"
+                              autoCorrect={false}
+                              onSubmitEditing={handleSubmit}
+                              returnKeyType="go"
+                            />
+                            <TouchableOpacity
+                              style={styles.eyeBtn}
+                              onPress={() => setShowPassword(!showPassword)}
+                              activeOpacity={0.7}
+                            >
+                              <MaterialIcons
+                                name={showPassword ? "visibility-off" : "visibility"}
+                                size={20}
+                                color="#64748B"
+                              />
+                            </TouchableOpacity>
+                          </View>
                         </View>
-                      </View>
+
+                        {/* Email (Optional, Register Only) */}
+                        {isRegister && (
+                          <View style={styles.fieldGroup}>
+                            <Text style={styles.fieldLabel}>
+                              {label("Email Address (Optional)", "ईमेल पता (वैकल्पिक)")}
+                            </Text>
+                            <View style={styles.inputWrap}>
+                              <MaterialIcons name="mail-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                              <TextInput
+                                style={styles.textInput}
+                                value={email}
+                                onChangeText={setEmail}
+                                editable={!loading}
+                                placeholder="name@example.com"
+                                placeholderTextColor="#94A3B8"
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                autoComplete="email"
+                                returnKeyType="go"
+                                onSubmitEditing={handleSubmit}
+                              />
+                            </View>
+                          </View>
+                        )}
+                      </>
                     )}
                   </View>
 
                   {/* Submit Button */}
                   <TouchableOpacity
-                    style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+                    style={[
+                      styles.submitBtn,
+                      (loading || (isRegister && registrationStep === "otp" && expireSecondsLeft === 0)) &&
+                        styles.submitBtnDisabled,
+                    ]}
                     onPress={handleSubmit}
-                    disabled={loading}
+                    disabled={loading || (isRegister && registrationStep === "otp" && expireSecondsLeft === 0)}
                     activeOpacity={0.88}
                   >
                     {loading ? (
@@ -448,7 +782,9 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                       <>
                         <Text style={styles.submitBtnText}>
                           {isRegister
-                            ? label("Create Free Account", "मुफ्त खाता बनाएं")
+                            ? registrationStep === "otp"
+                              ? label("Verify & Complete Registration", "सत्यापित करें और खाता बनाएं")
+                              : label("Continue & Send OTP", "आगे बढ़ें और OTP भेजें")
                             : label("Sign In to MalikSe", "MalikSe में साइन इन करें")}
                         </Text>
                         <MaterialIcons name="arrow-forward" size={18} color="#FFFFFF" />
@@ -853,6 +1189,106 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 12,
     padding: 6,
+  },
+
+  /* Method Toggle Row (Mobile vs Email) */
+  methodToggleRow: {
+    flexDirection: "row",
+    backgroundColor: "#F1F5F9",
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 6,
+    gap: 4,
+  },
+  methodPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  methodPillActive: {
+    backgroundColor: "#FFFFFF",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 6px rgba(0, 0, 0, 0.08)",
+      },
+      default: {
+        elevation: 2,
+      },
+    }),
+  },
+  methodPillText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  methodPillTextActive: {
+    color: "#03456C",
+    fontWeight: "700",
+  },
+
+  /* OTP Step Styles */
+  otpStepContainer: {
+    gap: 14,
+  },
+  stubNoticeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#E0F2FE",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  stubNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#0369A1",
+    fontWeight: "600",
+  },
+  otpTextInput: {
+    letterSpacing: 8,
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  otpMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 6,
+  },
+  otpTimerText: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+  resendLink: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0284C7",
+  },
+  resendLinkDisabled: {
+    color: "#94A3B8",
+  },
+  changeDetailsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingVertical: 6,
+    marginTop: -4,
+  },
+  changeDetailsText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#03456C",
+    textDecorationLine: "underline",
   },
 
   /* Submit Button */
