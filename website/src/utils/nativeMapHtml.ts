@@ -19,7 +19,7 @@ function send(type,payload){window.ReactNativeWebView && window.ReactNativeWebVi
 try {
 const data=${data};
 const map=L.map('map',{scrollWheelZoom:false,zoomControl:false}).setView([25.6,85.1],7);
-const tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+const tiles=L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{maxZoom:20,subdomains:'0123',attribution:'&copy; Google Maps'}).addTo(map);
 let loaded=false;
 tiles.on('tileload',()=>{if(!loaded){loaded=true;send('ready');}});
 let points=data.points.slice(),closed=points.length>=3;

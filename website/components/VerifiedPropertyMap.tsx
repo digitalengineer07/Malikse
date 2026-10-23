@@ -21,7 +21,7 @@ export default function VerifiedPropertyMap({ properties, onSelect, focus }: { p
       if (properties.length === 1 && hasParcelBoundary(properties[0].parcelPoints)) {
         addParcelBaseLayer(L, map);
       } else {
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19 }).addTo(map);
+        L.tileLayer("https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", { attribution: '&copy; <a href="https://maps.google.com" target="_blank" rel="noopener">Google Maps</a>', maxZoom: 20, subdomains: "0123" }).addTo(map);
       }
       
       const points: [number, number][] = [];

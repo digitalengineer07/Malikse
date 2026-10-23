@@ -16,7 +16,7 @@ export default function RegionCountMap({ groups, focus, level, state, onSelect }
       await import("leaflet.vectorgrid");
       if (!active || !container.current) return;
       map.current = L.map(container.current, { zoomControl: false }).setView([22.5, 79], 4);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19 }).addTo(map.current);
+      L.tileLayer("https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", { attribution: '&copy; <a href="https://maps.google.com" target="_blank" rel="noopener">Google Maps</a>', maxZoom: 20, subdomains: "0123" }).addTo(map.current);
       resize = new ResizeObserver(() => map.current?.invalidateSize());resize.observe(container.current);
       setReady(true);
     }).catch(() => { if (active) setFailed(true); });

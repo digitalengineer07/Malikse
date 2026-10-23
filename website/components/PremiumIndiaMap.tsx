@@ -65,14 +65,14 @@ export default function PremiumIndiaMap({
           ],
         }).setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], DEFAULT_CENTER.zoom);
 
-        // OpenStreetMap tile layer - Clean, reliable, and keyless
+        // Google Maps Roadmap tile layer - Official Google Maps layout
         const baseLayer = L.tileLayer(
-          "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          "https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
           {
             attribution:
-              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            maxZoom: 19,
-            subdomains: "abc",
+              '&copy; <a href="https://maps.google.com" target="_blank" rel="noopener">Google Maps</a>',
+            maxZoom: 20,
+            subdomains: "0123",
           }
         ).addTo(map);
         tileLayerRef.current = baseLayer;
@@ -124,12 +124,12 @@ export default function PremiumIndiaMap({
         ).addTo(map);
       } else {
         tileLayerRef.current = L.tileLayer(
-          "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          "https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
           {
             attribution:
-              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            maxZoom: 19,
-            subdomains: "abc",
+              '&copy; <a href="https://maps.google.com" target="_blank" rel="noopener">Google Maps</a>',
+            maxZoom: 20,
+            subdomains: "0123",
           }
         ).addTo(map);
       }
@@ -362,13 +362,26 @@ export default function PremiumIndiaMap({
 
       {/* Floating Bottom-Left Layer Mode Switcher & Quick Focus */}
       <View style={styles.bottomControlsWrap} pointerEvents="box-none">
+        {/* Google Maps Authenticity Badge */}
+        <View style={styles.googleBrandBadge}>
+          <Text style={styles.googleBrandText}>
+            <Text style={{ color: "#4285F4", fontWeight: "800" }}>G</Text>
+            <Text style={{ color: "#EA4335", fontWeight: "800" }}>o</Text>
+            <Text style={{ color: "#FBBC05", fontWeight: "800" }}>o</Text>
+            <Text style={{ color: "#4285F4", fontWeight: "800" }}>g</Text>
+            <Text style={{ color: "#34A853", fontWeight: "800" }}>l</Text>
+            <Text style={{ color: "#EA4335", fontWeight: "800" }}>e</Text>
+            <Text style={{ color: "#475569", fontWeight: "600", fontSize: 11 }}> Maps</Text>
+          </Text>
+        </View>
+
         <View style={styles.layerModeWrap}>
           <TouchableOpacity
             style={[styles.layerModeBtn, layerMode === "street" && styles.layerModeBtnActive]}
             onPress={() => setLayerMode("street")}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Switch to Standard Map"
+            accessibilityLabel="Switch to Google Standard Map"
           >
             <MaterialIcons
               name="map"
@@ -381,7 +394,7 @@ export default function PremiumIndiaMap({
                 layerMode === "street" && styles.layerModeTextActive,
               ]}
             >
-              Map
+              Google Map
             </Text>
           </TouchableOpacity>
 
@@ -390,7 +403,7 @@ export default function PremiumIndiaMap({
             onPress={() => setLayerMode("satellite")}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Switch to Satellite Imagery"
+            accessibilityLabel="Switch to Google Satellite Imagery"
           >
             <MaterialIcons
               name="satellite"
@@ -403,7 +416,7 @@ export default function PremiumIndiaMap({
                 layerMode === "satellite" && styles.layerModeTextActive,
               ]}
             >
-              Satellite
+              Google Satellite
             </Text>
           </TouchableOpacity>
         </View>
@@ -504,6 +517,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     flexWrap: "wrap",
+  },
+  googleBrandBadge: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(10, 25, 47, 0.12)",
+      },
+    }),
+  },
+  googleBrandText: {
+    fontSize: 13,
+    letterSpacing: -0.2,
   },
   layerModeWrap: {
     flexDirection: "row",
