@@ -6,14 +6,59 @@ import { AppTheme } from "../constants/theme";
 import { premiumStyles } from "../constants/typography";
 import AppHeader from "./AppHeader";
 
-export function WorkflowScreen({ title, children, contentStyle, titleStyle, backgroundColor = AppTheme.colors.background }: { title: string; children: React.ReactNode; contentStyle?: StyleProp<ViewStyle>; titleStyle?: StyleProp<TextStyle>; backgroundColor?: string }) {
+export function WorkflowScreen({
+  title,
+  children,
+  contentStyle,
+  titleStyle,
+  backgroundColor = AppTheme.colors.background,
+  showBack = false,
+  fallbackRoute,
+  onBackPress,
+  hideHeaderTitle = false,
+}: {
+  title?: string;
+  children: React.ReactNode;
+  contentStyle?: StyleProp<ViewStyle>;
+  titleStyle?: StyleProp<TextStyle>;
+  backgroundColor?: string;
+  showBack?: boolean;
+  fallbackRoute?: string;
+  onBackPress?: () => void;
+  hideHeaderTitle?: boolean;
+}) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  return <View style={{ flex: 1, backgroundColor }}><AppHeader showNavLinks={false} showPostPropertyBtn={false} showHomeButton />
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={Platform.OS === "ios"} contentContainerStyle={[ui.content, { paddingHorizontal: width < 400 ? 16 : 24, paddingBottom: insets.bottom + 32 }, contentStyle]}><Text accessibilityRole="header" style={[ui.title, titleStyle]}>{title}</Text>{children}</ScrollView>
-    </KeyboardAvoidingView>
-  </View>;
+  return (
+    <View style={{ flex: 1, backgroundColor }}>
+      <AppHeader
+        showBack={showBack}
+        onBackPress={onBackPress}
+        fallbackRoute={fallbackRoute}
+        showNavLinks={false}
+        showPostPropertyBtn={false}
+        showHomeButton
+      />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+          contentContainerStyle={[
+            ui.content,
+            { paddingHorizontal: width < 400 ? 16 : 24, paddingBottom: insets.bottom + 32 },
+            contentStyle,
+          ]}
+        >
+          {!!title && !hideHeaderTitle && (
+            <Text accessibilityRole="header" style={[ui.title, titleStyle]}>
+              {title}
+            </Text>
+          )}
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
 }
 export function Action({ title, onPress, disabled, secondary = false }: { title: string; onPress: () => void; disabled?: boolean; secondary?: boolean }) {
   return <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} style={[ui.button, secondary && ui.secondary, disabled && { opacity: 0.5 }]}><Text style={[ui.buttonText, secondary && { color: AppTheme.colors.primaryDark }]}>{title}</Text></TouchableOpacity>;
