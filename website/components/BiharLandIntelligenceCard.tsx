@@ -33,15 +33,15 @@ export default function BiharLandIntelligenceCard({
       {/* Decorative Compass Overlay */}
       <View style={styles.compassContainer}>
         {Platform.OS === "web" ? (
-          <svg width="38" height="38" viewBox="0 0 40 40" style={{ opacity: 0.28 }}>
-            <circle cx="20" cy="20" r="18" fill="none" stroke="#67E8F9" strokeWidth="1.5" />
-            <circle cx="20" cy="20" r="13" fill="none" stroke="#67E8F9" strokeWidth="1" strokeDasharray="2,2" />
-            <polygon points="20,4 23,17 36,20 23,23 20,36 17,23 4,20 17,17" fill="#38BDF8" />
-            <polygon points="20,4 23,17 20,20 17,17" fill="#FFFFFF" />
-            <circle cx="20" cy="20" r="3" fill="#0A2540" />
+          <svg width="38" height="38" viewBox="0 0 40 40" style={{ opacity: 0.22 }}>
+            <circle cx="20" cy="20" r="18" fill="none" stroke="#0284C7" strokeWidth="1.5" />
+            <circle cx="20" cy="20" r="13" fill="none" stroke="#0284C7" strokeWidth="1" strokeDasharray="2,2" />
+            <polygon points="20,4 23,17 36,20 23,23 20,36 17,23 4,20 17,17" fill="#0284C7" />
+            <polygon points="20,4 23,17 20,20 17,17" fill="#03456C" />
+            <circle cx="20" cy="20" r="3" fill="#0F172A" />
           </svg>
         ) : (
-          <MaterialIcons name="explore" size={30} color="rgba(103, 232, 249, 0.3)" />
+          <MaterialIcons name="explore" size={30} color="rgba(2, 132, 199, 0.25)" />
         )}
       </View>
 
@@ -69,7 +69,7 @@ export default function BiharLandIntelligenceCard({
       {/* Live Verified Stat Banner */}
       <View style={styles.statsCard}>
         <View style={styles.iconCircle}>
-          <MaterialIcons name="verified" size={20} color="#38BDF8" />
+          <MaterialIcons name="verified" size={20} color="#0284C7" />
         </View>
         <View style={styles.statsTextWrap}>
           <View style={styles.statCountRow}>
@@ -100,7 +100,7 @@ export default function BiharLandIntelligenceCard({
                 <MaterialIcons
                   name={hub.icon}
                   size={12}
-                  color={isActive ? "#FFFFFF" : "#38BDF8"}
+                  color={isActive ? "#FFFFFF" : "#0284C7"}
                   style={{ marginRight: 4 }}
                 />
                 <Text style={[styles.quickHubText, isActive && styles.quickHubTextActive]}>
@@ -120,14 +120,14 @@ export default function BiharLandIntelligenceCard({
           activeOpacity={0.8}
           accessibilityRole="button"
         >
-          <MaterialIcons name="zoom-out-map" size={14} color="#67E8F9" />
+          <MaterialIcons name="zoom-out-map" size={14} color="#0284C7" />
           <Text style={styles.resetDistrictText}>View Entire Bihar</Text>
         </TouchableOpacity>
       )}
 
       {/* Trust & Boundary Demarcation Footer */}
       <View style={styles.trustBadge}>
-        <MaterialIcons name="shield" size={13} color="#34D399" style={{ marginRight: 6 }} />
+        <MaterialIcons name="shield" size={13} color="#059669" style={{ marginRight: 6 }} />
         <Text style={styles.trustText}>Bhu-Naksha & Revenue Survey GIS Demarcated</Text>
       </View>
     </View>
@@ -136,24 +136,24 @@ export default function BiharLandIntelligenceCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "rgba(10, 37, 64, 0.94)",
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: "rgba(255, 255, 255, 0.22)",
-    padding: 22,
+    borderColor: "#E2E8F0",
+    padding: 20,
     maxWidth: 320,
     width: "100%",
     position: "relative",
     overflow: "hidden",
     ...Platform.select({
       web: {
-        backdropFilter: "blur(18px)",
-        boxShadow: "0 20px 45px rgba(2, 18, 38, 0.45)",
+        backdropFilter: "blur(20px)",
+        boxShadow: "0 20px 45px rgba(15, 23, 42, 0.14)",
       },
       default: {
-        shadowColor: "#021226",
+        shadowColor: "#0F172A",
         shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.45,
+        shadowOpacity: 0.14,
         shadowRadius: 20,
         elevation: 10,
       },
@@ -176,10 +176,10 @@ const styles = StyleSheet.create({
   marketBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(16, 185, 129, 0.16)",
+    backgroundColor: "#ECFDF5",
     borderRadius: 9999,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.4)",
+    borderColor: "#A7F3D0",
     paddingHorizontal: 8,
     paddingVertical: 3.5,
     gap: 5,
@@ -193,18 +193,18 @@ const styles = StyleSheet.create({
   marketBadgeText: {
     fontSize: 9.5,
     fontWeight: "800",
-    color: "#34D399",
+    color: "#059669",
     letterSpacing: 0.5,
   },
   stateCodePill: {
     fontSize: 10,
     fontWeight: "700",
-    color: "#94A3B8",
+    color: "#64748B",
   },
   title: {
     fontSize: 20,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: "#0F172A",
     lineHeight: 26,
     letterSpacing: -0.4,
     marginBottom: 6,
@@ -212,16 +212,16 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 12,
     lineHeight: 18,
-    color: "#CBD5E1",
+    color: "#475569",
     marginBottom: 14,
   },
   statsCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: "#F8FAFC",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.14)",
+    borderColor: "#E2E8F0",
     padding: 12,
     marginBottom: 14,
     gap: 12,
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: "rgba(56, 189, 248, 0.18)",
+    backgroundColor: "#E0F2FE",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -245,17 +245,17 @@ const styles = StyleSheet.create({
   statsNumber: {
     fontSize: 21,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: "#0F172A",
     letterSpacing: -0.5,
   },
   statsUnit: {
     fontSize: 11,
-    fontWeight: "600",
-    color: "#38BDF8",
+    fontWeight: "700",
+    color: "#0284C7",
   },
   statsLabel: {
     fontSize: 11,
-    color: "#94A3B8",
+    color: "#64748B",
     fontWeight: "500",
     marginTop: 1,
   },
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   quickHubsHeader: {
     fontSize: 9.5,
     fontWeight: "700",
-    color: "#94A3B8",
+    color: "#64748B",
     letterSpacing: 0.8,
     marginBottom: 8,
   },
@@ -277,22 +277,22 @@ const styles = StyleSheet.create({
   quickHubChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    backgroundColor: "#F1F5F9",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.12)",
+    borderColor: "#E2E8F0",
     paddingHorizontal: 8,
     paddingVertical: 5,
     ...Platform.select({ web: { cursor: "pointer" } }),
   },
   quickHubChipActive: {
-    backgroundColor: "#0284C7",
-    borderColor: "#38BDF8",
+    backgroundColor: "#03456C",
+    borderColor: "#03456C",
   },
   quickHubText: {
     fontSize: 10.5,
     fontWeight: "600",
-    color: "#E2E8F0",
+    color: "#334155",
   },
   quickHubTextActive: {
     color: "#FFFFFF",
@@ -302,10 +302,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    backgroundColor: "#F0F9FF",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.3)",
+    borderColor: "#BAE6FD",
     paddingVertical: 8,
     gap: 6,
     marginBottom: 12,
@@ -314,19 +314,19 @@ const styles = StyleSheet.create({
   resetDistrictText: {
     fontSize: 11.5,
     fontWeight: "700",
-    color: "#67E8F9",
+    color: "#0284C7",
   },
   trustBadge: {
     flexDirection: "row",
     alignItems: "center",
     borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.1)",
+    borderTopColor: "#F1F5F9",
     paddingTop: 10,
   },
   trustText: {
     fontSize: 10,
     fontWeight: "500",
-    color: "#94A3B8",
+    color: "#64748B",
     flexShrink: 1,
   },
 });

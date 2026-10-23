@@ -711,14 +711,37 @@ export default function MarketplaceScreen() {
                 level={level}
                 state={state?.key}
                 focus={mapFocus}
+                properties={
+                  district?.name
+                    ? allStateProperties.filter(
+                        (p) => p.location?.district?.toLowerCase() === district.name.toLowerCase()
+                      )
+                    : (verifiedProperties.length > 0 ? verifiedProperties : allStateProperties)
+                }
                 onSelectGroup={handleSelectGroup}
                 onSelectStateInfo={handleSelectDistrictInfo as any}
+                onSelectProperty={(prop) => {
+                  const targetId = prop.id || prop._id;
+                  if (targetId) {
+                    router.push({
+                      pathname: "/property/[id]" as any,
+                      params: { id: targetId },
+                    });
+                  }
+                }}
               />
 
               {/* Left-Side Bihar Land Intelligence Overlay */}
               <View style={styles.leftOverlayWrap} pointerEvents="box-none">
                 <BiharLandIntelligenceCard
-                  totalCount={allStateProperties.length || totalVerifiedCount || 14}
+                  totalCount={
+                    district?.name
+                      ? (districtCounts[district.name] ??
+                        allStateProperties.filter(
+                          (p) => p.location?.district?.toLowerCase() === district.name.toLowerCase()
+                        ).length)
+                      : (allStateProperties.length || totalVerifiedCount || 14)
+                  }
                   activeDistrictName={district?.name}
                   onSelectQuickHub={handleSelectQuickHub}
                   onResetView={handleClearSelection}
@@ -745,15 +768,38 @@ export default function MarketplaceScreen() {
                   level={level}
                   state={state?.key}
                   focus={mapFocus}
+                  properties={
+                    district?.name
+                      ? allStateProperties.filter(
+                          (p) => p.location?.district?.toLowerCase() === district.name.toLowerCase()
+                        )
+                      : (verifiedProperties.length > 0 ? verifiedProperties : allStateProperties)
+                  }
                   onSelectGroup={handleSelectGroup}
                   onSelectStateInfo={handleSelectDistrictInfo as any}
+                  onSelectProperty={(prop) => {
+                    const targetId = prop.id || prop._id;
+                    if (targetId) {
+                      router.push({
+                        pathname: "/property/[id]" as any,
+                        params: { id: targetId },
+                      });
+                    }
+                  }}
                 />
               </View>
 
               {/* Mobile Bihar Land Intelligence Overview Card */}
               <View style={styles.mobileIntroCard}>
                 <BiharLandIntelligenceCard
-                  totalCount={allStateProperties.length || totalVerifiedCount || 14}
+                  totalCount={
+                    district?.name
+                      ? (districtCounts[district.name] ??
+                        allStateProperties.filter(
+                          (p) => p.location?.district?.toLowerCase() === district.name.toLowerCase()
+                        ).length)
+                      : (allStateProperties.length || totalVerifiedCount || 14)
+                  }
                   activeDistrictName={district?.name}
                   onSelectQuickHub={handleSelectQuickHub}
                   onResetView={handleClearSelection}

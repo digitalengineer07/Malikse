@@ -6,14 +6,17 @@ import { validMapPoint, type MapFocus } from "../src/utils/nativeMapHtml";
 import { addRegionBoundaries } from "../src/utils/regionBoundaryLayer";
 import { INDIA_STATES_DATA, type IndiaStateInfo } from "../src/data/indiaStatesData";
 import { currentMapLocation } from "../src/services/currentMapLocation";
+import type { Property } from "../src/types/property.types";
 
 interface PremiumIndiaMapProps {
   groups: RegionGroup[];
   level: "state" | "district" | "pincode";
   state?: string;
   focus?: MapFocus;
+  properties?: Property[];
   onSelectGroup: (group: RegionGroup) => void;
   onSelectStateInfo?: (state: IndiaStateInfo) => void;
+  onSelectProperty?: (property: Property) => void;
 }
 
 const DEFAULT_CENTER = { lat: 25.65, lng: 85.35, zoom: 7.5 };
@@ -23,13 +26,16 @@ export default function PremiumIndiaMap({
   level,
   state,
   focus,
+  properties,
   onSelectGroup,
   onSelectStateInfo,
+  onSelectProperty,
 }: PremiumIndiaMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const tileLayerRef = useRef<any>(null);
   const stateMarkersLayerRef = useRef<any>(null);
+  const plotMarkersLayerRef = useRef<any>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -82,6 +88,10 @@ export default function PremiumIndiaMap({
         const markersGroup = L.layerGroup().addTo(map);
         stateMarkersLayerRef.current = markersGroup;
 
+        // Group layer for property/plot location points
+        const plotMarkersGroup = L.layerGroup().addTo(map);
+        plotMarkersLayerRef.current = plotMarkersGroup;
+
         mapRef.current = map;
         resizeObserver = new ResizeObserver(() => {
           mapRef.current?.invalidateSize();
@@ -97,6 +107,8 @@ export default function PremiumIndiaMap({
     return () => {
       active = false;
       resizeObserver?.disconnect();
+      plotMarkersLayerRef.current?.clearLayers();
+      stateMarkersLayerRef.current?.clearLayers();
       mapRef.current?.remove();
       mapRef.current = null;
     };
@@ -135,9 +147,12 @@ export default function PremiumIndiaMap({
         ).addTo(map);
       }
 
-      // Ensure state markers remain prominent on top of imagery
+      // Ensure state and plot markers remain prominent on top of imagery
       if (stateMarkersLayerRef.current && map.hasLayer(stateMarkersLayerRef.current)) {
         stateMarkersLayerRef.current.bringToFront?.();
+      }
+      if (plotMarkersLayerRef.current && map.hasLayer(plotMarkersLayerRef.current)) {
+        plotMarkersLayerRef.current.bringToFront?.();
       }
     });
   }, [layerMode, ready]);
@@ -196,17 +211,6 @@ export default function PremiumIndiaMap({
                 display: inline-block;
               "></span>
               <span>${stateItem.name}</span>
-              ${
-                hasCount
-                  ? `<span style="
-                      background: rgba(255,255,255,0.25);
-                      padding: 1px 6px;
-                      border-radius: 999px;
-                      font-size: 10px;
-                      font-weight: 800;
-                    ">${matchedGroup.count}</span>`
-                  : ""
-              }
             </div>
           `;
 
@@ -234,12 +238,12 @@ export default function PremiumIndiaMap({
         });
       }
 
-      // 3. Connect Survey of India official boundary vectors
+      // 3. Connect Survey of India official boundary vectors (without counting number tags)
       try {
         cleanupBoundaries = addRegionBoundaries(
           L,
           map,
-          { groups, level, state },
+          { groups, level, state, showCountTags: false },
           (key: string) => {
             const found = groups.find((item) => item.key === key);
             if (found) onSelectGroup(found);
@@ -265,6 +269,285 @@ export default function PremiumIndiaMap({
       cleanupBoundaries?.();
     };
   }, [ready, groups, focus, level, state, onSelectGroup, onSelectStateInfo]);
+
+  // Render located plots/properties on map in Location point manner (pinpoints & demarcated parcels)
+  useEffect(() => {
+    if (!ready || !mapRef.current || !plotMarkersLayerRef.current) return;
+    let active = true;
+
+    // Inject CSS for luxury plot popups and pin hover states
+    if (typeof document !== "undefined" && !document.getElementById("malikse-plot-marker-styles")) {
+      const styleEl = document.createElement("style");
+      styleEl.id = "malikse-plot-marker-styles";
+      styleEl.textContent = `
+        .malikse-property-popup .leaflet-popup-content-wrapper {
+          background: transparent !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+          border-radius: 14px;
+          overflow: hidden;
+        }
+        .malikse-property-popup .leaflet-popup-content {
+          margin: 0 !important;
+          line-height: normal;
+        }
+        .malikse-property-popup .leaflet-popup-tip {
+          background: #FFFFFF !important;
+          box-shadow: 0 4px 12px rgba(15,23,42,0.16) !important;
+        }
+        .malikse-plot-pin:hover {
+          transform: translate(-50%, -106%) scale(1.08) !important;
+          z-index: 1000 !important;
+        }
+      `;
+      document.head.appendChild(styleEl);
+    }
+
+    import("leaflet").then((module) => {
+      if (!active || !mapRef.current || !plotMarkersLayerRef.current) return;
+      const L = module.default || module;
+      const layer = plotMarkersLayerRef.current;
+      layer.clearLayers();
+
+      if (!properties || properties.length === 0) return;
+
+      properties.forEach((property) => {
+        const lat = property.location?.lat;
+        const lng = property.location?.lng;
+        if (
+          typeof lat !== "number" ||
+          typeof lng !== "number" ||
+          isNaN(lat) ||
+          isNaN(lng) ||
+          lat === 0 ||
+          lng === 0
+        ) {
+          return;
+        }
+
+        // Format price label for luxury pin (e.g. ₹1.4 Cr, ₹55 L, ₹45 L)
+        const price = property.price || 0;
+        let priceLabel = "Verified Plot";
+        if (price >= 10000000) {
+          const cr = price / 10000000;
+          priceLabel = `₹${cr % 1 === 0 ? cr.toFixed(0) : cr.toFixed(2).replace(/\.?0+$/, "")} Cr`;
+        } else if (price >= 100000) {
+          const l = price / 100000;
+          priceLabel = `₹${l % 1 === 0 ? l.toFixed(0) : l.toFixed(1).replace(/\.?0+$/, "")} L`;
+        } else if (price > 0) {
+          priceLabel = `₹${price.toLocaleString("en-IN")}`;
+        }
+
+        const areaStr =
+          property.sellableArea || property.totalArea
+            ? `${(property.sellableArea || property.totalArea)?.toLocaleString("en-IN")} sq.ft`
+            : "Verified Parcel";
+
+        const propType = (property.type || "Plot").toUpperCase();
+        const photoUrl =
+          property.media?.photos?.[0] ||
+          property.image ||
+          "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=400&q=80";
+        const districtName = property.location?.district || "Bihar";
+        const mauzaOrBlock = property.location?.mauza || property.location?.block || "";
+        const locationSub = mauzaOrBlock ? `${mauzaOrBlock}, ${districtName}` : districtName;
+        const propTitle = property.title || `${propType} in ${locationSub}`;
+
+        // Real-Estate Location Pinpoint HTML with pointer tip anchored to exact coordinates
+        const pinHtml = `
+          <div class="malikse-plot-pin" style="
+            position: relative;
+            transform: translate(-50%, -100%);
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.28));
+            transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+            user-select: none;
+          ">
+            <!-- Pin Pill Capsule -->
+            <div style="
+              background: #03456C;
+              background: linear-gradient(135deg, #03456C 0%, #0A2540 100%);
+              border: 2px solid #FFFFFF;
+              border-radius: 999px;
+              padding: 4px 10px 4px 8px;
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              white-space: nowrap;
+              box-shadow: 0 4px 12px rgba(3, 69, 108, 0.35);
+            ">
+              <span style="
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                background: #0284C7;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                color: #FFFFFF;
+                font-size: 10px;
+                font-weight: 800;
+              ">📍</span>
+              <span style="
+                color: #FFFFFF;
+                font-family: system-ui, -apple-system, sans-serif;
+                font-size: 11.5px;
+                font-weight: 800;
+                letter-spacing: -0.2px;
+              ">${priceLabel}</span>
+              <span style="
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: #10B981;
+                box-shadow: 0 0 6px #10B981;
+                display: inline-block;
+              "></span>
+            </div>
+            <!-- Pin Pointer Stem -->
+            <div style="
+              width: 0;
+              height: 0;
+              border-left: 6px solid transparent;
+              border-right: 6px solid transparent;
+              border-top: 7px solid #0A2540;
+              margin-top: -1px;
+            "></div>
+            <!-- Ground Anchor Dot -->
+            <div style="
+              width: 5px;
+              height: 5px;
+              border-radius: 50%;
+              background: #0284C7;
+              border: 1px solid #FFFFFF;
+              margin-top: 1px;
+              box-shadow: 0 0 4px rgba(2, 132, 199, 0.7);
+            "></div>
+          </div>
+        `;
+
+        const pinIcon = L.divIcon({
+          html: pinHtml,
+          className: "plot-location-marker-wrapper",
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
+        });
+
+        const marker = L.marker([lat, lng], {
+          icon: pinIcon,
+          keyboard: false,
+          riseOnHover: true,
+        });
+
+        // Popup Content - Rich, luxury glass preview card
+        const popupHtml = `
+          <div style="
+            width: 250px;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #FFFFFF;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
+            border: 1px solid #E2E8F0;
+          ">
+            <div style="position: relative; width: 100%; height: 110px; overflow: hidden; background: #0A2540;">
+              <img src="${photoUrl}" alt="${propTitle}" style="width: 100%; height: 100%; object-fit: cover; display: block;" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=400&q=80';" />
+              <div style="
+                position: absolute;
+                top: 8px;
+                left: 8px;
+                background: rgba(16, 185, 129, 0.9);
+                backdrop-filter: blur(8px);
+                color: #FFFFFF;
+                font-size: 9px;
+                font-weight: 800;
+                padding: 2px 7px;
+                border-radius: 999px;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+              ">
+                <span>✓</span> Verified Plot
+              </div>
+              <div style="
+                position: absolute;
+                bottom: 8px;
+                right: 8px;
+                background: rgba(3, 69, 108, 0.88);
+                backdrop-filter: blur(8px);
+                color: #FFFFFF;
+                font-size: 11px;
+                font-weight: 800;
+                padding: 3px 8px;
+                border-radius: 8px;
+              ">
+                ${priceLabel}
+              </div>
+            </div>
+            <div style="padding: 12px;">
+              <div style="font-size: 13px; font-weight: 800; color: #0F172A; line-height: 1.3; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                ${propTitle}
+              </div>
+              <div style="font-size: 11px; color: #64748B; margin-bottom: 8px; display: flex; align-items: center; gap: 4px;">
+                <span>📍</span> <span>${locationSub}</span>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 8px; border-top: 1px solid #F1F5F9;">
+                <span style="font-size: 11px; font-weight: 700; color: #03456C;">${areaStr}</span>
+                <a href="/property/${property.id || property._id || ""}" style="
+                  display: inline-block;
+                  background: #0284C7;
+                  color: #FFFFFF;
+                  font-size: 10.5px;
+                  font-weight: 700;
+                  padding: 4px 10px;
+                  border-radius: 6px;
+                  text-decoration: none;
+                ">Explore Plot →</a>
+              </div>
+            </div>
+          </div>
+        `;
+
+        marker.bindPopup(popupHtml, {
+          closeButton: false,
+          offset: [0, -20],
+          className: "malikse-property-popup",
+        });
+
+        marker.on("click", () => {
+          marker.openPopup();
+          onSelectProperty?.(property);
+        });
+
+        layer.addLayer(marker);
+
+        // If parcelPoints are present (GIS demarcation), render polygon boundary
+        if (Array.isArray(property.parcelPoints) && property.parcelPoints.length >= 3) {
+          const latLngs: [number, number][] = property.parcelPoints.map((pt) => [pt.lat, pt.lng]);
+          const polygon = L.polygon(latLngs, {
+            color: "#0284C7",
+            weight: 2,
+            opacity: 0.9,
+            fillColor: "#38BDF8",
+            fillOpacity: 0.22,
+          });
+          polygon.bindTooltip(`Demarcated Parcel: ${propTitle}`, { sticky: true });
+          polygon.on("click", () => {
+            marker.openPopup();
+            onSelectProperty?.(property);
+          });
+          layer.addLayer(polygon);
+        }
+      });
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [properties, ready, onSelectProperty]);
 
   // Map Controls Actions
   const handleZoomIn = () => {

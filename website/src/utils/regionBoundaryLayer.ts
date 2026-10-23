@@ -1,6 +1,6 @@
 import type { RegionGroup } from "../services/regionService";
 
-export type RegionBoundaryOptions = { level: "state" | "district" | "pincode"; state?: string; groups: RegionGroup[] };
+export type RegionBoundaryOptions = { level: "state" | "district" | "pincode"; state?: string; groups: RegionGroup[]; showCountTags?: boolean };
 
 /** Closure-free: also embedded in the native WebView, keeping both maps identical. */
 export function addRegionBoundaries(L: any, map: any, options: RegionBoundaryOptions, select: (key: string) => void, fail: () => void) {
@@ -34,6 +34,7 @@ export function addRegionBoundaries(L: any, map: any, options: RegionBoundaryOpt
   };
   // Place one tag within the polygon's rings, respecting holes and concave outlines.
   const addTag = (feature: any, extent: number, coordinates: { x: number; y: number; z: number }) => {
+    if (options.showCountTags === false) return;
     const group = match(feature.properties);
     if (!group || feature.type !== 3 || !feature.geometry?.length || disposed) return;
     const rings = feature.geometry;
