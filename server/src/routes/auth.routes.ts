@@ -1,7 +1,7 @@
 import { randomUUID, randomInt, createHmac, timingSafeEqual } from "crypto";
 import { rateLimit } from "express-rate-limit";
 import { Registration } from "../models/Registration.model";
-import { sendSMS } from "../services/twilioSms";
+import { sendSMS, sendTwilioVerification, checkTwilioVerification } from "../services/twilioSms";
 import bcrypt from "../services/passwords";
 import { Router } from "express";
 import jwt from "jsonwebtoken";
@@ -60,11 +60,18 @@ router.post("/register", async (req, res) => {
       const code = stubCode || randomInt(0, 1000000).toString().padStart(6, "0");
       let smsDelivered = false;
       try {
-        await sendSMS(cleanMobile, `Your MalikSe verification code is ${code}. It expires in 2 minutes. Do not share this code.`);
-        smsDelivered = true;
-      } catch (smsErr) {
+        if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+          if (process.env.TWILIO_PHONE_NUMBER) {
+            await sendSMS(cleanMobile, `Your MalikSe verification code is ${code}. It expires in 2 minutes. Do not share this code.`);
+          } else {
+            // Uses Twilio Verify Service (no Twilio phone number required)
+            await sendTwilioVerification(cleanMobile);
+          }
+          smsDelivered = true;
+        }
+      } catch (smsErr: any) {
         if (stubCode || !process.env.TWILIO_ACCOUNT_SID || process.env.NODE_ENV !== "production") {
-          console.log(`[AUTH] SMS delivery skipped (Twilio not configured or dev mode). Verification OTP for ${cleanMobile} is: ${code}`);
+          console.log(`[AUTH] SMS delivery note (${smsErr.message}). Verification OTP for ${cleanMobile} is: ${code}`);
         } else {
           throw smsErr;
         }
@@ -104,9 +111,25 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
     }, { $inc: { attempts: 1 }, $set: { lockUntil: new Date(Date.now() + 30000) } }, { new: true });
     if (!pending || !pending.otpHash) return res.status(400).json({ message: "OTP expired, busy, or attempts exhausted. Please resend when available." });
     locked = true;
-    const actual = Buffer.from(otpDigest(challengeId, code), "hex");
-    const expected = Buffer.from(pending.otpHash, "hex");
-    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return res.status(400).json({ message: "Incorrect OTP. Please try again." });
+    let codeValid = false;
+
+    // Check against Twilio Verify API if configured
+    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && !process.env.TWILIO_PHONE_NUMBER) {
+      try {
+        codeValid = await checkTwilioVerification(mobile, code);
+      } catch {}
+    }
+
+    // Fallback to local cryptographic digest verification
+    if (!codeValid) {
+      const actual = Buffer.from(otpDigest(challengeId, code), "hex");
+      const expected = Buffer.from(pending.otpHash, "hex");
+      if (actual.length === expected.length && timingSafeEqual(actual, expected)) {
+        codeValid = true;
+      }
+    }
+
+    if (!codeValid) return res.status(400).json({ message: "Incorrect OTP. Please try again." });
     // Recheck expiry and consume atomically before creating the account.
     const consumed = await Registration.findOneAndUpdate({ _id: mobile, challengeId, expiresAt: { $gt: new Date() } }, { $set: { expiresAt: new Date(0) } });
     if (!consumed) return res.status(400).json({ message: "OTP expired. Please resend OTP." });
