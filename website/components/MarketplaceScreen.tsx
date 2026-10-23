@@ -421,7 +421,23 @@ export default function MarketplaceScreen() {
   // Corridor and Property state
   const [selectedCorridorId, setSelectedCorridorId] = useState<string | null>(null);
   const [verifiedProperties, setVerifiedProperties] = useState<Property[]>([]);
+  const [allStateProperties, setAllStateProperties] = useState<Property[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(true);
+
+  // Fetch all verified properties for active state (to compute corridor metrics from live DB)
+  useEffect(() => {
+    let active = true;
+    const targetState = state?.name || "Bihar";
+    propertyService
+      .searchProperties({ state: targetState, limit: 50 })
+      .then((results) => {
+        if (active) setAllStateProperties(results || []);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [state?.name, revision]);
 
   // Fetch verified properties based on current state / district / type
   useEffect(() => {
@@ -455,8 +471,40 @@ export default function MarketplaceScreen() {
     };
   }, [state?.name, district?.name, type]);
 
+  // Dynamic growth corridors synchronized with live database properties & region counts
+  const dynamicCorridors = useMemo(() => {
+    return BIHAR_CORRIDORS.map((c) => {
+      const matched = allStateProperties.filter((p) => {
+        const matchesDistrict = p.location?.district?.toLowerCase() === c.district.toLowerCase();
+        if (!matchesDistrict) return false;
+        if (c.district.toLowerCase() !== "patna") return true;
+        const loc = `${p.location?.block || ""} ${p.location?.mauza || ""} ${p.title || ""}`.toLowerCase();
+        if (c.id === "patna_bihta") return loc.includes("bihta");
+        if (c.id === "patna_kanhauli") return loc.includes("kanhauli") || loc.includes("naubatpur") || loc.includes("aiims");
+        return true;
+      });
+
+      const rates = matched
+        .map((p) => (p.sellableArea || p.totalArea ? Math.round(p.price / (p.sellableArea || p.totalArea || 1)) : 0))
+        .filter((r) => r > 0);
+
+      const dynamicPriceRange =
+        rates.length > 1
+          ? `₹${Math.min(...rates).toLocaleString("en-IN")} - ₹${Math.max(...rates).toLocaleString("en-IN")} / sq.ft`
+          : rates.length === 1
+          ? `₹${rates[0].toLocaleString("en-IN")} / sq.ft`
+          : c.priceRange;
+
+      return {
+        ...c,
+        priceRange: dynamicPriceRange,
+        verifiedCount: matched.length,
+      };
+    });
+  }, [allStateProperties]);
+
   // Corridor focus handler
-  const handleSelectCorridor = useCallback((corridor: GrowthCorridor) => {
+  const handleSelectCorridor = useCallback((corridor: typeof dynamicCorridors[0]) => {
     setSelectedCorridorId(corridor.id);
     setQuery("");
     setSuggestions([]);
@@ -694,7 +742,7 @@ export default function MarketplaceScreen() {
             </View>
 
             <View style={styles.corridorsGrid}>
-              {BIHAR_CORRIDORS.map((corridor) => {
+              {dynamicCorridors.map((corridor) => {
                 const isSelected = selectedCorridorId === corridor.id;
                 return (
                   <TouchableOpacity
@@ -712,8 +760,12 @@ export default function MarketplaceScreen() {
                         <Text style={styles.corridorTagText}>{corridor.tag}</Text>
                       </View>
                       <View style={styles.corridorGrowthBadge}>
-                        <MaterialIcons name="trending-up" size={13} color="#059669" />
-                        <Text style={styles.corridorGrowthText}>{corridor.growth}</Text>
+                        <MaterialIcons name="verified" size={13} color="#059669" />
+                        <Text style={styles.corridorGrowthText}>
+                          {corridor.verifiedCount > 0
+                            ? `${corridor.verifiedCount} Verified Listing${corridor.verifiedCount === 1 ? "" : "s"}`
+                            : "Expanding Soon"}
+                        </Text>
                       </View>
                     </View>
 
