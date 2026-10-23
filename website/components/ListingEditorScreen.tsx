@@ -71,30 +71,139 @@ const docTypes = [
 type Picked = { asset: DocumentPicker.DocumentPickerAsset; type: string };
 
 export default function ListingEditorScreen() {
-  const { id: rawId } = useLocalSearchParams<{ id?: string }>();
+  const { id: rawId, step: rawStep } = useLocalSearchParams<{ id?: string; step?: string }>();
   const initialId = Array.isArray(rawId) ? rawId[0] : rawId;
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
 
   const { user, authState, hydrated } = useAuthStore();
-  const [form, setForm] = useState(initialForm);
-  const [points, setPoints] = useState<LatLngPoint[]>([]);
-  const [step, setStep] = useState(1);
+
+  // Initialize form from sessionStorage if available (for new listings)
+  const [form, setForm] = useState<typeof initialForm>(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined" && !initialId) {
+      try {
+        const saved = sessionStorage.getItem("malikse_editor_form");
+        if (saved) return { ...initialForm, ...JSON.parse(saved) } as typeof initialForm;
+      } catch {}
+    }
+    return initialForm;
+  });
+
+  // Initialize parcel boundary points from sessionStorage if available
+  const [points, setPoints] = useState<LatLngPoint[]>(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined" && !initialId) {
+      try {
+        const saved = sessionStorage.getItem("malikse_editor_points");
+        if (saved) return JSON.parse(saved) as LatLngPoint[];
+      } catch {}
+    }
+    return [];
+  });
+
+  // Initialize active step (1, 2, or 3) from URL param or sessionStorage
+  const [step, setStep] = useState<number>(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined" && !initialId) {
+      try {
+        const paramStep = Array.isArray(rawStep) ? rawStep[0] : rawStep;
+        if (paramStep && [1, 2, 3].includes(Number(paramStep))) return Number(paramStep);
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlStep = urlParams.get("step");
+        if (urlStep && [1, 2, 3].includes(Number(urlStep))) return Number(urlStep);
+        const savedStep = sessionStorage.getItem("malikse_editor_step");
+        if (savedStep && [1, 2, 3].includes(Number(savedStep))) return Number(savedStep);
+      } catch {}
+    }
+    return 1;
+  });
+
   const [propertyId, setPropertyId] = useState(initialId);
   const [loading, setLoading] = useState(!!initialId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [loadFailed, setLoadFailed] = useState(false);
-  const [consent, setConsent] = useState(false);
-  const [negotiable, setNegotiable] = useState(true);
-  const [hasLoan, setHasLoan] = useState(false);
-  const [hasDispute, setHasDispute] = useState(false);
+
+  const [consent, setConsent] = useState<boolean>(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined" && !initialId) {
+      try {
+        const saved = sessionStorage.getItem("malikse_editor_consent");
+        if (saved !== null) return Boolean(JSON.parse(saved));
+      } catch {}
+    }
+    return false;
+  });
+
+  const [negotiable, setNegotiable] = useState<boolean>(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined" && !initialId) {
+      try {
+        const saved = sessionStorage.getItem("malikse_editor_negotiable");
+        if (saved !== null) return Boolean(JSON.parse(saved));
+      } catch {}
+    }
+    return true;
+  });
+
+  const [hasLoan, setHasLoan] = useState<boolean>(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined" && !initialId) {
+      try {
+        const saved = sessionStorage.getItem("malikse_editor_hasLoan");
+        if (saved !== null) return Boolean(JSON.parse(saved));
+      } catch {}
+    }
+    return false;
+  });
+
+  const [hasDispute, setHasDispute] = useState<boolean>(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined" && !initialId) {
+      try {
+        const saved = sessionStorage.getItem("malikse_editor_hasDispute");
+        if (saved !== null) return Boolean(JSON.parse(saved));
+      } catch {}
+    }
+    return false;
+  });
+
   const [photoFiles, setPhotoFiles] = useState<DocumentPicker.DocumentPickerAsset[]>([]);
   const [picked, setPicked] = useState<Picked[]>([]);
   const [existingDocs, setExistingDocs] = useState<any[]>([]);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
   const submitting = useRef(false);
+
+  // Clear stored draft upon successful submission
+  const clearSessionDraft = useCallback(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem("malikse_editor_form");
+        sessionStorage.removeItem("malikse_editor_points");
+        sessionStorage.removeItem("malikse_editor_step");
+        sessionStorage.removeItem("malikse_editor_consent");
+        sessionStorage.removeItem("malikse_editor_negotiable");
+        sessionStorage.removeItem("malikse_editor_hasLoan");
+        sessionStorage.removeItem("malikse_editor_hasDispute");
+      } catch {}
+    }
+  }, []);
+
+  // Persist form, points, and step state across browser refreshes
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined" || initialId) return;
+    try {
+      sessionStorage.setItem("malikse_editor_form", JSON.stringify(form));
+      sessionStorage.setItem("malikse_editor_points", JSON.stringify(points));
+      sessionStorage.setItem("malikse_editor_step", String(step));
+      sessionStorage.setItem("malikse_editor_consent", JSON.stringify(consent));
+      sessionStorage.setItem("malikse_editor_negotiable", JSON.stringify(negotiable));
+      sessionStorage.setItem("malikse_editor_hasLoan", JSON.stringify(hasLoan));
+      sessionStorage.setItem("malikse_editor_hasDispute", JSON.stringify(hasDispute));
+
+      // Keep browser URL search param in sync so refreshing / sharing stays on active step
+      const currentUrl = new URL(window.location.href);
+      if (currentUrl.searchParams.get("step") !== String(step)) {
+        currentUrl.searchParams.set("step", String(step));
+        window.history.replaceState({}, "", currentUrl.toString());
+      }
+    } catch {}
+  }, [form, points, step, consent, negotiable, hasLoan, hasDispute, initialId]);
 
   const change = (key: keyof typeof initialForm, value: string) =>
     setForm((previous) => ({ ...previous, [key]: value }));
@@ -401,6 +510,7 @@ export default function ListingEditorScreen() {
         setPicked((previous) => previous.filter((item) => item !== document));
       }
       await workflowService.submit(savedId!);
+      clearSessionDraft();
       setSubmissionSuccess(true);
     } catch (cause: any) {
       setError(
@@ -502,7 +612,15 @@ export default function ListingEditorScreen() {
         <View style={styles.stepperContainer}>
           <View style={styles.stepperTrack}>
             {/* Step 1 Item */}
-            <View style={styles.stepItem}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => {
+                setStep(1);
+                setError("");
+                window?.scrollTo?.({ top: 0, behavior: "smooth" });
+              }}
+              style={styles.stepItem}
+            >
               <View
                 style={[
                   styles.stepBadge,
@@ -527,7 +645,7 @@ export default function ListingEditorScreen() {
               >
                 1. Property Details
               </Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Connecting Line 1-2 */}
             <View
@@ -538,7 +656,20 @@ export default function ListingEditorScreen() {
             />
 
             {/* Step 2 Item */}
-            <View style={styles.stepItem}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => {
+                const message = validate(false);
+                if (!message) {
+                  setStep(2);
+                  setError("");
+                  window?.scrollTo?.({ top: 0, behavior: "smooth" });
+                } else {
+                  setError(message);
+                }
+              }}
+              style={styles.stepItem}
+            >
               <View
                 style={[
                   styles.stepBadge,
@@ -567,7 +698,7 @@ export default function ListingEditorScreen() {
               >
                 2. Location & Media
               </Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Connecting Line 2-3 */}
             <View
@@ -578,7 +709,20 @@ export default function ListingEditorScreen() {
             />
 
             {/* Step 3 Item */}
-            <View style={styles.stepItem}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => {
+                const message = validate(true);
+                if (!message) {
+                  setStep(3);
+                  setError("");
+                  window?.scrollTo?.({ top: 0, behavior: "smooth" });
+                } else {
+                  setError(message);
+                }
+              }}
+              style={styles.stepItem}
+            >
               <View
                 style={[
                   styles.stepBadge,
@@ -601,7 +745,7 @@ export default function ListingEditorScreen() {
               >
                 3. Ownership & Submit
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
 

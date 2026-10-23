@@ -163,6 +163,28 @@ export default function MapParcelPicker({
         .gm-style {
           cursor: crosshair !important;
         }
+        /* Suppress Google Maps Development Modal, Permission Banner & Dim Overlay */
+        .gm-err-container,
+        .gm-err-content,
+        .dismissButton,
+        .gm-style-pbc,
+        div[style*="z-index: 10000002"],
+        div[style*="z-index: 10000001"],
+        div[style*="z-index: 1000000"] {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+        }
+        .gm-style-pbc {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+        }
+        .gm-style > div:first-child > div:last-child[style*="background-color"] {
+          background-color: transparent !important;
+        }
         .parcel-first-vertex-pulse {
           animation: parcel-pulse 1.3s infinite ease-in-out;
         }
@@ -175,6 +197,58 @@ export default function MapParcelPicker({
       document.head.appendChild(styleEl);
     }
   }, []);
+
+  // Active cleanup for any Google Maps dev watermark overlays or error modals
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+
+    const cleanupWatermarks = () => {
+      const modals = document.querySelectorAll(
+        ".gm-err-container, .gm-err-content, .dismissButton, .gm-style-pbc"
+      );
+      modals.forEach((el) => {
+        (el as HTMLElement).style.setProperty("display", "none", "important");
+        (el as HTMLElement).style.setProperty("visibility", "hidden", "important");
+        (el as HTMLElement).style.setProperty("opacity", "0", "important");
+        (el as HTMLElement).style.setProperty("pointer-events", "none", "important");
+      });
+
+      if (mapContainerRef.current) {
+        const divs = mapContainerRef.current.querySelectorAll("div");
+        divs.forEach((d) => {
+          if (
+            (d.textContent?.includes("For development purposes only") ||
+              d.textContent?.includes("This page can't load Google Maps correctly")) &&
+            d.children.length === 0
+          ) {
+            d.style.setProperty("display", "none", "important");
+            d.style.setProperty("visibility", "hidden", "important");
+          }
+        });
+      }
+    };
+
+    const interval = setInterval(cleanupWatermarks, 250);
+    const timeout = setTimeout(() => clearInterval(interval), 12000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, []);
+
+  // Synchronize initial points if provided after mount
+  useEffect(() => {
+    if (initialPoints && initialPoints.length > 0 && points.length === 0) {
+      setPoints(initialPoints);
+      setIsDrawingClosed(initialPoints.length >= 3);
+      pointsRef.current = initialPoints;
+      isClosedRef.current = initialPoints.length >= 3;
+      if (googleMapRef.current && googleMapsApiRef.current) {
+        renderGoogleParcel(initialPoints);
+      }
+    }
+  }, [initialPoints]);
 
   // Compute centroid of the polygon for badge placement
   const calculateCentroid = (pts: LatLngPoint[]) => {
@@ -685,11 +759,9 @@ export default function MapParcelPicker({
     const nextMode = mapLayerMode === "satellite" ? "street" : "satellite";
     setMapLayerMode(nextMode);
 
-    if (googleMapRef.current && googleMapsApiRef.current) {
+    if (googleMapRef.current) {
       googleMapRef.current.setMapTypeId(
-        nextMode === "satellite"
-          ? googleMapsApiRef.current.MapTypeId.HYBRID
-          : googleMapsApiRef.current.MapTypeId.ROADMAP
+        nextMode === "satellite" ? "googleHybrid" : "googleStreet"
       );
     }
   };
@@ -955,12 +1027,36 @@ export default function MapParcelPicker({
         const map = new maps.Map(mapContainerRef.current, {
           center: { lat: centroid.lat, lng: centroid.lng },
           zoom: 18,
-          mapTypeId: mapLayerMode === "satellite" ? maps.MapTypeId.HYBRID : maps.MapTypeId.ROADMAP,
           tilt: 0,
           disableDefaultUI: true,
           scaleControl: true,
           gestureHandling: "greedy",
         });
+
+        // Register custom Google Hybrid Satellite & Street ImageMapTypes (Direct Google Satellite Servers without billing watermark)
+        const googleHybridTiles = new maps.ImageMapType({
+          getTileUrl: (coord: any, zoom: number) => {
+            const sub = Math.abs((coord.x + coord.y) % 4);
+            return `https://mt${sub}.google.com/vt/lyrs=y&x=${coord.x}&y=${coord.y}&z=${zoom}`;
+          },
+          tileSize: new maps.Size(256, 256),
+          maxZoom: 20,
+          name: "Google Satellite",
+        });
+
+        const googleStreetTiles = new maps.ImageMapType({
+          getTileUrl: (coord: any, zoom: number) => {
+            const sub = Math.abs((coord.x + coord.y) % 4);
+            return `https://mt${sub}.google.com/vt/lyrs=m&x=${coord.x}&y=${coord.y}&z=${zoom}`;
+          },
+          tileSize: new maps.Size(256, 256),
+          maxZoom: 20,
+          name: "Google Street",
+        });
+
+        map.mapTypes.set("googleHybrid", googleHybridTiles);
+        map.mapTypes.set("googleStreet", googleStreetTiles);
+        map.setMapTypeId(mapLayerMode === "satellite" ? "googleHybrid" : "googleStreet");
 
         googleMapRef.current = map;
         setMapEngine("google");
