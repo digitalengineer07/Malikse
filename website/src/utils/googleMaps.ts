@@ -130,3 +130,34 @@ export async function geocodePlaceId(
     return null;
   }
 }
+
+export async function geocodeAddress(
+  address: string
+): Promise<{ lat: number; lng: number; formattedAddress: string } | null> {
+  if (!address || !address.trim()) return null;
+  try {
+    const maps = await loadGoogleMaps();
+    if (!geocoderInstance) {
+      geocoderInstance = new maps.Geocoder();
+    }
+    return new Promise((resolve) => {
+      geocoderInstance.geocode(
+        { address: address.trim(), componentRestrictions: { country: "in" } },
+        (results: any[], status: string) => {
+          if (status === "OK" && results && results[0]) {
+            const loc = results[0].geometry.location;
+            resolve({
+              lat: typeof loc.lat === "function" ? loc.lat() : loc.lat,
+              lng: typeof loc.lng === "function" ? loc.lng() : loc.lng,
+              formattedAddress: results[0].formatted_address,
+            });
+          } else {
+            resolve(null);
+          }
+        }
+      );
+    });
+  } catch {
+    return null;
+  }
+}

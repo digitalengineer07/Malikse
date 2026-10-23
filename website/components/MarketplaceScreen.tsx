@@ -22,7 +22,7 @@ import BiharLandIntelligenceCard from "./BiharLandIntelligenceCard";
 import BiharDistrictExplorerPanel from "./BiharDistrictExplorerPanel";
 import WebFooter from "./WebFooter";
 import PropertyCard from "./PropertyCard";
-import type { BiharDistrictInfo } from "../src/data/biharDistrictsData";
+import { BIHAR_DISTRICTS_DATA, type BiharDistrictInfo } from "../src/data/biharDistrictsData";
 
 import {
   fetchRegionCounts,
@@ -35,7 +35,7 @@ import type { Property, PropertyType } from "../src/types/property.types";
 import type { MapFocus } from "../src/utils/nativeMapHtml";
 import type { IndiaStateInfo } from "../src/data/indiaStatesData";
 import { currentMapLocation } from "../src/services/currentMapLocation";
-import { geocodePlaceId } from "../src/utils/googleMaps";
+import { geocodePlaceId, geocodeAddress } from "../src/utils/googleMaps";
 
 export interface GrowthCorridor {
   id: string;
@@ -168,6 +168,10 @@ export default function MarketplaceScreen() {
   const [revision, setRevision] = useState(0);
   const [locating, setLocating] = useState(false);
   const [customFocus, setCustomFocus] = useState<MapFocus | undefined>();
+  const [selectedCorridorId, setSelectedCorridorId] = useState<string | null>(null);
+  const [verifiedProperties, setVerifiedProperties] = useState<Property[]>([]);
+  const [allStateProperties, setAllStateProperties] = useState<Property[]>([]);
+  const [propertiesLoading, setPropertiesLoading] = useState(true);
 
   const level = district ? "pincode" : state ? "district" : "state";
 
@@ -366,87 +370,131 @@ export default function MarketplaceScreen() {
 
   // Handle location suggestion selection
   const handleSelectSuggestion = useCallback(
-    (item: LocationSuggestion) => {
+    async (item: LocationSuggestion) => {
       const term = query.trim();
       setQuery("");
       setSuggestions([]);
       setCustomFocus(undefined);
 
-      const stateGroup: RegionGroup = {
-        key: item.state,
-        name: item.state,
-        count: 0,
-        lat: item.lat,
-        lng: item.lng,
-      };
-      const districtGroup: RegionGroup = {
-        key: item.district || "",
-        name: item.district || "",
-        count: 0,
-        lat: item.lat,
-        lng: item.lng,
-      };
+      const matchedDistrict = BIHAR_DISTRICTS_DATA.find(
+        (d) =>
+          d.name.toLowerCase() === (item.district || "").toLowerCase() ||
+          item.label.toLowerCase().includes(d.name.toLowerCase())
+      );
 
-      if (item.kind === "state") {
-        setState(stateGroup);
-        setDistrict(undefined);
-        return;
-      }
-      if (item.kind === "district") {
-        setState(stateGroup);
-        setDistrict(districtGroup);
-        return;
-      }
-      if (item.kind === "pincode") {
-        openPincode(item.pincode || "", item.state, item.district || "");
-        return;
-      }
+      // 1. If it's a district or matches a Bihar district
+      if (item.kind === "district" || matchedDistrict) {
+        const distName = matchedDistrict?.name || item.district || item.label.split(",")[0].trim();
+        const distLat = item.lat || matchedDistrict?.lat || 25.65;
+        const distLng = item.lng || matchedDistrict?.lng || 85.35;
+        const distZoom = matchedDistrict?.zoom || 11.5;
 
-      if (item.placeId) {
-        geocodePlaceId(item.placeId).then((geo) => {
-          if (geo) {
-            setCustomFocus({ lat: geo.lat, lng: geo.lng, zoom: 14 });
-          }
+        setState({
+          key: "Bihar",
+          name: "Bihar",
+          count: 14,
+          lat: 25.65,
+          lng: 85.35,
         });
+        setDistrict({
+          key: distName,
+          name: distName,
+          count: districtCounts[distName] || 0,
+          lat: distLat,
+          lng: distLng,
+        });
+        setCustomFocus({ lat: distLat, lng: distLng, zoom: distZoom });
+        scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+        return;
       }
 
-      router.push({
-        pathname: "/(tabs)/home",
-        params: {
-          address: item.label || term,
-          state: item.state !== "India" ? item.state : "",
-          district: item.district || "",
-          pincode: item.pincode || "",
-          type: type || "",
-          query: "",
-          min: "",
-          max: "",
-        },
-      });
+      // 2. If it has coordinates already (from DB suggest or verified properties)
+      if (item.lat && item.lng && item.lat !== 0 && item.lng !== 0) {
+        if (item.district) {
+          setDistrict({
+            key: item.district,
+            name: item.district,
+            count: districtCounts[item.district] || 0,
+            lat: item.lat,
+            lng: item.lng,
+          });
+        }
+        setCustomFocus({ lat: item.lat, lng: item.lng, zoom: 14 });
+        scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+        return;
+      }
+
+      // 3. If it has a Google placeId
+      if (item.placeId) {
+        const geo = await geocodePlaceId(item.placeId);
+        if (geo) {
+          setCustomFocus({ lat: geo.lat, lng: geo.lng, zoom: 14 });
+          scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+          return;
+        }
+      }
+
+      // 4. Fallback address geocoding
+      const geo = await geocodeAddress(item.label || term);
+      if (geo) {
+        setCustomFocus({ lat: geo.lat, lng: geo.lng, zoom: 13.5 });
+        scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+      }
     },
-    [query, router, type, openPincode]
+    [query, districtCounts]
   );
 
-  // Execute general search
-  const handleSearchAll = useCallback(() => {
+  // Execute general search — focus and locate directly on the map below
+  const handleSearchAll = useCallback(async () => {
     const term = query.trim();
     if (term.length < 2) return;
-    setQuery("");
     setSuggestions([]);
-    router.push({
-      pathname: "/(tabs)/home",
-      params: {
-        address: term,
-        state: "",
-        district: "",
-        pincode: "",
-        type: type || "",
-        query: "",
-        min: "",
-        max: "",
-      },
+
+    // Check if query matches any Bihar district
+    const matchedDistrict = BIHAR_DISTRICTS_DATA.find(
+      (d) =>
+        d.name.toLowerCase() === term.toLowerCase() ||
+        term.toLowerCase().includes(d.name.toLowerCase()) ||
+        d.headquarters.toLowerCase() === term.toLowerCase() ||
+        d.prominentHubs.toLowerCase().includes(term.toLowerCase())
+    );
+    if (matchedDistrict) {
+      handleSelectDistrictInfo(matchedDistrict);
+      scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+      return;
+    }
+
+    // Check if query matches any verified property in allStateProperties
+    const matchedProp = allStateProperties.find((p) => {
+      const fullText = `${p.title || ""} ${p.location?.mauza || ""} ${p.location?.block || ""} ${p.location?.district || ""}`.toLowerCase();
+      return fullText.includes(term.toLowerCase());
     });
-  }, [query, router, type]);
+    if (matchedProp && matchedProp.location?.lat && matchedProp.location?.lng) {
+      if (matchedProp.location.district) {
+        setDistrict({
+          key: matchedProp.location.district,
+          name: matchedProp.location.district,
+          count: districtCounts[matchedProp.location.district] || 0,
+          lat: matchedProp.location.lat,
+          lng: matchedProp.location.lng,
+        });
+      }
+      setCustomFocus({
+        lat: matchedProp.location.lat,
+        lng: matchedProp.location.lng,
+        zoom: 14,
+      });
+      scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+      return;
+    }
+
+    // Fallback Geocode via Google Maps
+    const geo = await geocodeAddress(term);
+    if (geo) {
+      setCustomFocus({ lat: geo.lat, lng: geo.lng, zoom: 13.5 });
+      scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+    }
+  }, [query, allStateProperties, districtCounts, handleSelectDistrictInfo]);
 
   // Current Geolocation GPS action
   const handleCurrentLocation = useCallback(async () => {
@@ -461,12 +509,6 @@ export default function MarketplaceScreen() {
       setLocating(false);
     }
   }, [locating]);
-
-  // Corridor and Property state
-  const [selectedCorridorId, setSelectedCorridorId] = useState<string | null>(null);
-  const [verifiedProperties, setVerifiedProperties] = useState<Property[]>([]);
-  const [allStateProperties, setAllStateProperties] = useState<Property[]>([]);
-  const [propertiesLoading, setPropertiesLoading] = useState(true);
 
   // Fetch all verified properties for active state (to compute corridor metrics from live DB)
   useEffect(() => {
@@ -546,6 +588,65 @@ export default function MarketplaceScreen() {
       };
     });
   }, [allStateProperties]);
+
+  // Filtered properties for map pins synchronized with active district and property type (land, flat, house, shop, office)
+  const filteredMapProperties = useMemo(() => {
+    let list = allStateProperties.length > 0 ? allStateProperties : verifiedProperties;
+
+    // Filter by district if selected
+    if (district?.name) {
+      list = list.filter(
+        (p) => p.location?.district?.toLowerCase() === district.name.toLowerCase()
+      );
+    }
+
+    // Filter by selected property type (land, flat, house, shop, office)
+    if (type) {
+      list = list.filter((p) => {
+        const pType = (p.type || "").toLowerCase();
+        if (type === "flat") return pType === "flat" || pType === "apartment";
+        if (type === "house") return pType === "house" || pType === "villa";
+        if (type === "land") return pType === "land" || pType === "plot";
+        return pType === type.toLowerCase();
+      });
+    }
+
+    return list;
+  }, [allStateProperties, verifiedProperties, district?.name, type]);
+
+  // When user toggles property type buttons (Land, Flat, House, Shop, Office), focus the map to show the listed items
+  useEffect(() => {
+    if (!type) {
+      if (!district) {
+        setCustomFocus({ lat: 25.65, lng: 85.35, zoom: 7.5 });
+      }
+      return;
+    }
+
+    const matching = allStateProperties.filter((p) => {
+      const pType = (p.type || "").toLowerCase();
+      if (type === "flat") return pType === "flat" || pType === "apartment";
+      if (type === "house") return pType === "house" || pType === "villa";
+      if (type === "land") return pType === "land" || pType === "plot";
+      return pType === type.toLowerCase();
+    });
+
+    if (matching.length === 1 && matching[0].location?.lat && matching[0].location?.lng) {
+      setCustomFocus({
+        lat: matching[0].location.lat,
+        lng: matching[0].location.lng,
+        zoom: 14.5,
+      });
+      scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+    } else if (matching.length > 1) {
+      setCustomFocus({
+        lat: 25.61,
+        lng: 85.12,
+        zoom: 11,
+      });
+      scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+    }
+  }, [type, allStateProperties, district]);
 
   // Corridor focus handler
   const handleSelectCorridor = useCallback((corridor: typeof dynamicCorridors[0]) => {
@@ -628,56 +729,6 @@ export default function MarketplaceScreen() {
               locating={locating}
             />
 
-            {/* Active Breadcrumbs Bar */}
-            {(state || district) && (
-              <View style={styles.breadcrumbsBar}>
-                <MaterialIcons name="navigation" size={16} color="#03456C" style={{ marginRight: 6 }} />
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  onPress={handleClearSelection}
-                  style={styles.crumbBtn}
-                >
-                  <Text style={styles.crumbLink}>All India</Text>
-                </TouchableOpacity>
-
-                {state && (
-                  <>
-                    <Text style={styles.crumbDivider}>›</Text>
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      onPress={() => {
-                        setDistrict(undefined);
-                        setCustomFocus({ lat: state.lat, lng: state.lng, zoom: 7.2 });
-                      }}
-                      style={styles.crumbBtn}
-                    >
-                      <Text style={[styles.crumbLink, !district && styles.crumbCurrent]}>
-                        {state.name}
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-
-                {district && (
-                  <>
-                    <Text style={styles.crumbDivider}>›</Text>
-                    <Text style={[styles.crumbLink, styles.crumbCurrent]}>
-                      {district.name}
-                    </Text>
-                  </>
-                )}
-
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  onPress={handleClearSelection}
-                  style={styles.resetCrumbBtn}
-                >
-                  <MaterialIcons name="close" size={14} color="#03456C" />
-                  <Text style={styles.resetCrumbText}>Reset</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
             {/* Loading / Error Indicators */}
             {loading && (
               <View style={styles.statusBanner}>
@@ -711,13 +762,7 @@ export default function MarketplaceScreen() {
                 level={level}
                 state={state?.key}
                 focus={mapFocus}
-                properties={
-                  district?.name
-                    ? allStateProperties.filter(
-                        (p) => p.location?.district?.toLowerCase() === district.name.toLowerCase()
-                      )
-                    : (verifiedProperties.length > 0 ? verifiedProperties : allStateProperties)
-                }
+                properties={filteredMapProperties}
                 onSelectGroup={handleSelectGroup}
                 onSelectStateInfo={handleSelectDistrictInfo as any}
                 onSelectProperty={(prop) => {
@@ -734,14 +779,7 @@ export default function MarketplaceScreen() {
               {/* Left-Side Bihar Land Intelligence Overlay */}
               <View style={styles.leftOverlayWrap} pointerEvents="box-none">
                 <BiharLandIntelligenceCard
-                  totalCount={
-                    district?.name
-                      ? (districtCounts[district.name] ??
-                        allStateProperties.filter(
-                          (p) => p.location?.district?.toLowerCase() === district.name.toLowerCase()
-                        ).length)
-                      : (allStateProperties.length || totalVerifiedCount || 14)
-                  }
+                  totalCount={filteredMapProperties.length}
                   activeDistrictName={district?.name}
                   onSelectQuickHub={handleSelectQuickHub}
                   onResetView={handleClearSelection}
@@ -768,13 +806,7 @@ export default function MarketplaceScreen() {
                   level={level}
                   state={state?.key}
                   focus={mapFocus}
-                  properties={
-                    district?.name
-                      ? allStateProperties.filter(
-                          (p) => p.location?.district?.toLowerCase() === district.name.toLowerCase()
-                        )
-                      : (verifiedProperties.length > 0 ? verifiedProperties : allStateProperties)
-                  }
+                  properties={filteredMapProperties}
                   onSelectGroup={handleSelectGroup}
                   onSelectStateInfo={handleSelectDistrictInfo as any}
                   onSelectProperty={(prop) => {
@@ -792,14 +824,7 @@ export default function MarketplaceScreen() {
               {/* Mobile Bihar Land Intelligence Overview Card */}
               <View style={styles.mobileIntroCard}>
                 <BiharLandIntelligenceCard
-                  totalCount={
-                    district?.name
-                      ? (districtCounts[district.name] ??
-                        allStateProperties.filter(
-                          (p) => p.location?.district?.toLowerCase() === district.name.toLowerCase()
-                        ).length)
-                      : (allStateProperties.length || totalVerifiedCount || 14)
-                  }
+                  totalCount={filteredMapProperties.length}
                   activeDistrictName={district?.name}
                   onSelectQuickHub={handleSelectQuickHub}
                   onResetView={handleClearSelection}

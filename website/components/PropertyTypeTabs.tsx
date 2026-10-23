@@ -1,14 +1,19 @@
 import React, { useRef } from "react";
-import { ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { Platform, ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
 import type { PropertyType } from "../src/types/property.types";
 
-const choices: { value: PropertyType | undefined; label: string }[] = [
-  { value: undefined, label: "All properties" },
-  { value: "land", label: "Land" },
-  { value: "flat", label: "Flats" },
-  { value: "house", label: "Houses" },
-  { value: "shop", label: "Shops" },
-  { value: "office", label: "Offices" },
+const choices: {
+  value: PropertyType | undefined;
+  label: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+}[] = [
+  { value: undefined, label: "All properties", icon: "dashboard" },
+  { value: "land", label: "Land", icon: "landscape" },
+  { value: "flat", label: "Flats", icon: "apartment" },
+  { value: "house", label: "Houses", icon: "cottage" },
+  { value: "shop", label: "Shops", icon: "storefront" },
+  { value: "office", label: "Offices", icon: "business" },
 ];
 
 export default function PropertyTypeTabs({
@@ -34,14 +39,21 @@ export default function PropertyTypeTabs({
             <TouchableOpacity
               key={choice.label}
               accessibilityRole="button"
+              accessibilityLabel={`Filter by ${choice.label}`}
               accessibilityState={{ selected: isSelected }}
               onPress={() => onChange(choice.value)}
-              activeOpacity={0.85}
+              activeOpacity={0.8}
               style={[
                 styles.pill,
                 isSelected ? styles.activePill : styles.inactivePill,
               ]}
             >
+              <MaterialIcons
+                name={choice.icon}
+                size={16}
+                color={isSelected ? "#38BDF8" : "#0284C7"}
+                style={{ marginRight: 6 }}
+              />
               <Text
                 style={[
                   styles.pillText,
@@ -61,45 +73,69 @@ export default function PropertyTypeTabs({
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    marginBottom: 10,
-    marginTop: 8,
+    marginBottom: 12,
+    marginTop: 6,
   },
   scrollContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
     paddingVertical: 4,
     paddingHorizontal: 2,
   },
   pill: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 9,
     borderRadius: 9999,
     justifyContent: "center",
-    alignItems: "center",
-    minHeight: 42,
+    minHeight: 40,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1)",
+      },
+    }),
   },
   activePill: {
     backgroundColor: "#03456C",
-    shadowColor: "#03456C",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1.5,
+    borderColor: "#0284C7",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 6px 16px rgba(3, 69, 108, 0.32)",
+        transform: "scale(1.02)",
+      },
+      default: {
+        shadowColor: "#03456C",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.28,
+        shadowRadius: 8,
+        elevation: 4,
+      },
+    }),
   },
   inactivePill: {
     backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "rgba(226, 232, 240, 0.9)",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 8px rgba(15, 23, 42, 0.05)",
+      },
+      default: {
+        shadowColor: "#0F172A",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 1,
+      },
+    }),
   },
   pillText: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13.5,
+    fontWeight: "700",
     letterSpacing: -0.2,
   },
   activePillText: {
