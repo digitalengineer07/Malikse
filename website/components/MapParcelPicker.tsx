@@ -163,11 +163,16 @@ export default function MapParcelPicker({
         .gm-style {
           cursor: crosshair !important;
         }
-        /* Suppress Google Maps Development Modal, Permission Banner & Dim Overlay */
+        /* Universal suppression for Google Maps Development Modal, Permission Banner & Dim Overlay */
+        .gm-style div:has(a[href*="error-messages"]),
+        .gm-style div:has(button.dismissButton),
+        div:has(> a[href*="error-messages"]),
+        div:has(a[href*="error-messages"]),
+        div:has(button.dismissButton),
+        .gm-style-pbc,
         .gm-err-container,
         .gm-err-content,
         .dismissButton,
-        .gm-style-pbc,
         div[style*="z-index: 10000002"],
         div[style*="z-index: 10000001"],
         div[style*="z-index: 1000000"] {
@@ -202,38 +207,101 @@ export default function MapParcelPicker({
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
 
-    const cleanupWatermarks = () => {
-      const modals = document.querySelectorAll(
-        ".gm-err-container, .gm-err-content, .dismissButton, .gm-style-pbc"
+    const removeGoogleAuthModals = () => {
+      // 1. Target all elements linking to Google error-messages or containing error text
+      const errorAnchors = document.querySelectorAll<HTMLElement>(
+        'a[href*="error-messages"], a[href*="developers.google.com/maps"]'
       );
-      modals.forEach((el) => {
-        (el as HTMLElement).style.setProperty("display", "none", "important");
-        (el as HTMLElement).style.setProperty("visibility", "hidden", "important");
-        (el as HTMLElement).style.setProperty("opacity", "0", "important");
-        (el as HTMLElement).style.setProperty("pointer-events", "none", "important");
+      errorAnchors.forEach((a) => {
+        let curr: HTMLElement | null = a;
+        while (
+          curr &&
+          curr.parentElement &&
+          !curr.parentElement.classList.contains("gm-style") &&
+          curr.parentElement !== mapContainerRef.current &&
+          curr !== document.body
+        ) {
+          curr = curr.parentElement;
+        }
+        if (curr && curr !== document.body) {
+          curr.style.setProperty("display", "none", "important");
+          curr.style.setProperty("visibility", "hidden", "important");
+          curr.style.setProperty("opacity", "0", "important");
+          curr.style.setProperty("pointer-events", "none", "important");
+          curr.remove();
+        }
       });
 
-      if (mapContainerRef.current) {
-        const divs = mapContainerRef.current.querySelectorAll("div");
-        divs.forEach((d) => {
-          if (
-            (d.textContent?.includes("For development purposes only") ||
-              d.textContent?.includes("This page can't load Google Maps correctly")) &&
-            d.children.length === 0
+      // 2. Click dismiss buttons to reset Google internal modal state, then remove
+      const dismissBtns = document.querySelectorAll<HTMLElement>(".dismissButton");
+      dismissBtns.forEach((btn) => {
+        try {
+          btn.click();
+        } catch {}
+        let curr: HTMLElement | null = btn;
+        while (
+          curr &&
+          curr.parentElement &&
+          !curr.parentElement.classList.contains("gm-style") &&
+          curr.parentElement !== mapContainerRef.current &&
+          curr !== document.body
+        ) {
+          curr = curr.parentElement;
+        }
+        if (curr && curr !== document.body) {
+          curr.style.setProperty("display", "none", "important");
+          curr.style.setProperty("pointer-events", "none", "important");
+          curr.remove();
+        }
+      });
+
+      // 3. Target any container with text "This page can't load Google Maps correctly" or "Do you own this website"
+      const allTextNodes = document.querySelectorAll<HTMLElement>(
+        ".gm-style > div, .gm-style div, .gm-err-container, .gm-style-pbc"
+      );
+      allTextNodes.forEach((node) => {
+        if (
+          node.classList.contains("gm-style-pbc") ||
+          node.classList.contains("gm-err-container") ||
+          node.textContent?.includes("This page can't load Google Maps correctly") ||
+          node.textContent?.includes("Do you own this website")
+        ) {
+          let curr: HTMLElement | null = node;
+          while (
+            curr &&
+            curr.parentElement &&
+            !curr.parentElement.classList.contains("gm-style") &&
+            curr.parentElement !== mapContainerRef.current &&
+            curr !== document.body
           ) {
-            d.style.setProperty("display", "none", "important");
-            d.style.setProperty("visibility", "hidden", "important");
+            curr = curr.parentElement;
           }
-        });
-      }
+          if (curr && curr !== document.body) {
+            curr.style.setProperty("display", "none", "important");
+            curr.style.setProperty("visibility", "hidden", "important");
+            curr.style.setProperty("pointer-events", "none", "important");
+            curr.remove();
+          }
+        }
+      });
     };
 
-    const interval = setInterval(cleanupWatermarks, 250);
-    const timeout = setTimeout(() => clearInterval(interval), 12000);
+    removeGoogleAuthModals();
+    const observer = new MutationObserver(() => {
+      removeGoogleAuthModals();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    const interval = setInterval(removeGoogleAuthModals, 100);
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+      observer.disconnect();
+    }, 15000);
 
     return () => {
       clearInterval(interval);
       clearTimeout(timeout);
+      observer.disconnect();
     };
   }, []);
 
@@ -1060,6 +1128,27 @@ export default function MapParcelPicker({
 
         googleMapRef.current = map;
         setMapEngine("google");
+
+        map.addListener("tilesloaded", () => {
+          const errorAnchors = document.querySelectorAll<HTMLElement>(
+            'a[href*="error-messages"], a[href*="developers.google.com/maps"], .dismissButton'
+          );
+          errorAnchors.forEach((el) => {
+            let curr: HTMLElement | null = el as HTMLElement;
+            while (
+              curr &&
+              curr.parentElement &&
+              !curr.parentElement.classList.contains("gm-style") &&
+              curr.parentElement !== mapContainerRef.current &&
+              curr !== document.body
+            ) {
+              curr = curr.parentElement;
+            }
+            if (curr && curr !== document.body) {
+              curr.remove();
+            }
+          });
+        });
 
         // Map Click to Add New Boundary Point
         map.addListener("click", (e: any) => {

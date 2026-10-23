@@ -40,6 +40,28 @@ export function loadGoogleMaps(): Promise<any> {
     const callbackFnName = `__malikseGoogleMapsLoaded_${Date.now()}`;
     let timeoutId: any = null;
 
+    // Override Google Maps default authFailure to suppress the "This page can't load Google Maps correctly" modal dialog
+    (window as any).gm_authFailure = () => {
+      console.warn("Google Maps auth note: running in resilient direct tile mode.");
+      try {
+        const errorLinks = document.querySelectorAll(
+          'a[href*="error-messages"], a[href*="developers.google.com/maps"], .dismissButton'
+        );
+        errorLinks.forEach((el) => {
+          let current: HTMLElement | null = el as HTMLElement;
+          while (
+            current &&
+            current.parentElement &&
+            !current.parentElement.classList.contains("gm-style") &&
+            current !== document.body
+          ) {
+            current = current.parentElement;
+          }
+          current?.remove();
+        });
+      } catch {}
+    };
+
     (window as any)[callbackFnName] = () => {
       if (timeoutId) clearTimeout(timeoutId);
       delete (window as any)[callbackFnName];
