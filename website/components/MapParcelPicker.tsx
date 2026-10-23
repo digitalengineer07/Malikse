@@ -1,6 +1,5 @@
 import TextInput from "./FormInput";
-import { addParcelBaseLayer, parcelStyle } from "../src/utils/parcelMap";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -92,8 +91,8 @@ export default function MapParcelPicker({
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Engine state: 'google' | 'leaflet' | 'loading'
-  const [mapEngine, setMapEngine] = useState<"loading" | "google" | "leaflet">("loading");
+  // Engine state: 'google' | 'loading' | 'error'
+  const [mapEngine, setMapEngine] = useState<"loading" | "google" | "error">("loading");
 
   // Google Maps SDK Refs
   const googleMapRef = useRef<any>(null);
@@ -109,17 +108,6 @@ export default function MapParcelPicker({
   const googleCenterBadgeOverlayRef = useRef<any>(null);
   const googleSearchMarkerRef = useRef<any>(null);
   const googleSearchOverlayRef = useRef<any>(null);
-
-  // Fallback Leaflet Refs
-  const leafletMapRef = useRef<any>(null);
-  const leafletBaseLayerRef = useRef<any>(null);
-  const leafletPolygonLayerRef = useRef<any>(null);
-  const leafletMarkerLayersRef = useRef<any[]>([]);
-  const leafletMidpointLayersRef = useRef<any[]>([]);
-  const leafletDimensionLayersRef = useRef<any[]>([]);
-  const leafletCenterBadgeRef = useRef<any>(null);
-  const leafletMouseGuideRef = useRef<any>(null);
-  const leafletSearchMarkerRef = useRef<any>(null);
 
   // Search input state
   const [searchLocation, setSearchLocation] = useState("");
@@ -596,12 +584,6 @@ export default function MapParcelPicker({
         centerLat = c.lat();
         centerLng = c.lng();
       }
-    } else if (leafletMapRef.current) {
-      const c = leafletMapRef.current.getCenter();
-      if (c) {
-        centerLat = c.lat;
-        centerLng = c.lng;
-      }
     } else if (points.length > 0) {
       const c = calculateCentroid(points);
       centerLat = c.lat;
@@ -682,9 +664,6 @@ export default function MapParcelPicker({
       const bounds = new maps.LatLngBounds();
       points.forEach((p) => bounds.extend(new maps.LatLng(p.lat, p.lng)));
       googleMapRef.current.fitBounds(bounds, 50);
-    } else if (leafletMapRef.current && points.length > 0) {
-      const centroid = calculateCentroid(pointsRef.current);
-      leafletMapRef.current.flyTo([centroid.lat, centroid.lng], 18, { duration: 1 });
     }
   };
 
@@ -692,16 +671,12 @@ export default function MapParcelPicker({
   const handleZoomIn = () => {
     if (googleMapRef.current) {
       googleMapRef.current.setZoom((googleMapRef.current.getZoom() || 18) + 1);
-    } else if (leafletMapRef.current) {
-      leafletMapRef.current.zoomIn();
     }
   };
 
   const handleZoomOut = () => {
     if (googleMapRef.current) {
       googleMapRef.current.setZoom((googleMapRef.current.getZoom() || 18) - 1);
-    } else if (leafletMapRef.current) {
-      leafletMapRef.current.zoomOut();
     }
   };
 
@@ -716,12 +691,6 @@ export default function MapParcelPicker({
           ? googleMapsApiRef.current.MapTypeId.HYBRID
           : googleMapsApiRef.current.MapTypeId.ROADMAP
       );
-    } else if (leafletBaseLayerRef.current) {
-      const url =
-        nextMode === "satellite"
-          ? "https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
-          : "https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}";
-      leafletBaseLayerRef.current.setUrl(url);
     }
   };
 
@@ -775,56 +744,6 @@ export default function MapParcelPicker({
 
       map.panTo({ lat, lng });
       map.setZoom(18);
-    } else if (leafletMapRef.current) {
-      const map = leafletMapRef.current;
-      import("leaflet").then((leafletModule) => {
-        const L = (leafletModule as any).default || leafletModule;
-        if (leafletSearchMarkerRef.current) {
-          map.removeLayer(leafletSearchMarkerRef.current);
-          leafletSearchMarkerRef.current = null;
-        }
-
-        const pinIcon = L.divIcon({
-          className: "malikse-searched-location-pin",
-          html: `
-            <div style="position:relative;display:flex;flex-direction:column;align-items:center;transform:translate(-50%, -100%);pointer-events:none;">
-              <div style="
-                background: linear-gradient(135deg, #EF4444 0%, #B91C1C 100%);
-                width: 34px;
-                height: 34px;
-                border-radius: 50% 50% 50% 0;
-                transform: rotate(-45deg);
-                box-shadow: 0 6px 16px rgba(239, 68, 68, 0.45);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                border: 2.5px solid #FFFFFF;
-              ">
-                <span style="transform: rotate(45deg);font-size:15px;line-height:1;">📍</span>
-              </div>
-              <div style="
-                background-color: rgba(15, 23, 42, 0.94);
-                color: #FFFFFF;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                font-size: 11px;
-                font-weight: 800;
-                padding: 3px 10px;
-                border-radius: 6px;
-                margin-top: 6px;
-                white-space: nowrap;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                box-shadow: 0 4px 12px rgba(0,0,0,0.35);
-              ">${label}</div>
-            </div>
-          `,
-          iconSize: [34, 52],
-          iconAnchor: [17, 52],
-        });
-
-        const marker = L.marker([lat, lng], { icon: pinIcon }).addTo(map);
-        leafletSearchMarkerRef.current = marker;
-        map.flyTo([lat, lng], 18, { duration: 1.4 });
-      });
     }
   };
 
@@ -1019,15 +938,14 @@ export default function MapParcelPicker({
     return () => window.removeEventListener("keydown", handleKeyDown);
   });
 
-  // ================= MOUNT: INITIALIZE GOOGLE MAPS =================
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined") return;
-
-    let isMounted = true;
+  // ================= INITIALIZE GOOGLE MAPS =================
+  const initGoogleMap = useCallback(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined" || !mapContainerRef.current) return;
+    setMapEngine("loading");
 
     loadGoogleMaps()
       .then((maps) => {
-        if (!isMounted || !mapContainerRef.current) return;
+        if (!mapContainerRef.current) return;
 
         googleMapsApiRef.current = maps;
         customHtmlOverlayRef.current = getCustomHtmlOverlayClass(maps);
@@ -1037,7 +955,7 @@ export default function MapParcelPicker({
         const map = new maps.Map(mapContainerRef.current, {
           center: { lat: centroid.lat, lng: centroid.lng },
           zoom: 18,
-          mapTypeId: maps.MapTypeId.HYBRID,
+          mapTypeId: mapLayerMode === "satellite" ? maps.MapTypeId.HYBRID : maps.MapTypeId.ROADMAP,
           tilt: 0,
           disableDefaultUI: true,
           scaleControl: true,
@@ -1125,30 +1043,14 @@ export default function MapParcelPicker({
         renderGoogleParcel(pointsRef.current);
       })
       .catch((err) => {
-        console.warn("Google Maps failed to load, falling back to Leaflet:", err);
-        if (!isMounted || !mapContainerRef.current) return;
-
-        // Fallback to Leaflet
-        import("leaflet").then((leafletModule) => {
-          const L = (leafletModule as any).default || leafletModule;
-          if (!isMounted || !mapContainerRef.current) return;
-
-          const centroid = calculateCentroid(pointsRef.current);
-          const map = L.map(mapContainerRef.current, {
-            center: [centroid.lat, centroid.lng],
-            zoom: 17,
-            zoomControl: false,
-            attributionControl: true,
-            maxZoom: 20,
-          });
-          leafletMapRef.current = map;
-          leafletBaseLayerRef.current = addParcelBaseLayer(L, map);
-          setMapEngine("leaflet");
-        });
+        console.error("Google Maps failed to load:", err);
+        setMapEngine("error");
       });
+  }, [mapLayerMode]);
 
+  useEffect(() => {
+    initGoogleMap();
     return () => {
-      isMounted = false;
       if (googleRubberBandRef.current) {
         googleRubberBandRef.current.setMap(null);
       }
@@ -1157,10 +1059,6 @@ export default function MapParcelPicker({
       }
       if (googlePolylineRef.current) {
         googlePolylineRef.current.setMap(null);
-      }
-      if (leafletMapRef.current) {
-        leafletMapRef.current.remove();
-        leafletMapRef.current = null;
       }
     };
   }, []);
@@ -1205,6 +1103,31 @@ export default function MapParcelPicker({
             <Text style={styles.loadingOverlayText}>
               {language === "hi" ? "गूगल मैप्स लोड हो रहा है..." : "Loading Google Maps..."}
             </Text>
+          </View>
+        )}
+
+        {/* Error Overlay with Retry button */}
+        {mapEngine === "error" && (
+          <View style={styles.loadingOverlay}>
+            <MaterialIcons name="error-outline" size={40} color="#EF4444" />
+            <Text style={styles.errorOverlayTitle}>
+              {language === "hi" ? "गूगल मैप्स लोड करने में असमर्थ" : "Unable to Load Google Maps"}
+            </Text>
+            <Text style={styles.errorOverlayDesc}>
+              {language === "hi"
+                ? "कृपया अपना इंटरनेट कनेक्शन जांचें और पुनः प्रयास करें।"
+                : "Please check your network connection and retry."}
+            </Text>
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={initGoogleMap}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="refresh" size={16} color="#FFFFFF" />
+              <Text style={styles.retryBtnText}>
+                {language === "hi" ? "पुनः प्रयास करें" : "Retry Loading Google Maps"}
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1657,16 +1580,47 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(10, 37, 64, 0.82)",
+    backgroundColor: "rgba(10, 37, 64, 0.85)",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 3000,
+    padding: 24,
+    gap: 12,
   },
   loadingOverlayText: {
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "700",
-    marginTop: 12,
+    marginTop: 8,
+  },
+  errorOverlayTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  errorOverlayDesc: {
+    color: "#94A3B8",
+    fontSize: 13,
+    fontWeight: "500",
+    textAlign: "center",
+    maxWidth: 320,
+  },
+  retryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#0284C7",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 8,
+    ...Platform.select({ web: { cursor: "pointer" } }),
+  },
+  retryBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
   },
 
   /* Overlay: Top-Left Location Search Container */
