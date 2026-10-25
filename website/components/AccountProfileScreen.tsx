@@ -20,9 +20,11 @@ import { useLanguageStore } from "../src/store/languageStore";
 import { authService } from "../src/services/authService";
 import { userService } from "../src/services/userService";
 import { dashboardRoutes, roleLabels } from "../src/utils/accountRoutes";
+import type { UserRole } from "../src/types/auth.types";
 
 const skylineAsset = require("../assets/city_skyline_hero.png");
 
+// Dynamically mask user's mobile number, preserving only the last 4 digits
 function maskMobile(mobile: string | undefined): string {
   if (!mobile) return "—";
   const digits = mobile.replace(/\D/g, "");
@@ -30,9 +32,10 @@ function maskMobile(mobile: string | undefined): string {
     const last4 = digits.slice(-4);
     return `+91 ••••••${last4}`;
   }
-  return `+91 ${mobile}`;
+  return mobile.trim().length ? `+91 ${mobile}` : "—";
 }
 
+// Dynamically format user's registration timestamp into DD/MM/YYYY
 function formatMemberDate(dateStr: string | undefined): string {
   if (!dateStr) return "—";
   const d = new Date(dateStr);
@@ -41,14 +44,6 @@ function formatMemberDate(dateStr: string | undefined): string {
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const year = d.getFullYear();
   return `${day}/${month}/${year}`;
-}
-
-let resolvedSkylineUri = "";
-try {
-  const source = Image.resolveAssetSource(skylineAsset);
-  resolvedSkylineUri = source?.uri || "";
-} catch {
-  resolvedSkylineUri = typeof skylineAsset === "string" ? skylineAsset : skylineAsset?.uri || "";
 }
 
 export default function AccountProfileScreen() {
@@ -69,7 +64,7 @@ export default function AccountProfileScreen() {
 
   const startEditing = () => {
     if (!user) return;
-    setEditName(user.name);
+    setEditName(user.name || "");
     setEditEmail(user.email || "");
     setIsEditing(true);
   };
@@ -117,8 +112,97 @@ export default function AccountProfileScreen() {
   }
   if (!user || authState !== "AUTHENTICATED") return <Redirect href="/login" />;
 
-  const initial = user.name ? user.name.trim().charAt(0).toUpperCase() : "U";
-  const userRoleDisplay = roleLabels[user.role] || label("User", "उपयोगकर्ता");
+  // Dynamic user data variables
+  const userName = user.name || label("User", "उपयोगकर्ता");
+  const initial = userName.trim().charAt(0).toUpperCase() || "U";
+  const userRole = user.role as UserRole;
+  const userRoleDisplay = roleLabels[userRole] || label("User", "उपयोगकर्ता");
+  const userEmail = user.email ? user.email : label("Not added", "जोड़ा नहीं गया");
+  const userMobile = maskMobile(user.mobile);
+  const userJoinedDate = formatMemberDate(user.createdAt);
+
+  // Dynamic KYC / Verification configuration according to the user's role and state
+  const isKycComplete = Boolean(user.demoKycComplete);
+  const isIdentityVerified = Boolean(user.isVerifiedIdentity);
+
+  let kycBadgeText = label("Demo", "डेमो");
+  let kycBadgeBg = "#FFEDD5";
+  let kycBadgeTextColor = "#C2410C";
+  let kycTitle = label("KYC verification", "केवाईसी सत्यापन");
+  let kycStatusTitle = label("Demo step complete", "डेमो चरण पूरा हुआ");
+  let kycStatusSub = label(
+    "Identity verification has not been performed.",
+    "पहचान सत्यापन नहीं किया गया है।"
+  );
+  let kycIconName: keyof typeof MaterialIcons.glyphMap = "check-circle";
+  let kycIconColor = "#0284C7";
+
+  if (userRole === "admin") {
+    kycTitle = label("Admin clearance", "व्यवस्थापक स्थिति");
+    kycBadgeText = label("Verified", "सत्यापित");
+    kycBadgeBg = "#DCFCE7";
+    kycBadgeTextColor = "#15803D";
+    kycStatusTitle = label("Full Administrative Access", "पूर्ण व्यवस्थापक पहुँच");
+    kycStatusSub = label(
+      "Your account has system administrator permissions.",
+      "आपके खाते के पास सिस्टम व्यवस्थापक के अधिकार हैं।"
+    );
+    kycIconName = "verified";
+    kycIconColor = "#16A34A";
+  } else if (userRole === "verifier") {
+    kycTitle = label("Verifier authorization", "सत्यापनकर्ता स्थिति");
+    kycBadgeText = label("Authorized", "अधिकृत");
+    kycBadgeBg = "#DCFCE7";
+    kycBadgeTextColor = "#15803D";
+    kycStatusTitle = label("Authorized Field Verifier", "अधिकृत फील्ड सत्यापनकर्ता");
+    kycStatusSub = label(
+      "Authorized to inspect land parcels and sign cadastral reports.",
+      "प्लॉट निरीक्षण और कैडस्ट्राल रिपोर्ट सत्यापित करने के लिए अधिकृत।"
+    );
+    kycIconName = "verified";
+    kycIconColor = "#16A34A";
+  } else if (userRole === "advisor") {
+    kycTitle = label("Advisor credential", "सलाहकार साख");
+    kycBadgeText = label("Certified", "प्रमाणित");
+    kycBadgeBg = "#DCFCE7";
+    kycBadgeTextColor = "#15803D";
+    kycStatusTitle = label("Certified Land Advisor", "प्रमाणित भूमि सलाहकार");
+    kycStatusSub = label(
+      "Certified to assist clients with property valuation and paperwork.",
+      "ग्राहकों को संपत्ति मूल्यांकन और दस्तावेजीकरण में सहायता के लिए प्रमाणित।"
+    );
+    kycIconName = "verified";
+    kycIconColor = "#16A34A";
+  } else if (isIdentityVerified) {
+    kycBadgeText = label("Verified", "सत्यापित");
+    kycBadgeBg = "#DCFCE7";
+    kycBadgeTextColor = "#15803D";
+    kycStatusTitle = label("Identity verified", "पहचान सत्यापित");
+    kycStatusSub = label(
+      "Government identity verification is successfully completed.",
+      "सरकारी पहचान सत्यापन सफलतापूर्वक पूरा हो चुका है।"
+    );
+    kycIconName = "verified";
+    kycIconColor = "#16A34A";
+  } else if (!isKycComplete) {
+    kycBadgeText = label("Pending", "लंबित");
+    kycBadgeBg = "#FEF3C7";
+    kycBadgeTextColor = "#B45309";
+    kycStatusTitle = label("Demo step not completed", "डेमो चरण पूरा नहीं हुआ");
+    kycStatusSub = label(
+      "Complete demo identity verification to unlock full property listing features.",
+      "प्रॉपर्टी लिस्टिंग सुविधाएँ अनलॉक करने के लिए डेमो सत्यापन पूरा करें।"
+    );
+    kycIconName = "info";
+    kycIconColor = "#D97706";
+  }
+
+  // Dynamic Dashboard button text and target route
+  const dashboardTarget = dashboardRoutes[userRole] || "/dashboard";
+  let dashboardBtnLabel = label("Open my dashboard", "मेरा डैशबोर्ड खोलें");
+  if (userRole === "admin") dashboardBtnLabel = label("Open admin dashboard", "व्यवस्थापक डैशबोर्ड खोलें");
+  else if (userRole === "verifier") dashboardBtnLabel = label("Open verifier dashboard", "सत्यापनकर्ता डैशबोर्ड खोलें");
+  else if (userRole === "advisor") dashboardBtnLabel = label("Open advisor dashboard", "सलाहकार डैशबोर्ड खोलें");
 
   return (
     <View style={styles.screen}>
@@ -173,7 +257,7 @@ export default function AccountProfileScreen() {
                 <Text style={styles.avatarText}>{initial}</Text>
               </View>
               <View style={styles.identityTextCol}>
-                <Text style={styles.userName}>{user.name}</Text>
+                <Text style={styles.userName}>{userName}</Text>
                 <Text style={styles.userRole}>{userRoleDisplay}</Text>
               </View>
 
@@ -247,7 +331,7 @@ export default function AccountProfileScreen() {
                 </View>
               </View>
             ) : (
-              /* View Mode: 2-Column Info Grid */
+              /* View Mode: Dynamic 2-Column Info Grid */
               <View style={[styles.fieldsGrid, isMobile && styles.fieldsGridMobile]}>
                 {/* Left Column: Full name, Email, Member since */}
                 <View style={styles.fieldColumn}>
@@ -259,7 +343,7 @@ export default function AccountProfileScreen() {
                     <View style={styles.fieldTextCol}>
                       <Text style={styles.fieldLabel}>{label("Full name", "पूरा नाम")}</Text>
                       <Text selectable style={styles.fieldValue}>
-                        {user.name}
+                        {userName}
                       </Text>
                     </View>
                   </View>
@@ -273,7 +357,7 @@ export default function AccountProfileScreen() {
                     <View style={styles.fieldTextCol}>
                       <Text style={styles.fieldLabel}>{label("Email", "ईमेल")}</Text>
                       <Text selectable style={styles.fieldValue}>
-                        {user.email || label("Not added", "जोड़ा नहीं गया")}
+                        {userEmail}
                       </Text>
                     </View>
                   </View>
@@ -289,7 +373,7 @@ export default function AccountProfileScreen() {
                         {label("Member since", "सदस्यता की तारीख")}
                       </Text>
                       <Text selectable style={styles.fieldValue}>
-                        {formatMemberDate(user.createdAt)}
+                        {userJoinedDate}
                       </Text>
                     </View>
                   </View>
@@ -305,7 +389,7 @@ export default function AccountProfileScreen() {
                     <View style={styles.fieldTextCol}>
                       <Text style={styles.fieldLabel}>{label("Mobile number", "मोबाइल नंबर")}</Text>
                       <Text selectable style={styles.fieldValue}>
-                        {maskMobile(user.mobile)}
+                        {userMobile}
                       </Text>
                     </View>
                   </View>
@@ -330,46 +414,52 @@ export default function AccountProfileScreen() {
             )}
           </View>
 
-          {/* KYC Verification Card */}
+          {/* KYC / Verification Card */}
           <View style={styles.card}>
             <View style={styles.kycHeaderRow}>
               <View style={styles.kycShieldBadge}>
                 <MaterialIcons name="verified-user" size={20} color="#FFFFFF" />
               </View>
-              <Text style={styles.kycTitle}>{label("KYC verification", "केवाईसी सत्यापन")}</Text>
-              <View style={styles.demoBadge}>
-                <Text style={styles.demoBadgeText}>{label("Demo", "डेमो")}</Text>
+              <Text style={styles.kycTitle}>{kycTitle}</Text>
+              <View style={[styles.demoBadge, { backgroundColor: kycBadgeBg }]}>
+                <Text style={[styles.demoBadgeText, { color: kycBadgeTextColor }]}>
+                  {kycBadgeText}
+                </Text>
               </View>
             </View>
 
             <View style={styles.kycStatusBox}>
-              <MaterialIcons name="check-circle" size={26} color="#0284C7" />
+              <MaterialIcons name={kycIconName} size={26} color={kycIconColor} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.kycStatusTitle}>
-                  {label("Demo step complete", "डेमो चरण पूरा हुआ")}
-                </Text>
-                <Text style={styles.kycStatusSub}>
-                  {label(
-                    "Identity verification has not been performed.",
-                    "पहचान सत्यापन नहीं किया गया है।"
-                  )}
-                </Text>
+                <Text style={styles.kycStatusTitle}>{kycStatusTitle}</Text>
+                <Text style={styles.kycStatusSub}>{kycStatusSub}</Text>
+
+                {userRole === "user" && !isKycComplete && !isIdentityVerified && (
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    style={styles.kycActionBtn}
+                    onPress={() => router.push("/kyc")}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.kycActionBtnText}>
+                      {label("Complete demo KYC →", "डेमो केवाईसी पूरा करें →")}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           </View>
 
-          {/* Open My Dashboard Button */}
+          {/* Open Dashboard Button */}
           <TouchableOpacity
             accessibilityRole="button"
             activeOpacity={0.88}
             style={styles.dashboardBtn}
-            onPress={() => router.push(dashboardRoutes[user.role] as any)}
+            onPress={() => router.push(dashboardTarget as any)}
           >
             <View style={styles.dashboardBtnCenter}>
               <MaterialIcons name="grid-view" size={20} color="#FFFFFF" />
-              <Text style={styles.dashboardBtnText}>
-                {label("Open my dashboard", "मेरा डैशबोर्ड खोलें")}
-              </Text>
+              <Text style={styles.dashboardBtnText}>{dashboardBtnLabel}</Text>
             </View>
             <MaterialIcons
               name="arrow-forward"
@@ -381,7 +471,7 @@ export default function AccountProfileScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Atmospheric Heritage Skyline Horizon at Page Bottom */}
+      {/* Atmospheric Indian Heritage Skyline Watermark Image (Explicit Watermark Element, NOT a CSS background) */}
       {Platform.OS === "web" ? (
         <div
           style={{
@@ -390,17 +480,25 @@ export default function AccountProfileScreen() {
             left: 0,
             right: 0,
             width: "100%",
-            height: "185px",
+            height: "195px",
             pointerEvents: "none",
             zIndex: 0,
-            opacity: 0.9,
             display: "flex",
             alignItems: "flex-end",
+            overflow: "hidden",
           }}
         >
           <img
-            src={resolvedSkylineUri}
-            alt="Skyline Horizon"
+            src="/assets/assets/city_skyline_hero.png"
+            onError={(e) => {
+              // Automatic fallback if served under root path
+              const target = e.currentTarget as HTMLImageElement;
+              if (target && !target.dataset.triedFallback) {
+                target.dataset.triedFallback = "true";
+                target.src = "/city_skyline_hero.png";
+              }
+            }}
+            alt="Heritage Skyline Watermark"
             aria-hidden="true"
             style={{
               width: "100%",
@@ -409,6 +507,7 @@ export default function AccountProfileScreen() {
               objectPosition: "center bottom",
               display: "block",
               pointerEvents: "none",
+              opacity: 0.95,
             }}
           />
         </div>
@@ -667,13 +766,11 @@ const styles = StyleSheet.create({
     color: "#0F172A",
   },
   demoBadge: {
-    backgroundColor: "#FFEDD5",
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 3,
   },
   demoBadgeText: {
-    color: "#C2410C",
     fontSize: 12,
     fontWeight: "700",
   },
@@ -694,6 +791,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#64748B",
     marginTop: 2,
+  },
+  kycActionBtn: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+  },
+  kycActionBtnText: {
+    color: "#0284C7",
+    fontWeight: "700",
+    fontSize: 13,
   },
   dashboardBtn: {
     backgroundColor: "#03456C",
@@ -731,12 +837,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 180,
+    height: 195,
     zIndex: 0,
   },
   nativeSkylineImg: {
     width: "100%",
     height: "100%",
-    opacity: 0.9,
+    opacity: 0.95,
   },
 });
