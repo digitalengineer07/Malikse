@@ -62,6 +62,17 @@ export default function AccountProfileScreen() {
   const [error, setError] = useState("");
   const signingOut = useRef(false);
 
+  const resolvedWatermarkUri = React.useMemo(() => {
+    try {
+      const source = Image.resolveAssetSource(skylineWatermarkAsset);
+      return source?.uri || "/assets/assets/heritage_skyline_watermark.png";
+    } catch {
+      return typeof skylineWatermarkAsset === "string"
+        ? skylineWatermarkAsset
+        : (skylineWatermarkAsset as any)?.uri || "/assets/assets/heritage_skyline_watermark.png";
+    }
+  }, []);
+
   const startEditing = () => {
     if (!user) return;
     setEditName(user.name || "");
@@ -471,7 +482,7 @@ export default function AccountProfileScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Elegant Indian Heritage Watermark Horizon (India Gate & Taj Mahal on Left, Taj Mahal, Qutub Minar & Palace on Right) */}
+      {/* Elegant Indian & Bihar Heritage Watermark Horizon (Seamless Continuous Skyline across full width including center) */}
       {Platform.OS === "web" ? (
         <div
           style={{
@@ -480,7 +491,7 @@ export default function AccountProfileScreen() {
             left: 0,
             right: 0,
             width: "100%",
-            height: isMobile ? "80px" : "120px",
+            height: isMobile ? "80px" : "125px",
             pointerEvents: "none",
             zIndex: 0,
             display: "flex",
@@ -489,7 +500,7 @@ export default function AccountProfileScreen() {
           }}
         >
           <img
-            src="/assets/assets/heritage_skyline_watermark.png"
+            src={resolvedWatermarkUri}
             onError={(e) => {
               const target = e.currentTarget as HTMLImageElement;
               if (target && !target.dataset.triedFallback) {
@@ -497,7 +508,7 @@ export default function AccountProfileScreen() {
                 target.src = "/heritage_skyline_watermark.png";
               }
             }}
-            alt="Indian Heritage Skyline Watermark"
+            alt="Indian & Bihar Heritage Skyline Watermark"
             aria-hidden="true"
             style={{
               width: "100%",
@@ -511,7 +522,7 @@ export default function AccountProfileScreen() {
           />
         </div>
       ) : (
-        <View style={[styles.nativeSkyline, { height: isMobile ? 80 : 120 }]} pointerEvents="none">
+        <View style={[styles.nativeSkyline, { height: isMobile ? 80 : 125 }]} pointerEvents="none">
           <Image source={skylineWatermarkAsset} style={styles.nativeSkylineImg} resizeMode="cover" />
         </View>
       )}
@@ -836,7 +847,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 120,
+    height: 125,
     zIndex: 0,
   },
   nativeSkylineImg: {
