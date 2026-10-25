@@ -368,9 +368,9 @@ export default function VerifiedHomeScreen() {
             {isWide && (
               <View style={s.skylineHorizonAnchor} pointerEvents="none">
                 <CitySkyline
-                  width={width < 1100 ? 700 : 880}
-                  maxWidth="68%"
-                  height={width < 1100 ? 250 : 305}
+                  width={width < 1100 ? 840 : 1060}
+                  maxWidth="82%"
+                  height={width < 1100 ? 285 : 355}
                   opacity={0.96}
                 />
               </View>
@@ -1210,9 +1210,9 @@ const s = StyleSheet.create({
   },
   skylineHorizonAnchor: {
     position: "absolute",
-    right: -120,
+    right: -220,
     bottom: "100%",
-    marginBottom: -2,
+    marginBottom: 4,
     zIndex: 1,
     pointerEvents: "none",
   },
