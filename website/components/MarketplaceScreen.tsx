@@ -708,7 +708,7 @@ export default function MarketplaceScreen() {
               {/* Skyline Backdrop Graphic on Desktop */}
               {width >= 768 && (
                 <View style={styles.skylineWrap}>
-                  <CitySkyline width={width < 1100 ? 460 : 560} height={155} opacity={0.92} />
+                  <CitySkyline width={width < 1100 ? 540 : 680} height={width < 1100 ? 180 : 225} opacity={0.94} />
                 </View>
               )}
             </View>
