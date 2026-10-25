@@ -5,6 +5,8 @@ import { useRouter, usePathname } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLanguageStore } from "../src/store/languageStore";
 import { useAuthStore } from "../src/store/authStore";
+import { useUserListingsStore } from "../src/store/userListingsStore";
+import { dashboardRoutes } from "../src/utils/accountRoutes";
 
 interface AppHeaderProps {
   title?: string;
@@ -38,8 +40,17 @@ export default function AppHeader(props: AppHeaderProps) {
   const isSearchActive = pathname === "/search";
   const isSavedActive = pathname === "/saved";
   const isMessagesActive = pathname === "/messages";
+  const isMyListingsActive = pathname === "/my-properties" || pathname?.startsWith("/my-properties");
   const isDashboardActive = pathname === "/dashboard" || pathname?.startsWith("/dashboard");
   const isProfileActive = pathname === "/profile";
+
+  const { hasListings, checkUserListings } = useUserListingsStore();
+
+  React.useEffect(() => {
+    if (authState === "AUTHENTICATED" && user?.id && user?.role === "user") {
+      void checkUserListings(user.id, user.role);
+    }
+  }, [authState, user?.id, user?.role, checkUserListings]);
 
   return (
     <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top, 16) }]}>
@@ -131,10 +142,23 @@ export default function AppHeader(props: AppHeaderProps) {
               {isMessagesActive && <View style={styles.navActiveDot} />}
             </TouchableOpacity>
 
+            {authState === "AUTHENTICATED" && user?.role === "user" && hasListings && (
+              <TouchableOpacity
+                style={[styles.navLink, isMyListingsActive && styles.navLinkActive]}
+                onPress={() => router.push("/my-properties")}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.navLinkText, isMyListingsActive && styles.navLinkTextActive]}>
+                  {language === "hi" ? "मेरी लिस्टिंग" : "My Listings"}
+                </Text>
+                {isMyListingsActive && <View style={styles.navActiveDot} />}
+              </TouchableOpacity>
+            )}
+
             {authState === "AUTHENTICATED" && (
               <TouchableOpacity
                 style={[styles.navLink, isDashboardActive && styles.navLinkActive]}
-                onPress={() => router.push("/dashboard")}
+                onPress={() => router.push(user?.role ? (dashboardRoutes[user.role] as any) : "/dashboard")}
                 activeOpacity={0.7}
               >
                 <Text style={[styles.navLinkText, isDashboardActive && styles.navLinkTextActive]}>

@@ -2,6 +2,7 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { create } from "zustand";
 import type { AuthTokens, UserProfile, UserRole } from "../types/auth.types";
+import { useUserListingsStore } from "./userListingsStore";
 
 const sessionKey = "malikse_session";
 type AuthState = "NOT_AUTHENTICATED" | "AUTHENTICATED" | "LOADING";
@@ -112,5 +113,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   clearSession: () => {
     set({ user: null, accessToken: null, refreshToken: null, authState: "NOT_AUTHENTICATED", role: null, hydrated: true });
     saveSession(get());
+    try {
+      useUserListingsStore.getState().reset();
+    } catch {}
   },
 }));

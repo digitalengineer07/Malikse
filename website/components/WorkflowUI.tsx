@@ -16,6 +16,8 @@ export function WorkflowScreen({
   fallbackRoute,
   onBackPress,
   hideHeaderTitle = false,
+  showNavLinks,
+  showPostPropertyBtn,
 }: {
   title?: string;
   children: React.ReactNode;
@@ -26,6 +28,8 @@ export function WorkflowScreen({
   fallbackRoute?: string;
   onBackPress?: () => void;
   hideHeaderTitle?: boolean;
+  showNavLinks?: boolean;
+  showPostPropertyBtn?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -35,8 +39,8 @@ export function WorkflowScreen({
         showBack={showBack}
         onBackPress={onBackPress}
         fallbackRoute={fallbackRoute}
-        showNavLinks={false}
-        showPostPropertyBtn={false}
+        showNavLinks={showNavLinks}
+        showPostPropertyBtn={showPostPropertyBtn}
         showHomeButton
       />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
