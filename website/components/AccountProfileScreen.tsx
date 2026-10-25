@@ -490,18 +490,18 @@ export default function AccountProfileScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Two Corner Watermark Images: 1st at Left Bottom Most, 2nd at Right Bottom Most */}
+      {/* Two Corner Watermark Images: Shifted towards center & size increased */}
       {Platform.OS === "web" ? (
         <>
-          {/* 1st Image: Left Bottom Most */}
+          {/* 1st Image: Left Watermark (Shifted towards Center) */}
           <div
             id="malikse-left-bottom-watermark"
             style={{
               position: "fixed",
               bottom: 0,
-              left: 0,
-              width: isMobile ? "min(46vw, 190px)" : "min(34vw, 380px)",
-              height: isMobile ? "90px" : "145px",
+              left: isMobile ? "clamp(10px, 5vw, 28px)" : "clamp(36px, 10vw, 150px)",
+              width: isMobile ? "min(46vw, 220px)" : "min(38vw, 440px)",
+              height: isMobile ? "110px" : "180px",
               pointerEvents: "none",
               zIndex: 0,
               display: "flex",
@@ -528,20 +528,20 @@ export default function AccountProfileScreen() {
                 objectPosition: "left bottom",
                 display: "block",
                 pointerEvents: "none",
-                opacity: 0.85,
+                opacity: 0.88,
               }}
             />
           </div>
 
-          {/* 2nd Image: Right Bottom Most */}
+          {/* 2nd Image: Right Watermark (Shifted towards Center) */}
           <div
             id="malikse-right-bottom-watermark"
             style={{
               position: "fixed",
               bottom: 0,
-              right: 0,
-              width: isMobile ? "min(46vw, 190px)" : "min(34vw, 380px)",
-              height: isMobile ? "90px" : "145px",
+              right: isMobile ? "clamp(10px, 5vw, 28px)" : "clamp(36px, 10vw, 150px)",
+              width: isMobile ? "min(46vw, 220px)" : "min(38vw, 440px)",
+              height: isMobile ? "110px" : "180px",
               pointerEvents: "none",
               zIndex: 0,
               display: "flex",
@@ -568,7 +568,7 @@ export default function AccountProfileScreen() {
                 objectPosition: "right bottom",
                 display: "block",
                 pointerEvents: "none",
-                opacity: 0.85,
+                opacity: 0.88,
               }}
             />
           </div>
@@ -904,7 +904,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 125,
+    height: 155,
+    paddingHorizontal: 24,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
@@ -924,6 +925,6 @@ const styles = StyleSheet.create({
   nativeWatermarkImg: {
     width: "100%",
     height: "100%",
-    opacity: 0.85,
+    opacity: 0.88,
   },
 });
