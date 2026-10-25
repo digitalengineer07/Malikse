@@ -233,8 +233,8 @@ export default function AccountProfileScreen() {
 
   return (
     <View style={styles.screen}>
-      {/* Top Header Bar - clean without back button, logo stays undisturbed */}
-      <AppHeader showNavLinks={false} showPostPropertyBtn={false} showBack={false} />
+      {/* Top Header Bar with Navigation Menu, Post Button, Profile and clean logo */}
+      <AppHeader showBack={false} showNavLinks={true} showPostPropertyBtn={true} />
 
       <KeyboardAvoidingView
         style={{ flex: 1, zIndex: 1 }}
@@ -296,7 +296,10 @@ export default function AccountProfileScreen() {
               </View>
               <View style={styles.identityTextCol}>
                 <Text style={styles.userName}>{userName}</Text>
-                <Text style={styles.userRole}>{userRoleDisplay}</Text>
+                <View style={styles.roleBadge}>
+                  <View style={styles.roleDot} />
+                  <Text style={styles.userRole}>{userRoleDisplay}</Text>
+                </View>
               </View>
 
               {!isEditing && (
@@ -306,7 +309,7 @@ export default function AccountProfileScreen() {
                   onPress={startEditing}
                   activeOpacity={0.8}
                 >
-                  <MaterialIcons name="edit" size={16} color="#0284C7" />
+                  <MaterialIcons name="edit" size={16} color="#0873B9" />
                   <Text style={styles.editBtnText}>
                     {label("Edit profile", "प्रोफ़ाइल संपादित करें")}
                   </Text>
@@ -385,7 +388,6 @@ export default function AccountProfileScreen() {
                       </Text>
                     </View>
                   </View>
-                  <View style={styles.fieldDivider} />
 
                   {/* Email */}
                   <View style={styles.fieldItem}>
@@ -399,7 +401,6 @@ export default function AccountProfileScreen() {
                       </Text>
                     </View>
                   </View>
-                  <View style={styles.fieldDivider} />
 
                   {/* Member since */}
                   <View style={styles.fieldItem}>
@@ -431,7 +432,6 @@ export default function AccountProfileScreen() {
                       </Text>
                     </View>
                   </View>
-                  <View style={styles.fieldDivider} />
 
                   {/* Account role */}
                   <View style={styles.fieldItem}>
@@ -712,59 +712,92 @@ const styles = StyleSheet.create({
   identityRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 18,
+    paddingBottom: 22,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EDF4FA",
+    marginBottom: 6,
   },
   avatar: {
     backgroundColor: "#EDF7FE",
-    borderWidth: 2,
-    borderColor: "#CDE5FA",
-    borderRadius: 32,
-    width: 64,
-    height: 64,
+    borderWidth: 2.5,
+    borderColor: "#BAE0FD",
+    borderRadius: 36,
+    width: 68,
+    height: 68,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#0873B9",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 2,
   },
   avatarText: {
     color: "#0873B9",
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "800",
   },
   identityTextCol: {
     flex: 1,
   },
   userName: {
-    fontSize: 22,
+    fontSize: 23,
     fontWeight: "800",
     color: "#102B52",
     letterSpacing: -0.3,
   },
+  roleBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#EDF7FE",
+    borderWidth: 1,
+    borderColor: "#D4E9F9",
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    alignSelf: "flex-start",
+    marginTop: 5,
+  },
+  roleDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#0873B9",
+  },
   userRole: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#64809E",
-    marginTop: 2,
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#0873B9",
   },
   editBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     backgroundColor: "#F0F7FE",
-    borderWidth: 1,
-    borderColor: "#D3E7F8",
+    borderWidth: 1.5,
+    borderColor: "#CDE5FA",
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    shadowColor: "#0873B9",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 1,
+    cursor: "pointer",
   },
   editBtnText: {
     color: "#0873B9",
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: "700",
   },
   fieldsGrid: {
     flexDirection: "row",
-    gap: 32,
-    marginTop: 20,
-    paddingTop: 8,
+    gap: 20,
+    marginTop: 16,
+    paddingTop: 4,
   },
   fieldsGridMobile: {
     flexDirection: "column",
@@ -777,7 +810,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    paddingVertical: 14,
+    padding: 16,
+    backgroundColor: "#F8FAFD",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E6EFF7",
+    marginBottom: 12,
   },
   fieldIconBadge: {
     width: 44,

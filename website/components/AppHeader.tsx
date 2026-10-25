@@ -39,6 +39,7 @@ export default function AppHeader(props: AppHeaderProps) {
   const isSavedActive = pathname === "/saved";
   const isMessagesActive = pathname === "/messages";
   const isDashboardActive = pathname === "/dashboard" || pathname?.startsWith("/dashboard");
+  const isProfileActive = pathname === "/profile";
 
   return (
     <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top, 16) }]}>
@@ -162,12 +163,16 @@ export default function AppHeader(props: AppHeaderProps) {
 
           {isDesktop && (
             <TouchableOpacity
-              style={styles.profileBtn}
+              style={[styles.profileBtn, isProfileActive && styles.profileBtnActive]}
               onPress={() => router.push(authState === "AUTHENTICATED" ? "/profile" : "/login")}
               activeOpacity={0.8}
             >
-              <MaterialIcons name="account-circle" size={22} color="#03456C" />
-              <Text style={styles.profileBtnText}>
+              <MaterialIcons
+                name="account-circle"
+                size={22}
+                color={isProfileActive ? "#FFFFFF" : "#03456C"}
+              />
+              <Text style={[styles.profileBtnText, isProfileActive && styles.profileBtnTextActive]}>
                 {authState === "AUTHENTICATED" ? (user?.name?.split(" ")[0] || "Account") : (language === "hi" ? "लॉग इन" : "Sign In")}
               </Text>
             </TouchableOpacity>
@@ -308,10 +313,22 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 18,
   },
+  profileBtnActive: {
+    backgroundColor: "#102B52",
+    borderColor: "#102B52",
+    shadowColor: "#0873B9",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 2,
+  },
   profileBtnText: {
     fontSize: 13,
     fontWeight: "700",
     color: "#0A192F",
+  },
+  profileBtnTextActive: {
+    color: "#FFFFFF",
   },
   langBtn: {
     flexDirection: "row",
