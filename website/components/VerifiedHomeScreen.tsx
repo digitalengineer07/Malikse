@@ -1090,6 +1090,7 @@ const s = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: "transparent",
+    overflow: "hidden",
   },
   scrollContainer: {
     paddingBottom: 0,
@@ -1209,7 +1210,7 @@ const s = StyleSheet.create({
   },
   skylineHorizonAnchor: {
     position: "absolute",
-    right: 0,
+    right: -56,
     bottom: "100%",
     marginBottom: -2,
     zIndex: 1,

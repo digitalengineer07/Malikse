@@ -1206,7 +1206,7 @@ const styles = StyleSheet.create({
   },
   skylineWrap: {
     position: "absolute",
-    right: 0,
+    right: -36,
     bottom: -10,
     zIndex: 1,
     pointerEvents: "none",
