@@ -318,7 +318,6 @@ const styles = StyleSheet.create({
       web: {
         outlineStyle: "none",
         outlineWidth: 0,
-        outline: "none",
       } as any,
     }),
   },

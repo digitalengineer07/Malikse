@@ -471,7 +471,7 @@ export default function AccountProfileScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Elegant Indian Heritage Watermark Horizon (India Gate, Taj Mahal, Bodh Gaya Stupa, Trees & Birds) */}
+      {/* Elegant Indian Heritage Watermark Horizon (India Gate & Taj Mahal on Left, Taj Mahal, Qutub Minar & Palace on Right) */}
       {Platform.OS === "web" ? (
         <div
           style={{
@@ -480,14 +480,12 @@ export default function AccountProfileScreen() {
             left: 0,
             right: 0,
             width: "100%",
-            height: isMobile ? "240px" : "360px",
+            height: isMobile ? "200px" : "310px",
             pointerEvents: "none",
             zIndex: 0,
             display: "flex",
             alignItems: "flex-end",
             overflow: "hidden",
-            maskImage: "linear-gradient(to top, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)",
-            WebkitMaskImage: "linear-gradient(to top, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)",
           }}
         >
           <img
@@ -508,12 +506,12 @@ export default function AccountProfileScreen() {
               objectPosition: "center bottom",
               display: "block",
               pointerEvents: "none",
-              opacity: 0.42,
+              opacity: 0.88,
             }}
           />
         </div>
       ) : (
-        <View style={[styles.nativeSkyline, { height: isMobile ? 240 : 360 }]} pointerEvents="none">
+        <View style={[styles.nativeSkyline, { height: isMobile ? 200 : 310 }]} pointerEvents="none">
           <Image source={skylineWatermarkAsset} style={styles.nativeSkylineImg} resizeMode="cover" />
         </View>
       )}
@@ -838,12 +836,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 360,
+    height: 310,
     zIndex: 0,
   },
   nativeSkylineImg: {
     width: "100%",
     height: "100%",
-    opacity: 0.42,
+    opacity: 0.88,
   },
 });

@@ -66,7 +66,6 @@ export default function LocationSearchBar({
             Platform.OS === "web" && ({
               outlineStyle: "none",
               outlineWidth: 0,
-              outline: "none",
               boxShadow: "none",
             } as any),
           ]}
@@ -298,7 +297,6 @@ const styles = StyleSheet.create({
       web: {
         outlineStyle: "none",
         outlineWidth: 0,
-        outline: "none",
       } as any,
     }),
   },
