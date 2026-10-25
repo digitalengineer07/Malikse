@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import AppBackground from "./AppBackground";
 
-// Root layout provides single fixed AppBackground on web; native scenes render backdrop for transitions.
+// Each navigation scene owns an opaque backdrop, including during transitions.
 export default function AppScreen({ children }: { children: ReactNode }) {
   return (
     <View style={styles.screen}>
-      {Platform.OS !== "web" && <AppBackground />}
+      <AppBackground />
       <View style={styles.content}>{children}</View>
     </View>
   );
