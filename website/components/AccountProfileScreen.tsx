@@ -22,7 +22,6 @@ import { userService } from "../src/services/userService";
 import { dashboardRoutes, roleLabels } from "../src/utils/accountRoutes";
 import type { UserRole } from "../src/types/auth.types";
 
-const skylineWatermarkAsset = require("../assets/heritage_skyline_watermark.png");
 
 // Dynamically mask user's mobile number, preserving only the last 4 digits
 function maskMobile(mobile: string | undefined): string {
@@ -62,16 +61,6 @@ export default function AccountProfileScreen() {
   const [error, setError] = useState("");
   const signingOut = useRef(false);
 
-  const resolvedWatermarkUri = React.useMemo(() => {
-    try {
-      const source = Image.resolveAssetSource(skylineWatermarkAsset);
-      return source?.uri || "/assets/assets/heritage_skyline_watermark.png";
-    } catch {
-      return typeof skylineWatermarkAsset === "string"
-        ? skylineWatermarkAsset
-        : (skylineWatermarkAsset as any)?.uri || "/assets/assets/heritage_skyline_watermark.png";
-    }
-  }, []);
 
   const startEditing = () => {
     if (!user) return;
@@ -482,50 +471,7 @@ export default function AccountProfileScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Elegant Indian & Bihar Heritage Watermark Horizon (Seamless Continuous Skyline across full width including center) */}
-      {Platform.OS === "web" ? (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            width: "100%",
-            height: isMobile ? "80px" : "125px",
-            pointerEvents: "none",
-            zIndex: 0,
-            display: "flex",
-            alignItems: "flex-end",
-            overflow: "hidden",
-          }}
-        >
-          <img
-            src={resolvedWatermarkUri}
-            onError={(e) => {
-              const target = e.currentTarget as HTMLImageElement;
-              if (target && !target.dataset.triedFallback) {
-                target.dataset.triedFallback = "true";
-                target.src = "/heritage_skyline_watermark.png";
-              }
-            }}
-            alt="Indian & Bihar Heritage Skyline Watermark"
-            aria-hidden="true"
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              objectPosition: "center bottom",
-              display: "block",
-              pointerEvents: "none",
-              opacity: 0.88,
-            }}
-          />
-        </div>
-      ) : (
-        <View style={[styles.nativeSkyline, { height: isMobile ? 80 : 125 }]} pointerEvents="none">
-          <Image source={skylineWatermarkAsset} style={styles.nativeSkylineImg} resizeMode="cover" />
-        </View>
-      )}
+
     </View>
   );
 }
@@ -842,17 +788,5 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 24,
   },
-  nativeSkyline: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 125,
-    zIndex: 0,
-  },
-  nativeSkylineImg: {
-    width: "100%",
-    height: "100%",
-    opacity: 0.88,
-  },
+
 });
