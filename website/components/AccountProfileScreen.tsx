@@ -22,7 +22,8 @@ import { userService } from "../src/services/userService";
 import { dashboardRoutes, roleLabels } from "../src/utils/accountRoutes";
 import type { UserRole } from "../src/types/auth.types";
 
-const skylineWatermarkAsset = require("../assets/heritage_skyline_watermark.png");
+const leftWatermarkAsset = require("../assets/malikse-left-bottom-watermark.png");
+const rightWatermarkAsset = require("../assets/malikse-right-bottom-watermark.png");
 
 // Dynamically mask user's mobile number, preserving only the last 4 digits
 function maskMobile(mobile: string | undefined): string {
@@ -62,14 +63,21 @@ export default function AccountProfileScreen() {
   const [error, setError] = useState("");
   const signingOut = useRef(false);
 
-  const resolvedWatermarkUri = React.useMemo(() => {
+  const leftWatermarkUri = React.useMemo(() => {
     try {
-      const source = Image.resolveAssetSource(skylineWatermarkAsset);
-      return source?.uri || "/assets/assets/heritage_skyline_watermark.png";
+      const source = Image.resolveAssetSource(leftWatermarkAsset);
+      return source?.uri || "/assets/assets/malikse-left-bottom-watermark.png";
     } catch {
-      return typeof skylineWatermarkAsset === "string"
-        ? skylineWatermarkAsset
-        : (skylineWatermarkAsset as any)?.uri || "/assets/assets/heritage_skyline_watermark.png";
+      return "/assets/assets/malikse-left-bottom-watermark.png";
+    }
+  }, []);
+
+  const rightWatermarkUri = React.useMemo(() => {
+    try {
+      const source = Image.resolveAssetSource(rightWatermarkAsset);
+      return source?.uri || "/assets/assets/malikse-right-bottom-watermark.png";
+    } catch {
+      return "/assets/assets/malikse-right-bottom-watermark.png";
     }
   }, []);
 
@@ -482,48 +490,97 @@ export default function AccountProfileScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Elegant Indian & Bihar Heritage Watermark Horizon (Seamless Continuous Skyline across full width including center) */}
+      {/* Two Corner Watermark Images: 1st at Left Bottom Most, 2nd at Right Bottom Most */}
       {Platform.OS === "web" ? (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            width: "100%",
-            height: isMobile ? "80px" : "125px",
-            pointerEvents: "none",
-            zIndex: 0,
-            display: "flex",
-            alignItems: "flex-end",
-            overflow: "hidden",
-          }}
-        >
-          <img
-            src={resolvedWatermarkUri}
-            onError={(e) => {
-              const target = e.currentTarget as HTMLImageElement;
-              if (target && !target.dataset.triedFallback) {
-                target.dataset.triedFallback = "true";
-                target.src = "/heritage_skyline_watermark.png";
-              }
-            }}
-            alt="Indian & Bihar Heritage Skyline Watermark"
-            aria-hidden="true"
+        <>
+          {/* 1st Image: Left Bottom Most */}
+          <div
+            id="malikse-left-bottom-watermark"
             style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              objectPosition: "center bottom",
-              display: "block",
+              position: "fixed",
+              bottom: 0,
+              left: 0,
+              width: isMobile ? "min(46vw, 190px)" : "min(34vw, 380px)",
+              height: isMobile ? "90px" : "145px",
               pointerEvents: "none",
-              opacity: 0.88,
+              zIndex: 0,
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "flex-start",
+              overflow: "hidden",
             }}
-          />
-        </div>
+          >
+            <img
+              src={leftWatermarkUri}
+              onError={(e) => {
+                const target = e.currentTarget as HTMLImageElement;
+                if (target && !target.dataset.triedFallback) {
+                  target.dataset.triedFallback = "true";
+                  target.src = "/assets/malikse-left-bottom-watermark.png";
+                }
+              }}
+              alt="MalikSe Heritage Left Bottom Watermark"
+              aria-hidden="true"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                objectPosition: "left bottom",
+                display: "block",
+                pointerEvents: "none",
+                opacity: 0.85,
+              }}
+            />
+          </div>
+
+          {/* 2nd Image: Right Bottom Most */}
+          <div
+            id="malikse-right-bottom-watermark"
+            style={{
+              position: "fixed",
+              bottom: 0,
+              right: 0,
+              width: isMobile ? "min(46vw, 190px)" : "min(34vw, 380px)",
+              height: isMobile ? "90px" : "145px",
+              pointerEvents: "none",
+              zIndex: 0,
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "flex-end",
+              overflow: "hidden",
+            }}
+          >
+            <img
+              src={rightWatermarkUri}
+              onError={(e) => {
+                const target = e.currentTarget as HTMLImageElement;
+                if (target && !target.dataset.triedFallback) {
+                  target.dataset.triedFallback = "true";
+                  target.src = "/assets/malikse-right-bottom-watermark.png";
+                }
+              }}
+              alt="MalikSe Heritage Right Bottom Watermark"
+              aria-hidden="true"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                objectPosition: "right bottom",
+                display: "block",
+                pointerEvents: "none",
+                opacity: 0.85,
+              }}
+            />
+          </div>
+        </>
       ) : (
-        <View style={[styles.nativeSkyline, { height: isMobile ? 80 : 125 }]} pointerEvents="none">
-          <Image source={skylineWatermarkAsset} style={styles.nativeSkylineImg} resizeMode="cover" />
+        <View style={styles.nativeSkyline} pointerEvents="none">
+          <View style={styles.nativeLeftContainer}>
+            <Image source={leftWatermarkAsset} style={styles.nativeWatermarkImg} resizeMode="contain" />
+          </View>
+          <View style={styles.nativeRightContainer}>
+            <Image source={rightWatermarkAsset} style={styles.nativeWatermarkImg} resizeMode="contain" />
+          </View>
         </View>
       )}
     </View>
@@ -848,11 +905,25 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 125,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
     zIndex: 0,
   },
-  nativeSkylineImg: {
+  nativeLeftContainer: {
+    width: "44%",
+    height: "100%",
+    justifyContent: "flex-end",
+  },
+  nativeRightContainer: {
+    width: "44%",
+    height: "100%",
+    alignItems: "flex-end",
+    justifyContent: "flex-end",
+  },
+  nativeWatermarkImg: {
     width: "100%",
     height: "100%",
-    opacity: 0.88,
+    opacity: 0.85,
   },
 });
