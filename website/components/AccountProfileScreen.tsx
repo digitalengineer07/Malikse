@@ -480,12 +480,14 @@ export default function AccountProfileScreen() {
             left: 0,
             right: 0,
             width: "100%",
-            height: "215px",
+            height: isMobile ? "240px" : "360px",
             pointerEvents: "none",
             zIndex: 0,
             display: "flex",
             alignItems: "flex-end",
             overflow: "hidden",
+            maskImage: "linear-gradient(to top, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)",
+            WebkitMaskImage: "linear-gradient(to top, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)",
           }}
         >
           <img
@@ -506,12 +508,12 @@ export default function AccountProfileScreen() {
               objectPosition: "center bottom",
               display: "block",
               pointerEvents: "none",
-              opacity: 0.88,
+              opacity: 0.42,
             }}
           />
         </div>
       ) : (
-        <View style={styles.nativeSkyline} pointerEvents="none">
+        <View style={[styles.nativeSkyline, { height: isMobile ? 240 : 360 }]} pointerEvents="none">
           <Image source={skylineWatermarkAsset} style={styles.nativeSkylineImg} resizeMode="cover" />
         </View>
       )}
@@ -836,12 +838,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 215,
+    height: 360,
     zIndex: 0,
   },
   nativeSkylineImg: {
     width: "100%",
     height: "100%",
-    opacity: 0.88,
+    opacity: 0.42,
   },
 });
