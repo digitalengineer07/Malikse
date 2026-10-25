@@ -22,7 +22,7 @@ import { userService } from "../src/services/userService";
 import { dashboardRoutes, roleLabels } from "../src/utils/accountRoutes";
 import type { UserRole } from "../src/types/auth.types";
 
-const skylineAsset = require("../assets/city_skyline_hero.png");
+const skylineWatermarkAsset = require("../assets/heritage_skyline_watermark.png");
 
 // Dynamically mask user's mobile number, preserving only the last 4 digits
 function maskMobile(mobile: string | undefined): string {
@@ -112,7 +112,7 @@ export default function AccountProfileScreen() {
   }
   if (!user || authState !== "AUTHENTICATED") return <Redirect href="/login" />;
 
-  // Dynamic user data variables
+  // 100% Dynamic user data derived from active session
   const userName = user.name || label("User", "उपयोगकर्ता");
   const initial = userName.trim().charAt(0).toUpperCase() || "U";
   const userRole = user.role as UserRole;
@@ -197,7 +197,7 @@ export default function AccountProfileScreen() {
     kycIconColor = "#D97706";
   }
 
-  // Dynamic Dashboard button text and target route
+  // Dynamic Dashboard button text and target route based on user role
   const dashboardTarget = dashboardRoutes[userRole] || "/dashboard";
   let dashboardBtnLabel = label("Open my dashboard", "मेरा डैशबोर्ड खोलें");
   if (userRole === "admin") dashboardBtnLabel = label("Open admin dashboard", "व्यवस्थापक डैशबोर्ड खोलें");
@@ -471,7 +471,7 @@ export default function AccountProfileScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Atmospheric Indian Heritage Skyline Watermark Image (Explicit Watermark Element, NOT a CSS background) */}
+      {/* Elegant Indian Heritage Watermark Horizon (India Gate, Taj Mahal, Bodh Gaya Stupa, Trees & Birds) */}
       {Platform.OS === "web" ? (
         <div
           style={{
@@ -480,7 +480,7 @@ export default function AccountProfileScreen() {
             left: 0,
             right: 0,
             width: "100%",
-            height: "195px",
+            height: "215px",
             pointerEvents: "none",
             zIndex: 0,
             display: "flex",
@@ -489,16 +489,15 @@ export default function AccountProfileScreen() {
           }}
         >
           <img
-            src="/assets/assets/city_skyline_hero.png"
+            src="/assets/assets/heritage_skyline_watermark.png"
             onError={(e) => {
-              // Automatic fallback if served under root path
               const target = e.currentTarget as HTMLImageElement;
               if (target && !target.dataset.triedFallback) {
                 target.dataset.triedFallback = "true";
-                target.src = "/city_skyline_hero.png";
+                target.src = "/heritage_skyline_watermark.png";
               }
             }}
-            alt="Heritage Skyline Watermark"
+            alt="Indian Heritage Skyline Watermark"
             aria-hidden="true"
             style={{
               width: "100%",
@@ -507,13 +506,13 @@ export default function AccountProfileScreen() {
               objectPosition: "center bottom",
               display: "block",
               pointerEvents: "none",
-              opacity: 0.95,
+              opacity: 0.88,
             }}
           />
         </div>
       ) : (
         <View style={styles.nativeSkyline} pointerEvents="none">
-          <Image source={skylineAsset} style={styles.nativeSkylineImg} resizeMode="cover" />
+          <Image source={skylineWatermarkAsset} style={styles.nativeSkylineImg} resizeMode="cover" />
         </View>
       )}
     </View>
@@ -837,12 +836,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 195,
+    height: 215,
     zIndex: 0,
   },
   nativeSkylineImg: {
     width: "100%",
     height: "100%",
-    opacity: 0.95,
+    opacity: 0.88,
   },
 });
