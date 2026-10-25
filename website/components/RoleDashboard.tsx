@@ -71,8 +71,8 @@ export default function RoleDashboard({
 
   return (
     <View style={styles.screen}>
-      {/* Clean header without back button next to logo */}
-      <AppHeader showNavLinks={false} showPostPropertyBtn={false} showHomeButton showBack={false} />
+      {/* Top Header Bar with Navigation Menu, Post Button, Profile and clean logo */}
+      <AppHeader showBack={false} showNavLinks={true} showPostPropertyBtn={true} />
 
       <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]}>
         {/* Workspace Topline Breadcrumb & Role Badge */}

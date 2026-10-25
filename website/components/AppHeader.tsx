@@ -38,6 +38,7 @@ export default function AppHeader(props: AppHeaderProps) {
   const isSearchActive = pathname === "/search";
   const isSavedActive = pathname === "/saved";
   const isMessagesActive = pathname === "/messages";
+  const isDashboardActive = pathname === "/dashboard" || pathname?.startsWith("/dashboard");
 
   return (
     <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top, 16) }]}>
@@ -128,6 +129,19 @@ export default function AppHeader(props: AppHeaderProps) {
               </Text>
               {isMessagesActive && <View style={styles.navActiveDot} />}
             </TouchableOpacity>
+
+            {authState === "AUTHENTICATED" && (
+              <TouchableOpacity
+                style={[styles.navLink, isDashboardActive && styles.navLinkActive]}
+                onPress={() => router.push("/dashboard")}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.navLinkText, isDashboardActive && styles.navLinkTextActive]}>
+                  {language === "hi" ? "डैशबोर्ड" : "Dashboard"}
+                </Text>
+                {isDashboardActive && <View style={styles.navActiveDot} />}
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
