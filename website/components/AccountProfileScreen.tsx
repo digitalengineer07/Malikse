@@ -480,7 +480,7 @@ export default function AccountProfileScreen() {
             left: 0,
             right: 0,
             width: "100%",
-            height: isMobile ? "140px" : "210px",
+            height: isMobile ? "80px" : "120px",
             pointerEvents: "none",
             zIndex: 0,
             display: "flex",
@@ -511,7 +511,7 @@ export default function AccountProfileScreen() {
           />
         </div>
       ) : (
-        <View style={[styles.nativeSkyline, { height: isMobile ? 140 : 210 }]} pointerEvents="none">
+        <View style={[styles.nativeSkyline, { height: isMobile ? 80 : 120 }]} pointerEvents="none">
           <Image source={skylineWatermarkAsset} style={styles.nativeSkylineImg} resizeMode="cover" />
         </View>
       )}
@@ -836,7 +836,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 210,
+    height: 120,
     zIndex: 0,
   },
   nativeSkylineImg: {
