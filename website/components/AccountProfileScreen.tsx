@@ -223,10 +223,18 @@ export default function AccountProfileScreen() {
   else if (userRole === "verifier") dashboardBtnLabel = label("Open verifier dashboard", "सत्यापनकर्ता डैशबोर्ड खोलें");
   else if (userRole === "advisor") dashboardBtnLabel = label("Open advisor dashboard", "सलाहकार डैशबोर्ड खोलें");
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.push("/");
+    }
+  };
+
   return (
     <View style={styles.screen}>
-      {/* Top Header Bar */}
-      <AppHeader showNavLinks={false} showPostPropertyBtn={false} showBack={true} />
+      {/* Top Header Bar - clean without back button, logo stays undisturbed */}
+      <AppHeader showNavLinks={false} showPostPropertyBtn={false} showBack={false} />
 
       <KeyboardAvoidingView
         style={{ flex: 1, zIndex: 1 }}
@@ -237,9 +245,20 @@ export default function AccountProfileScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header Row: Title & Logout Button */}
+          {/* Header Row: Back Button, Title & Logout Button */}
           <View style={styles.titleRow}>
-            <Text style={styles.title}>{label("Your profile", "आपकी प्रोफ़ाइल")}</Text>
+            <View style={styles.titleLeftGroup}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={label("Go back", "वापस जाएं")}
+                style={styles.backBtn}
+                onPress={handleBack}
+                activeOpacity={0.75}
+              >
+                <MaterialIcons name="arrow-back" size={20} color="#102B52" />
+              </TouchableOpacity>
+              <Text style={styles.title}>{label("Your profile", "आपकी प्रोफ़ाइल")}</Text>
+            </View>
 
             <TouchableOpacity
               accessibilityRole="button"
@@ -357,7 +376,7 @@ export default function AccountProfileScreen() {
                   {/* Full Name */}
                   <View style={styles.fieldItem}>
                     <View style={styles.fieldIconBadge}>
-                      <MaterialIcons name="person-outline" size={22} color="#0284C7" />
+                      <MaterialIcons name="person-outline" size={22} color="#0873B9" />
                     </View>
                     <View style={styles.fieldTextCol}>
                       <Text style={styles.fieldLabel}>{label("Full name", "पूरा नाम")}</Text>
@@ -371,7 +390,7 @@ export default function AccountProfileScreen() {
                   {/* Email */}
                   <View style={styles.fieldItem}>
                     <View style={styles.fieldIconBadge}>
-                      <MaterialIcons name="mail-outline" size={22} color="#0284C7" />
+                      <MaterialIcons name="mail-outline" size={22} color="#0873B9" />
                     </View>
                     <View style={styles.fieldTextCol}>
                       <Text style={styles.fieldLabel}>{label("Email", "ईमेल")}</Text>
@@ -385,7 +404,7 @@ export default function AccountProfileScreen() {
                   {/* Member since */}
                   <View style={styles.fieldItem}>
                     <View style={styles.fieldIconBadge}>
-                      <MaterialIcons name="calendar-today" size={20} color="#0284C7" />
+                      <MaterialIcons name="calendar-today" size={20} color="#0873B9" />
                     </View>
                     <View style={styles.fieldTextCol}>
                       <Text style={styles.fieldLabel}>
@@ -403,7 +422,7 @@ export default function AccountProfileScreen() {
                   {/* Mobile Number */}
                   <View style={styles.fieldItem}>
                     <View style={styles.fieldIconBadge}>
-                      <MaterialIcons name="call" size={20} color="#0284C7" />
+                      <MaterialIcons name="call" size={20} color="#0873B9" />
                     </View>
                     <View style={styles.fieldTextCol}>
                       <Text style={styles.fieldLabel}>{label("Mobile number", "मोबाइल नंबर")}</Text>
@@ -417,7 +436,7 @@ export default function AccountProfileScreen() {
                   {/* Account role */}
                   <View style={styles.fieldItem}>
                     <View style={styles.fieldIconBadge}>
-                      <MaterialIcons name="verified-user" size={20} color="#0284C7" />
+                      <MaterialIcons name="verified-user" size={20} color="#0873B9" />
                     </View>
                     <View style={styles.fieldTextCol}>
                       <Text style={styles.fieldLabel}>
@@ -499,9 +518,9 @@ export default function AccountProfileScreen() {
             style={{
               position: "fixed",
               bottom: 0,
-              left: isMobile ? "clamp(10px, 5vw, 28px)" : "clamp(36px, 10vw, 150px)",
-              width: isMobile ? "min(46vw, 220px)" : "min(38vw, 440px)",
-              height: isMobile ? "110px" : "180px",
+              left: isMobile ? "clamp(10px, 4vw, 24px)" : "clamp(24px, 7vw, 120px)",
+              width: isMobile ? "min(48vw, 240px)" : "min(42vw, 480px)",
+              height: isMobile ? "130px" : "220px",
               pointerEvents: "none",
               zIndex: 0,
               display: "flex",
@@ -528,7 +547,7 @@ export default function AccountProfileScreen() {
                 objectPosition: "left bottom",
                 display: "block",
                 pointerEvents: "none",
-                opacity: 0.88,
+                opacity: 0.90,
               }}
             />
           </div>
@@ -539,9 +558,9 @@ export default function AccountProfileScreen() {
             style={{
               position: "fixed",
               bottom: 0,
-              right: isMobile ? "clamp(10px, 5vw, 28px)" : "clamp(36px, 10vw, 150px)",
-              width: isMobile ? "min(46vw, 220px)" : "min(38vw, 440px)",
-              height: isMobile ? "110px" : "180px",
+              right: isMobile ? "clamp(10px, 4vw, 24px)" : "clamp(24px, 7vw, 120px)",
+              width: isMobile ? "min(48vw, 240px)" : "min(42vw, 480px)",
+              height: isMobile ? "130px" : "220px",
               pointerEvents: "none",
               zIndex: 0,
               display: "flex",
@@ -568,7 +587,7 @@ export default function AccountProfileScreen() {
                 objectPosition: "right bottom",
                 display: "block",
                 pointerEvents: "none",
-                opacity: 0.88,
+                opacity: 0.90,
               }}
             />
           </div>
@@ -603,9 +622,9 @@ const styles = StyleSheet.create({
     maxWidth: 820,
     alignSelf: "center",
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 72,
-    gap: 18,
+    paddingTop: 16,
+    paddingBottom: 88,
+    gap: 20,
   },
   titleRow: {
     flexDirection: "row",
@@ -614,10 +633,31 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 4,
   },
+  titleLeftGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  backBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#DCEAF7",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#0873B9",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+    cursor: "pointer",
+  },
   title: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: "800",
-    color: "#0F172A",
+    color: "#102B52",
     letterSpacing: -0.5,
   },
   logoutBtn: {
@@ -661,12 +701,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    padding: 24,
-    shadowColor: "#0284C7",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
+    borderColor: "#E1EDF7",
+    padding: 26,
+    shadowColor: "#102B52",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 22,
     elevation: 3,
   },
   identityRow: {
@@ -675,15 +715,17 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   avatar: {
-    backgroundColor: "#E0F2FE",
-    borderRadius: 31,
-    width: 62,
-    height: 62,
+    backgroundColor: "#EDF7FE",
+    borderWidth: 2,
+    borderColor: "#CDE5FA",
+    borderRadius: 32,
+    width: 64,
+    height: 64,
     justifyContent: "center",
     alignItems: "center",
   },
   avatarText: {
-    color: "#03456C",
+    color: "#0873B9",
     fontSize: 26,
     fontWeight: "800",
   },
@@ -693,26 +735,28 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#0F172A",
+    color: "#102B52",
     letterSpacing: -0.3,
   },
   userRole: {
     fontSize: 14,
-    fontWeight: "500",
-    color: "#64748B",
+    fontWeight: "600",
+    color: "#64809E",
     marginTop: 2,
   },
   editBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#F0F9FF",
-    borderRadius: 18,
+    backgroundColor: "#F0F7FE",
+    borderWidth: 1,
+    borderColor: "#D3E7F8",
+    borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   editBtnText: {
-    color: "#0284C7",
+    color: "#0873B9",
     fontSize: 13,
     fontWeight: "700",
   },
@@ -739,7 +783,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#F0F9FF",
+    backgroundColor: "#F0F7FE",
+    borderWidth: 1,
+    borderColor: "#DCECFB",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -747,19 +793,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   fieldLabel: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#64748B",
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: "#64809E",
+    letterSpacing: 0.1,
   },
   fieldValue: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0F172A",
-    marginTop: 2,
+    color: "#102B52",
+    marginTop: 3,
   },
   fieldDivider: {
     height: 1,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#EFF5FA",
   },
   editForm: {
     gap: 16,
@@ -803,7 +850,7 @@ const styles = StyleSheet.create({
   },
   saveBtn: {
     flex: 1,
-    backgroundColor: "#03456C",
+    backgroundColor: "#102B52",
     borderRadius: 20,
     paddingVertical: 12,
     alignItems: "center",
@@ -823,14 +870,14 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#03456C",
+    backgroundColor: "#102B52",
     justifyContent: "center",
     alignItems: "center",
   },
   kycTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#0F172A",
+    color: "#102B52",
   },
   demoBadge: {
     borderRadius: 12,
@@ -842,7 +889,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   kycStatusBox: {
-    backgroundColor: "#F0F7FD",
+    backgroundColor: "#F5F9FE",
+    borderWidth: 1,
+    borderColor: "#DFEEFB",
     borderRadius: 16,
     padding: 16,
     flexDirection: "row",
@@ -852,35 +901,36 @@ const styles = StyleSheet.create({
   kycStatusTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#0F172A",
+    color: "#102B52",
   },
   kycStatusSub: {
     fontSize: 13,
-    color: "#64748B",
+    color: "#5B738B",
     marginTop: 2,
+    lineHeight: 18,
   },
   kycActionBtn: {
     marginTop: 10,
     alignSelf: "flex-start",
   },
   kycActionBtnText: {
-    color: "#0284C7",
+    color: "#0873B9",
     fontWeight: "700",
     fontSize: 13,
   },
   dashboardBtn: {
-    backgroundColor: "#03456C",
+    backgroundColor: "#102B52",
     borderRadius: 30,
-    paddingVertical: 16,
+    paddingVertical: 18,
     paddingHorizontal: 24,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
-    shadowColor: "#03456C",
+    shadowColor: "#0873B9",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
     elevation: 4,
     marginTop: 4,
   },
@@ -904,8 +954,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 155,
-    paddingHorizontal: 24,
+    height: 180,
+    paddingHorizontal: 20,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
@@ -925,6 +975,6 @@ const styles = StyleSheet.create({
   nativeWatermarkImg: {
     width: "100%",
     height: "100%",
-    opacity: 0.88,
+    opacity: 0.90,
   },
 });
