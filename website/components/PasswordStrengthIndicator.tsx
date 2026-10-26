@@ -13,24 +13,7 @@ export interface PasswordEvaluation {
   isTrivial: boolean;
 }
 
-const COMMON_PASSWORDS = new Set([
-  "password",
-  "pass123",
-  "password123",
-  "123456",
-  "12345678",
-  "123456789",
-  "000000",
-  "111111",
-  "qwerty",
-  "admin",
-  "admin123",
-  "welcome",
-  "welcome123",
-  "malikse",
-  "bihar",
-  "patna",
-]);
+const BLOCKED_SUBSTRINGS = ["password", "qwerty", "admin", "welcome", "malikse", "bihar", "patna"];
 
 export function evaluatePasswordStrength(
   password: string,
@@ -52,8 +35,34 @@ export function evaluatePasswordStrength(
   const rawEmail = context?.email?.trim().toLowerCase() || "";
   const emailPrefix = rawEmail.split("@")[0];
 
-  // 1. Check for common dictionary passwords
-  if (COMMON_PASSWORDS.has(cleanPass)) {
+  // 1. Check for repeated characters (e.g. 000000, 111111)
+  if (/^(.)\1+$/.test(cleanPass)) {
+    return {
+      score: 1,
+      labelEn: "Very Weak",
+      labelHi: "अत्यधिक कमजोर",
+      color: "#EF4444",
+      warningEn: "Too simple! Avoid repeating characters.",
+      warningHi: "बहुत आसान! एक ही अक्षर या अंक दोहराने से बचें।",
+      isTrivial: true,
+    };
+  }
+
+  // 2. Check for sequential numbers (e.g. 123456, 654321)
+  if ("01234567890123456789".includes(cleanPass) || "98765432109876543210".includes(cleanPass)) {
+    return {
+      score: 1,
+      labelEn: "Very Weak",
+      labelHi: "अत्यधिक कमजोर",
+      color: "#EF4444",
+      warningEn: "Too simple! Avoid sequential numbers like 123456.",
+      warningHi: "बहुत आसान! 123456 जैसे क्रमवार अंकों से बचें।",
+      isTrivial: true,
+    };
+  }
+
+  // 3. Check for common dictionary words
+  if (BLOCKED_SUBSTRINGS.some((term) => cleanPass.includes(term))) {
     return {
       score: 1,
       labelEn: "Very Weak",

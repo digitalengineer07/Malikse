@@ -32,34 +32,31 @@ function maskEmail(email: string): string {
   return name.slice(0, 2) + "***@" + domain;
 }
 
-const COMMON_WEAK_PASSWORDS = new Set([
-  "password",
-  "pass123",
-  "password123",
-  "123456",
-  "12345678",
-  "123456789",
-  "000000",
-  "111111",
-  "qwerty",
-  "admin",
-  "admin123",
-  "welcome",
-  "welcome123",
-  "malikse",
-  "bihar",
-  "patna",
-]);
+const BLOCKED_SUBSTRINGS = ["password", "qwerty", "admin", "welcome", "malikse", "bihar", "patna"];
 
 function isWeakPassword(password: string, context?: { name?: string; mobile?: string }): string | null {
   const clean = password.trim().toLowerCase();
-  if (COMMON_WEAK_PASSWORDS.has(clean)) {
-    return "Password is too common. Please avoid words like 'password' or simple sequences.";
+  
+  // Check for repeated characters (e.g. 000000, 111111)
+  if (/^(.)\1+$/.test(clean)) {
+    return "Password is too simple. Please avoid repeated characters.";
   }
+
+  // Check for sequential numbers (e.g. 123456, 654321)
+  if ("01234567890123456789".includes(clean) || "98765432109876543210".includes(clean)) {
+    return "Password is too simple. Please avoid sequential numbers.";
+  }
+
+  // Check for common blocked terms
+  if (BLOCKED_SUBSTRINGS.some((term) => clean.includes(term))) {
+    return "Password is too common. Please avoid common words like 'password' or 'admin'.";
+  }
+
   const cleanMobile = context?.mobile?.replace(/\D/g, "");
   if (cleanMobile && (clean.includes(cleanMobile) || (cleanMobile.includes(clean) && clean.length >= 6))) {
     return "Password cannot match or contain your mobile number.";
   }
+
   if (context?.name) {
     const parts = context.name.trim().toLowerCase().split(/\s+/);
     for (const part of parts) {
@@ -68,6 +65,7 @@ function isWeakPassword(password: string, context?: { name?: string; mobile?: st
       }
     }
   }
+
   return null;
 }
 
