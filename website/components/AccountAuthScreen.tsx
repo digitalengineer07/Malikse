@@ -29,8 +29,9 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 900;
 
-  const [activeTab, setActiveTab] = useState<"login" | "register">(mode);
+  const [activeTab, setActiveTab] = useState<"login" | "register" | "forgot">(mode);
   const isRegister = activeTab === "register";
+  const isForgot = activeTab === "forgot";
 
   const { user, authState, hydrated } = useAuthStore();
   const { language } = useLanguageStore();
@@ -44,6 +45,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const submitting = useRef(false);
 
   // Sign In: Mobile or Email method
@@ -62,6 +64,25 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   const [showOtp, setShowOtp] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
+  // Forgot Password Flow
+  const [forgotStep, setForgotStep] = useState<"request" | "verify">("request");
+  const [forgotMethod, setForgotMethod] = useState<"mobile" | "email">("mobile");
+  const [forgotMobile, setForgotMobile] = useState("");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotOtp, setForgotOtp] = useState("");
+  const [showForgotOtp, setShowForgotOtp] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [forgotChallenge, setForgotChallenge] = useState<{
+    challengeId: string;
+    expiresAt: number;
+    resendAt: number;
+    destination?: string;
+    stubCode?: string;
+  } | null>(null);
+
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -70,14 +91,32 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   const expireSecondsLeft = challenge ? Math.max(0, Math.ceil((challenge.expiresAt - now) / 1000)) : 0;
   const resendSecondsLeft = challenge ? Math.max(0, Math.ceil((challenge.resendAt - now) / 1000)) : 0;
 
-  const handleTabSwitch = (tab: "login" | "register") => {
+  const forgotExpireSecondsLeft = forgotChallenge
+    ? Math.max(0, Math.ceil((forgotChallenge.expiresAt - now) / 1000))
+    : 0;
+  const forgotResendSecondsLeft = forgotChallenge
+    ? Math.max(0, Math.ceil((forgotChallenge.resendAt - now) / 1000))
+    : 0;
+
+  const handleTabSwitch = (tab: "login" | "register" | "forgot") => {
     setActiveTab(tab);
     setError("");
+    setSuccessMessage("");
     setShowPassword(false);
     setShowOtp(false);
+    setShowForgotOtp(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
     setRegistrationStep("details");
     setChallenge(null);
     setOtp("");
+    if (tab !== "forgot") {
+      setForgotStep("request");
+      setForgotChallenge(null);
+      setForgotOtp("");
+      setNewPassword("");
+      setConfirmPassword("");
+    }
   };
 
   const handleResendOtp = async () => {
@@ -112,9 +151,179 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
     }
   };
 
+  const handleResendForgotOtp = async () => {
+    if (loading || forgotResendSecondsLeft > 0 || !forgotChallenge) return;
+    setError("");
+    setLoading(true);
+    try {
+      const res = await authService.resendPasswordReset(forgotChallenge.challengeId);
+      const currentTime = Date.now();
+      setForgotChallenge({
+        challengeId: res.challengeId,
+        expiresAt: currentTime + (res.expiresInSeconds || 120) * 1000,
+        resendAt: currentTime + (res.resendAfterSeconds || 60) * 1000,
+        destination: res.destination || forgotChallenge.destination,
+        stubCode: res.stubCode,
+      });
+      if (res.stubCode) {
+        setForgotOtp(res.stubCode);
+      }
+      setSuccessMessage(
+        label(
+          "A new verification OTP has been sent.",
+          "एक नया सत्यापन OTP भेज दिया गया है।"
+        )
+      );
+    } catch (cause: any) {
+      setError(
+        cause?.response?.data?.message ||
+          label("Unable to resend OTP. Please try again.", "OTP फिर से नहीं भेजा जा सका। कृपया पुनः प्रयास करें।")
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (submitting.current) return;
     setError("");
+    setSuccessMessage("");
+
+    if (isForgot) {
+      if (forgotStep === "request") {
+        let identifier = "";
+        if (forgotMethod === "mobile") {
+          const cleanMobile = forgotMobile.trim().replace(/\D/g, "");
+          if (!/^[0-9]{10}$/.test(cleanMobile)) {
+            setError(
+              label(
+                "Please enter a valid 10-digit registered mobile number.",
+                "कृपया सही 10 अंकों का पंजीकृत मोबाइल नंबर दर्ज करें।"
+              )
+            );
+            return;
+          }
+          identifier = cleanMobile;
+        } else {
+          if (!forgotEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotEmail.trim())) {
+            setError(
+              label(
+                "Please enter a valid registered email address.",
+                "कृपया सही पंजीकृत ईमेल पता दर्ज करें।"
+              )
+            );
+            return;
+          }
+          identifier = forgotEmail.trim().toLowerCase();
+        }
+
+        submitting.current = true;
+        setLoading(true);
+        try {
+          const res = await authService.requestPasswordReset(identifier);
+          const currentTime = Date.now();
+          setForgotChallenge({
+            challengeId: res.challengeId,
+            expiresAt: currentTime + (res.expiresInSeconds || 120) * 1000,
+            resendAt: currentTime + (res.resendAfterSeconds || 60) * 1000,
+            destination: res.destination,
+            stubCode: res.stubCode,
+          });
+          if (res.stubCode) {
+            setForgotOtp(res.stubCode);
+          }
+          setForgotStep("verify");
+          setSuccessMessage(
+            label(
+              `Verification code sent to ${res.destination || "your mobile/email"}.`,
+              `सत्यापन कोड ${res.destination || "आपके मोबाइल/ईमेल"} पर भेजा गया है।`
+            )
+          );
+        } catch (cause: any) {
+          setError(
+            cause?.response?.data?.message ||
+              label(
+                "Unable to send password reset code. Please check your credentials.",
+                "पासवर्ड रीसेट कोड नहीं भेजा जा सका। कृपया अपना विवरण जांचें।"
+              )
+          );
+        } finally {
+          submitting.current = false;
+          setLoading(false);
+        }
+        return;
+      }
+
+      // forgotStep === "verify"
+      if (!/^\d{6}$/.test(forgotOtp.trim())) {
+        setError(
+          label(
+            "Please enter the 6-digit OTP sent to your registered mobile/email.",
+            "कृपया अपने पंजीकृत मोबाइल/ईमेल पर भेजा गया 6 अंकों का OTP दर्ज करें।"
+          )
+        );
+        return;
+      }
+
+      if (newPassword.length < 6) {
+        setError(
+          label(
+            "New password must be at least 6 characters long.",
+            "नया पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।"
+          )
+        );
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        setError(
+          label(
+            "Passwords do not match. Please re-enter.",
+            "पासवर्ड मेल नहीं खाते। कृपया पुनः दर्ज करें।"
+          )
+        );
+        return;
+      }
+
+      if (!forgotChallenge) {
+        setError(
+          label(
+            "Password reset session expired. Please request a new code.",
+            "पासवर्ड रीसेट सत्र समाप्त हो गया। कृपया नया कोड मांगें।"
+          )
+        );
+        setForgotStep("request");
+        return;
+      }
+
+      submitting.current = true;
+      setLoading(true);
+
+      try {
+        await authService.resetPassword(forgotChallenge.challengeId, forgotOtp.trim(), newPassword);
+        setSuccessMessage(
+          label(
+            "Password reset successfully! Signing you in...",
+            "पासवर्ड सफलतापूर्वक रीसेट हो गया! साइन इन किया जा रहा है..."
+          )
+        );
+        setTimeout(() => {
+          router.replace("/home");
+        }, 1200);
+      } catch (cause: any) {
+        setError(
+          cause?.response?.data?.message ||
+            label(
+              "Password reset failed. Please check the OTP and try again.",
+              "पासवर्ड रीसेट विफल रहा। कृपया OTP जांचें और पुनः प्रयास करें।"
+            )
+        );
+      } finally {
+        submitting.current = false;
+        setLoading(false);
+      }
+      return;
+    }
 
     if (isRegister) {
       if (registrationStep === "details") {
@@ -428,39 +637,79 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                 {/* Right Form Pane */}
                 <View style={[styles.rightPane, { width: isDesktop ? "54%" : "100%" }]}>
                   {/* Segmented Tab Pill Selector */}
-                  <View style={styles.tabSelector}>
-                    <TouchableOpacity
-                      style={[styles.tabButton, !isRegister && styles.tabButtonActive]}
-                      onPress={() => handleTabSwitch("login")}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.tabButtonText, !isRegister && styles.tabButtonTextActive]}>
-                        {label("Sign In", "साइन इन")}
-                      </Text>
-                    </TouchableOpacity>
+                  {/* Segmented Tab Pill Selector OR Forgot Password Header */}
+                  {isForgot ? (
+                    <View style={styles.forgotHeaderRow}>
+                      <TouchableOpacity
+                        style={styles.backToSignInBtn}
+                        onPress={() => handleTabSwitch("login")}
+                        activeOpacity={0.75}
+                      >
+                        <MaterialIcons name="arrow-back" size={16} color="#03456C" />
+                        <Text style={styles.backToSignInBtnText}>
+                          {label("Back to Sign In", "साइन इन पर वापस जाएं")}
+                        </Text>
+                      </TouchableOpacity>
+                      <View style={styles.forgotBadge}>
+                        <MaterialIcons name="lock-reset" size={14} color="#0284C7" />
+                        <Text style={styles.forgotBadgeText}>
+                          {label("Password Recovery", "पासवर्ड रिकवरी")}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.tabSelector}>
+                      <TouchableOpacity
+                        style={[styles.tabButton, !isRegister && styles.tabButtonActive]}
+                        onPress={() => handleTabSwitch("login")}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.tabButtonText, !isRegister && styles.tabButtonTextActive]}>
+                          {label("Sign In", "साइन इन")}
+                        </Text>
+                      </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={[styles.tabButton, isRegister && styles.tabButtonActive]}
-                      onPress={() => handleTabSwitch("register")}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.tabButtonText, isRegister && styles.tabButtonTextActive]}>
-                        {label("Create Account", "नया खाता बनाएं")}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+                      <TouchableOpacity
+                        style={[styles.tabButton, isRegister && styles.tabButtonActive]}
+                        onPress={() => handleTabSwitch("register")}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.tabButtonText, isRegister && styles.tabButtonTextActive]}>
+                          {label("Create Account", "नया खाता बनाएं")}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
 
                   {/* Form Heading */}
                   <View style={styles.formHeader}>
                     <Text style={styles.formTitle}>
-                      {isRegister
+                      {isForgot
+                        ? forgotStep === "verify"
+                          ? label("Reset Your Password", "नया पासवर्ड बनाएं")
+                          : label("Forgot Password?", "पासवर्ड भूल गए?")
+                        : isRegister
                         ? registrationStep === "otp"
                           ? label("Verify Your Mobile Number", "मोबाइल नंबर सत्यापित करें")
                           : label("Create your account", "अपना खाता बनाएं")
                         : label("Welcome back", "वापस स्वागत है")}
                     </Text>
                     <Text style={styles.formSubtitle}>
-                      {isRegister
+                      {isForgot
+                        ? forgotStep === "verify"
+                          ? label(
+                              forgotChallenge?.destination
+                                ? `Enter the 6-digit OTP sent to ${forgotChallenge.destination} and choose your new password.`
+                                : "Enter the 6-digit OTP and choose your new password.",
+                              forgotChallenge?.destination
+                                ? `${forgotChallenge.destination} पर भेजा गया 6 अंकों का OTP और नया पासवर्ड दर्ज करें।`
+                                : "6 अंकों का OTP और नया पासवर्ड दर्ज करें।"
+                            )
+                          : label(
+                              "Enter your registered mobile number or email. We'll send an OTP to securely reset your password.",
+                              "अपना पंजीकृत मोबाइल नंबर या ईमेल दर्ज करें। पासवर्ड सुरक्षित रूप से बदलने के लिए हम एक OTP भेजेंगे।"
+                            )
+                        : isRegister
                         ? registrationStep === "otp"
                           ? label(
                               `We've sent a 6-digit verification code to +91 ${mobile}`,
@@ -477,6 +726,14 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                     </Text>
                   </View>
 
+                  {/* Success Banner */}
+                  {!!successMessage && (
+                    <View style={styles.successBox}>
+                      <MaterialIcons name="check-circle" size={18} color="#15803D" />
+                      <Text style={styles.successText}>{successMessage}</Text>
+                    </View>
+                  )}
+
                   {/* Error Banner */}
                   {!!error && (
                     <View style={styles.errorBox}>
@@ -487,8 +744,277 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                   {/* Input Fields */}
                   <View style={styles.fieldsContainer}>
-                    {/* REGISTRATION STEP 2: OTP VERIFICATION */}
-                    {isRegister && registrationStep === "otp" ? (
+                    {/* FORGOT PASSWORD FLOW */}
+                    {isForgot ? (
+                      forgotStep === "request" ? (
+                        <>
+                          {/* METHOD SWITCHER (Mobile vs Email for password reset) */}
+                          <View style={styles.methodToggleRow}>
+                            <TouchableOpacity
+                              style={[styles.methodPill, forgotMethod === "mobile" && styles.methodPillActive]}
+                              onPress={() => {
+                                setForgotMethod("mobile");
+                                setError("");
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <MaterialIcons
+                                name="phone-iphone"
+                                size={14}
+                                color={forgotMethod === "mobile" ? "#03456C" : "#64748B"}
+                              />
+                              <Text style={[styles.methodPillText, forgotMethod === "mobile" && styles.methodPillTextActive]}>
+                                {label("Mobile Number", "मोबाइल नंबर")}
+                              </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={[styles.methodPill, forgotMethod === "email" && styles.methodPillActive]}
+                              onPress={() => {
+                                setForgotMethod("email");
+                                setError("");
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <MaterialIcons
+                                name="mail-outline"
+                                size={14}
+                                color={forgotMethod === "email" ? "#03456C" : "#64748B"}
+                              />
+                              <Text style={[styles.methodPillText, forgotMethod === "email" && styles.methodPillTextActive]}>
+                                {label("Email Address", "ईमेल पता")}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          {/* Input Field: Mobile */}
+                          {forgotMethod === "mobile" && (
+                            <View style={styles.fieldGroup}>
+                              <Text style={styles.fieldLabel}>
+                                {label("Registered Mobile Number", "पंजीकृत मोबाइल नंबर")}{" "}
+                                <Text style={styles.requiredStar}>*</Text>
+                              </Text>
+                              <View style={styles.inputWrap}>
+                                <View style={styles.countryCodeBadge}>
+                                  <Text style={styles.countryCodeText}>+91</Text>
+                                </View>
+                                <TextInput
+                                  style={[styles.textInput, styles.phoneInput]}
+                                  value={forgotMobile}
+                                  onChangeText={(t) => setForgotMobile(t.replace(/\D/g, "").slice(0, 10))}
+                                  editable={!loading}
+                                  placeholder={label("10-digit mobile number", "10 अंकों का मोबाइल नंबर")}
+                                  placeholderTextColor="#94A3B8"
+                                  keyboardType="phone-pad"
+                                  maxLength={10}
+                                  autoComplete="tel"
+                                  autoFocus
+                                  onSubmitEditing={handleSubmit}
+                                  returnKeyType="go"
+                                />
+                              </View>
+                            </View>
+                          )}
+
+                          {/* Input Field: Email */}
+                          {forgotMethod === "email" && (
+                            <View style={styles.fieldGroup}>
+                              <Text style={styles.fieldLabel}>
+                                {label("Registered Email Address", "पंजीकृत ईमेल पता")}{" "}
+                                <Text style={styles.requiredStar}>*</Text>
+                              </Text>
+                              <View style={styles.inputWrap}>
+                                <MaterialIcons name="mail-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                                <TextInput
+                                  style={styles.textInput}
+                                  value={forgotEmail}
+                                  onChangeText={setForgotEmail}
+                                  editable={!loading}
+                                  placeholder={label("e.g. name@example.com", "उदा. name@example.com")}
+                                  placeholderTextColor="#94A3B8"
+                                  keyboardType="email-address"
+                                  autoCapitalize="none"
+                                  autoCorrect={false}
+                                  autoComplete="email"
+                                  autoFocus
+                                  onSubmitEditing={handleSubmit}
+                                  returnKeyType="go"
+                                />
+                              </View>
+                            </View>
+                          )}
+                        </>
+                      ) : (
+                        /* forgotStep === "verify" */
+                        <View style={styles.otpStepContainer}>
+                          {forgotChallenge?.stubCode && (
+                            <View style={styles.stubNoticeBox}>
+                              <MaterialIcons name="verified-user" size={16} color="#03456C" />
+                              <Text style={styles.stubNoticeText}>
+                                {label(
+                                  showForgotOtp
+                                    ? `Dev OTP: ${forgotChallenge.stubCode} (auto-filled)`
+                                    : "Verification code auto-filled (••••••)",
+                                  showForgotOtp
+                                    ? `डेमो OTP: ${forgotChallenge.stubCode} (स्वतः भरा गया)`
+                                    : "सत्यापन कोड स्वतः भरा गया (••••••)"
+                                )}
+                              </Text>
+                            </View>
+                          )}
+
+                          {/* 6-digit OTP (Masked with dots, eye toggle) */}
+                          <View style={styles.fieldGroup}>
+                            <Text style={styles.fieldLabel}>
+                              {label("6-Digit Verification Code (OTP)", "6 अंकों का सत्यापन कोड (OTP)")}{" "}
+                              <Text style={styles.requiredStar}>*</Text>
+                            </Text>
+                            <View style={styles.inputWrap}>
+                              <MaterialIcons name="vpn-key" size={20} color="#64748B" style={styles.inputIcon} />
+                              <TextInput
+                                style={[styles.textInput, styles.otpTextInput, { paddingRight: 48 }]}
+                                value={forgotOtp}
+                                onChangeText={(t) => setForgotOtp(t.replace(/\D/g, "").slice(0, 6))}
+                                editable={!loading && forgotExpireSecondsLeft > 0}
+                                placeholder="• • • • • •"
+                                placeholderTextColor="#94A3B8"
+                                keyboardType="number-pad"
+                                maxLength={6}
+                                secureTextEntry={!showForgotOtp}
+                                autoFocus
+                                onSubmitEditing={handleSubmit}
+                                returnKeyType="next"
+                              />
+                              <TouchableOpacity
+                                style={styles.eyeBtn}
+                                onPress={() => setShowForgotOtp(!showForgotOtp)}
+                                activeOpacity={0.7}
+                                accessibilityLabel={showForgotOtp ? "Hide OTP" : "Show OTP"}
+                              >
+                                <MaterialIcons
+                                  name={showForgotOtp ? "visibility-off" : "visibility"}
+                                  size={20}
+                                  color="#64748B"
+                                />
+                              </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.otpMetaRow}>
+                              <Text style={styles.otpTimerText}>
+                                {forgotExpireSecondsLeft > 0
+                                  ? label(
+                                      `Code expires in ${forgotExpireSecondsLeft}s`,
+                                      `सत्यापन कोड ${forgotExpireSecondsLeft}s में समाप्त होगा`
+                                    )
+                                  : label("Code expired. Please request a new code.", "कोड समाप्त हो गया। नया कोड मांगें।")}
+                              </Text>
+
+                              <TouchableOpacity
+                                onPress={handleResendForgotOtp}
+                                disabled={loading || forgotResendSecondsLeft > 0}
+                                activeOpacity={0.7}
+                              >
+                                <Text
+                                  style={[
+                                    styles.resendLink,
+                                    (loading || forgotResendSecondsLeft > 0) && styles.resendLinkDisabled,
+                                  ]}
+                                >
+                                  {forgotResendSecondsLeft > 0
+                                    ? label(`Resend in ${forgotResendSecondsLeft}s`, `पुनः भेजें: ${forgotResendSecondsLeft}s`)
+                                    : label("Resend OTP", "OTP पुनः भेजें")}
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+
+                          {/* New Password */}
+                          <View style={styles.fieldGroup}>
+                            <Text style={styles.fieldLabel}>
+                              {label("New Password", "नया पासवर्ड")} <Text style={styles.requiredStar}>*</Text>
+                            </Text>
+                            <View style={styles.inputWrap}>
+                              <MaterialIcons name="lock-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                              <TextInput
+                                style={[styles.textInput, { paddingRight: 48 }]}
+                                value={newPassword}
+                                onChangeText={setNewPassword}
+                                editable={!loading}
+                                secureTextEntry={!showNewPassword}
+                                placeholder={label("Minimum 6 characters", "कम से कम 6 अक्षर")}
+                                placeholderTextColor="#94A3B8"
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                              />
+                              <TouchableOpacity
+                                style={styles.eyeBtn}
+                                onPress={() => setShowNewPassword(!showNewPassword)}
+                                activeOpacity={0.7}
+                              >
+                                <MaterialIcons
+                                  name={showNewPassword ? "visibility-off" : "visibility"}
+                                  size={20}
+                                  color="#64748B"
+                                />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+
+                          {/* Confirm New Password */}
+                          <View style={styles.fieldGroup}>
+                            <Text style={styles.fieldLabel}>
+                              {label("Confirm New Password", "नए पासवर्ड की पुष्टि करें")}{" "}
+                              <Text style={styles.requiredStar}>*</Text>
+                            </Text>
+                            <View style={styles.inputWrap}>
+                              <MaterialIcons name="lock-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                              <TextInput
+                                style={[styles.textInput, { paddingRight: 48 }]}
+                                value={confirmPassword}
+                                onChangeText={setConfirmPassword}
+                                editable={!loading}
+                                secureTextEntry={!showConfirmPassword}
+                                placeholder={label("Re-enter new password", "नया पासवर्ड पुनः दर्ज करें")}
+                                placeholderTextColor="#94A3B8"
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                onSubmitEditing={handleSubmit}
+                                returnKeyType="go"
+                              />
+                              <TouchableOpacity
+                                style={styles.eyeBtn}
+                                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                                activeOpacity={0.7}
+                              >
+                                <MaterialIcons
+                                  name={showConfirmPassword ? "visibility-off" : "visibility"}
+                                  size={20}
+                                  color="#64748B"
+                                />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+
+                          {/* Change number or email button */}
+                          <TouchableOpacity
+                            style={styles.changeDetailsBtn}
+                            onPress={() => {
+                              setForgotStep("request");
+                              setError("");
+                              setShowForgotOtp(false);
+                            }}
+                            disabled={loading}
+                            activeOpacity={0.75}
+                          >
+                            <MaterialIcons name="arrow-back" size={14} color="#03456C" />
+                            <Text style={styles.changeDetailsText}>
+                              {label("Change mobile number or email", "मोबाइल नंबर या ईमेल बदलें")}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      )
+                    ) : /* REGISTRATION STEP 2: OTP VERIFICATION */
+                    isRegister && registrationStep === "otp" ? (
                       <View style={styles.otpStepContainer}>
                         {challenge?.stubCode && (
                           <View style={styles.stubNoticeBox}>
@@ -708,14 +1234,12 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             </Text>
                             {!isRegister && (
                               <TouchableOpacity
-                                onPress={() =>
-                                  setError(
-                                    label(
-                                      "Password reset: Contact our support at support@malikse.com",
-                                      "पासवर्ड रीसेट: हमारे सपोर्ट से support@malikse.com पर संपर्क करें"
-                                    )
-                                  )
-                                }
+                                onPress={() => {
+                                  if (mobile.trim()) setForgotMobile(mobile.trim());
+                                  if (loginEmail.trim()) setForgotEmail(loginEmail.trim());
+                                  setForgotMethod(loginMethod);
+                                  handleTabSwitch("forgot");
+                                }}
                               >
                                 <Text style={styles.forgotLink}>
                                   {label("Forgot password?", "पासवर्ड भूल गए?")}
@@ -789,11 +1313,17 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                   <TouchableOpacity
                     style={[
                       styles.submitBtn,
-                      (loading || (isRegister && registrationStep === "otp" && expireSecondsLeft === 0)) &&
+                      (loading ||
+                        (isRegister && registrationStep === "otp" && expireSecondsLeft === 0) ||
+                        (isForgot && forgotStep === "verify" && forgotExpireSecondsLeft === 0)) &&
                         styles.submitBtnDisabled,
                     ]}
                     onPress={handleSubmit}
-                    disabled={loading || (isRegister && registrationStep === "otp" && expireSecondsLeft === 0)}
+                    disabled={
+                      loading ||
+                      (isRegister && registrationStep === "otp" && expireSecondsLeft === 0) ||
+                      (isForgot && forgotStep === "verify" && forgotExpireSecondsLeft === 0)
+                    }
                     activeOpacity={0.88}
                   >
                     {loading ? (
@@ -801,7 +1331,11 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                     ) : (
                       <>
                         <Text style={styles.submitBtnText}>
-                          {isRegister
+                          {isForgot
+                            ? forgotStep === "verify"
+                              ? label("Reset Password & Sign In", "पासवर्ड रीसेट करें और साइन इन करें")
+                              : label("Send Reset Code", "रीसेट कोड भेजें")
+                            : isRegister
                             ? registrationStep === "otp"
                               ? label("Verify & Complete Registration", "सत्यापित करें और खाता बनाएं")
                               : label("Continue & Send OTP", "आगे बढ़ें और OTP भेजें")
@@ -815,16 +1349,20 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                   {/* Switch Tab Link */}
                   <View style={styles.switchRow}>
                     <Text style={styles.switchPromptText}>
-                      {isRegister
+                      {isForgot
+                        ? label("Remembered your password?", "पासवर्ड याद आ गया?")
+                        : isRegister
                         ? label("Already have an account?", "पहले से खाता है?")
                         : label("New to MalikSe?", "MalikSe पर नए हैं?")}
                     </Text>
                     <TouchableOpacity
-                      onPress={() => handleTabSwitch(isRegister ? "login" : "register")}
+                      onPress={() => handleTabSwitch(isForgot ? "login" : isRegister ? "login" : "register")}
                       activeOpacity={0.75}
                     >
                       <Text style={styles.switchActionText}>
-                        {isRegister
+                        {isForgot
+                          ? label("Sign in here", "यहाँ साइन इन करें")
+                          : isRegister
                           ? label("Sign in here", "यहाँ साइन इन करें")
                           : label("Create an account", "खाता बनाएं")}
                       </Text>
@@ -1106,6 +1644,44 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
+  /* Forgot Password Navigation Header */
+  forgotHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  backToSignInBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: "#F1F5F9",
+  },
+  backToSignInBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#03456C",
+  },
+  forgotBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#E0F2FE",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+  },
+  forgotBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#0284C7",
+  },
+
   /* Form Header */
   formHeader: {
     marginBottom: 20,
@@ -1123,7 +1699,24 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
 
-  /* Error Box */
+  /* Success & Error Banners */
+  successBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  successText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#166534",
+    fontWeight: "600",
+  },
   errorBox: {
     flexDirection: "row",
     alignItems: "center",

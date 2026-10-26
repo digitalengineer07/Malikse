@@ -49,7 +49,7 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !["/auth/login", "/auth/register", "/auth/register/verify", "/auth/refresh"].includes(originalRequest.url)) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !["/auth/login", "/auth/register", "/auth/register/verify", "/auth/refresh", "/auth/forgot-password", "/auth/forgot-password/resend", "/auth/reset-password"].includes(originalRequest.url)) {
       
       originalRequest._retry = true;
       if (isRefreshing) {
@@ -110,6 +110,16 @@ export interface RegisterResponse {
   testOnly?: boolean;
 }
 
+export interface PasswordResetChallengeResponse {
+  challengeId: string;
+  expiresInSeconds: number;
+  resendAfterSeconds: number;
+  destination?: string;
+  maskedMobile?: string;
+  maskedEmail?: string;
+  stubCode?: string;
+}
+
 export const authService = {
   async register(
     name: string,
@@ -148,6 +158,34 @@ export const authService = {
     useAuthStore.getState().setUser(user);
     useAuthStore.getState().setAuthState("AUTHENTICATED");
     
+    return user;
+  },
+
+  async requestPasswordReset(identifier: string): Promise<PasswordResetChallengeResponse> {
+    const cleanMobile = identifier.trim().replace(/\D/g, "");
+    const isMobile = /^[0-9]{10}$/.test(cleanMobile);
+    const payload = isMobile
+      ? { mobile: cleanMobile, identifier: cleanMobile }
+      : { email: identifier.trim().toLowerCase(), identifier: identifier.trim().toLowerCase() };
+    const res = await api.post("/auth/forgot-password", payload);
+    return res.data;
+  },
+
+  async resendPasswordReset(challengeId: string): Promise<PasswordResetChallengeResponse> {
+    const res = await api.post("/auth/forgot-password/resend", { challengeId });
+    return res.data;
+  },
+
+  async resetPassword(challengeId: string, code: string, newPassword: string): Promise<UserProfile> {
+    const res = await api.post("/auth/reset-password", { challengeId, code, newPassword });
+    const { accessToken, refreshToken, user } = res.data;
+    if (accessToken && refreshToken) {
+      useAuthStore.getState().setTokens({ accessToken, refreshToken });
+    }
+    if (user) {
+      useAuthStore.getState().setUser(user);
+      useAuthStore.getState().setAuthState("AUTHENTICATED");
+    }
     return user;
   },
 
