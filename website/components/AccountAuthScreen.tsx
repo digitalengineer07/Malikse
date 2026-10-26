@@ -19,6 +19,7 @@ import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
 import AppHeader from "./AppHeader";
 import WebFooter from "./WebFooter";
+import PasswordStrengthIndicator, { evaluatePasswordStrength } from "./PasswordStrengthIndicator";
 
 interface AccountAuthScreenProps {
   mode: "login" | "register";
@@ -275,6 +276,19 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
         return;
       }
 
+      const resetStrength = evaluatePasswordStrength(newPassword, {
+        mobile: forgotMobile || forgotChallenge?.destination,
+        email: forgotEmail,
+      });
+      if (resetStrength.isTrivial) {
+        setError(
+          resetStrength.warningEn
+            ? label(resetStrength.warningEn, resetStrength.warningHi || "")
+            : label("Password is too simple. Avoid common words or phone numbers.", "पासवर्ड बहुत सरल है। सामान्य शब्दों या फ़ोन नंबर से बचें।")
+        );
+        return;
+      }
+
       if (newPassword !== confirmPassword) {
         setError(
           label(
@@ -354,6 +368,16 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
               "Password must be at least 6 characters long.",
               "पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।"
             )
+          );
+          return;
+        }
+
+        const regStrength = evaluatePasswordStrength(password, { name, mobile: cleanMobile, email });
+        if (regStrength.isTrivial) {
+          setError(
+            regStrength.warningEn
+              ? label(regStrength.warningEn, regStrength.warningHi || "")
+              : label("Password is too simple. Avoid common words or phone numbers.", "पासवर्ड बहुत सरल है। सामान्य शब्दों या फ़ोन नंबर से बचें।")
           );
           return;
         }
@@ -958,6 +982,13 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                                 />
                               </TouchableOpacity>
                             </View>
+                            <PasswordStrengthIndicator
+                              password={newPassword}
+                              context={{
+                                mobile: forgotMobile || forgotChallenge?.destination,
+                                email: forgotEmail,
+                              }}
+                            />
                           </View>
 
                           {/* Confirm New Password */}
@@ -1278,6 +1309,12 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               />
                             </TouchableOpacity>
                           </View>
+                          {isRegister && (
+                            <PasswordStrengthIndicator
+                              password={password}
+                              context={{ name, mobile, email }}
+                            />
+                          )}
                         </View>
 
                         {/* Email (Optional, Register Only) */}
