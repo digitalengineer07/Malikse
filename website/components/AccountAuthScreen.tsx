@@ -59,6 +59,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
     stubCode?: string;
   } | null>(null);
   const [otp, setOtp] = useState("");
+  const [showOtp, setShowOtp] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -73,6 +74,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
     setActiveTab(tab);
     setError("");
     setShowPassword(false);
+    setShowOtp(false);
     setRegistrationStep("details");
     setChallenge(null);
     setOtp("");
@@ -490,11 +492,15 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                       <View style={styles.otpStepContainer}>
                         {challenge?.stubCode && (
                           <View style={styles.stubNoticeBox}>
-                            <MaterialIcons name="info" size={16} color="#03456C" />
+                            <MaterialIcons name="verified-user" size={16} color="#03456C" />
                             <Text style={styles.stubNoticeText}>
                               {label(
-                                `Test/Dev OTP: ${challenge.stubCode} (auto-filled)`,
-                                `डेमो OTP: ${challenge.stubCode} (स्वतः भरा गया)`
+                                showOtp
+                                  ? `Dev OTP: ${challenge.stubCode} (auto-filled)`
+                                  : "Verification code auto-filled (••••••)",
+                                showOtp
+                                  ? `डेमो OTP: ${challenge.stubCode} (स्वतः भरा गया)`
+                                  : "सत्यापन कोड स्वतः भरा गया (••••••)"
                               )}
                             </Text>
                           </View>
@@ -508,18 +514,31 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           <View style={styles.inputWrap}>
                             <MaterialIcons name="vpn-key" size={20} color="#64748B" style={styles.inputIcon} />
                             <TextInput
-                              style={[styles.textInput, styles.otpTextInput]}
+                              style={[styles.textInput, styles.otpTextInput, { paddingRight: 48 }]}
                               value={otp}
                               onChangeText={(t) => setOtp(t.replace(/\D/g, "").slice(0, 6))}
                               editable={!loading && expireSecondsLeft > 0}
-                              placeholder="123456"
+                              placeholder="• • • • • •"
                               placeholderTextColor="#94A3B8"
                               keyboardType="number-pad"
                               maxLength={6}
+                              secureTextEntry={!showOtp}
                               autoFocus
                               onSubmitEditing={handleSubmit}
                               returnKeyType="go"
                             />
+                            <TouchableOpacity
+                              style={styles.eyeBtn}
+                              onPress={() => setShowOtp(!showOtp)}
+                              activeOpacity={0.7}
+                              accessibilityLabel={showOtp ? "Hide OTP" : "Show OTP"}
+                            >
+                              <MaterialIcons
+                                name={showOtp ? "visibility-off" : "visibility"}
+                                size={20}
+                                color="#64748B"
+                              />
+                            </TouchableOpacity>
                           </View>
 
                           <View style={styles.otpMetaRow}>
@@ -556,6 +575,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           onPress={() => {
                             setRegistrationStep("details");
                             setError("");
+                            setShowOtp(false);
                           }}
                           disabled={loading}
                           activeOpacity={0.75}
@@ -1253,8 +1273,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   otpTextInput: {
-    letterSpacing: 8,
-    fontSize: 20,
+    letterSpacing: 10,
+    fontSize: 22,
     fontWeight: "700",
     textAlign: "center",
   },
