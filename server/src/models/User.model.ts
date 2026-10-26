@@ -5,10 +5,11 @@ import { regionCountHooks } from "../services/regionCountHooks";
 export interface IUser extends Document {
   role: "user" | "advisor" | "verifier" | "admin";
   name: string;
-  mobile: string;
+  mobile?: string;
   email?: string;
   passwordHash?: string;
   mobileVerifiedAt?: Date;
+  emailVerifiedAt?: Date;
   kycDocuments: string[];
   isVerifiedIdentity: boolean;
   demoKycComplete: boolean;
@@ -27,10 +28,11 @@ const UserSchema = new Schema<IUser>(
       required: true,
     },
     name: { type: String, required: true, trim: true },
-    mobile: { type: String, required: true, unique: true, trim: true },
-    email: { type: String, trim: true, lowercase: true },
+    mobile: { type: String, required: false, unique: true, sparse: true, trim: true },
+    email: { type: String, trim: true, lowercase: true, unique: true, sparse: true },
     passwordHash: { type: String },
     mobileVerifiedAt: { type: Date },
+    emailVerifiedAt: { type: Date },
     kycDocuments: { type: [String], default: [] },
     isVerifiedIdentity: { type: Boolean, default: false },
     demoKycComplete: { type: Boolean, default: false },

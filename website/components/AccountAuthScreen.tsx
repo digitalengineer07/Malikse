@@ -53,10 +53,12 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   const [loginMethod, setLoginMethod] = useState<"mobile" | "email">("mobile");
   const [loginEmail, setLoginEmail] = useState("");
 
-  // Registration: 2-step OTP verification flow
+  // Registration: Mobile or Email method and 2-step OTP verification flow
+  const [registerMethod, setRegisterMethod] = useState<"mobile" | "email">("mobile");
   const [registrationStep, setRegistrationStep] = useState<"details" | "otp">("details");
   const [challenge, setChallenge] = useState<{
     challengeId: string;
+    channel?: "mobile" | "email";
     expiresAt: number;
     resendAt: number;
     stubCode?: string;
@@ -111,6 +113,15 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
     setRegistrationStep("details");
     setChallenge(null);
     setOtp("");
+
+    if (tab === "register" && loginMethod === "email" && loginEmail.trim() && !email.trim()) {
+      setEmail(loginEmail.trim());
+      setRegisterMethod("email");
+    } else if (tab === "login" && registerMethod === "email" && email.trim() && !loginEmail.trim()) {
+      setLoginEmail(email.trim());
+      setLoginMethod("email");
+    }
+
     if (tab !== "forgot") {
       setForgotStep("request");
       setForgotChallenge(null);
@@ -126,17 +137,20 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
     setLoading(true);
     try {
       const cleanMobile = mobile.trim().replace(/\D/g, "");
-      const res = await authService.register(
-        name.trim(),
-        cleanMobile,
+      const cleanEmail = email.trim().toLowerCase();
+      const res = await authService.register({
+        name: name.trim(),
+        mobile: cleanMobile || undefined,
+        email: cleanEmail || undefined,
         password,
-        email.trim().toLowerCase() || undefined
-      );
+        method: registerMethod,
+      });
       const currentTime = Date.now();
       setChallenge({
         challengeId: res.challengeId,
+        channel: res.channel || registerMethod,
         expiresAt: currentTime + (res.expiresInSeconds || 120) * 1000,
-        resendAt: currentTime + (res.resendAfterSeconds || 100) * 1000,
+        resendAt: currentTime + (res.resendAfterSeconds || 60) * 1000,
         stubCode: res.stubCode,
       });
       if (res.stubCode) {
@@ -352,14 +366,49 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
         }
 
         const cleanMobile = mobile.trim().replace(/\D/g, "");
-        if (!/^[0-9]{10}$/.test(cleanMobile)) {
-          setError(
-            label(
-              "Please enter a valid 10-digit mobile number.",
-              "कृपया सही 10 अंकों का मोबाइल नंबर दर्ज करें।"
-            )
-          );
-          return;
+        const cleanEmail = email.trim().toLowerCase();
+
+        if (registerMethod === "mobile") {
+          if (!/^[0-9]{10}$/.test(cleanMobile)) {
+            setError(
+              label(
+                "Please enter a valid 10-digit mobile number.",
+                "कृपया सही 10 अंकों का मोबाइल नंबर दर्ज करें।"
+              )
+            );
+            return;
+          }
+
+          if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+            setError(
+              label(
+                "Please enter a valid email address or leave it blank.",
+                "कृपया सही ईमेल पता दर्ज करें या इसे खाली छोड़ दें।"
+              )
+            );
+            return;
+          }
+        } else {
+          // registerMethod === "email"
+          if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+            setError(
+              label(
+                "Please enter a valid email address.",
+                "कृपया सही ईमेल पता दर्ज करें।"
+              )
+            );
+            return;
+          }
+
+          if (cleanMobile && !/^[0-9]{10}$/.test(cleanMobile)) {
+            setError(
+              label(
+                "Please enter a valid 10-digit mobile number or leave it blank.",
+                "कृपया सही 10 अंकों का मोबाइल नंबर दर्ज करें या इसे खाली छोड़ दें।"
+              )
+            );
+            return;
+          }
         }
 
         if (password.length < 6) {
@@ -372,7 +421,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
           return;
         }
 
-        const regStrength = evaluatePasswordStrength(password, { name, mobile: cleanMobile, email });
+        const regStrength = evaluatePasswordStrength(password, { name, mobile: cleanMobile, email: cleanEmail });
         if (regStrength.isTrivial) {
           setError(
             regStrength.warningEn
@@ -382,31 +431,23 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
           return;
         }
 
-        if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-          setError(
-            label(
-              "Please enter a valid email address or leave it blank.",
-              "कृपया सही ईमेल पता दर्ज करें या इसे खाली छोड़ दें।"
-            )
-          );
-          return;
-        }
-
         submitting.current = true;
         setLoading(true);
 
         try {
-          const res = await authService.register(
-            name.trim(),
-            cleanMobile,
+          const res = await authService.register({
+            name: name.trim(),
+            mobile: cleanMobile || undefined,
+            email: cleanEmail || undefined,
             password,
-            email.trim().toLowerCase() || undefined
-          );
+            method: registerMethod,
+          });
           const currentTime = Date.now();
           setChallenge({
             challengeId: res.challengeId,
+            channel: res.channel || registerMethod,
             expiresAt: currentTime + (res.expiresInSeconds || 120) * 1000,
-            resendAt: currentTime + (res.resendAfterSeconds || 100) * 1000,
+            resendAt: currentTime + (res.resendAfterSeconds || 60) * 1000,
             stubCode: res.stubCode,
           });
           if (res.stubCode) {
@@ -433,8 +474,12 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
       if (!/^\d{6}$/.test(otp.trim())) {
         setError(
           label(
-            "Please enter the 6-digit OTP sent to your mobile.",
-            "कृपया अपने मोबाइल पर भेजा गया 6 अंकों का OTP दर्ज करें।"
+            registerMethod === "email"
+              ? "Please enter the 6-digit OTP sent to your email."
+              : "Please enter the 6-digit OTP sent to your mobile.",
+            registerMethod === "email"
+              ? "कृपया अपने ईमेल पर भेजा गया 6 अंकों का OTP दर्ज करें।"
+              : "कृपया अपने मोबाइल पर भेजा गया 6 अंकों का OTP दर्ज करें।"
           )
         );
         return;
@@ -456,7 +501,9 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
       try {
         const cleanMobile = mobile.trim().replace(/\D/g, "");
-        await authService.verifyRegistration(cleanMobile, challenge.challengeId, otp.trim());
+        const cleanEmail = email.trim().toLowerCase();
+        const identifier = registerMethod === "email" ? cleanEmail : cleanMobile;
+        await authService.verifyRegistration(identifier, challenge.challengeId, otp.trim());
         router.replace("/home");
       } catch (cause: any) {
         const serverMsg = cause?.response?.data?.message;
@@ -714,7 +761,9 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           : label("Forgot Password?", "पासवर्ड भूल गए?")
                         : isRegister
                         ? registrationStep === "otp"
-                          ? label("Verify Your Mobile Number", "मोबाइल नंबर सत्यापित करें")
+                          ? registerMethod === "email"
+                            ? label("Verify Your Email Address", "ईमेल पता सत्यापित करें")
+                            : label("Verify Your Mobile Number", "मोबाइल नंबर सत्यापित करें")
                           : label("Create your account", "अपना खाता बनाएं")
                         : label("Welcome back", "वापस स्वागत है")}
                     </Text>
@@ -735,10 +784,15 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             )
                         : isRegister
                         ? registrationStep === "otp"
-                          ? label(
-                              `We've sent a 6-digit verification code to +91 ${mobile}`,
-                              `हमने +91 ${mobile} पर 6 अंकों का सत्यापन कोड भेजा है`
-                            )
+                          ? registerMethod === "email"
+                            ? label(
+                                `We've sent a 6-digit verification code to ${email.trim()}`,
+                                `हमने ${email.trim()} पर 6 अंकों का सत्यापन कोड भेजा है`
+                              )
+                            : label(
+                                `We've sent a 6-digit verification code to +91 ${mobile.trim()}`,
+                                `हमने +91 ${mobile.trim()} पर 6 अंकों का सत्यापन कोड भेजा है`
+                              )
                           : label(
                               "Join Bihar's verified property platform in 60 seconds.",
                               "बिहार के सबसे भरोसेमंद रियल एस्टेट पोर्टल से जुड़ें।"
@@ -1139,12 +1193,55 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                         >
                           <MaterialIcons name="arrow-back" size={14} color="#03456C" />
                           <Text style={styles.changeDetailsText}>
-                            {label("Change mobile number or details", "मोबाइल नंबर या विवरण बदलें")}
+                            {registerMethod === "email"
+                              ? label("Change email address or details", "ईमेल पता या विवरण बदलें")
+                              : label("Change mobile number or details", "मोबाइल नंबर या विवरण बदलें")}
                           </Text>
                         </TouchableOpacity>
                       </View>
                     ) : (
                       <>
+                        {/* REGISTRATION: METHOD SWITCHER (Mobile vs Email) */}
+                        {isRegister && (
+                          <View style={styles.methodToggleRow}>
+                            <TouchableOpacity
+                              style={[styles.methodPill, registerMethod === "mobile" && styles.methodPillActive]}
+                              onPress={() => {
+                                setRegisterMethod("mobile");
+                                setError("");
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <MaterialIcons
+                                name="phone-iphone"
+                                size={14}
+                                color={registerMethod === "mobile" ? "#03456C" : "#64748B"}
+                              />
+                              <Text style={[styles.methodPillText, registerMethod === "mobile" && styles.methodPillTextActive]}>
+                                {label("Mobile Number", "मोबाइल नंबर")}
+                              </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={[styles.methodPill, registerMethod === "email" && styles.methodPillActive]}
+                              onPress={() => {
+                                setRegisterMethod("email");
+                                setError("");
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <MaterialIcons
+                                name="mail-outline"
+                                size={14}
+                                color={registerMethod === "email" ? "#03456C" : "#64748B"}
+                              />
+                              <Text style={[styles.methodPillText, registerMethod === "email" && styles.methodPillTextActive]}>
+                                {label("Email Address", "ईमेल पता")}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+
                         {/* SIGN IN: METHOD SWITCHER (Mobile vs Email) */}
                         {!isRegister && (
                           <View style={styles.methodToggleRow}>
@@ -1208,11 +1305,41 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           </View>
                         )}
 
-                        {/* Mobile Number Field (Register or Sign In with Mobile) */}
-                        {(isRegister || loginMethod === "mobile") && (
+                        {/* When Registering by Email: Email Address is Primary / Required */}
+                        {isRegister && registerMethod === "email" && (
                           <View style={styles.fieldGroup}>
                             <Text style={styles.fieldLabel}>
-                              {label("Mobile Number", "मोबाइल नंबर")} <Text style={styles.requiredStar}>*</Text>
+                              {label("Email Address", "ईमेल पता")} <Text style={styles.requiredStar}>*</Text>
+                            </Text>
+                            <View style={styles.inputWrap}>
+                              <MaterialIcons name="mail-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                              <TextInput
+                                style={styles.textInput}
+                                value={email}
+                                onChangeText={setEmail}
+                                editable={!loading}
+                                placeholder={label("e.g. name@example.com", "उदा. name@example.com")}
+                                placeholderTextColor="#94A3B8"
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                autoComplete="email"
+                              />
+                            </View>
+                          </View>
+                        )}
+
+                        {/* Mobile Number Field:
+                            - Register with mobile: REQUIRED (*)
+                            - Sign in with mobile: REQUIRED (*)
+                            - Register with email: OPTIONAL */}
+                        {((isRegister && registerMethod === "mobile") || (!isRegister && loginMethod === "mobile") || (isRegister && registerMethod === "email")) && (
+                          <View style={styles.fieldGroup}>
+                            <Text style={styles.fieldLabel}>
+                              {isRegister && registerMethod === "email"
+                                ? label("Mobile Number (Optional)", "मोबाइल नंबर (वैकल्पिक)")
+                                : label("Mobile Number", "मोबाइल नंबर")}{" "}
+                              {(!isRegister || registerMethod === "mobile") && <Text style={styles.requiredStar}>*</Text>}
                             </Text>
                             <View style={styles.inputWrap}>
                               <View style={styles.countryCodeBadge}>
@@ -1317,8 +1444,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           )}
                         </View>
 
-                        {/* Email (Optional, Register Only) */}
-                        {isRegister && (
+                        {/* When Registering by Mobile: Email Address is OPTIONAL */}
+                        {isRegister && registerMethod === "mobile" && (
                           <View style={styles.fieldGroup}>
                             <Text style={styles.fieldLabel}>
                               {label("Email Address (Optional)", "ईमेल पता (वैकल्पिक)")}

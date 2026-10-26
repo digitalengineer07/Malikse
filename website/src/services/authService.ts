@@ -104,10 +104,19 @@ api.interceptors.response.use(
 
 export interface RegisterResponse {
   challengeId: string;
+  channel?: "mobile" | "email";
   expiresInSeconds: number;
   resendAfterSeconds: number;
   stubCode?: string;
   testOnly?: boolean;
+}
+
+export interface RegisterPayload {
+  name: string;
+  password: string;
+  method?: "mobile" | "email";
+  mobile?: string;
+  email?: string;
 }
 
 export interface PasswordResetChallengeResponse {
@@ -122,21 +131,31 @@ export interface PasswordResetChallengeResponse {
 
 export const authService = {
   async register(
-    name: string,
-    mobile: string,
-    password: string,
-    email?: string
+    nameOrPayload: string | RegisterPayload,
+    mobile?: string,
+    password?: string,
+    email?: string,
+    method?: "mobile" | "email"
   ): Promise<RegisterResponse> {
-    const res = await api.post("/auth/register", { name, mobile, email, password });
+    const payload =
+      typeof nameOrPayload === "object"
+        ? nameOrPayload
+        : { name: nameOrPayload, mobile, password, email, method };
+    const res = await api.post("/auth/register", payload);
     return res.data;
   },
 
   async verifyRegistration(
-    mobile: string,
+    identifier: string,
     challengeId: string,
     code: string
   ): Promise<UserProfile> {
-    const res = await api.post("/auth/register/verify", { mobile, challengeId, code });
+    const cleanMobile = identifier.trim().replace(/\D/g, "");
+    const isMobile = /^[0-9]{10}$/.test(cleanMobile);
+    const payload = isMobile
+      ? { mobile: cleanMobile, identifier: cleanMobile, challengeId, code }
+      : { email: identifier.trim().toLowerCase(), identifier: identifier.trim().toLowerCase(), challengeId, code };
+    const res = await api.post("/auth/register/verify", payload);
     const { accessToken, refreshToken, user } = res.data;
     useAuthStore.getState().setTokens({ accessToken, refreshToken });
     useAuthStore.getState().setUser(user);
