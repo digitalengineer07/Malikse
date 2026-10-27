@@ -1,21 +1,33 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
+const { execSync } = require("child_process");
 
 const app = express();
 const PORT = process.env.PORT || 8082;
 const distDir = path.join(__dirname, "dist");
+const indexPath = path.join(distDir, "index.html");
 
-// Serve static assets from dist with caching
+// Ensure web build exists
+if (!fs.existsSync(indexPath)) {
+  console.log("[MalikSe Website] dist/index.html not found. Building web bundle now...");
+  try {
+    execSync("npx expo export --platform web", { stdio: "inherit", cwd: __dirname });
+  } catch (err) {
+    console.error("[MalikSe Website] Build step failed:", err.message);
+  }
+}
+
+// Serve static assets from dist with 1-day cache
 app.use(express.static(distDir, { maxAge: "1d" }));
 
-// Fallback to index.html for Single Page Application (SPA) routing
-app.get("*", (req, res) => {
-  const indexPath = path.join(distDir, "index.html");
+// Universal SPA fallback: use app.use() instead of app.get('*')
+// This avoids Express 5 path-to-regexp v8 wildcard syntax error (TypeError: Missing parameter name at index 1: *)
+app.use((req, res) => {
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
-    res.status(503).send("Website is building or dist/index.html is missing.");
+    res.status(503).send("Website is building or dist/index.html is missing. Please refresh in a moment.");
   }
 });
 
