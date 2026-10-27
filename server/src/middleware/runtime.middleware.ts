@@ -23,7 +23,16 @@ export function runtimeConfiguration() {
   const hops = process.env.TRUST_PROXY_HOPS?.trim();
   if (proxies.length && hops) throw new Error("Configure only one of TRUSTED_PROXIES or TRUST_PROXY_HOPS");
   const hopCount = hops ? positiveInteger("TRUST_PROXY_HOPS", 1, 32) : 0;
-  const trustProxy = proxies.length ? proxies : hopCount ? (_address: string, hop: number) => hop < hopCount : false;
+  const envTrust = process.env.TRUST_PROXY?.trim();
+  const trustProxy: boolean | string[] | ((address: string, hop: number) => boolean) = proxies.length
+    ? proxies
+    : hopCount
+    ? (_address: string, hop: number) => hop < hopCount
+    : envTrust === "false"
+    ? false
+    : envTrust === "true"
+    ? true
+    : (_address: string, hop: number) => hop < 1;
   return { production, origins, proxies, trustProxy };
 }
 
@@ -60,6 +69,7 @@ export function installRuntimeMiddleware(app: Express) {
     app.use(path, rateLimit({
       windowMs: 60_000, limit: positiveInteger(name, limit),
       standardHeaders: "draft-8", legacyHeaders: false,
+      validate: { xForwardedForHeader: false, default: true },
       skip: req => req.method !== "POST",
       message: { message: "Too many authentication requests. Please try again shortly." },
     }));

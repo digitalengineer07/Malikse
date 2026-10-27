@@ -2,7 +2,7 @@ import { randomUUID, randomInt, createHmac, timingSafeEqual } from "crypto";
 import { rateLimit } from "express-rate-limit";
 import { Registration } from "../models/Registration.model";
 import { PasswordReset } from "../models/PasswordReset.model";
-import { sendSMS, sendTwilioVerification, checkTwilioVerification } from "../services/twilioSms";
+import { sendSMS, sendTwilioVerification, checkTwilioVerification, hasDedicatedTwilioPhone } from "../services/twilioSms";
 import bcrypt from "../services/passwords";
 import { Router } from "express";
 import jwt from "jsonwebtoken";
@@ -160,19 +160,26 @@ router.post("/register", async (req, res) => {
       if (channel === "mobile") {
         try {
           if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-            if (process.env.TWILIO_PHONE_NUMBER) {
+            if (hasDedicatedTwilioPhone()) {
               await sendSMS(cleanMobile, `Your MalikSe verification code is ${code}. It expires in 2 minutes. Do not share this code.`);
             } else {
               // Uses Twilio Verify Service (no Twilio phone number required)
               await sendTwilioVerification(cleanMobile);
             }
             delivered = true;
+          } else {
+            console.warn(`[AUTH] Twilio credentials not configured. Verification OTP for ${cleanMobile} is: ${code}`);
           }
         } catch (smsErr: any) {
-          if (stubCode || !process.env.TWILIO_ACCOUNT_SID || process.env.NODE_ENV !== "production") {
-            console.log(`[AUTH] SMS delivery note (${smsErr.message}). Verification OTP for ${cleanMobile} is: ${code}`);
+          console.error(`[AUTH] SMS delivery error (${smsErr.message}). Verification OTP for ${cleanMobile} is: ${code}`);
+          const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production";
+          if (stubCode || allowDevOtp || !process.env.TWILIO_ACCOUNT_SID) {
+            // Logged to server console; allow verification
           } else {
-            throw smsErr;
+            throw Object.assign(
+              new Error(`${smsErr.message || "Failed to send SMS OTP"}. Alternatively, you can register instantly using Email Address.`),
+              { status: 503 }
+            );
           }
         }
       } else {
@@ -196,12 +203,13 @@ router.post("/register", async (req, res) => {
         deleteAt: new Date(Date.now() + 86400000),
       } });
 
+      const showStubCode = !delivered || Boolean(stubCode) || process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production";
       return res.status(202).json({
         challengeId,
         channel,
         expiresInSeconds: 120,
         resendAfterSeconds: 60,
-        stubCode: (!delivered || stubCode || process.env.NODE_ENV !== "production") ? code : undefined,
+        stubCode: showStubCode ? code : undefined,
       });
     } catch (error) {
       await Registration.updateOne({ _id: challengeKey, challengeId }, { $set: { lockUntil: new Date(0), expiresAt: new Date(0) } });
@@ -214,7 +222,7 @@ router.post("/register", async (req, res) => {
 });
 
 // Only a matching, unexpired, single-use code can create an account.
-router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false }), async (req, res) => {
+router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false, validate: { xForwardedForHeader: false, default: true } }), async (req, res) => {
   const rawIdentifier = req.body.identifier || req.body.mobile || req.body.email;
   const { challengeId, code } = req.body;
   if (typeof rawIdentifier !== "string" || typeof challengeId !== "string" || typeof code !== "string" || !/^\d{6}$/.test(code)) {
@@ -240,7 +248,7 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
     let codeValid = false;
 
     // Check against Twilio Verify API if configured and channel was mobile
-    if (pending.channel === "mobile" && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && !process.env.TWILIO_PHONE_NUMBER) {
+    if (pending.channel === "mobile" && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && !hasDedicatedTwilioPhone()) {
       try {
         codeValid = await checkTwilioVerification(registrationKey, code);
       } catch {}
@@ -394,7 +402,7 @@ router.get("/me", authGuard, async (req: any, res) => {
 // POST /auth/forgot-password
 router.post(
   "/forgot-password",
-  rateLimit({ windowMs: 60000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false }),
+  rateLimit({ windowMs: 60000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false, validate: { xForwardedForHeader: false, default: true } }),
   async (req, res) => {
     try {
       const rawInput = req.body.identifier || req.body.mobile || req.body.email;
@@ -469,7 +477,7 @@ router.post(
 
       try {
         if (user.mobile && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-          if (process.env.TWILIO_PHONE_NUMBER) {
+          if (hasDedicatedTwilioPhone()) {
             await sendSMS(
               user.mobile,
               `Your MalikSe password reset OTP is ${code}. It expires in 2 minutes. Do not share this code.`
@@ -478,12 +486,19 @@ router.post(
             await sendTwilioVerification(user.mobile);
           }
           smsDelivered = true;
+        } else if (user.mobile) {
+          console.warn(`[AUTH] Twilio credentials not configured. Password reset OTP for ${user.mobile} is: ${code}`);
         }
       } catch (smsErr: any) {
-        if (stubCode || !process.env.TWILIO_ACCOUNT_SID || process.env.NODE_ENV !== "production") {
-          console.log(`[AUTH] SMS delivery note (${smsErr.message}). Password reset OTP for ${user.mobile || user.email} is: ${code}`);
+        console.error(`[AUTH] SMS delivery error (${smsErr.message}). Password reset OTP for ${user.mobile || user.email} is: ${code}`);
+        const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production";
+        if (stubCode || allowDevOtp || !process.env.TWILIO_ACCOUNT_SID) {
+          // Logged to server console; allow verification
         } else {
-          throw smsErr;
+          throw Object.assign(
+            new Error(smsErr.message || "Failed to send SMS OTP. Please try again or use email."),
+            { status: 503 }
+          );
         }
       }
 
@@ -534,7 +549,7 @@ router.post(
 // POST /auth/forgot-password/resend
 router.post(
   "/forgot-password/resend",
-  rateLimit({ windowMs: 60000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false }),
+  rateLimit({ windowMs: 60000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, validate: { xForwardedForHeader: false, default: true } }),
   async (req, res) => {
     try {
       const { challengeId } = req.body;
@@ -567,7 +582,7 @@ router.post(
 
       try {
         if (user.mobile && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-          if (process.env.TWILIO_PHONE_NUMBER) {
+          if (hasDedicatedTwilioPhone()) {
             await sendSMS(
               user.mobile,
               `Your MalikSe password reset OTP is ${code}. It expires in 2 minutes. Do not share this code.`
@@ -576,12 +591,19 @@ router.post(
             await sendTwilioVerification(user.mobile);
           }
           smsDelivered = true;
+        } else if (user.mobile) {
+          console.warn(`[AUTH] Twilio credentials not configured. Resend password reset OTP for ${user.mobile} is: ${code}`);
         }
       } catch (smsErr: any) {
-        if (stubCode || !process.env.TWILIO_ACCOUNT_SID || process.env.NODE_ENV !== "production") {
-          console.log(`[AUTH] Resend SMS note (${smsErr.message}). Password reset OTP for ${user.mobile || user.email} is: ${code}`);
+        console.error(`[AUTH] Resend SMS delivery error (${smsErr.message}). Password reset OTP for ${user.mobile || user.email} is: ${code}`);
+        const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production";
+        if (stubCode || allowDevOtp || !process.env.TWILIO_ACCOUNT_SID) {
+          // Logged to server console; allow verification
         } else {
-          throw smsErr;
+          throw Object.assign(
+            new Error(smsErr.message || "Failed to resend SMS OTP. Please try again or use email."),
+            { status: 503 }
+          );
         }
       }
 
@@ -621,7 +643,7 @@ router.post(
 // POST /auth/reset-password
 router.post(
   "/reset-password",
-  rateLimit({ windowMs: 60000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false }),
+  rateLimit({ windowMs: 60000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false, validate: { xForwardedForHeader: false, default: true } }),
   async (req, res) => {
     const { challengeId, code, newPassword } = req.body;
 
@@ -680,7 +702,7 @@ router.post(
       let codeValid = false;
 
       // Check against Twilio Verify API if configured without phone number
-      if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && !process.env.TWILIO_PHONE_NUMBER) {
+      if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && !hasDedicatedTwilioPhone()) {
         try {
           codeValid = await checkTwilioVerification(pending.mobile, cleanCode);
         } catch {}
