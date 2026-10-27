@@ -153,9 +153,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
         resendAt: currentTime + (res.resendAfterSeconds || 60) * 1000,
         stubCode: res.stubCode,
       });
-      if (res.stubCode) {
-        setOtp(res.stubCode);
-      }
     } catch (cause: any) {
       setError(
         cause?.response?.data?.message ||
@@ -180,9 +177,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
         destination: res.destination || forgotChallenge.destination,
         stubCode: res.stubCode,
       });
-      if (res.stubCode) {
-        setForgotOtp(res.stubCode);
-      }
       setSuccessMessage(
         label(
           "A new verification OTP has been sent.",
@@ -244,9 +238,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
             destination: res.destination,
             stubCode: res.stubCode,
           });
-          if (res.stubCode) {
-            setForgotOtp(res.stubCode);
-          }
           setForgotStep("verify");
           setSuccessMessage(
             label(
@@ -461,9 +452,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
             resendAt: currentTime + (res.resendAfterSeconds || 60) * 1000,
             stubCode: res.stubCode,
           });
-          if (res.stubCode) {
-            setOtp(res.stubCode);
-          }
           setRegistrationStep("otp");
         } catch (cause: any) {
           const serverMsg = cause?.response?.data?.message;
@@ -938,22 +926,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                       ) : (
                         /* forgotStep === "verify" */
                         <View style={styles.otpStepContainer}>
-                          {forgotChallenge?.stubCode && (
-                            <View style={styles.stubNoticeBox}>
-                              <MaterialIcons name="verified-user" size={16} color="#03456C" />
-                              <Text style={styles.stubNoticeText}>
-                                {label(
-                                  showForgotOtp
-                                    ? `Dev OTP: ${forgotChallenge.stubCode} (auto-filled)`
-                                    : "Verification code auto-filled (••••••)",
-                                  showForgotOtp
-                                    ? `डेमो OTP: ${forgotChallenge.stubCode} (स्वतः भरा गया)`
-                                    : "सत्यापन कोड स्वतः भरा गया (••••••)"
-                                )}
-                              </Text>
-                            </View>
-                          )}
-
                           {/* 6-digit OTP (Masked with dots, eye toggle) */}
                           <View style={styles.fieldGroup}>
                             <Text style={styles.fieldLabel}>
@@ -1114,22 +1086,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                     ) : /* REGISTRATION STEP 2: OTP VERIFICATION */
                     isRegister && registrationStep === "otp" ? (
                       <View style={styles.otpStepContainer}>
-                        {challenge?.stubCode && (
-                          <View style={styles.stubNoticeBox}>
-                            <MaterialIcons name="verified-user" size={16} color="#03456C" />
-                            <Text style={styles.stubNoticeText}>
-                              {label(
-                                showOtp
-                                  ? `Dev OTP: ${challenge.stubCode} (auto-filled)`
-                                  : "Verification code auto-filled (••••••)",
-                                showOtp
-                                  ? `डेमो OTP: ${challenge.stubCode} (स्वतः भरा गया)`
-                                  : "सत्यापन कोड स्वतः भरा गया (••••••)"
-                              )}
-                            </Text>
-                          </View>
-                        )}
-
                         <View style={styles.fieldGroup}>
                           <Text style={styles.fieldLabel}>
                             {label("6-Digit Verification Code (OTP)", "6 अंकों का सत्यापन कोड (OTP)")}{" "}

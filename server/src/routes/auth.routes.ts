@@ -10,6 +10,7 @@ import { authGuard } from "../middleware/auth.middleware";
 import { User } from "../models/User.model";
 
 import { REFRESH_SECRET, accountEnabled, generateTokens, publicUser, tokenDigest } from "../services/security";
+import { sendEmailOtp } from "../services/mailer";
 
 const router = Router();
 const otpDigest = (id: string, code: string) => createHmac("sha256", REFRESH_SECRET).update("registration-otp:" + id + ":" + code).digest("hex");
@@ -183,9 +184,17 @@ router.post("/register", async (req, res) => {
           }
         }
       } else {
-        // Email channel
-        console.log(`[AUTH] Email verification OTP for ${cleanEmail} is: ${code}`);
-        delivered = true;
+        // Email channel via Hostinger SMTP
+        try {
+          await sendEmailOtp(cleanEmail, code, "register");
+          delivered = true;
+        } catch (mailErr: any) {
+          console.error(`[AUTH] Email delivery error (${mailErr.message}). Verification OTP for ${cleanEmail} is: ${code}`);
+          const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV === "test";
+          if (!allowDevOtp) {
+            throw mailErr;
+          }
+        }
       }
 
       const expiresAt = new Date(Date.now() + 120000);
@@ -203,7 +212,7 @@ router.post("/register", async (req, res) => {
         deleteAt: new Date(Date.now() + 86400000),
       } });
 
-      const showStubCode = !delivered || Boolean(stubCode) || process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production";
+      const showStubCode = process.env.NODE_ENV === "test" && Boolean(stubCode);
       return res.status(202).json({
         challengeId,
         channel,
@@ -505,35 +514,63 @@ router.post(
       const stubCode = process.env.OTP_STUB_CODE?.trim();
       const code = stubCode || randomInt(0, 1000000).toString().padStart(6, "0");
       let smsDelivered = false;
+      let emailDelivered = false;
 
-      try {
-        if (user.mobile && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-          if (hasDedicatedTwilioPhone()) {
-            await sendSMS(
-              user.mobile,
-              `Your MalikSe password reset OTP is ${code}. It expires in 2 minutes. Do not share this code.`
-            );
-          } else {
-            await sendTwilioVerification(user.mobile);
+      // 1. Send via Hostinger SMTP email if user has email and entered email or has no mobile
+      if (user.email && (isEmail || !user.mobile)) {
+        try {
+          await sendEmailOtp(user.email, code, "forgot");
+          emailDelivered = true;
+        } catch (mailErr: any) {
+          console.error(`[AUTH] Email password reset delivery error (${mailErr.message}). Code for ${user.email} is: ${code}`);
+          const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV === "test";
+          if (!allowDevOtp && !user.mobile) {
+            throw mailErr;
           }
-          smsDelivered = true;
-        } else if (user.mobile) {
-          console.warn(`[AUTH] Twilio credentials not configured. Password reset OTP for ${user.mobile} is: ${code}`);
-        }
-      } catch (smsErr: any) {
-        console.error(`[AUTH] SMS delivery error (${smsErr.message}). Password reset OTP for ${user.mobile || user.email} is: ${code}`);
-        const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production";
-        if (stubCode || allowDevOtp || !process.env.TWILIO_ACCOUNT_SID) {
-          // Logged to server console; allow verification
-        } else {
-          throw Object.assign(
-            new Error(smsErr.message || "Failed to send SMS OTP. Please try again or use email."),
-            { status: 503 }
-          );
         }
       }
 
-      if (!smsDelivered) {
+      // 2. Send via Twilio SMS if user has mobile and requested mobile (or email delivery was not chosen)
+      if (user.mobile && (isMobile || !user.email || !emailDelivered)) {
+        try {
+          if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+            if (hasDedicatedTwilioPhone()) {
+              await sendSMS(
+                user.mobile,
+                `Your MalikSe password reset OTP is ${code}. It expires in 2 minutes. Do not share this code.`
+              );
+            } else {
+              await sendTwilioVerification(user.mobile);
+            }
+            smsDelivered = true;
+          } else {
+            console.warn(`[AUTH] Twilio credentials not configured. Password reset OTP for ${user.mobile} is: ${code}`);
+          }
+        } catch (smsErr: any) {
+          console.error(`[AUTH] SMS delivery error (${smsErr.message}). Password reset OTP for ${user.mobile || user.email} is: ${code}`);
+          const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production";
+          if (stubCode || allowDevOtp || !process.env.TWILIO_ACCOUNT_SID) {
+            // Logged to server console; allow verification
+          } else if (!emailDelivered) {
+            throw Object.assign(
+              new Error(smsErr.message || "Failed to send SMS OTP. Please try again or use email."),
+              { status: 503 }
+            );
+          }
+        }
+      }
+
+      // 3. Fallback: if SMS was attempted but failed, and user has an email
+      if (!smsDelivered && !emailDelivered && user.email) {
+        try {
+          await sendEmailOtp(user.email, code, "forgot");
+          emailDelivered = true;
+        } catch (mailErr: any) {
+          console.error(`[AUTH] Fallback email OTP error:`, mailErr?.message);
+        }
+      }
+
+      if (!smsDelivered && !emailDelivered) {
         console.log(`[AUTH] Password reset OTP for ${user.email || user.mobile} is: ${code}`);
       }
 
@@ -560,6 +597,7 @@ router.post(
           ? `${maskedMobileText} & ${maskedEmailText}`
           : maskedEmailText || maskedMobileText || "your registered account";
 
+      const showStubCode = process.env.NODE_ENV === "test" && Boolean(stubCode);
       return res.status(200).json({
         challengeId,
         expiresInSeconds: 120,
@@ -567,7 +605,7 @@ router.post(
         destination,
         maskedMobile: maskedMobileText,
         maskedEmail: maskedEmailText,
-        stubCode: (!smsDelivered || stubCode) ? code : undefined,
+        stubCode: showStubCode ? code : undefined,
       });
     } catch (error: any) {
       res
@@ -610,35 +648,61 @@ router.post(
       const stubCode = process.env.OTP_STUB_CODE?.trim();
       const code = stubCode || randomInt(0, 1000000).toString().padStart(6, "0");
       let smsDelivered = false;
+      let emailDelivered = false;
+      const isExistingEmail = existing.identifier && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(existing.identifier.toLowerCase());
 
-      try {
-        if (user.mobile && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-          if (hasDedicatedTwilioPhone()) {
-            await sendSMS(
-              user.mobile,
-              `Your MalikSe password reset OTP is ${code}. It expires in 2 minutes. Do not share this code.`
-            );
-          } else {
-            await sendTwilioVerification(user.mobile);
+      if (user.email && (isExistingEmail || !user.mobile)) {
+        try {
+          await sendEmailOtp(user.email, code, "forgot");
+          emailDelivered = true;
+        } catch (mailErr: any) {
+          console.error(`[AUTH] Resend email delivery error (${mailErr.message}). Password reset OTP for ${user.email} is: ${code}`);
+          const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV === "test";
+          if (!allowDevOtp && !user.mobile) {
+            throw mailErr;
           }
-          smsDelivered = true;
-        } else if (user.mobile) {
-          console.warn(`[AUTH] Twilio credentials not configured. Resend password reset OTP for ${user.mobile} is: ${code}`);
-        }
-      } catch (smsErr: any) {
-        console.error(`[AUTH] Resend SMS delivery error (${smsErr.message}). Password reset OTP for ${user.mobile || user.email} is: ${code}`);
-        const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production";
-        if (stubCode || allowDevOtp || !process.env.TWILIO_ACCOUNT_SID) {
-          // Logged to server console; allow verification
-        } else {
-          throw Object.assign(
-            new Error(smsErr.message || "Failed to resend SMS OTP. Please try again or use email."),
-            { status: 503 }
-          );
         }
       }
 
-      if (!smsDelivered) {
+      if (user.mobile && (!isExistingEmail || !user.email || !emailDelivered)) {
+        try {
+          if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+            if (hasDedicatedTwilioPhone()) {
+              await sendSMS(
+                user.mobile,
+                `Your MalikSe password reset OTP is ${code}. It expires in 2 minutes. Do not share this code.`
+              );
+            } else {
+              await sendTwilioVerification(user.mobile);
+            }
+            smsDelivered = true;
+          } else {
+            console.warn(`[AUTH] Twilio credentials not configured. Resend password reset OTP for ${user.mobile} is: ${code}`);
+          }
+        } catch (smsErr: any) {
+          console.error(`[AUTH] Resend SMS delivery error (${smsErr.message}). Password reset OTP for ${user.mobile || user.email} is: ${code}`);
+          const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production";
+          if (stubCode || allowDevOtp || !process.env.TWILIO_ACCOUNT_SID) {
+            // Logged to server console; allow verification
+          } else if (!emailDelivered) {
+            throw Object.assign(
+              new Error(smsErr.message || "Failed to resend SMS OTP. Please try again or use email."),
+              { status: 503 }
+            );
+          }
+        }
+      }
+
+      if (!smsDelivered && !emailDelivered && user.email) {
+        try {
+          await sendEmailOtp(user.email, code, "forgot");
+          emailDelivered = true;
+        } catch (mailErr: any) {
+          console.error(`[AUTH] Resend fallback email OTP error:`, mailErr?.message);
+        }
+      }
+
+      if (!smsDelivered && !emailDelivered) {
         console.log(`[AUTH] Resend password reset OTP for ${user.email || user.mobile} is: ${code}`);
       }
 
@@ -659,11 +723,12 @@ router.post(
         }
       );
 
+      const showStubCode = process.env.NODE_ENV === "test" && Boolean(stubCode);
       return res.status(200).json({
         challengeId: newChallengeId,
         expiresInSeconds: 120,
         resendAfterSeconds: 60,
-        stubCode: (!smsDelivered || stubCode) ? code : undefined,
+        stubCode: showStubCode ? code : undefined,
       });
     } catch (error: any) {
       res.status(500).json({ message: "Failed to resend verification OTP" });
