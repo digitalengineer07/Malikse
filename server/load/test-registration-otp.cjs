@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const express = require('express');
+process.env.NODE_ENV = 'test';
 process.env.TWILIO_SMS_TEST_MODE = 'false';
 process.env.JWT_ACCESS_SECRET = 'otp-test-access-secret';
 process.env.JWT_REFRESH_SECRET = 'otp-test-refresh-secret';

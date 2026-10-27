@@ -443,6 +443,16 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
             password,
             method: registerMethod,
           });
+          if (res.testOnly || !res.challengeId) {
+            setError(
+              res.message ||
+                label(
+                  "Unable to initiate verification challenge. Please check server settings.",
+                  "सत्यापन सत्र शुरू नहीं किया जा सका। कृपया सर्वर सेटिंग्स जांचें।"
+                )
+            );
+            return;
+          }
           const currentTime = Date.now();
           setChallenge({
             challengeId: res.challengeId,

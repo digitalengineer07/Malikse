@@ -142,7 +142,7 @@ router.post("/register", async (req, res) => {
     if (!pending) return res.status(429).json({ message: "Please wait before requesting another OTP", retryAfterSeconds: 60 });
 
     try {
-      if (channel === "mobile" && process.env.TWILIO_SMS_TEST_MODE === "true") {
+      if (channel === "mobile" && process.env.TWILIO_SMS_TEST_MODE === "true" && process.env.NODE_ENV === "test") {
         await sendSMS(cleanMobile, "sms_2fa");
         await Registration.updateOne({ _id: challengeKey, challengeId }, {
           $set: { expiresAt: new Date(0), lockUntil: new Date(0), resendAt: new Date(Date.now() + 60000) },
