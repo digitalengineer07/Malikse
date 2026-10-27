@@ -3,10 +3,11 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "start": "expo start --web --port 8082",
+    "start": "node server.js",
     "dev": "expo start --web --port 8082",
     "web": "expo start --web --port 8082",
     "build": "expo export --platform web",
+    "postinstall": "npm run build",
     "reset-project": "node ./scripts/reset-project.js",
     "lint": "expo lint"
   },
