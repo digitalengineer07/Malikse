@@ -152,9 +152,11 @@ export const authService = {
   ): Promise<UserProfile> {
     const cleanMobile = identifier.trim().replace(/\D/g, "");
     const isMobile = /^[0-9]{10}$/.test(cleanMobile);
+    const cleanCode = String(code || "").replace(/\D/g, "").slice(0, 6);
+    const cleanChallengeId = String(challengeId || "").trim();
     const payload = isMobile
-      ? { mobile: cleanMobile, identifier: cleanMobile, challengeId, code }
-      : { email: identifier.trim().toLowerCase(), identifier: identifier.trim().toLowerCase(), challengeId, code };
+      ? { mobile: cleanMobile, identifier: cleanMobile, challengeId: cleanChallengeId, code: cleanCode }
+      : { email: identifier.trim().toLowerCase(), identifier: identifier.trim().toLowerCase(), challengeId: cleanChallengeId, code: cleanCode };
     const res = await api.post("/auth/register/verify", payload);
     const { accessToken, refreshToken, user } = res.data;
     useAuthStore.getState().setTokens({ accessToken, refreshToken });

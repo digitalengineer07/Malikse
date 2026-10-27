@@ -270,7 +270,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
       }
 
       // forgotStep === "verify"
-      if (!/^\d{6}$/.test(forgotOtp.trim())) {
+      const cleanForgotOtp = forgotOtp.replace(/\D/g, "").slice(0, 6);
+      if (cleanForgotOtp.length !== 6) {
         setError(
           label(
             "Please enter the 6-digit OTP sent to your registered mobile/email.",
@@ -328,7 +329,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
       setLoading(true);
 
       try {
-        await authService.resetPassword(forgotChallenge.challengeId, forgotOtp.trim(), newPassword);
+        await authService.resetPassword(forgotChallenge.challengeId, cleanForgotOtp, newPassword);
         setSuccessMessage(
           label(
             "Password reset successfully! Signing you in...",
@@ -471,7 +472,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
       }
 
       // Registration Step: OTP
-      if (!/^\d{6}$/.test(otp.trim())) {
+      const cleanOtp = otp.replace(/\D/g, "").slice(0, 6);
+      if (cleanOtp.length !== 6) {
         setError(
           label(
             registerMethod === "email"
@@ -500,10 +502,11 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
       setLoading(true);
 
       try {
-        const cleanMobile = mobile.trim().replace(/\D/g, "");
+        const cleanMobile = mobile.trim().replace(/\D/g, "").slice(0, 10);
         const cleanEmail = email.trim().toLowerCase();
-        const identifier = registerMethod === "email" ? cleanEmail : cleanMobile;
-        await authService.verifyRegistration(identifier, challenge.challengeId, otp.trim());
+        const channel = challenge.channel || registerMethod;
+        const identifier = (channel === "email" && cleanEmail) ? cleanEmail : cleanMobile;
+        await authService.verifyRegistration(identifier, challenge.challengeId, cleanOtp);
         router.replace("/home");
       } catch (cause: any) {
         const serverMsg = cause?.response?.data?.message;

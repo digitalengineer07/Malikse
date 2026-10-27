@@ -223,14 +223,25 @@ router.post("/register", async (req, res) => {
 
 // Only a matching, unexpired, single-use code can create an account.
 router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false, validate: { xForwardedForHeader: false, default: true } }), async (req, res) => {
-  const rawIdentifier = req.body.identifier || req.body.mobile || req.body.email;
-  const { challengeId, code } = req.body;
-  if (typeof rawIdentifier !== "string" || typeof challengeId !== "string" || typeof code !== "string" || !/^\d{6}$/.test(code)) {
+  const rawIdentifier = String(req.body.identifier || req.body.mobile || req.body.email || "").trim();
+  const rawChallengeId = String(req.body.challengeId || "").trim();
+  const cleanCode = String(req.body.code ?? "").replace(/\D/g, "").slice(0, 6);
+
+  if (!rawIdentifier) {
+    return res.status(400).json({ message: "Mobile number or email identifier is missing. Please restart registration." });
+  }
+
+  if (!rawChallengeId) {
+    return res.status(400).json({ message: "Verification session has expired or is invalid. Please request a new OTP." });
+  }
+
+  if (cleanCode.length !== 6) {
     return res.status(400).json({ message: "Enter the six-digit verification code (OTP)" });
   }
-  const cleanMobile = rawIdentifier.replace(/\D/g, "");
-  const isMobile = /^[0-9]{10}$/.test(cleanMobile);
-  const cleanEmail = rawIdentifier.trim().toLowerCase();
+
+  const cleanMobile = rawIdentifier.replace(/\D/g, "").slice(0, 10);
+  const isMobile = mobilePattern.test(cleanMobile);
+  const cleanEmail = rawIdentifier.toLowerCase();
   const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
 
   if (!isMobile && !isEmail) {
@@ -240,32 +251,52 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
   const registrationKey = isMobile ? cleanMobile : cleanEmail;
   let locked = false;
   try {
-    const pending = await Registration.findOneAndUpdate({ _id: registrationKey, challengeId,
-      expiresAt: { $gt: new Date() }, lockUntil: { $lte: new Date() }, attempts: { $lt: 5 },
-    }, { $inc: { attempts: 1 }, $set: { lockUntil: new Date(Date.now() + 30000) } }, { new: true });
-    if (!pending || !pending.otpHash) return res.status(400).json({ message: "OTP expired, busy, or attempts exhausted. Please resend when available." });
+    const pending = await Registration.findOneAndUpdate({
+      _id: registrationKey,
+      challengeId: rawChallengeId,
+      expiresAt: { $gt: new Date() },
+      lockUntil: { $lte: new Date() },
+      attempts: { $lt: 5 },
+    }, {
+      $inc: { attempts: 1 },
+      $set: { lockUntil: new Date(Date.now() + 5000) }
+    }, { new: true });
+
+    if (!pending || !pending.otpHash) {
+      return res.status(400).json({ message: "OTP expired, busy, or attempts exhausted. Please resend when available." });
+    }
     locked = true;
     let codeValid = false;
 
     // Check against Twilio Verify API if configured and channel was mobile
     if (pending.channel === "mobile" && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && !hasDedicatedTwilioPhone()) {
       try {
-        codeValid = await checkTwilioVerification(registrationKey, code);
-      } catch {}
+        console.log(`[Twilio Verify] Checking OTP for ${registrationKey}...`);
+        codeValid = await checkTwilioVerification(registrationKey, cleanCode);
+        console.log(`[Twilio Verify] Result for ${registrationKey}: ${codeValid}`);
+      } catch (err: any) {
+        console.error("[Twilio Verify] Check error:", err?.message);
+      }
     }
 
     // Fallback to local cryptographic digest verification
     if (!codeValid) {
-      const actual = Buffer.from(otpDigest(challengeId, code), "hex");
+      const actual = Buffer.from(otpDigest(rawChallengeId, cleanCode), "hex");
       const expected = Buffer.from(pending.otpHash, "hex");
       if (actual.length === expected.length && timingSafeEqual(actual, expected)) {
         codeValid = true;
       }
     }
 
-    if (!codeValid) return res.status(400).json({ message: "Incorrect OTP. Please try again." });
+    if (!codeValid) {
+      return res.status(400).json({ message: "Incorrect OTP. Please enter the latest 6-digit code received or click Resend." });
+    }
+
     // Recheck expiry and consume atomically before creating the account.
-    const consumed = await Registration.findOneAndUpdate({ _id: registrationKey, challengeId, expiresAt: { $gt: new Date() } }, { $set: { expiresAt: new Date(0) } });
+    const consumed = await Registration.findOneAndUpdate(
+      { _id: registrationKey, challengeId: rawChallengeId, expiresAt: { $gt: new Date() } },
+      { $set: { expiresAt: new Date(0) } }
+    );
     if (!consumed) return res.status(400).json({ message: "OTP expired. Please resend OTP." });
     const user = new User({
       role: "user",
@@ -279,13 +310,13 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
     const { accessToken, refreshToken } = generateTokens(user);
     user.refreshTokenHash = tokenDigest(refreshToken);
     await user.save();
-    await Registration.deleteOne({ _id: registrationKey, challengeId });
+    await Registration.deleteOne({ _id: registrationKey, challengeId: rawChallengeId });
     return res.status(201).json({ accessToken, refreshToken, user: publicUser(user) });
   } catch (error: any) {
     if (error.code === 11000) return res.status(409).json({ message: "Mobile number or email already registered. Please sign in." });
     return res.status(error.status || 503).json({ message: error.status ? error.message : "Verification unavailable. Please try again later." });
   } finally {
-    if (locked) await Registration.updateOne({ _id: registrationKey, challengeId }, { $set: { lockUntil: new Date(0) } }).catch(() => {});
+    if (locked) await Registration.updateOne({ _id: registrationKey, challengeId: rawChallengeId }, { $set: { lockUntil: new Date(0) } }).catch(() => {});
   }
 });
 
@@ -645,14 +676,11 @@ router.post(
   "/reset-password",
   rateLimit({ windowMs: 60000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false, validate: { xForwardedForHeader: false, default: true } }),
   async (req, res) => {
-    const { challengeId, code, newPassword } = req.body;
+    const rawChallengeId = String(req.body.challengeId || "").trim();
+    const cleanCode = String(req.body.code ?? "").replace(/\D/g, "").slice(0, 6);
+    const { newPassword } = req.body;
 
-    if (
-      typeof challengeId !== "string" ||
-      !challengeId.trim() ||
-      typeof code !== "string" ||
-      !/^\d{6}$/.test(code.trim())
-    ) {
+    if (!rawChallengeId || cleanCode.length !== 6) {
       return res.status(400).json({ message: "Enter the 6-digit verification code sent to your registered mobile/email" });
     }
 
@@ -667,21 +695,20 @@ router.post(
       return res.status(400).json({ message: commonWeak });
     }
 
-    const cleanCode = code.trim();
     let locked = false;
     let resetRecordId = "";
 
     try {
       const pending = await PasswordReset.findOneAndUpdate(
         {
-          challengeId: challengeId.trim(),
+          challengeId: rawChallengeId,
           expiresAt: { $gt: new Date() },
           lockUntil: { $lte: new Date() },
           attempts: { $lt: 5 },
         },
         {
           $inc: { attempts: 1 },
-          $set: { lockUntil: new Date(Date.now() + 30000) },
+          $set: { lockUntil: new Date(Date.now() + 5000) },
         },
         { new: true }
       );
@@ -710,7 +737,7 @@ router.post(
 
       // Fallback to local cryptographic digest verification
       if (!codeValid) {
-        const actual = Buffer.from(resetOtpDigest(challengeId.trim(), cleanCode), "hex");
+        const actual = Buffer.from(resetOtpDigest(rawChallengeId, cleanCode), "hex");
         const expected = Buffer.from(pending.otpHash, "hex");
         if (actual.length === expected.length && timingSafeEqual(actual, expected)) {
           codeValid = true;
@@ -723,7 +750,7 @@ router.post(
 
       // Consume challenge atomically
       const consumed = await PasswordReset.findOneAndUpdate(
-        { challengeId: challengeId.trim(), expiresAt: { $gt: new Date() } },
+        { challengeId: rawChallengeId, expiresAt: { $gt: new Date() } },
         { $set: { expiresAt: new Date(0) } }
       );
       if (!consumed) {
