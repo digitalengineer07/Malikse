@@ -49,6 +49,16 @@ UserSchema.index({ isSuspended: 1 }, { name: "user_suspension" });
 UserSchema.index({ isActive: 1 }, { name: "user_active" });
 UserSchema.index({ role: 1, createdAt: -1, _id: -1 }, { name: "user_role_cursor" });
 
+UserSchema.pre("save", function (this: any, next: (err?: any) => void) {
+  if (this.mobile === "" || this.mobile === null) {
+    this.mobile = undefined;
+  }
+  if (this.email === "" || this.email === null) {
+    this.email = undefined;
+  }
+  next();
+});
+
 UserSchema.plugin(publicCacheHooks, { account: true });
 UserSchema.plugin(regionCountHooks, { account: true });
 export const User = mongoose.model<IUser>("User", UserSchema);

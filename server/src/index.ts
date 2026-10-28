@@ -26,6 +26,26 @@ app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
 }).then(async () => {
   monitorPool(mongoose.connection.getClient());
   console.log("[MalikSe] MongoDB connected");
+  try {
+    const usersCol = mongoose.connection.collection("users");
+    const indexes = await usersCol.indexes();
+    const mobileIdx = indexes.find((idx: any) => idx.name === "mobile_1" || (idx.key && idx.key.mobile === 1));
+    if (mobileIdx && (!mobileIdx.sparse || !mobileIdx.unique)) {
+      console.log("[MalikSe] Migrating mobile_1 index to { unique: true, sparse: true }...");
+      await usersCol.dropIndex(mobileIdx.name || "mobile_1");
+      await usersCol.createIndex({ mobile: 1 }, { unique: true, sparse: true, background: true });
+      console.log("[MalikSe] mobile_1 index successfully migrated.");
+    }
+    const emailIdx = indexes.find((idx: any) => idx.name === "email_1" || (idx.key && idx.key.email === 1));
+    if (emailIdx && (!emailIdx.sparse || !emailIdx.unique)) {
+      console.log("[MalikSe] Migrating email_1 index to { unique: true, sparse: true }...");
+      await usersCol.dropIndex(emailIdx.name || "email_1");
+      await usersCol.createIndex({ email: 1 }, { unique: true, sparse: true, background: true });
+      console.log("[MalikSe] email_1 index successfully migrated.");
+    }
+  } catch (idxErr: any) {
+    console.warn("[MalikSe] Index verification warning:", idxErr?.message);
+  }
   startupStage = "region count initialization";
   await startRegionCounts();
   initialized = true;

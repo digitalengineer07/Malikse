@@ -64,7 +64,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
     stubCode?: string;
   } | null>(null);
   const [otp, setOtp] = useState("");
-  const [showOtp, setShowOtp] = useState(true);
   const [now, setNow] = useState(() => Date.now());
 
   // Forgot Password Flow
@@ -73,7 +72,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   const [forgotMobile, setForgotMobile] = useState("");
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotOtp, setForgotOtp] = useState("");
-  const [showForgotOtp, setShowForgotOtp] = useState(true);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -106,8 +104,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
     setError("");
     setSuccessMessage("");
     setShowPassword(false);
-    setShowOtp(false);
-    setShowForgotOtp(false);
     setShowNewPassword(false);
     setShowConfirmPassword(false);
     setRegistrationStep("details");
@@ -944,31 +940,18 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             <View style={styles.inputWrap}>
                               <MaterialIcons name="vpn-key" size={20} color="#64748B" style={styles.inputIcon} />
                               <TextInput
-                                style={[styles.textInput, styles.otpTextInput, { paddingRight: 48 }]}
+                                style={[styles.textInput, styles.otpTextInput]}
                                 value={forgotOtp}
                                 onChangeText={(t) => setForgotOtp(t.replace(/\D/g, "").slice(0, 6))}
                                 editable={!loading && forgotExpireSecondsLeft > 0}
-                                placeholder="• • • • • •"
+                                placeholder="0 0 0 0 0 0"
                                 placeholderTextColor="#94A3B8"
                                 keyboardType="number-pad"
                                 maxLength={6}
-                                secureTextEntry={!showForgotOtp}
                                 autoFocus
                                 onSubmitEditing={handleSubmit}
                                 returnKeyType="next"
                               />
-                              <TouchableOpacity
-                                style={styles.eyeBtn}
-                                onPress={() => setShowForgotOtp(!showForgotOtp)}
-                                activeOpacity={0.7}
-                                accessibilityLabel={showForgotOtp ? "Hide OTP" : "Show OTP"}
-                              >
-                                <MaterialIcons
-                                  name={showForgotOtp ? "visibility-off" : "visibility"}
-                                  size={20}
-                                  color="#64748B"
-                                />
-                              </TouchableOpacity>
                             </View>
 
                             <View style={styles.otpMetaRow}>
@@ -1080,7 +1063,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             onPress={() => {
                               setForgotStep("request");
                               setError("");
-                              setShowForgotOtp(false);
                             }}
                             disabled={loading}
                             activeOpacity={0.75}
@@ -1103,31 +1085,18 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           <View style={styles.inputWrap}>
                             <MaterialIcons name="vpn-key" size={20} color="#64748B" style={styles.inputIcon} />
                             <TextInput
-                              style={[styles.textInput, styles.otpTextInput, { paddingRight: 48 }]}
+                              style={[styles.textInput, styles.otpTextInput]}
                               value={otp}
                               onChangeText={(t) => setOtp(t.replace(/\D/g, "").slice(0, 6))}
                               editable={!loading && expireSecondsLeft > 0}
-                              placeholder="• • • • • •"
+                              placeholder="0 0 0 0 0 0"
                               placeholderTextColor="#94A3B8"
                               keyboardType="number-pad"
                               maxLength={6}
-                              secureTextEntry={!showOtp}
                               autoFocus
                               onSubmitEditing={handleSubmit}
                               returnKeyType="go"
                             />
-                            <TouchableOpacity
-                              style={styles.eyeBtn}
-                              onPress={() => setShowOtp(!showOtp)}
-                              activeOpacity={0.7}
-                              accessibilityLabel={showOtp ? "Hide OTP" : "Show OTP"}
-                            >
-                              <MaterialIcons
-                                name={showOtp ? "visibility-off" : "visibility"}
-                                size={20}
-                                color="#64748B"
-                              />
-                            </TouchableOpacity>
                           </View>
 
                           <View style={styles.otpMetaRow}>
@@ -1164,7 +1133,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           onPress={() => {
                             setRegistrationStep("details");
                             setError("");
-                            setShowOtp(false);
                           }}
                           disabled={loading}
                           activeOpacity={0.75}

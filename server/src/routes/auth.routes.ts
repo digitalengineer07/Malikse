@@ -285,7 +285,15 @@ router.post("/register", async (req, res) => {
       throw error;
     }
   } catch (error: any) {
-    if (error.code === 11000) return res.status(409).json({ message: "Mobile number or email already registered" });
+    if (error.code === 11000) {
+      if (error.keyPattern?.mobile) {
+        return res.status(409).json({ message: "Mobile number already registered" });
+      }
+      if (error.keyPattern?.email) {
+        return res.status(409).json({ message: "Email address already registered" });
+      }
+      return res.status(409).json({ message: "Mobile number or email already registered" });
+    }
     res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
@@ -363,22 +371,39 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
       { $set: { expiresAt: new Date(0) } }
     );
     if (!consumed) return res.status(400).json({ message: "OTP expired. Please resend OTP." });
-    const user = new User({
+    const userCleanMobile = (pending.mobile || (isMobile ? registrationKey : "")).trim();
+    const userCleanEmail = (pending.email || (isEmail ? registrationKey : "")).trim().toLowerCase();
+
+    const userPayload: any = {
       role: "user",
       name: pending.name,
-      mobile: pending.mobile || (isMobile ? registrationKey : undefined),
-      email: pending.email || (isEmail ? registrationKey : undefined),
       passwordHash: pending.passwordHash,
-      mobileVerifiedAt: (pending.channel === "mobile" || isMobile) ? new Date() : undefined,
-      emailVerifiedAt: (pending.channel === "email" || isEmail) ? new Date() : undefined,
-    });
+    };
+    if (userCleanMobile) {
+      userPayload.mobile = userCleanMobile;
+      userPayload.mobileVerifiedAt = (pending.channel === "mobile" || isMobile) ? new Date() : undefined;
+    }
+    if (userCleanEmail) {
+      userPayload.email = userCleanEmail;
+      userPayload.emailVerifiedAt = (pending.channel === "email" || isEmail) ? new Date() : undefined;
+    }
+
+    const user = new User(userPayload);
     const { accessToken, refreshToken } = generateTokens(user);
     user.refreshTokenHash = tokenDigest(refreshToken);
     await user.save();
     await Registration.deleteOne({ _id: registrationKey, challengeId: rawChallengeId });
     return res.status(201).json({ accessToken, refreshToken, user: publicUser(user) });
   } catch (error: any) {
-    if (error.code === 11000) return res.status(409).json({ message: "Mobile number or email already registered. Please sign in." });
+    if (error.code === 11000) {
+      if (error.keyPattern?.mobile) {
+        return res.status(409).json({ message: "Mobile number already registered. Please sign in." });
+      }
+      if (error.keyPattern?.email) {
+        return res.status(409).json({ message: "Email address already registered. Please sign in." });
+      }
+      return res.status(409).json({ message: "Mobile number or email already registered. Please sign in." });
+    }
     return res.status(error.status || 503).json({ message: error.status ? error.message : "Verification unavailable. Please try again later." });
   } finally {
     if (locked) await Registration.updateOne({ _id: registrationKey, challengeId: rawChallengeId }, { $set: { lockUntil: new Date(0) } }).catch(() => {});
