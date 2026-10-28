@@ -71,6 +71,111 @@ const typeIcon = (t: string): keyof typeof MaterialIcons.glyphMap => {
   }
 };
 
+const RecommendationCard = React.memo(function RecommendationCard({
+  property,
+  category,
+  userAffinity,
+  isSaved,
+  onOpen,
+  onToggleSave,
+}: {
+  property: Property;
+  category: RecommendationCategory;
+  userAffinity: UserAffinityProfile;
+  isSaved: boolean;
+  onOpen: (property: Property) => void;
+  onToggleSave: (property: Property) => void;
+}) {
+  const badge = getPropertyRecommendationBadge(property, category, userAffinity);
+
+  return (
+    <TouchableOpacity
+      onPress={() => onOpen(property)}
+      activeOpacity={0.92}
+      style={s.horizontalCard}
+    >
+      {/* Card Top: Image & Badges */}
+      <View style={s.cardTopImage}>
+        {property.media?.photos?.[0] ? (
+          <Image
+            source={{ uri: property.media.photos[0] }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={s.noPhoto}>
+            <MaterialIcons name="landscape" size={36} color="#94A3B8" />
+          </View>
+        )}
+        <View style={s.imageBadge}>
+          <MaterialIcons name={typeIcon(property.type)} size={11} color="#FFFFFF" style={{ marginRight: 4 }} />
+          <Text style={s.imageBadgeText}>{property.type.toUpperCase()}</Text>
+        </View>
+        <View style={[s.recCardBadge, { backgroundColor: badge.bg }]}>
+          <MaterialIcons name={badge.icon as any} size={11} color={badge.color} style={{ marginRight: 3 }} />
+          <Text style={[s.recCardBadgeText, { color: badge.color }]}>{badge.text}</Text>
+        </View>
+        <TouchableOpacity
+          style={s.heartPill}
+          accessibilityRole="button"
+          accessibilityLabel="Save property"
+          onPress={(e: any) => {
+            e?.stopPropagation?.();
+            onToggleSave(property);
+          }}
+        >
+          <MaterialIcons
+            name={isSaved ? "favorite" : "favorite-border"}
+            size={17}
+            color={isSaved ? "#DC2626" : "#03456C"}
+          />
+        </TouchableOpacity>
+      </View>
+
+      {/* Card Body */}
+      <View style={s.horizontalCardBody}>
+        <View style={s.priceLocationRow}>
+          <View style={s.priceRow}>
+            <Text style={s.compactPriceText}>{compactPrice(property.price)}</Text>
+            <Text style={s.fullPriceText}>({priceOf(property)})</Text>
+          </View>
+          <View style={s.locationRow}>
+            <MaterialIcons name="location-on" size={13} color="#0284C7" />
+            <Text style={s.locationText} numberOfLines={1}>
+              {property.location.district}, {property.location.state}
+            </Text>
+          </View>
+        </View>
+
+        <Text style={s.horizontalCardTitle} numberOfLines={2}>
+          {property.title || `${property.type} in ${property.location.district}`}
+        </Text>
+
+        <View style={s.specsRow}>
+          <View style={s.specChip}>
+            <MaterialIcons name="square-foot" size={14} color="#64748B" />
+            <Text style={s.specText}>
+              {property.sellableArea
+                ? `${property.sellableArea.toLocaleString("en-IN")} sq ft`
+                : "Area unlisted"}
+            </Text>
+          </View>
+          <View style={[s.specChip, property.negotiable ? s.negotiableChip : s.fixedChip]}>
+            <Text style={[s.negotiableText, property.negotiable ? s.negotiableColor : s.fixedColor]}>
+              {property.negotiable ? "Negotiable" : "Fixed price"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={s.viewDetailsBtn}>
+          <Text style={s.viewDetailsText}>View Details</Text>
+          <MaterialIcons name="arrow-forward" size={14} color="#03456C" />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+});
+
 export default function VerifiedHomeScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -216,19 +321,26 @@ export default function VerifiedHomeScreen() {
   const openProperty = useCallback(
     (property: Property) => {
       setSelected(null);
+      // Non-blocking interaction tracking; navigates immediately without UI freeze
       trackPropertyInteraction(property, "view");
-      setUserAffinity(getUserAffinity());
       router.push({ pathname: "/property/[id]", params: { id: property._id || property.id } });
     },
     [router]
   );
 
-  const isWide = width >= 800;
-  const filteredProperties = properties.filter((p) => type === undefined || p.type === type);
+  const handleToggleSave = useCallback((property: Property) => {
+    trackPropertyInteraction(property, "save");
+    setUserAffinity({ ...getUserAffinity() });
+  }, []);
 
-  // Dynamically scored and tailored properties for the current visitor & category
+  const isWide = width >= 800;
+  const filteredProperties = useMemo(() => {
+    return properties.filter((p) => type === undefined || p.type === type);
+  }, [properties, type]);
+
+  // Dynamically scored and tailored properties for the current visitor & category (top 16 for ultra-fast surfing)
   const recommendedProperties = useMemo(() => {
-    return getRecommendedProperties(filteredProperties, recCategory, userAffinity);
+    return getRecommendedProperties(filteredProperties, recCategory, userAffinity, 16);
   }, [filteredProperties, recCategory, userAffinity]);
 
   // Dynamic investment corridors synchronized with live database properties
@@ -576,105 +688,30 @@ export default function VerifiedHomeScreen() {
                     ref={carouselScroll}
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={s.carouselContent}
+                    contentContainerStyle={[
+                      s.carouselContent,
+                      Platform.OS === "web" && ({ willChange: "transform", transform: "translateZ(0)" } as any),
+                    ]}
                     onScroll={(e) => {
                       scrollOffset.current = e.nativeEvent.contentOffset.x;
                     }}
-                    scrollEventThrottle={16}
+                    scrollEventThrottle={32}
                   >
-                    {recommendedProperties.map((property) => (
-                      <TouchableOpacity
-                        key={property._id || property.id}
-                        onPress={() => openProperty(property)}
-                        activeOpacity={0.92}
-                        style={s.horizontalCard}
-                      >
-                        {/* Card Top: Image & Badges */}
-                        <View style={s.cardTopImage}>
-                          {property.media?.photos?.[0] ? (
-                            <Image
-                              source={{ uri: property.media.photos[0] }}
-                              style={StyleSheet.absoluteFill}
-                              resizeMode="cover"
-                            />
-                          ) : (
-                            <View style={s.noPhoto}>
-                              <MaterialIcons name="landscape" size={36} color="#94A3B8" />
-                            </View>
-                          )}
-                          <View style={s.imageBadge}>
-                            <MaterialIcons name={typeIcon(property.type)} size={11} color="#FFFFFF" style={{ marginRight: 4 }} />
-                            <Text style={s.imageBadgeText}>{property.type.toUpperCase()}</Text>
-                          </View>
-                          {(() => {
-                            const badge = getPropertyRecommendationBadge(property, recCategory, userAffinity);
-                            return (
-                              <View style={[s.recCardBadge, { backgroundColor: badge.bg }]}>
-                                <MaterialIcons name={badge.icon as any} size={11} color={badge.color} style={{ marginRight: 3 }} />
-                                <Text style={[s.recCardBadgeText, { color: badge.color }]}>{badge.text}</Text>
-                              </View>
-                            );
-                          })()}
-                          <TouchableOpacity
-                            style={s.heartPill}
-                            accessibilityRole="button"
-                            accessibilityLabel="Save property"
-                            onPress={(e: any) => {
-                              e?.stopPropagation?.();
-                              trackPropertyInteraction(property, "save");
-                              setUserAffinity(getUserAffinity());
-                            }}
-                          >
-                            <MaterialIcons
-                              name={userAffinity.savedIds?.includes(String(property._id || property.id)) ? "favorite" : "favorite-border"}
-                              size={17}
-                              color={userAffinity.savedIds?.includes(String(property._id || property.id)) ? "#DC2626" : "#03456C"}
-                            />
-                          </TouchableOpacity>
-                        </View>
-
-                        {/* Card Body */}
-                        <View style={s.horizontalCardBody}>
-                          <View style={s.priceLocationRow}>
-                            <View style={s.priceRow}>
-                              <Text style={s.compactPriceText}>{compactPrice(property.price)}</Text>
-                              <Text style={s.fullPriceText}>({priceOf(property)})</Text>
-                            </View>
-                            <View style={s.locationRow}>
-                              <MaterialIcons name="location-on" size={13} color="#0284C7" />
-                              <Text style={s.locationText} numberOfLines={1}>
-                                {property.location.district}, {property.location.state}
-                              </Text>
-                            </View>
-                          </View>
-
-                          <Text style={s.horizontalCardTitle} numberOfLines={2}>
-                            {property.title || `${property.type} in ${property.location.district}`}
-                          </Text>
-
-                          <View style={s.specsRow}>
-                            <View style={s.specChip}>
-                              <MaterialIcons name="square-foot" size={14} color="#64748B" />
-                              <Text style={s.specText}>
-                                {property.sellableArea
-                                  ? `${property.sellableArea.toLocaleString("en-IN")} sq ft`
-                                  : "Area unlisted"}
-                              </Text>
-                            </View>
-                            <View style={[s.specChip, property.negotiable ? s.negotiableChip : s.fixedChip]}>
-                              <Text style={[s.negotiableText, property.negotiable ? s.negotiableColor : s.fixedColor]}>
-                                {property.negotiable ? "Negotiable" : "Fixed price"}
-                              </Text>
-                            </View>
-                          </View>
-
-                          <View style={s.viewDetailsBtn}>
-                            <Text style={s.viewDetailsText}>View Details</Text>
-                            <MaterialIcons name="arrow-forward" size={14} color="#03456C" />
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
+                    {recommendedProperties.map((property) => {
+                      const propId = String(property._id || property.id);
+                      const isSaved = Boolean(userAffinity.savedIds?.includes(propId));
+                      return (
+                        <RecommendationCard
+                          key={propId}
+                          property={property}
+                          category={recCategory}
+                          userAffinity={userAffinity}
+                          isSaved={isSaved}
+                          onOpen={openProperty}
+                          onToggleSave={handleToggleSave}
+                        />
+                      );
+                    })}
                   </ScrollView>
                 </View>
               )}

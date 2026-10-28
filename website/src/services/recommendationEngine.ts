@@ -22,6 +22,19 @@ export interface UserAffinityProfile {
   lastUpdated: number;
 }
 
+export interface RecommendationBadge {
+  text: string;
+  icon: string;
+  bg: string;
+  color: string;
+}
+
+export interface RecommendedPropertyItem {
+  property: Property;
+  badge: RecommendationBadge;
+  score: number;
+}
+
 const AFFINITY_STORAGE_KEY = "malikse_user_affinity_v1";
 
 const DEFAULT_PROFILE: UserAffinityProfile = {
@@ -33,21 +46,47 @@ const DEFAULT_PROFILE: UserAffinityProfile = {
     commercial: 0,
     investment: 0,
   },
-  lastUpdated: Date.now(),
+  lastUpdated: 0,
 };
 
+// In-Memory Profile Cache for O(1) synchronous reads without disk I/O
+let memoryProfile: UserAffinityProfile | null = null;
+let saveDebounceTimer: any = null;
+
+// WeakMap cache for property classification to avoid repetitive string searching
+const classifyCache = new WeakMap<
+  Property,
+  {
+    isResidential: boolean;
+    isCommercial: boolean;
+    isInvestment: boolean;
+    isBudget: boolean;
+  }
+>();
+
+// Badge cache to prevent repeated badge object allocation
+const badgeCache = new Map<string, RecommendationBadge>();
+
 /**
- * Retrieve the current user's local affinity profile from localStorage.
+ * Retrieve the user's affinity profile with O(1) in-memory cache.
  */
 export function getUserAffinity(): UserAffinityProfile {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return DEFAULT_PROFILE;
+  if (memoryProfile) {
+    return memoryProfile;
   }
+
+  if (typeof window === "undefined" || !window.localStorage) {
+    return { ...DEFAULT_PROFILE, lastUpdated: Date.now() };
+  }
+
   try {
     const raw = window.localStorage.getItem(AFFINITY_STORAGE_KEY);
-    if (!raw) return DEFAULT_PROFILE;
+    if (!raw) {
+      memoryProfile = { ...DEFAULT_PROFILE, lastUpdated: Date.now() };
+      return memoryProfile;
+    }
     const parsed = JSON.parse(raw);
-    return {
+    memoryProfile = {
       ...DEFAULT_PROFILE,
       ...parsed,
       districtAffinity: parsed.districtAffinity || {},
@@ -56,26 +95,41 @@ export function getUserAffinity(): UserAffinityProfile {
         ...(parsed.intentAffinity || {}),
       },
     };
+    return memoryProfile;
   } catch {
-    return DEFAULT_PROFILE;
+    memoryProfile = { ...DEFAULT_PROFILE, lastUpdated: Date.now() };
+    return memoryProfile;
   }
 }
 
 /**
- * Persist the updated affinity profile.
+ * Persist the updated affinity profile in-memory immediately, and flush to localStorage asynchronously.
  */
-export function saveUserAffinity(profile: UserAffinityProfile): void {
+export function saveUserAffinity(profile: UserAffinityProfile, immediate = false): void {
+  profile.lastUpdated = Date.now();
+  memoryProfile = profile;
+
   if (typeof window === "undefined" || !window.localStorage) return;
-  try {
-    profile.lastUpdated = Date.now();
-    window.localStorage.setItem(AFFINITY_STORAGE_KEY, JSON.stringify(profile));
-  } catch {
-    // Ignore quota errors
+
+  const flush = () => {
+    try {
+      window.localStorage.setItem(AFFINITY_STORAGE_KEY, JSON.stringify(profile));
+    } catch {
+      // Ignore quota errors
+    }
+  };
+
+  if (immediate) {
+    if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+    flush();
+  } else {
+    if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+    saveDebounceTimer = setTimeout(flush, 300);
   }
 }
 
 /**
- * Record a user interaction with a property (viewing card, saving, clicking details).
+ * Non-blocking interaction recording.
  */
 export function trackPropertyInteraction(
   property: Property,
@@ -85,60 +139,45 @@ export function trackPropertyInteraction(
   const id = String(property._id || property.id || "");
   if (!id) return;
 
+  let changed = false;
+
   if (action === "view") {
     if (!profile.viewedIds.includes(id)) {
       profile.viewedIds.unshift(id);
       if (profile.viewedIds.length > 30) profile.viewedIds.pop();
+      changed = true;
     }
   } else if (action === "save") {
     if (!profile.savedIds.includes(id)) {
       profile.savedIds.unshift(id);
+      changed = true;
     }
   }
 
-  // Update district affinity
   const district = property.location?.district;
   if (district) {
     profile.districtAffinity[district] = (profile.districtAffinity[district] || 0) + (action === "save" ? 3 : 1);
+    changed = true;
   }
 
-  // Detect purpose from title/tags
-  const text = `${property.title || ""} ${property.type || ""} ${property.boundary || ""}`.toLowerCase();
-  const isCommercial =
-    text.includes("commercial") ||
-    text.includes("industrial") ||
-    text.includes("retail") ||
-    text.includes("shop") ||
-    text.includes("office") ||
-    text.includes("highway") ||
-    text.includes("nh-") ||
-    text.includes("market");
-
-  const isInvestment =
-    text.includes("airport") ||
-    text.includes("corridor") ||
-    text.includes("tourism") ||
-    text.includes("ring road") ||
-    text.includes("aiims") ||
-    text.includes("potential");
-
-  const isResidential =
-    text.includes("residential") ||
-    text.includes("gated") ||
-    text.includes("villa") ||
-    text.includes("house") ||
-    text.includes("bhk") ||
-    text.includes("colony") ||
-    text.includes("danapur") ||
-    property.type === "house" ||
-    property.type === "flat";
-
+  const { isCommercial, isInvestment, isResidential } = classifyProperty(property);
   const boost = action === "save" ? 3 : 1;
-  if (isCommercial) profile.intentAffinity.commercial += boost;
-  if (isInvestment) profile.intentAffinity.investment += boost;
-  if (isResidential) profile.intentAffinity.residential += boost;
+  if (isCommercial) {
+    profile.intentAffinity.commercial += boost;
+    changed = true;
+  }
+  if (isInvestment) {
+    profile.intentAffinity.investment += boost;
+    changed = true;
+  }
+  if (isResidential) {
+    profile.intentAffinity.residential += boost;
+    changed = true;
+  }
 
-  saveUserAffinity(profile);
+  if (changed) {
+    saveUserAffinity(profile, false);
+  }
 }
 
 /**
@@ -153,11 +192,11 @@ export function setUserCustomPreferences(prefs: {
   if (prefs.intent) profile.preferredIntent = prefs.intent;
   if (prefs.district) profile.preferredDistrict = prefs.district;
   if (prefs.budgetMax !== undefined) profile.preferredBudgetMax = prefs.budgetMax;
-  saveUserAffinity(profile);
+  saveUserAffinity(profile, true);
 }
 
 /**
- * Classify a property into its best use-cases.
+ * Classify a property into its best use-cases with WeakMap caching.
  */
 export function classifyProperty(property: Property): {
   isResidential: boolean;
@@ -165,6 +204,9 @@ export function classifyProperty(property: Property): {
   isInvestment: boolean;
   isBudget: boolean;
 } {
+  const cached = classifyCache.get(property);
+  if (cached) return cached;
+
   const text = `${property.title || ""} ${property.type || ""} ${property.location?.block || ""} ${property.location?.mauza || ""}`.toLowerCase();
   const price = property.price || 0;
 
@@ -202,7 +244,9 @@ export function classifyProperty(property: Property): {
 
   const isBudget = price <= 5000000; // <= ₹50 Lakh
 
-  return { isResidential, isCommercial, isInvestment, isBudget };
+  const result = { isResidential, isCommercial, isInvestment, isBudget };
+  classifyCache.set(property, result);
+  return result;
 }
 
 /**
@@ -213,7 +257,7 @@ function calculatePropertyScore(
   profile: UserAffinityProfile,
   index: number
 ): number {
-  let score = 50; // base score
+  let score = 50;
 
   const district = property.location?.district;
   const { isResidential, isCommercial, isInvestment } = classifyProperty(property);
@@ -268,8 +312,8 @@ function calculatePropertyScore(
     profile.preferredDistrict ||
     profile.preferredIntent;
 
-  if (!hasHistory) {
-    const hash = (id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) + index * 7) % 20;
+  if (!hasHistory && id) {
+    const hash = (id.charCodeAt(0) + index * 7) % 20;
     score += hash;
   }
 
@@ -278,14 +322,19 @@ function calculatePropertyScore(
 
 /**
  * Filter and sort properties dynamically according to the chosen recommendation category.
+ * Returns up to `limit` properties (default 16) for high-performance 60fps rendering.
  */
 export function getRecommendedProperties(
   properties: Property[],
   category: RecommendationCategory,
-  userProfile?: UserAffinityProfile
+  userProfile?: UserAffinityProfile,
+  limit = 16
 ): Property[] {
+  if (!properties || properties.length === 0) return [];
   const profile = userProfile || getUserAffinity();
   const list = [...properties];
+
+  let sorted: Property[];
 
   if (category === "for_you") {
     const scored = list.map((p, idx) => ({
@@ -293,121 +342,123 @@ export function getRecommendedProperties(
       score: calculatePropertyScore(p, profile, idx),
     }));
     scored.sort((a, b) => b.score - a.score);
-    return scored.map((s) => s.property);
-  }
-
-  if (category === "residential") {
-    return list
+    sorted = scored.map((s) => s.property);
+  } else if (category === "residential") {
+    sorted = list
       .filter((p) => classifyProperty(p).isResidential)
       .sort((a, b) => (b.verified ? 1 : 0) - (a.verified ? 1 : 0));
-  }
-
-  if (category === "commercial") {
-    return list
+  } else if (category === "commercial") {
+    sorted = list
       .filter((p) => classifyProperty(p).isCommercial)
       .sort((a, b) => (b.verified ? 1 : 0) - (a.verified ? 1 : 0));
-  }
-
-  if (category === "investment") {
-    return list
+  } else if (category === "investment") {
+    sorted = list
       .filter((p) => classifyProperty(p).isInvestment)
       .sort((a, b) => (b.verified ? 1 : 0) - (a.verified ? 1 : 0));
-  }
-
-  if (category === "budget") {
-    return list
+  } else if (category === "budget") {
+    sorted = list
       .filter((p) => classifyProperty(p).isBudget)
       .sort((a, b) => (a.price || 0) - (b.price || 0));
+  } else {
+    sorted = list;
   }
 
-  return list;
+  // Fallback if category filter returns too few
+  if (sorted.length === 0) {
+    sorted = list;
+  }
+
+  return limit > 0 ? sorted.slice(0, limit) : sorted;
 }
 
 /**
  * Return a contextual badge to render on the recommended property card.
+ * Uses cached results to avoid repeated string searches.
  */
 export function getPropertyRecommendationBadge(
   property: Property,
   category: RecommendationCategory,
   userProfile?: UserAffinityProfile
-): { text: string; icon: string; bg: string; color: string } {
-  const { isResidential, isCommercial, isInvestment } = classifyProperty(property);
+): RecommendationBadge {
   const profile = userProfile || getUserAffinity();
   const district = property.location?.district;
+  const propId = String(property._id || property.id || "");
+  const cacheKey = `${propId}_${category}_${profile.preferredDistrict || ""}`;
+
+  const cached = badgeCache.get(cacheKey);
+  if (cached) return cached;
+
+  const { isResidential, isCommercial, isInvestment } = classifyProperty(property);
+
+  let badge: RecommendationBadge;
 
   if (category === "for_you") {
     if (profile.preferredDistrict && district && profile.preferredDistrict.toLowerCase() === district.toLowerCase()) {
-      return {
+      badge = {
         text: `Top Match in ${district}`,
         icon: "stars",
         bg: "#FEF3C7",
         color: "#92400E",
       };
-    }
-    if (isInvestment) {
-      return {
+    } else if (isInvestment) {
+      badge = {
         text: "High-Growth Hub",
         icon: "trending-up",
         bg: "#F0FDF4",
         color: "#166534",
       };
-    }
-    if (isCommercial) {
-      return {
+    } else if (isCommercial) {
+      badge = {
         text: "Prime Commercial",
         icon: "business",
         bg: "#EFF6FF",
         color: "#1D4ED8",
       };
+    } else {
+      badge = {
+        text: "Recommended for You",
+        icon: "auto-awesome",
+        bg: "#F5F3FF",
+        color: "#6D28D9",
+      };
     }
-    return {
-      text: "Recommended for You",
-      icon: "auto-awesome",
-      bg: "#F5F3FF",
-      color: "#6D28D9",
-    };
-  }
-
-  if (category === "residential") {
-    return {
+  } else if (category === "residential") {
+    badge = {
       text: "Ideal for Home / Villa",
       icon: "home",
       bg: "#F0FDF4",
       color: "#166534",
     };
-  }
-
-  if (category === "commercial") {
-    return {
+  } else if (category === "commercial") {
+    badge = {
       text: "High Footfall Commercial",
       icon: "storefront",
       bg: "#EFF6FF",
       color: "#1D4ED8",
     };
-  }
-
-  if (category === "investment") {
-    return {
+  } else if (category === "investment") {
+    badge = {
       text: "Fast Appreciation Corridor",
       icon: "rocket-launch",
       bg: "#FEF2F2",
       color: "#B91C1C",
     };
-  }
-
-  if (category === "budget") {
-    return {
+  } else if (category === "budget") {
+    badge = {
       text: "Under ₹50 Lakh Value",
       icon: "savings",
       bg: "#FDF4FF",
       color: "#86198F",
     };
+  } else {
+    badge = {
+      text: "Title Verified",
+      icon: "verified",
+      bg: "#ECFDF5",
+      color: "#059669",
+    };
   }
 
-  return {
-    text: "Title Verified",
-    icon: "verified",
-    bg: "#ECFDF5",
-    color: "#059669",
-  };
+  badgeCache.set(cacheKey, badge);
+  return badge;
 }
