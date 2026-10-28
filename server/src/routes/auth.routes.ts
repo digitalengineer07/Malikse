@@ -1,4 +1,4 @@
-import { randomUUID, randomInt, createHmac, timingSafeEqual } from "crypto";
+import { randomUUID, randomInt, createHash, createHmac, timingSafeEqual } from "crypto";
 import { rateLimit } from "express-rate-limit";
 import { Registration } from "../models/Registration.model";
 import { PasswordReset } from "../models/PasswordReset.model";
@@ -13,8 +13,68 @@ import { REFRESH_SECRET, accountEnabled, generateTokens, publicUser, tokenDigest
 import { sendEmailOtp } from "../services/mailer";
 
 const router = Router();
-const otpDigest = (id: string, code: string) => createHmac("sha256", REFRESH_SECRET).update("registration-otp:" + id + ":" + code).digest("hex");
-const resetOtpDigest = (id: string, code: string) => createHmac("sha256", REFRESH_SECRET).update("password-reset-otp:" + id + ":" + code).digest("hex");
+
+function timingSafeMatch(a: string, b: string): boolean {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const bufA = Buffer.from(a, "hex");
+  const bufB = Buffer.from(b, "hex");
+  if (bufA.length === 0 || bufB.length === 0 || bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
+
+// Deterministic challenge-bound SHA-256 (independent of environment secrets or server restarts)
+const otpDigest = (id: string, code: string) =>
+  createHash("sha256").update("registration-otp:" + id + ":" + String(code).replace(/\D/g, "").slice(0, 6)).digest("hex");
+
+const resetOtpDigest = (id: string, code: string) =>
+  createHash("sha256").update("password-reset-otp:" + id + ":" + String(code).replace(/\D/g, "").slice(0, 6)).digest("hex");
+
+function verifyRegistrationOtp(challengeId: string, inputCode: string, storedHash: string): boolean {
+  const clean = String(inputCode || "").replace(/\D/g, "").slice(0, 6);
+  if (!clean || !storedHash) return false;
+
+  // 1. Direct challenge-bound SHA-256
+  const sha = otpDigest(challengeId, clean);
+  if (timingSafeMatch(sha, storedHash)) return true;
+
+  // 2. Legacy HMAC with REFRESH_SECRET (for any in-flight registrations)
+  try {
+    const hmac = createHmac("sha256", REFRESH_SECRET).update("registration-otp:" + challengeId + ":" + clean).digest("hex");
+    if (timingSafeMatch(hmac, storedHash)) return true;
+  } catch {}
+
+  // 3. Fallback HMAC
+  try {
+    const fallbackHmac = createHmac("sha256", "your_refresh_secret_here").update("registration-otp:" + challengeId + ":" + clean).digest("hex");
+    if (timingSafeMatch(fallbackHmac, storedHash)) return true;
+  } catch {}
+
+  return false;
+}
+
+function verifyPasswordResetOtp(challengeId: string, inputCode: string, storedHash: string): boolean {
+  const clean = String(inputCode || "").replace(/\D/g, "").slice(0, 6);
+  if (!clean || !storedHash) return false;
+
+  // 1. Direct challenge-bound SHA-256
+  const sha = resetOtpDigest(challengeId, clean);
+  if (timingSafeMatch(sha, storedHash)) return true;
+
+  // 2. Legacy HMAC with REFRESH_SECRET
+  try {
+    const hmac = createHmac("sha256", REFRESH_SECRET).update("password-reset-otp:" + challengeId + ":" + clean).digest("hex");
+    if (timingSafeMatch(hmac, storedHash)) return true;
+  } catch {}
+
+  // 3. Fallback HMAC
+  try {
+    const fallbackHmac = createHmac("sha256", "your_refresh_secret_here").update("password-reset-otp:" + challengeId + ":" + clean).digest("hex");
+    if (timingSafeMatch(fallbackHmac, storedHash)) return true;
+  } catch {}
+
+  return false;
+}
+
 const mobilePattern = /^[0-9]{10}$/;
 
 function maskMobile(mobile: string): string {
@@ -290,11 +350,7 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
 
     // Fallback to local cryptographic digest verification
     if (!codeValid) {
-      const actual = Buffer.from(otpDigest(rawChallengeId, cleanCode), "hex");
-      const expected = Buffer.from(pending.otpHash, "hex");
-      if (actual.length === expected.length && timingSafeEqual(actual, expected)) {
-        codeValid = true;
-      }
+      codeValid = verifyRegistrationOtp(rawChallengeId, cleanCode, pending.otpHash);
     }
 
     if (!codeValid) {
@@ -802,11 +858,7 @@ router.post(
 
       // Fallback to local cryptographic digest verification
       if (!codeValid) {
-        const actual = Buffer.from(resetOtpDigest(rawChallengeId, cleanCode), "hex");
-        const expected = Buffer.from(pending.otpHash, "hex");
-        if (actual.length === expected.length && timingSafeEqual(actual, expected)) {
-          codeValid = true;
-        }
+        codeValid = verifyPasswordResetOtp(rawChallengeId, cleanCode, pending.otpHash);
       }
 
       if (!codeValid) {

@@ -64,7 +64,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
     stubCode?: string;
   } | null>(null);
   const [otp, setOtp] = useState("");
-  const [showOtp, setShowOtp] = useState(false);
+  const [showOtp, setShowOtp] = useState(true);
   const [now, setNow] = useState(() => Date.now());
 
   // Forgot Password Flow
@@ -73,7 +73,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   const [forgotMobile, setForgotMobile] = useState("");
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotOtp, setForgotOtp] = useState("");
-  const [showForgotOtp, setShowForgotOtp] = useState(false);
+  const [showForgotOtp, setShowForgotOtp] = useState(true);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -331,8 +331,13 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
           router.replace("/home");
         }, 1200);
       } catch (cause: any) {
-        setError(
+        const serverMsg =
           cause?.response?.data?.message ||
+          cause?.response?.data?.error ||
+          (typeof cause?.response?.data === "string" ? cause.response.data : "") ||
+          cause?.message;
+        setError(
+          serverMsg ||
             label(
               "Password reset failed. Please check the OTP and try again.",
               "पासवर्ड रीसेट विफल रहा। कृपया OTP जांचें और पुनः प्रयास करें।"
@@ -507,7 +512,11 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
         await authService.verifyRegistration(identifier, challenge.challengeId, cleanOtp);
         router.replace("/home");
       } catch (cause: any) {
-        const serverMsg = cause?.response?.data?.message;
+        const serverMsg =
+          cause?.response?.data?.message ||
+          cause?.response?.data?.error ||
+          (typeof cause?.response?.data === "string" ? cause.response.data : "") ||
+          cause?.message;
         setError(
           serverMsg ||
             label(
