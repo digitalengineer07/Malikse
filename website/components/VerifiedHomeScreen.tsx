@@ -26,6 +26,15 @@ import WebFooter from "./WebFooter";
 import { cachedPropertySearch, propertyService } from "../src/services/propertyService";
 import type { Property, PropertyType } from "../src/types/property.types";
 import { AppTheme } from "../constants/theme";
+import {
+  RecommendationCategory,
+  UserAffinityProfile,
+  getUserAffinity,
+  getRecommendedProperties,
+  getPropertyRecommendationBadge,
+  trackPropertyInteraction,
+  setUserCustomPreferences,
+} from "../src/services/recommendationEngine";
 
 const nameOf = (p: Property) => p.title || `${p.type} in ${p.location.district}`;
 const priceOf = (p: Property) => `₹${p.price.toLocaleString("en-IN")}`;
@@ -119,6 +128,16 @@ export default function VerifiedHomeScreen() {
   const [leadPhone, setLeadPhone] = useState("");
   const [leadError, setLeadError] = useState("");
 
+  // Dynamic Plot Recommendation Engine State
+  const [recCategory, setRecCategory] = useState<RecommendationCategory>("for_you");
+  const [userAffinity, setUserAffinity] = useState<UserAffinityProfile>(() => getUserAffinity());
+  const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
+  const [tempIntent, setTempIntent] = useState<"residential" | "commercial" | "investment" | undefined>(
+    userAffinity.preferredIntent
+  );
+  const [tempDistrict, setTempDistrict] = useState<string>(userAffinity.preferredDistrict || "");
+  const [tempBudget, setTempBudget] = useState<number | undefined>(userAffinity.preferredBudgetMax);
+
   // Automatically trigger the luxury overlapping ad 1.4s after landing
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -197,6 +216,8 @@ export default function VerifiedHomeScreen() {
   const openProperty = useCallback(
     (property: Property) => {
       setSelected(null);
+      trackPropertyInteraction(property, "view");
+      setUserAffinity(getUserAffinity());
       router.push({ pathname: "/property/[id]", params: { id: property._id || property.id } });
     },
     [router]
@@ -204,6 +225,11 @@ export default function VerifiedHomeScreen() {
 
   const isWide = width >= 800;
   const filteredProperties = properties.filter((p) => type === undefined || p.type === type);
+
+  // Dynamically scored and tailored properties for the current visitor & category
+  const recommendedProperties = useMemo(() => {
+    return getRecommendedProperties(filteredProperties, recCategory, userAffinity);
+  }, [filteredProperties, recCategory, userAffinity]);
 
   // Dynamic investment corridors synchronized with live database properties
   const hubCorridors = useMemo(() => {
@@ -425,14 +451,22 @@ export default function VerifiedHomeScreen() {
                       <Text style={s.carouselTitle}>
                         {type
                           ? `${type.charAt(0).toUpperCase() + type.slice(1)} Properties`
-                          : "Featured Verified Listings"}
+                          : recCategory === "for_you"
+                          ? "Recommended For You"
+                          : recCategory === "residential"
+                          ? "Residential Plots & Homes"
+                          : recCategory === "commercial"
+                          ? "Commercial & Highway Plots"
+                          : recCategory === "investment"
+                          ? "High-Growth Corridors"
+                          : "Budget Verified Plots"}
                       </Text>
                       <View style={s.verifiedShieldBadge}>
-                        <MaterialIcons name="verified" size={13} color="#059669" />
-                        <Text style={s.verifiedShieldText}>100% Legal Clearance</Text>
+                        <MaterialIcons name="auto-awesome" size={13} color="#059669" />
+                        <Text style={s.verifiedShieldText}>Personalized Match</Text>
                       </View>
                       <View style={s.countBadge}>
-                        <Text style={s.countBadgeText}>{filteredProperties.length} available</Text>
+                        <Text style={s.countBadgeText}>{recommendedProperties.length} available</Text>
                       </View>
                     </View>
 
@@ -458,6 +492,85 @@ export default function VerifiedHomeScreen() {
                     </View>
                   </View>
 
+                  {/* Recommendation Category & Intent Switcher Tabs */}
+                  <View style={s.recTabsContainer}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.recTabsScroll}>
+                      <TouchableOpacity
+                        style={[s.recPill, recCategory === "for_you" && s.recPillActive]}
+                        onPress={() => {
+                          setRecCategory("for_you");
+                          carouselScroll.current?.scrollTo({ x: 0, animated: true });
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialIcons name="auto-awesome" size={13} color={recCategory === "for_you" ? "#FFFFFF" : "#03456C"} />
+                        <Text style={[s.recPillText, recCategory === "for_you" && s.recPillTextActive]}>Recommended For You</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[s.recPill, recCategory === "residential" && s.recPillActive]}
+                        onPress={() => {
+                          setRecCategory("residential");
+                          carouselScroll.current?.scrollTo({ x: 0, animated: true });
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialIcons name="home" size={13} color={recCategory === "residential" ? "#FFFFFF" : "#03456C"} />
+                        <Text style={[s.recPillText, recCategory === "residential" && s.recPillTextActive]}>Residential & Homes</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[s.recPill, recCategory === "commercial" && s.recPillActive]}
+                        onPress={() => {
+                          setRecCategory("commercial");
+                          carouselScroll.current?.scrollTo({ x: 0, animated: true });
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialIcons name="storefront" size={13} color={recCategory === "commercial" ? "#FFFFFF" : "#03456C"} />
+                        <Text style={[s.recPillText, recCategory === "commercial" && s.recPillTextActive]}>Commercial & Highway</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[s.recPill, recCategory === "investment" && s.recPillActive]}
+                        onPress={() => {
+                          setRecCategory("investment");
+                          carouselScroll.current?.scrollTo({ x: 0, animated: true });
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialIcons name="rocket-launch" size={13} color={recCategory === "investment" ? "#FFFFFF" : "#03456C"} />
+                        <Text style={[s.recPillText, recCategory === "investment" && s.recPillTextActive]}>High-Growth Corridors</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[s.recPill, recCategory === "budget" && s.recPillActive]}
+                        onPress={() => {
+                          setRecCategory("budget");
+                          carouselScroll.current?.scrollTo({ x: 0, animated: true });
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialIcons name="savings" size={13} color={recCategory === "budget" ? "#FFFFFF" : "#03456C"} />
+                        <Text style={[s.recPillText, recCategory === "budget" && s.recPillTextActive]}>Under ₹50 Lakh</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={s.recCustomizeBtn}
+                        onPress={() => {
+                          setTempIntent(userAffinity.preferredIntent);
+                          setTempDistrict(userAffinity.preferredDistrict || "");
+                          setTempBudget(userAffinity.preferredBudgetMax);
+                          setIsCustomizeModalOpen(true);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialIcons name="tune" size={13} color="#0284C7" />
+                        <Text style={s.recCustomizeBtnText}>Customize Feed</Text>
+                      </TouchableOpacity>
+                    </ScrollView>
+                  </View>
+
                   {/* Horizontal Scroll Area */}
                   <ScrollView
                     ref={carouselScroll}
@@ -469,10 +582,10 @@ export default function VerifiedHomeScreen() {
                     }}
                     scrollEventThrottle={16}
                   >
-                    {filteredProperties.map((property) => (
+                    {recommendedProperties.map((property) => (
                       <TouchableOpacity
                         key={property._id || property.id}
-                        onPress={() => setSelected(property)}
+                        onPress={() => openProperty(property)}
                         activeOpacity={0.92}
                         style={s.horizontalCard}
                       >
@@ -493,19 +606,30 @@ export default function VerifiedHomeScreen() {
                             <MaterialIcons name={typeIcon(property.type)} size={11} color="#FFFFFF" style={{ marginRight: 4 }} />
                             <Text style={s.imageBadgeText}>{property.type.toUpperCase()}</Text>
                           </View>
-                          <View style={s.verifiedTag}>
-                            <MaterialIcons name="verified" size={12} color="#10B981" />
-                            <Text style={s.verifiedTagText}>Title Verified</Text>
-                          </View>
+                          {(() => {
+                            const badge = getPropertyRecommendationBadge(property, recCategory, userAffinity);
+                            return (
+                              <View style={[s.recCardBadge, { backgroundColor: badge.bg }]}>
+                                <MaterialIcons name={badge.icon as any} size={11} color={badge.color} style={{ marginRight: 3 }} />
+                                <Text style={[s.recCardBadgeText, { color: badge.color }]}>{badge.text}</Text>
+                              </View>
+                            );
+                          })()}
                           <TouchableOpacity
                             style={s.heartPill}
                             accessibilityRole="button"
                             accessibilityLabel="Save property"
                             onPress={(e: any) => {
                               e?.stopPropagation?.();
+                              trackPropertyInteraction(property, "save");
+                              setUserAffinity(getUserAffinity());
                             }}
                           >
-                            <MaterialIcons name="favorite-border" size={17} color="#03456C" />
+                            <MaterialIcons
+                              name={userAffinity.savedIds?.includes(String(property._id || property.id)) ? "favorite" : "favorite-border"}
+                              size={17}
+                              color={userAffinity.savedIds?.includes(String(property._id || property.id)) ? "#DC2626" : "#03456C"}
+                            />
                           </TouchableOpacity>
                         </View>
 
@@ -1002,6 +1126,171 @@ export default function VerifiedHomeScreen() {
                   </TouchableOpacity>
                 </View>
               )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Dynamic Recommendation Preference Customizer Modal */}
+      <Modal visible={isCustomizeModalOpen} transparent animationType="fade" onRequestClose={() => setIsCustomizeModalOpen(false)}>
+        <View style={s.customizeOverlay}>
+          <View style={s.customizeModalCard}>
+            <View style={s.customizeModalHeader}>
+              <View style={s.customizeHeaderTitleRow}>
+                <View style={s.customizeSparkle}>
+                  <MaterialIcons name="tune" size={18} color="#0284C7" />
+                </View>
+                <View>
+                  <Text style={s.customizeModalTitle}>Customize Recommendations</Text>
+                  <Text style={s.customizeModalSub}>Tailor the verified plot carousel to your exact needs</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setIsCustomizeModalOpen(false)}
+                style={s.customizeCloseBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
+                <MaterialIcons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Step 1: Goal / Purpose */}
+            <View style={s.customizeGroup}>
+              <Text style={s.customizeGroupLabel}>1. What is your primary purpose?</Text>
+              <View style={s.customizePillGrid}>
+                {[
+                  { id: "residential", label: "Build a Home / Villa", icon: "home" },
+                  { id: "commercial", label: "Commercial / Business", icon: "storefront" },
+                  { id: "investment", label: "High-ROI Appreciation", icon: "rocket-launch" },
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[
+                      s.customizeChoicePill,
+                      tempIntent === item.id && s.customizeChoicePillActive,
+                    ]}
+                    onPress={() => setTempIntent(tempIntent === item.id ? undefined : (item.id as any))}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons
+                      name={item.icon as any}
+                      size={14}
+                      color={tempIntent === item.id ? "#FFFFFF" : "#03456C"}
+                    />
+                    <Text
+                      style={[
+                        s.customizeChoiceText,
+                        tempIntent === item.id && s.customizeChoiceTextActive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Step 2: Preferred District */}
+            <View style={s.customizeGroup}>
+              <Text style={s.customizeGroupLabel}>2. Preferred Bihar District</Text>
+              <View style={s.customizePillGrid}>
+                {[
+                  { id: "", label: "All Bihar" },
+                  { id: "Patna", label: "Patna" },
+                  { id: "Vaishali", label: "Vaishali / Hajipur" },
+                  { id: "Gaya", label: "Gaya / Bodh Gaya" },
+                  { id: "Muzaffarpur", label: "Muzaffarpur" },
+                  { id: "Darbhanga", label: "Darbhanga" },
+                ].map((d) => (
+                  <TouchableOpacity
+                    key={d.id}
+                    style={[
+                      s.customizeChoicePill,
+                      (tempDistrict === d.id || (!tempDistrict && d.id === "")) && s.customizeChoicePillActive,
+                    ]}
+                    onPress={() => setTempDistrict(d.id)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        s.customizeChoiceText,
+                        (tempDistrict === d.id || (!tempDistrict && d.id === "")) && s.customizeChoiceTextActive,
+                      ]}
+                    >
+                      {d.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Step 3: Budget Range */}
+            <View style={s.customizeGroup}>
+              <Text style={s.customizeGroupLabel}>3. Maximum Target Budget</Text>
+              <View style={s.customizePillGrid}>
+                {[
+                  { val: undefined, label: "Any Budget" },
+                  { val: 3000000, label: "Under ₹30 Lakh" },
+                  { val: 5000000, label: "Under ₹50 Lakh" },
+                  { val: 8000000, label: "Under ₹80 Lakh" },
+                  { val: 15000000, label: "Under ₹1.5 Cr" },
+                ].map((b) => (
+                  <TouchableOpacity
+                    key={b.label}
+                    style={[
+                      s.customizeChoicePill,
+                      tempBudget === b.val && s.customizeChoicePillActive,
+                    ]}
+                    onPress={() => setTempBudget(b.val)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        s.customizeChoiceText,
+                        tempBudget === b.val && s.customizeChoiceTextActive,
+                      ]}
+                    >
+                      {b.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Modal Actions */}
+            <View style={s.customizeActionRow}>
+              <TouchableOpacity
+                style={s.customizeResetBtn}
+                onPress={() => {
+                  setTempIntent(undefined);
+                  setTempDistrict("");
+                  setTempBudget(undefined);
+                  setUserCustomPreferences({ intent: undefined, district: "", budgetMax: undefined });
+                  setUserAffinity(getUserAffinity());
+                  setIsCustomizeModalOpen(false);
+                }}
+              >
+                <Text style={s.customizeResetBtnText}>Reset to Auto</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={s.customizeApplyBtn}
+                onPress={() => {
+                  setUserCustomPreferences({
+                    intent: tempIntent,
+                    district: tempDistrict,
+                    budgetMax: tempBudget,
+                  });
+                  setUserAffinity(getUserAffinity());
+                  setRecCategory("for_you");
+                  setIsCustomizeModalOpen(false);
+                  carouselScroll.current?.scrollTo({ x: 0, animated: true });
+                }}
+              >
+                <MaterialIcons name="check" size={16} color="#FFFFFF" />
+                <Text style={s.customizeApplyBtnText}>Apply & Personalize Feed</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -2392,6 +2681,239 @@ const s = StyleSheet.create({
     }),
   },
   adOverlayDoneBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+
+  /* Dynamic Recommendation Tabs & Header */
+  recTabsContainer: {
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  recTabsScroll: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+    paddingVertical: 2,
+  },
+  recPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    ...Platform.select({
+      web: { cursor: "pointer", transition: "all 0.15s ease" },
+    }),
+  },
+  recPillActive: {
+    backgroundColor: "#03456C",
+    borderColor: "#03456C",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 12px rgba(3, 69, 108, 0.25)",
+      },
+    }),
+  },
+  recPillText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#03456C",
+  },
+  recPillTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  recCustomizeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#E0F2FE",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    marginLeft: 4,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  recCustomizeBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0284C7",
+  },
+
+  /* Card Dynamic Recommendation Tag */
+  recCardBadge: {
+    position: "absolute",
+    bottom: 10,
+    left: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  recCardBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+
+  /* Customize Preferences Modal */
+  customizeOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(10, 25, 47, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    ...Platform.select({
+      web: { backdropFilter: "blur(6px)" },
+    }),
+  },
+  customizeModalCard: {
+    width: "100%",
+    maxWidth: 540,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 26,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 20px 40px -8px rgba(3, 69, 108, 0.2)",
+      },
+    }),
+  },
+  customizeModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  customizeHeaderTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  customizeSparkle: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#E0F2FE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  customizeModalTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#0A192F",
+  },
+  customizeModalSub: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  customizeCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  customizeGroup: {
+    marginBottom: 18,
+  },
+  customizeGroupLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A192F",
+    marginBottom: 8,
+  },
+  customizePillGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  customizeChoicePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 14,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  customizeChoicePillActive: {
+    backgroundColor: "#03456C",
+    borderColor: "#03456C",
+  },
+  customizeChoiceText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#334155",
+  },
+  customizeChoiceTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  customizeActionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 10,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  customizeResetBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  customizeResetBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748B",
+    textDecorationLine: "underline",
+  },
+  customizeApplyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#03456C",
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 12,
+    ...Platform.select({
+      web: {
+        backgroundImage: "linear-gradient(135deg, #03456C 0%, #0284C7 100%)",
+        cursor: "pointer",
+        boxShadow: "0 4px 14px rgba(2, 132, 199, 0.3)",
+      },
+    }),
+  },
+  customizeApplyBtnText: {
     fontSize: 13,
     fontWeight: "700",
     color: "#FFFFFF",
