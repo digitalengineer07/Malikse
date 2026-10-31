@@ -26,6 +26,11 @@ app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
 }).then(async () => {
   monitorPool(mongoose.connection.getClient());
   console.log("[MalikSe] MongoDB connected");
+  if (process.env.MONGO_READ_REPLICA === "true") {
+    startupStage = "MongoDB read replica check";
+    await mongoose.connection.db!.command({ ping: 1 }, { readPreference: "secondary" });
+    console.log("[MalikSe] MongoDB secondary available for read traffic");
+  }
   try {
     const usersCol = mongoose.connection.collection("users");
     const indexes = await usersCol.indexes();

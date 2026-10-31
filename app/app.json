@@ -39,7 +39,8 @@
       ],
       "expo-secure-store",
       "expo-web-browser",
-      "expo-font"
+      "expo-font",
+      "./plugins/withSmallAndroidBuild"
     ],
     "experiments": {
       "typedRoutes": true,

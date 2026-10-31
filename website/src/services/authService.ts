@@ -105,6 +105,7 @@ api.interceptors.response.use(
 export interface RegisterResponse {
   challengeId: string;
   channel?: "mobile" | "email";
+  message?: string;
   expiresInSeconds: number;
   resendAfterSeconds: number;
   stubCode?: string;
@@ -151,7 +152,7 @@ export const authService = {
     code: string
   ): Promise<UserProfile> {
     const cleanMobile = identifier.trim().replace(/\D/g, "");
-    const isMobile = /^[0-9]{10}$/.test(cleanMobile);
+    const isMobile = !identifier.includes("@") && /^[0-9]{10}$/.test(cleanMobile);
     const cleanCode = String(code || "").replace(/\D/g, "").slice(0, 6);
     const cleanChallengeId = String(challengeId || "").trim();
     const payload = isMobile
@@ -167,7 +168,7 @@ export const authService = {
 
   async login(identifier: string, password: string): Promise<UserProfile> {
     const cleanMobile = identifier.trim().replace(/\D/g, "");
-    const isMobile = /^[0-9]{10}$/.test(cleanMobile);
+    const isMobile = !identifier.includes("@") && /^[0-9]{10}$/.test(cleanMobile);
     const payload = isMobile
       ? { mobile: cleanMobile, identifier: cleanMobile, password }
       : { email: identifier.trim().toLowerCase(), identifier: identifier.trim().toLowerCase(), password };

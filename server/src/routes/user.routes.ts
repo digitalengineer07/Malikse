@@ -7,6 +7,7 @@ import { isValidObjectId, Types } from "mongoose";
 import { publicUser } from "../services/security";
 import { publicFields } from "../services/propertyWorkflow";
 import { publicPropertyFilter } from "../services/marketplace";
+import { replicaReadPreference } from "../services/readReplica";
 
 const router = express.Router();
 
@@ -48,7 +49,7 @@ router.put("/profile", authGuard, async (req: AuthRequest, res) => {
 // Get User's Listed Properties
 router.get("/my-properties", authGuard, async (req: AuthRequest, res) => {
   try {
-    const properties = await readPage(Property.find({ ownerId: req.user?.id }).select(listFields), req, res);
+    const properties = await readPage(Property.find({ ownerId: req.user?.id }).select(listFields).read(replicaReadPreference()), req, res);
     res.json(properties);
   } catch (err) {
     res.status(500).json({ error: "Server error" });
@@ -66,7 +67,7 @@ router.get("/wishlist", authGuard, async (req: AuthRequest, res) => {
     const index = anchor ? order.indexOf(anchor) : -1;
     if (anchor && index < 0) return res.status(400).json({ error: "Saved list changed. Refresh to continue." });
     const ids = order.slice(index + 1, index + 1 + limit);
-    const found = await Property.find({ ...await publicPropertyFilter(), _id: { $in: ids } }).select(publicFields).lean().maxTimeMS(5000);
+    const found = await Property.find({ ...await publicPropertyFilter(), _id: { $in: ids } }).select(publicFields).read(replicaReadPreference()).lean().maxTimeMS(5000);
     const byId = new Map(found.map(row => [String(row._id), row]));
     const properties = ids.map(id => byId.get(id)).filter(Boolean);
     res.setHeader("X-Next-Cursor", index + 1 + limit < order.length ? cursorFor({ _id: ids.at(-1), createdAt: new Date(0) }) : "");

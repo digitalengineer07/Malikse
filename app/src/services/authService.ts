@@ -106,14 +106,31 @@ api.interceptors.response.use(
   }
 );
 
+export interface RegisterPayload {
+  name: string;
+  password: string;
+  method: "mobile" | "email";
+  mobile?: string;
+  email?: string;
+}
+
+export interface RegisterResponse {
+  testOnly?: boolean;
+  message?: string;
+  challengeId?: string;
+  channel?: "mobile" | "email";
+  expiresInSeconds?: number;
+  resendAfterSeconds: number;
+}
+
 export const authService = {
-  async register(name: string, mobile: string, password: string, email?: string): Promise<{ testOnly: true; message: string; resendAfterSeconds: number } | { testOnly?: false; challengeId: string; expiresInSeconds: number; resendAfterSeconds: number }> {
-    const res = await api.post("/auth/register", { name, mobile, email, password });
+  async register(payload: RegisterPayload): Promise<RegisterResponse> {
+    const res = await api.post("/auth/register", payload);
     return res.data;
   },
 
-  async verifyRegistration(mobile: string, challengeId: string, code: string): Promise<UserProfile> {
-    const res = await api.post("/auth/register/verify", { mobile, challengeId, code });
+  async verifyRegistration(identifier: string, challengeId: string, code: string): Promise<UserProfile> {
+    const res = await api.post("/auth/register/verify", { identifier, challengeId, code });
     const { accessToken, refreshToken, user } = res.data;
     useAuthStore.getState().setTokens({ accessToken, refreshToken });
     useAuthStore.getState().setUser(user);
@@ -121,8 +138,8 @@ export const authService = {
     return user;
   },
 
-  async login(mobile: string, password: string): Promise<UserProfile> {
-    const res = await api.post("/auth/login", { mobile, password });
+  async login(identifier: string, password: string): Promise<UserProfile> {
+    const res = await api.post("/auth/login", { identifier, password });
     const { accessToken, refreshToken, user } = res.data;
     
     useAuthStore.getState().setTokens({ accessToken, refreshToken });

@@ -4,7 +4,7 @@ import { gzip, brotliCompress, constants } from "zlib";
 import type { Request, Response } from "express";
 import { publicCacheBoot, publicGeneration, assertPublicGeneration, onPublicInvalidation, publicBusy } from "./publicCacheGeneration";
 import { searchMemory, PublicSnapshot } from "./searchMemory";
-import { redisGet, redisSet, redisConfigured } from "./redis";
+import { redisGet, redisSet } from "./redis";
 import { admitPublicRead } from "./publicReadAdmission";
 import { performanceMetrics as metrics } from "./performanceMetrics";
 
@@ -31,7 +31,10 @@ function remember(key: string, entry: PublicSnapshot) {
 async function serialize(value: { data: unknown; nextCursor?: string; status?: number }): Promise<PublicSnapshot> {
   const body = Buffer.from(JSON.stringify(value.data));
   const ttl = value.status === 404 || (Array.isArray(value.data) && !value.data.length) ? 2000 : 15000 + Math.floor(Math.random() * 1500);
-  const entry: PublicSnapshot = { body, nextCursor: value.nextCursor || "", status: value.status || 200, expires: Date.now() + ttl, localUntil: Date.now() + (redisConfigured() ? 2000 : ttl), bytes: body.length + 256 };
+  const expires = Date.now() + ttl;
+  // The local snapshot already has the same expiry as the Redis value. Rechecking
+  // Redis every two seconds stalls hot reads when Redis is slow or unavailable.
+  const entry: PublicSnapshot = { body, nextCursor: value.nextCursor || "", status: value.status || 200, expires, localUntil: expires, bytes: body.length + 256 };
   if (body.length >= 1024 && process.env.PUBLIC_JSON_COMPRESSION !== "false") {
     // Compression runs once per fill and is included in the bounded fill concurrency.
     [entry.gzip, entry.br] = await Promise.all([
@@ -50,7 +53,7 @@ function decode(raw: string): PublicSnapshot | undefined {
   try {
     const value = JSON.parse(raw);
     if (![200, 404].includes(value.status) || typeof value.body !== "string" || typeof value.nextCursor !== "string" || value.nextCursor.length > 200 || !Number.isFinite(value.expires) || value.expires <= Date.now()) return;
-    const entry: PublicSnapshot = { ...value, body: Buffer.from(value.body, "base64"), gzip: value.gzip ? Buffer.from(value.gzip, "base64") : undefined, br: value.br ? Buffer.from(value.br, "base64") : undefined, localUntil: Date.now() + 2000 };
+    const entry: PublicSnapshot = { ...value, body: Buffer.from(value.body, "base64"), gzip: value.gzip ? Buffer.from(value.gzip, "base64") : undefined, br: value.br ? Buffer.from(value.br, "base64") : undefined, localUntil: value.expires };
     entry.bytes = entry.body.length + (entry.gzip?.length || 0) + (entry.br?.length || 0) + 256;
     return entry.bytes <= entryLimit ? entry : undefined;
   } catch { return; }

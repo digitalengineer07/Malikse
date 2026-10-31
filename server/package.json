@@ -6,6 +6,7 @@
   "scripts": {
     "test:fastify-property-reads": "npm run build && node load/test-fastify-property-reads.cjs",
     "db:region-counts": "npm run build && node dist/scripts/rebuildRegionCounts.js",
+    "db:verify-replica": "node load/verify-read-replica.cjs",
     "verify:demo-properties": "npm run build && node load/verify-demo-properties.cjs",
     "seed:demo-properties": "npm run build && node dist/scripts/seedDemoProperties.js",
     "test:regions": "npm run build && node load/test-regions.cjs",

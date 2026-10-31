@@ -7,6 +7,6 @@ export function mongoPoolOptions() {
   const maxPoolSize = read("MONGO_MAX_POOL_SIZE", 50, 1, 200);
   const minPoolSize = read("MONGO_MIN_POOL_SIZE", 0, 0, maxPoolSize);
   return { maxPoolSize, minPoolSize, maxConnecting: read("MONGO_MAX_CONNECTING", 2, 1, 10),
-    waitQueueTimeoutMS: read("MONGO_WAIT_QUEUE_TIMEOUT_MS", 2000, 1, 10000),
+    waitQueueTimeoutMS: read("MONGO_WAIT_QUEUE_TIMEOUT_MS", 2000, 1, 30000),
     serverSelectionTimeoutMS: 5000, socketTimeoutMS: 20000 };
 }

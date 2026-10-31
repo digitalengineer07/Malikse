@@ -17,6 +17,7 @@ import { regionCounts } from "../services/propertyRegions";
 import { getPublicSearchResponse } from "../services/propertySearch";
 import { publicResponse, sendPublicResponse } from "../services/publicResponseCache";
 import { enqueueSubmission } from "../services/submissionQueue";
+import { replicaReadPreference } from "../services/readReplica";
 
 const router = Router();
 const photoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
@@ -51,7 +52,7 @@ router.get("/search", async (req, res) => {
 });
 
 router.get("/mine", authGuard, roleGuard("user"), async (req: any, res) => {
-  try { res.json(await readPage(Property.find({ ownerId: req.user.id }).select(listFields), req, res)); }
+  try { res.json(await readPage(Property.find({ ownerId: req.user.id }).select(listFields).read(replicaReadPreference()), req, res)); }
   catch (error: any) { res.status(500).json({ message: "An unexpected server error occurred" }); }
 });
 
@@ -68,8 +69,8 @@ router.get("/:id/workspace", authGuard, async (req: any, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const response = await publicResponse({ db: Property.db.name, kind: "detail", id: req.params.id }, async () => {
-      const property = await Property.findOne({ ...publishedFilter, _id: req.params.id }).select(publicFields + " ownerId").maxTimeMS(1500).lean();
-      const owner = property && await User.exists({ _id: property.ownerId, isSuspended: { $ne: true }, isActive: { $ne: false } }).maxTimeMS(1000);
+      const property = await Property.findOne({ ...publishedFilter, _id: req.params.id }).select(publicFields + " ownerId").read(replicaReadPreference()).maxTimeMS(1500).lean();
+      const owner = property && await User.exists({ _id: property.ownerId, isSuspended: { $ne: true }, isActive: { $ne: false } }).read(replicaReadPreference()).maxTimeMS(1000);
       if (!property || !owner) return { data: { message: "Published property not found" }, status: 404 };
       const { ownerId: _owner, ...dto } = property;
       return { data: dto };

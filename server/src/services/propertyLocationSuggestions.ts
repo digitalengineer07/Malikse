@@ -3,6 +3,7 @@ import { User } from "../models/User.model";
 import { publishedFilter } from "./marketplace";
 import { addressFields, addressPattern } from "./propertySearch";
 import { publicResponse } from "./publicResponseCache";
+import { replicaReadPreference } from "./readReplica";
 
 export type LocationSuggestion = { kind: "state" | "district" | "pincode" | "address"; label: string; state: string; district?: string; pincode?: string; lat: number; lng: number };
 export function locationSuggestions(input: Record<string, unknown>) {
@@ -15,8 +16,8 @@ export function locationSuggestions(input: Record<string, unknown>) {
     // Bounded, projected search. Cards, media and boundaries never leave MongoDB.
     const rows = await Property.find({ ...publishedFilter, ...(type ? { type } : {}), $or: addressFields(addressPattern(q)) })
       .select("ownerId title location.state location.district location.pincode location.block location.mauza location.policeStation location.lat location.lng")
-      .limit(500).maxTimeMS(1500).lean();
-    const enabled = new Set((await User.find({ _id: { $in: rows.map(row => row.ownerId) }, isSuspended: { $ne: true }, isActive: { $ne: false } }).select("_id").maxTimeMS(1000).lean()).map(user => String(user._id)));
+      .limit(500).read(replicaReadPreference()).maxTimeMS(1500).lean();
+    const enabled = new Set((await User.find({ _id: { $in: rows.map(row => row.ownerId) }, isSuspended: { $ne: true }, isActive: { $ne: false } }).select("_id").read(replicaReadPreference()).maxTimeMS(1000).lean()).map(user => String(user._id)));
     const results = new Map<string, LocationSuggestion>();
     const matches = (value: unknown) => typeof value === "string" && value.toLowerCase().includes(q);
     function add(item: LocationSuggestion) {

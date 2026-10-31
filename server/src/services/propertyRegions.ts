@@ -2,6 +2,7 @@ import { RegionCount } from "../models/RegionCount.model";
 import { regionCountGeneration } from "./regionCountStore";
 import { publicResponse } from "./publicResponseCache";
 import { publicBusy } from "./publicCacheGeneration";
+import { replicaReadPreference } from "./readReplica";
 
 export async function regionCounts(input: Record<string, unknown>) {
   const read = (key: string) => {
@@ -17,7 +18,7 @@ export async function regionCounts(input: Record<string, unknown>) {
   const generation = await regionCountGeneration();
   return publicResponse({ db: RegionCount.db.name, kind: "regions", generation, state, district, type }, async () => {
     const groups = await RegionCount.find({ generation, level, state, district, propertyType: type || "all", count: { $gt: 0 } })
-      .select("-_id key count lat lng").sort({ key: 1 }).limit(2001).lean().maxTimeMS(1500);
+      .select("-_id key count lat lng").sort({ key: 1 }).limit(2001).read(replicaReadPreference()).lean().maxTimeMS(1500);
     if (groups.length > 2000) throw publicBusy();
     return { data: { level, groups: groups.map(group => ({ key: group.key || "__missing__", name: group.key || (level === "pincode" ? "Pincode not provided" : "Location not provided"), count: group.count, lat: group.lat, lng: group.lng })) } };
   });

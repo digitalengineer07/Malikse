@@ -317,9 +317,9 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
   }
 
   const cleanMobile = rawIdentifier.replace(/\D/g, "").slice(0, 10);
-  const isMobile = mobilePattern.test(cleanMobile);
   const cleanEmail = rawIdentifier.toLowerCase();
   const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
+  const isMobile = !rawIdentifier.includes("@") && mobilePattern.test(cleanMobile);
 
   if (!isMobile && !isEmail) {
     return res.status(400).json({ message: "Enter a valid 10-digit mobile number or email address" });
@@ -420,7 +420,7 @@ router.post("/login", async (req, res) => {
     }
     const input = rawInput.trim();
     const cleanMobile = input.replace(/\D/g, "");
-    const isMobile = /^[0-9]{10}$/.test(cleanMobile);
+    const isMobile = !input.includes("@") && /^[0-9]{10}$/.test(cleanMobile);
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.toLowerCase());
 
     if (!isMobile && !isEmail) {
