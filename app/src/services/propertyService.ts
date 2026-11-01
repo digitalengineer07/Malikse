@@ -42,7 +42,7 @@ export const propertyService = {
     if (pendingSearches.has(key)) return pendingSearches.get(key)!;
     const generation = searchGeneration;
     const work = (async () => {
-    const res = await api.get("/properties/search", { params: { ...filters, view: "cards" } });
+    const res = await api.get("/properties/search", { params: { ...filters, view: filters.view || "cards" } });
     const properties = res.data.map((p: any) => ({
       ...p,
       media: p.media ? {

@@ -24,6 +24,10 @@ export const documentService = {
     return res.data;
   },
 
+  async getDownloadLink(docId: string): Promise<string> {
+    return (await api.post(`/documents/${docId}/download`)).data.url;
+  },
+
   async generateShareLink(docId: string): Promise<ShareLink> {
     const res = await api.post(`/documents/${docId}/share-link`);
     return res.data;

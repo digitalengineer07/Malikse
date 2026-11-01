@@ -1,4 +1,5 @@
-import { readPage, readNamedPage, listFields } from "../services/pagination";
+import { enabledOwnerStages } from "../services/marketplace";
+import { readPage, readAggregatePage, readNamedPage, listFields } from "../services/pagination";
 import bcrypt from "../services/passwords";
 import { Router } from "express";
 import { isValidObjectId } from "mongoose";
@@ -121,14 +122,10 @@ router.get("/properties", authGuard, roleGuard("admin"), async (req, res) => {
     if (status !== undefined && (typeof status !== "string" || !["draft", "queued", "pending", "advisor_verified", "correction_required", "rejected", "verified", "sold"].includes(status))) return res.status(400).json({ message: "Invalid property status" });
     const query: any = status ? { status } : {};
 
-    // Exclude suspended users
-    const suspendedUsers = await User.find({ isSuspended: true }).select('_id');
-    const suspendedUserIds = suspendedUsers.map(u => u._id);
-    if (suspendedUserIds.length > 0) {
-      query.ownerId = { $nin: suspendedUserIds };
-    }
-
-    const properties = await readPage(Property.find(query).select(listFields).populate("ownerId", "name mobile"), req, res);
+    const properties = await readAggregatePage(Property, [
+      { $match: query }, ...enabledOwnerStages(true),
+      { $project: Object.fromEntries(listFields.split(" ").map(field => [field, 1])) },
+    ], req, res);
     res.json(properties);
   } catch (error: any) {
     res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
@@ -155,6 +152,21 @@ router.get("/users/:userId/properties", authGuard, roleGuard("admin"), async (re
   } catch (error: any) {
     res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
+});
+
+// Toggle user suspension
+router.put("/users/:userId/identity", authGuard, roleGuard("admin"), async (req: any, res) => {
+  const { approved, notes } = req.body;
+  if (typeof approved !== "boolean" || typeof notes !== "string" || notes.trim().length < 10 || notes.length > 2000) {
+    return res.status(400).json({ message: "Provide an approval decision and review notes (10–2000 characters)" });
+  }
+  try {
+    const user = await User.findOneAndUpdate({ _id: req.params.userId, role: "user", ...(approved ? { isSuspended: { $ne: true }, isActive: { $ne: false } } : {}) }, {
+      $set: { isVerifiedIdentity: approved, identityReview: { reviewerId: req.user.id, reviewedAt: new Date(), notes: notes.trim() } },
+    }, { new: true, runValidators: true });
+    if (!user) return res.status(404).json({ message: "Active user not found" });
+    return res.json({ id: user._id, isVerifiedIdentity: user.isVerifiedIdentity });
+  } catch { return res.status(503).json({ message: "Could not save identity review" }); }
 });
 
 // Toggle user suspension

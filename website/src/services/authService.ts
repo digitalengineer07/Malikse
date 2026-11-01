@@ -146,6 +146,10 @@ export const authService = {
     return res.data;
   },
 
+  async resendRegistration(challengeId: string): Promise<RegisterResponse> {
+    return (await api.post("/auth/register/resend", { challengeId })).data;
+  },
+
   async verifyRegistration(
     identifier: string,
     challengeId: string,

@@ -33,6 +33,18 @@ export async function readPage(query: any, req: Request, res: Response): Promise
   res.setHeader("X-Next-Cursor", rows.length > limit ? cursorFor(rows[limit - 1]) : "");
   return rows.slice(0, limit);
 }
+
+export async function readAggregatePage(model: any, stages: any[], req: Request, res: Response): Promise<any[]> {
+  const { limit, filter } = pageInput(req.query);
+  const [first, ...rest] = stages;
+  // Keep match/sort before the owner join so cursor scans can use listing indexes.
+  const pipeline = first?.$match
+    ? [{ $match: { $and: [filter, first.$match] } }, { $sort: { createdAt: -1, _id: -1 } }, ...rest]
+    : [{ $match: filter }, { $sort: { createdAt: -1, _id: -1 } }, ...stages];
+  const rows = await model.aggregate([...pipeline, { $limit: limit + 1 }]).option({ maxTimeMS: 5000 });
+  res.setHeader("X-Next-Cursor", rows.length > limit ? cursorFor(rows[limit - 1]) : "");
+  return rows.slice(0, limit);
+}
 export async function readNamedPage(query: any, req: Request, name: string) {
   const { limit, filter } = pageInput({ ...req.query, cursor: req.query[`${name}Cursor`] });
   const rows = await query.and([filter]).sort({ createdAt: -1, _id: -1 }).limit(limit + 1).maxTimeMS(5000).lean();

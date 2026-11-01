@@ -64,7 +64,7 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
   const sendCode = async () => {
     const cleanMobile = mobile.trim();
     const cleanEmail = email.trim().toLowerCase();
-    const result = await authService.register({ name: name.trim(), password, method: registerMethod, mobile: cleanMobile || undefined, email: cleanEmail || undefined });
+    const result = challenge ? await authService.resendRegistration(challenge.challengeId) : await authService.register({ name: name.trim(), password, method: registerMethod, mobile: cleanMobile || undefined, email: cleanEmail || undefined });
     const sentAt = Date.now();
     setNow(sentAt);
     if (result.testOnly) {

@@ -62,13 +62,16 @@ async function rebuild() {
       { $group: { _id: { state: "$_id.state", district: "$_id.district", pincode: "$_id.pincode", type: "$_id.type" }, count: { $sum: "$count" }, latSum: { $sum: "$latSum" }, lngSum: { $sum: "$lngSum" } } },
     ]).option({ maxTimeMS: 30_000, allowDiskUse: true });
     const totals = new Map<string, any>();
-    for (const bucket of buckets) {
+    for (let index = 0; index < buckets.length; index++) {
+      if (index && index % 256 === 0) await new Promise<void>(resolve => setImmediate(resolve));
+      const bucket = buckets[index];
       for (const propertyType of ["all", bucket._id.type]) {
         const { state = "", district = "", pincode = "" } = bucket._id;
         for (const [level, parentState, parentDistrict, key] of [
           ["state", "", "", state], ["district", state, "", district], ["pincode", state, district, pincode],
         ]) {
-          const identity = JSON.stringify([level, parentState, parentDistrict, key, propertyType]);
+          // Length prefixes avoid delimiter collisions in user-supplied place names.
+          const identity = [level, parentState, parentDistrict, key, propertyType].map(value => `${String(value).length}:${value}`).join("");
           const value = totals.get(identity) || { level, state: parentState, district: parentDistrict, key, propertyType, count: 0, latSum: 0, lngSum: 0 };
           value.count += bucket.count;value.latSum += bucket.latSum;value.lngSum += bucket.lngSum;totals.set(identity, value);
         }

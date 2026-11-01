@@ -41,9 +41,9 @@ global.fetch = async (url, options) => {
     server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
     const base = 'http://127.0.0.1:' + server.address().port;
     const post = async (path, body) => { const r = await realFetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); return { status: r.status, data: await r.json() }; };
-    const details = { name: 'OTP Test', mobile: '9000000001', password: 'test-password' };
+    const details = { name: 'OTP Test', mobile: '9000000001', password: 'v6!ReachForest9' };
     let result = await post('/auth/register', details);
-    assert.equal(result.status, 202); assert.equal(result.data.expiresInSeconds, 120); assert.equal(result.data.resendAfterSeconds, 100);
+    assert.equal(result.status, 202); assert.equal(result.data.expiresInSeconds, 120); assert.equal(result.data.resendAfterSeconds, 60);
     assert.equal(await User.countDocuments(), 0); assert.equal(result.data.accessToken, undefined);
     const stored = await Registration.findOne();
     assert.notEqual(stored.otpHash, latestCode);
@@ -53,10 +53,15 @@ global.fetch = async (url, options) => {
     assert.equal((await post('/auth/register', details)).status, 429); assert.equal(sends, 1);
     const verify = (id, code = latestCode) => post('/auth/register/verify', { mobile: details.mobile, challengeId: id, code });
     assert.equal((await verify(first, (latestCode === '000000' ? '000001' : '000000'))).status, 400);
+    const fallbackHash = require('node:crypto').createHmac('sha256', 'your_refresh_secret_here').update('registration-otp:' + first + ':' + latestCode).digest('hex');
+    await Registration.updateOne({ _id: details.mobile }, { $set: { otpHash: fallbackHash } });
+    assert.equal((await verify(first)).status, 400, 'placeholder-secret OTP hashes must be rejected');
+    await Registration.updateOne({ _id: details.mobile }, { $set: { otpHash: stored.otpHash } });
     await Registration.updateOne({ _id: details.mobile }, { $set: { expiresAt: new Date(Date.now() - 1) } });
     assert.equal((await verify(first)).status, 400);
     await Registration.updateOne({ _id: details.mobile }, { $set: { resendAt: new Date(0) } });
-    result = await post('/auth/register', details); assert.equal(result.status, 202);
+    result = await post('/auth/register/resend', { challengeId: first }); assert.equal(result.status, 202);
+    assert.equal((await post('/auth/register/resend', { challengeId: result.data.challengeId })).status, 429);
     const second = result.data.challengeId; assert.notEqual(first, second);
     assert.equal((await verify(first)).status, 400);
     for (let i = 0; i < 5; i++) assert.equal((await verify(second, (latestCode === '000000' ? '000001' : '000000'))).status, 400);
@@ -70,6 +75,7 @@ global.fetch = async (url, options) => {
     assert.ok(checks.find(r => r.status === 201).data.accessToken);
     assert.equal(await User.countDocuments(), 1);
     assert.ok((await User.findOne()).mobileVerifiedAt);
+    assert.ok((await User.findOne()).refreshTokenExpiresAt > new Date());
     assert.equal((await verify(third)).status, 400);
     assert.equal((await post('/auth/login', details)).status, 200);
     const savedToken = process.env.TWILIO_AUTH_TOKEN;

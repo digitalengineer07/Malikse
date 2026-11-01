@@ -1,3 +1,4 @@
+import IdentityReviewNotice from "../components/IdentityReviewNotice";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -76,6 +77,8 @@ export default function DemoKycScreen() {
       router.replace((user?.role ? dashboardRoutes[user.role] : "/dashboard") as any);
     }
   };
+
+  if (user?.identityVerificationMode === "staff") return <IdentityReviewNotice />;
 
   return (
     <View style={styles.screen}>

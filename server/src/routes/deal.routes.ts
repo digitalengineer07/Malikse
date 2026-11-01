@@ -65,7 +65,8 @@ router.patch("/:id/status", authGuard, async (req: any, res) => {
       completed: [], cancelled: [], rejected: [],
     };
     const ownerAction = deal.ownerId.toString() === req.user.id && ["accepted", "rejected", "countered"].includes(status);
-    if (!ownerAction && req.user.role !== "admin") return res.status(403).json({ message: "Unauthorized to change status" });
+    const buyerCancellation = deal.buyerId.toString() === req.user.id && status === "cancelled" && deal.status === "offered";
+    if (!ownerAction && !buyerCancellation && req.user.role !== "admin") return res.status(403).json({ message: "Unauthorized to change status" });
     if (!transitions[deal.status]?.includes(status)) return res.status(409).json({ message: "This deal cannot move to that status" });
     const changes: any = { status };
     if (status === "countered") {

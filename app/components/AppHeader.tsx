@@ -73,7 +73,7 @@ export default function AppHeader(props: AppHeaderProps) {
           </TouchableOpacity>
         </View>
 
-        {/* Right Element: Language Toggle ("हिन्दी") */}
+        {/* Right Element: Compact language toggle */}
         <View style={styles.rightContainer}>
           {props.rightElement ||
             (props.showLanguageToggle !== false && (
@@ -84,7 +84,7 @@ export default function AppHeader(props: AppHeaderProps) {
                 style={styles.langBtn}
               >
                 <Text style={styles.langText}>
-                  {language === "en" ? "हिन्दी" : "English"}
+                  {language === "en" ? "H" : "E"}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -139,13 +139,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   langBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
     justifyContent: "center",
     alignItems: "center",
   },
   langText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "700",
     color: "#0A192F",
   },

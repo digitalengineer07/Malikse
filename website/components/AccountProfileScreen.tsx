@@ -141,7 +141,8 @@ export default function AccountProfileScreen() {
   const userJoinedDate = formatMemberDate(user.createdAt);
 
   // Dynamic KYC / Verification configuration according to the user's role and state
-  const isKycComplete = Boolean(user.demoKycComplete);
+  const staffReview = user.identityVerificationMode === "staff";
+  const isKycComplete = !staffReview && Boolean(user.demoKycComplete);
   const isIdentityVerified = Boolean(user.isVerifiedIdentity);
 
   let kycBadgeText = label("Demo", "डेमो");
@@ -198,8 +199,8 @@ export default function AccountProfileScreen() {
     kycBadgeTextColor = "#15803D";
     kycStatusTitle = label("Identity verified", "पहचान सत्यापित");
     kycStatusSub = label(
-      "Government identity verification is successfully completed.",
-      "सरकारी पहचान सत्यापन सफलतापूर्वक पूरा हो चुका है।"
+      "Your identity review has been approved by staff.",
+      "कर्मचारियों ने आपकी पहचान समीक्षा स्वीकृत कर दी है।"
     );
     kycIconName = "verified";
     kycIconColor = "#16A34A";
@@ -207,8 +208,8 @@ export default function AccountProfileScreen() {
     kycBadgeText = label("Pending", "लंबित");
     kycBadgeBg = "#FEF3C7";
     kycBadgeTextColor = "#B45309";
-    kycStatusTitle = label("Demo step not completed", "डेमो चरण पूरा नहीं हुआ");
-    kycStatusSub = label(
+    kycStatusTitle = staffReview ? label("Staff review required", "कर्मचारी समीक्षा आवश्यक") : label("Demo step not completed", "डेमो चरण पूरा नहीं हुआ");
+    kycStatusSub = staffReview ? label("Staff must review your identity before you can submit a listing.", "लिस्टिंग जमा करने से पहले कर्मचारी आपकी पहचान की समीक्षा करेंगे।") : label(
       "Complete demo identity verification to unlock full property listing features.",
       "प्रॉपर्टी लिस्टिंग सुविधाएँ अनलॉक करने के लिए डेमो सत्यापन पूरा करें।"
     );
@@ -480,7 +481,7 @@ export default function AccountProfileScreen() {
                     activeOpacity={0.8}
                   >
                     <Text style={styles.kycActionBtnText}>
-                      {label("Complete demo KYC →", "डेमो केवाईसी पूरा करें →")}
+                      {staffReview ? label("View verification status →", "सत्यापन स्थिति देखें →") : label("Complete demo KYC →", "डेमो केवाईसी पूरा करें →")}
                     </Text>
                   </TouchableOpacity>
                 )}

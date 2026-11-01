@@ -1,3 +1,4 @@
+import IdentityReviewNotice from "../components/IdentityReviewNotice";
 import React, { useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -22,6 +23,8 @@ export default function DemoKycScreen() {
       setBusy(false);
     }
   };
+
+  if (user?.identityVerificationMode === "staff") return <IdentityReviewNotice />;
 
   return <View style={styles.screen}>
     <Text style={styles.title}>KYC demo step</Text>

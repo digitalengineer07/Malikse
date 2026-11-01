@@ -3,20 +3,22 @@ import { readPage } from "../services/pagination";
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
-import fs from "fs";
-import jwt from "jsonwebtoken";
-import { randomUUID } from "crypto";
+import fs from "fs/promises";
+import { randomUUID, randomBytes } from "crypto";
+import { DocumentDownload } from "../models/DocumentDownload.model";
 import { PropertyDocument } from "../models/Document.model";
 import { Property } from "../models/Property.model";
 import { User } from "../models/User.model";
-import { authGuard, roleGuard } from "../middleware/auth.middleware";
+import { authGuard, roleGuard, authenticateRequest } from "../middleware/auth.middleware";
 import { canReadProperty } from "../services/propertyWorkflow";
 
 const router = Router();
 const uploadDir = path.join(__dirname, "../../uploads");
-import { ACCESS_SECRET as secret, accountEnabled, apiOrigin } from "../services/security";
+let directoryReady: Promise<unknown> | undefined;
+const ensureUploadDirectory = () => directoryReady ??= fs.mkdir(uploadDir, { recursive: true }).catch(error => { directoryReady = undefined; throw error; });
+import { accountEnabled, apiOrigin, tokenDigest } from "../services/security";
 const upload = multer({ storage: multer.diskStorage({
-  destination: (_req, _file, cb) => { fs.mkdirSync(uploadDir, { recursive: true }); cb(null, uploadDir); },
+  destination: (_req, _file, cb) => { ensureUploadDirectory().then(() => cb(null, uploadDir), error => cb(error, uploadDir)); },
   filename: (_req, file, cb) => cb(null, `${randomUUID()}${path.extname(file.originalname)}`),
 }), limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 4, fieldSize: 1024 } });
 
@@ -34,7 +36,7 @@ router.post("/", authGuard, roleGuard("user"), uploadCapacity, upload.single("fi
     retained = true;
     res.status(201).json({ _id: doc._id, type: doc.type, fileName: doc.fileName });
   } catch (error: any) { res.status(400).json({ message: error.message }); }
-  finally { if (!retained && req.file) fs.rmSync(req.file.path, { force: true }); }
+  finally { if (!retained && req.file) await fs.rm(req.file.path, { force: true }).catch(() => {}); }
 });
 
 router.get("/", authGuard, async (req: any, res) => {
@@ -43,23 +45,47 @@ router.get("/", authGuard, async (req: any, res) => {
     if (!property || !canReadProperty(property, req.user)) return res.status(403).json({ message: "Document access denied" });
     const docs = await readPage(PropertyDocument.find({ propertyId: property._id }), req, res);
     res.json(docs.map(doc => {
-      const token = jwt.sign({ docId: doc._id.toString(), actorId: req.user.id, purpose: "document-view" }, secret, { expiresIn: "5m" });
-      return { _id: doc._id, type: doc.type, fileName: doc.fileName, fileSize: doc.fileSize, createdAt: doc.createdAt, fileUrl: `${apiOrigin(req)}/documents/${doc._id}/file?token=${token}` };
+      return { _id: doc._id, type: doc.type, fileName: doc.fileName, fileSize: doc.fileSize, createdAt: doc.createdAt, fileUrl: `${apiOrigin(req)}/documents/${doc._id}/file` };
     }));
   } catch (error: any) { res.status(400).json({ message: error.message }); }
 });
 
+router.post("/:id/download", authGuard, async (req: any, res) => {
+  try {
+    const doc = await PropertyDocument.findById(req.params.id);
+    const property = doc && await Property.findById(doc.propertyId);
+    if (!doc || !property || !canReadProperty(property, req.user)) return res.sendStatus(403);
+    const nonce = randomBytes(32).toString("base64url");
+    await DocumentDownload.create({ _id: tokenDigest(nonce), documentId: doc._id, actorId: req.user.id, expiresAt: new Date(Date.now() + 60000) });
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ url: `${apiOrigin(req)}/documents/${doc._id}/file?download=${nonce}`, expiresInSeconds: 60 });
+  } catch { res.status(503).json({ message: "Could not prepare document download" }); }
+});
+
 router.get("/:id/file", async (req, res) => {
   try {
-    const token = jwt.verify(String(req.query.token || ""), secret) as any;
-    if (token.purpose !== "document-view" || token.docId !== req.params.id) return res.sendStatus(403);
-    const [doc, actor] = await Promise.all([PropertyDocument.findById(req.params.id), User.findById(token.actorId)]);
+    let actorId: string;
+    if (req.query.download !== undefined) {
+      if (typeof req.query.download !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(req.query.download)) return res.sendStatus(403);
+      const ticket = await DocumentDownload.findOneAndDelete({ _id: tokenDigest(req.query.download), documentId: req.params.id, expiresAt: { $gt: new Date() } });
+      if (!ticket) return res.status(403).json({ message: "Download link expired or already used" });
+      actorId = String(ticket.actorId);
+    } else {
+      const auth = await authenticateRequest(req.headers.authorization);
+      if (auth.status || !auth.user) return res.status(auth.status || 401).json({ message: "Authentication required" });
+      actorId = auth.user.id;
+    }
+    const [doc, actor] = await Promise.all([PropertyDocument.findById(req.params.id), User.findById(actorId)]);
     if (!doc || !actor) return res.sendStatus(404);
     if (!accountEnabled(actor)) return res.sendStatus(403);
     const property = await Property.findById(doc.propertyId);
     if (!property || !canReadProperty(property, { id: actor._id.toString(), role: actor.role })) return res.sendStatus(403);
     res.setHeader("Cache-Control", "no-store");
-    res.download(path.join(uploadDir, path.basename(doc.fileUrl)), doc.fileName);
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.download(path.join(uploadDir, path.basename(doc.fileUrl)), doc.fileName, error => {
+      if (error && !res.headersSent) res.sendStatus(404);
+      else if (error) res.destroy();
+    });
   } catch { res.status(403).json({ message: "Document link expired. Reload the property" }); }
 });
 export default router;

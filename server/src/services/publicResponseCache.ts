@@ -39,9 +39,10 @@ async function serialize(value: { data: unknown; nextCursor?: string; status?: n
     // Compression runs once per fill and is included in the bounded fill concurrency.
     [entry.gzip, entry.br] = await Promise.all([
       zip(body, { level: 4 }),
-      brotli(body, { params: { [constants.BROTLI_PARAM_QUALITY]: 4 } }),
+      process.env.PUBLIC_BROTLI_COMPRESSION === "true"
+        ? brotli(body, { params: { [constants.BROTLI_PARAM_QUALITY]: 4 } }) : Promise.resolve(undefined),
     ]);
-    entry.bytes += entry.gzip.length + entry.br.length;
+    entry.bytes += entry.gzip.length + (entry.br?.length || 0);
   }
   return entry;
 }

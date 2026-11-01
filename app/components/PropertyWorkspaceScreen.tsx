@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Image, Linking, Modal, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Modal, ScrollView, Text, View } from "react-native";
+import Image from "./PropertyImage";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { Action, Check, Field, ui, WorkflowScreen } from "./WorkflowUI";
@@ -96,7 +97,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
     } catch { setIsSaved(previous); }
   }} canOffer={!user || user.role === "user"} onOffer={() => {
     if (!user || authState !== "AUTHENTICATED") router.push("/login");
-    else if (!user.demoKycComplete) router.push("/kyc");
+    else if (!(user.isVerifiedIdentity || user.demoKycComplete)) router.push("/kyc");
     else setShowOffer(true);
   }}>
     {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}
@@ -129,7 +130,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
         {publicView && <Text style={ui.muted}>Approved by an Advisor and a Verifier. This is not a guarantee of legal title. KYC is currently a demo.</Text>}
         {publicView && (!user || user.role === "user") && <Action title="Make an offer" onPress={() => {
           if (!user || authState !== "AUTHENTICATED") router.push("/login");
-          else if (!user.demoKycComplete) router.push("/kyc");
+          else if (!(user.isVerifiedIdentity || user.demoKycComplete)) router.push("/kyc");
           else setShowOffer(true);
         }} />}
         {publicView && showOffer && <OfferSheet propertyId={id} askingPrice={property.price} onCancel={() => setShowOffer(false)} onSubmit={async amount => {
@@ -150,7 +151,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
           {docs.length === 0 && <Text style={ui.muted}>No documents uploaded.</Text>}
           {user?.role === "admin" && staffCursor && <Action title="Load more staff choices" secondary onPress={async () => { try { const response = await api.get("/admin/staff", { params: { cursor: staffCursor } }); setStaff(old => [...old, ...response.data]); setStaffCursor(response.data.nextCursor); } catch { setError("Could not load staff"); } }} />}
           {docCursor && <Action title="More documents" secondary onPress={async () => { try { const rows = await documentService.getDocuments(id, docCursor); setDocs(old => [...old, ...rows]); setDocCursor((rows as any).nextCursor); } catch { setError("Could not load documents"); } }} />}
-          {docs.map(doc => <Action key={doc._id || doc.id} title={`${doc.type}: ${doc.fileName}`} secondary onPress={() => Linking.openURL(doc.fileUrl).catch(() => setError("Could not open document. Refresh to get a new link."))} />)}
+          {docs.map(doc => <Action key={doc._id || doc.id} title={`${doc.type}: ${doc.fileName}`} secondary onPress={async () => { try { const url = await documentService.getDownloadLink(doc._id || doc.id); await Linking.openURL(url); } catch { setError("Could not open document. Please try again."); } }} />)}
         </View>
         {property.rejectionReason && <Text style={ui.error}>Review feedback: {property.rejectionReason}</Text>}
         {user?.role === "user" && ["draft", "correction_required"].includes(property.status) && <Action title="Edit and submit for review" onPress={() => router.push({ pathname: "/listing/create", params: { id } })} />}

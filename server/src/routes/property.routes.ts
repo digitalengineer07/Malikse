@@ -1,3 +1,4 @@
+import { identityApproved } from "../services/security";
 import { Router } from "express";
 import { isValidObjectId } from "mongoose";
 import multer from "multer";
@@ -82,7 +83,7 @@ router.get("/:id", async (req, res) => {
 router.post("/", authGuard, roleGuard("user"), async (req: any, res) => {
   try {
     const seller = await User.findById(req.user.id);
-    if (!seller?.demoKycComplete) return res.status(403).json({ message: "Complete demo KYC before listing" });
+    if ((!seller || !identityApproved(seller))) return res.status(403).json({ message: "Complete identity verification before listing" });
     const data = listingFields(req.body);
     const error = validateListing(data);
     if (error) return res.status(400).json({ message: error });
@@ -108,7 +109,7 @@ router.patch("/:id", authGuard, roleGuard("user"), async (req: any, res) => {
 router.post("/:id/submit", authGuard, roleGuard("user"), async (req: any, res) => {
   try {
     const seller = await User.findById(req.user.id);
-    if (!seller?.demoKycComplete) return res.status(403).json({ message: "Complete demo KYC first" });
+    if ((!seller || !identityApproved(seller))) return res.status(403).json({ message: "Complete identity verification first" });
     const property = await Property.findOne({ _id: req.params.id, ownerId: req.user.id });
     if (!property) return res.status(404).json({ message: "Property not found" });
     if (!["draft", "correction_required"].includes(property.status)) return res.status(409).json({ message: "Property has already been submitted or cannot be resubmitted" });
@@ -134,7 +135,7 @@ router.post("/:id/photos", authGuard, roleGuard("user"), uploadCapacity, async (
     let retained = false;
     try {
       if (!req.file) return res.status(400).json({ message: "Select a photo to upload" });
-      filename = await storePropertyPhoto(req.file.buffer);
+      filename = await storePropertyPhoto(req.file.buffer, req.params.id);
       const origin = apiOrigin(req);
       const url = `${origin.replace(/\/$/, "")}/property-photos/${filename}`;
       const property = await Property.findOneAndUpdate({ _id: req.params.id, ownerId: req.user.id, status: { $in: ["draft", "correction_required"] }, "media.photos.9": { $exists: false } }, { $push: { "media.photos": url }, $inc: { __v: 1 } }, { new: true });

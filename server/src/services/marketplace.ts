@@ -1,19 +1,26 @@
-import { isValidObjectId } from "mongoose";
+import { isValidObjectId, type PipelineStage } from "mongoose";
 import { Property } from "../models/Property.model";
 import { User } from "../models/User.model";
-import { accountEnabled } from "./security";
+import { accountEnabled, identityApproved } from "./security";
 
 export const publishedFilter = { status: "verified", "badges.fullyVerified": true, "advisorReview.decision": "approve", "verifierReview.decision": "approve" };
-export async function publicPropertyFilter() {
-  const unavailable = await User.find({ $or: [{ isSuspended: true }, { isActive: false }] }).select("_id").lean().maxTimeMS(5000);
-  return { ...publishedFilter, ownerId: { $nin: unavailable.map(user => user._id) } };
+export function enabledOwnerStages(populateOwner = false): PipelineStage[] {
+  return [
+    { $lookup: { from: User.collection.name, localField: "ownerId", foreignField: "_id", pipeline: [
+      { $match: { isSuspended: { $ne: true }, isActive: { $ne: false } } },
+      { $project: populateOwner ? { _id: 1, name: 1, mobile: 1 } : { _id: 1 } },
+    ], as: "availableOwner" } },
+    { $match: { "availableOwner.0": { $exists: true } } },
+    ...(populateOwner ? [{ $set: { ownerId: { $arrayElemAt: ["$availableOwner", 0] } } }] : []),
+    { $unset: "availableOwner" },
+  ];
 }
 export class OfferError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 export async function offerProperty(actorId: string, propertyId: string, amount?: unknown) {
   const buyer = await User.findById(actorId);
-  if (!buyer || buyer.role !== "user" || !accountEnabled(buyer) || !buyer.demoKycComplete) throw new OfferError(403, "Complete the demo KYC step as a User before contacting a seller or making an offer");
+  if (!buyer || buyer.role !== "user" || !accountEnabled(buyer) || !identityApproved(buyer)) throw new OfferError(403, "Complete identity verification before contacting a seller or making an offer");
   if (!isValidObjectId(propertyId)) throw new OfferError(400, "Invalid property ID");
   const property = await Property.findById(propertyId);
   if (!property) throw new OfferError(404, "Property not found");

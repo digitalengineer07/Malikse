@@ -12,8 +12,10 @@ export interface IUser extends Document {
   emailVerifiedAt?: Date;
   kycDocuments: string[];
   isVerifiedIdentity: boolean;
+  identityReview?: { reviewerId: mongoose.Types.ObjectId; reviewedAt: Date; notes: string };
   demoKycComplete: boolean;
   refreshTokenHash?: string;
+  refreshTokenExpiresAt?: Date;
   wishlist: mongoose.Types.ObjectId[];
   isSuspended: boolean;
   isActive: boolean;
@@ -35,8 +37,11 @@ const UserSchema = new Schema<IUser>(
     emailVerifiedAt: { type: Date },
     kycDocuments: { type: [String], default: [] },
     isVerifiedIdentity: { type: Boolean, default: false },
+    identityReview: { reviewerId: { type: Schema.Types.ObjectId, ref: "User" }, reviewedAt: Date, notes: String },
     demoKycComplete: { type: Boolean, default: false },
     refreshTokenHash: { type: String },
+    // Do not use a TTL index here: MongoDB TTL deletes the entire User document.
+    refreshTokenExpiresAt: { type: Date },
     wishlist: { type: [Schema.Types.ObjectId], ref: "Property", default: [] },
     isSuspended: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },

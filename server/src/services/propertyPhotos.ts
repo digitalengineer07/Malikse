@@ -6,7 +6,7 @@ import mongoose from "mongoose";
 
 export const photoDirectory = path.resolve(__dirname, "../../uploads/property-photos");
 
-export async function storePropertyPhoto(buffer: Buffer) {
+export async function storePropertyPhoto(buffer: Buffer, propertyId?: string) {
   if (!buffer.length || buffer.length > 10 * 1024 * 1024) throw new Error("Photos must be under 10 MB");
   const extension = buffer.subarray(0, 3).equals(Buffer.from([255, 216, 255])) ? "jpg"
     : buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ? "png"
@@ -24,7 +24,8 @@ export async function storePropertyPhoto(buffer: Buffer) {
   const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db!, { bucketName: "photos" });
   return new Promise<string>((resolve, reject) => {
     const stream = bucket.openUploadStream(name, {
-      contentType: `image/${extension === "jpg" ? "jpeg" : extension}`
+      contentType: `image/${extension === "jpg" ? "jpeg" : extension}`,
+      metadata: propertyId ? { propertyId: new mongoose.Types.ObjectId(propertyId) } : undefined,
     });
     stream.on("error", reject);
     stream.on("finish", () => resolve(name));

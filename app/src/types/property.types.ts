@@ -68,6 +68,7 @@ export interface Property {
 }
 
 export interface PropertySearchFilters {
+  view?: "cards" | "full";
   address?: string;
   pincode?: string;
   cursor?: string;

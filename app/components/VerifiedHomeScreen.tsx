@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Image,
   Modal,
   Platform,
@@ -31,9 +33,19 @@ export default function VerifiedHomeScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const [properties, setProperties] = useState<Property[]>([]);
   const [selected, setSelected] = useState<Property | null>(null);
   const resultsScroll = useRef<ScrollView>(null);
+  const [heroEntrance] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    const animation = Animated.timing(heroEntrance, {
+      toValue: 1,
+      duration: 480,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [heroEntrance]);
   const {
     type: initialType,
     query,
@@ -57,12 +69,24 @@ export default function VerifiedHomeScreen() {
   }>();
 
   const type = initialType || undefined;
+  const initialCachedProperties = cachedPropertySearch({
+    limit: 50,
+    type,
+    location: query,
+    district,
+    state,
+    pincode,
+    address,
+    budgetMin: min ? Number(min) : undefined,
+    budgetMax: max ? Number(max) : undefined,
+  });
+  const [properties, setProperties] = useState<Property[]>(initialCachedProperties ?? []);
   const setType = (value: PropertyType | undefined) => router.setParams({ type: value || "" });
   useEffect(() => {
     if (areaSelection) resultsScroll.current?.scrollTo({ y: 0, animated: false });
   }, [areaSelection]);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialCachedProperties);
   const [error, setError] = useState("");
   const [refreshError, setRefreshError] = useState("");
   const [revision, setRevision] = useState(0);
@@ -72,7 +96,7 @@ export default function VerifiedHomeScreen() {
     page: 1,
     cursors: [undefined],
   });
-  const [nextCursor, setNextCursor] = useState<string>();
+  const [nextCursor, setNextCursor] = useState<string | undefined>((initialCachedProperties as any)?.nextCursor);
   const page = pagination.key === filterKey ? pagination.page : 1;
 
   useFocusEffect(
@@ -148,40 +172,64 @@ export default function VerifiedHomeScreen() {
         <View style={s.content}>
           {/* Hero Header Area */}
           <View style={s.heroSection}>
-            {/* Top row with Eyebrow and Dash on left, count on right */}
-            <View style={s.eyebrowRow}>
-              <View style={s.eyebrowLeft}>
-                <Text style={s.eyebrow}>A PLACE FOR YOUR NEXT CHAPTER</Text>
-                <View style={s.eyebrowDash} />
-              </View>
-
-              <View style={s.titleRight}>
-                <View style={s.countDivider} />
-                <Text style={s.countText}>
-                  {loading ? "Loading…" : `${properties.length} properties on page ${page}`}
-                </Text>
-              </View>
-            </View>
-
-            {/* Skyline Background Graphic */}
-            {isWide && (
-              <View style={s.skylineWrapper}>
-                <CitySkyline width={width < 1100 ? 460 : 560} height={155} opacity={0.92} />
-              </View>
+            {isWide ? (
+              <>
+                <View style={s.eyebrowRow}>
+                  <View style={s.eyebrowLeft}>
+                    <Text style={s.eyebrow}>A PLACE FOR YOUR NEXT CHAPTER</Text>
+                    <View style={s.eyebrowDash} />
+                  </View>
+                  <View style={s.titleRight}>
+                    <View style={s.countDivider} />
+                    <Text style={s.countText}>
+                      {loading ? "Loading…" : `${properties.length} properties on page ${page}`}
+                    </Text>
+                  </View>
+                </View>
+                <View style={s.skylineWrapper}>
+                  <CitySkyline width={width < 1100 ? 460 : 560} height={155} opacity={0.92} />
+                </View>
+                <View style={s.titleRow}>
+                  <View style={s.titleLeft}>
+                    <Text style={s.mainTitle}>
+                      {pincode
+                        ? pincode === "__missing__"
+                          ? "Properties without a pincode"
+                          : `Properties in ${pincode}`
+                        : "Explore our properties"}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <Animated.View
+                style={[
+                  s.mobileHero,
+                  {
+                    opacity: heroEntrance,
+                    transform: [{ translateY: heroEntrance.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+                  },
+                ]}
+              >
+                <View pointerEvents="none" style={s.mobileSkyline}>
+                  <CitySkyline width="100%" height={150} opacity={0.5} />
+                  <View style={s.mobileSkylineBlueTint} />
+                </View>
+                <View style={s.mobileHeroCopy}>
+                  <Text style={s.mobileEyebrow}>FIND YOUR PLACE</Text>
+                  <Text style={s.mobileTitle}>
+                    {pincode
+                      ? pincode === "__missing__"
+                        ? "Properties without a pincode"
+                        : `Properties in ${pincode}`
+                      : "Explore properties"}
+                  </Text>
+                  <Text style={s.mobileCount}>
+                    {loading ? "Loading properties…" : `${properties.length} properties`}
+                  </Text>
+                </View>
+              </Animated.View>
             )}
-
-            {/* Title Row */}
-            <View style={s.titleRow}>
-              <View style={s.titleLeft}>
-                <Text style={s.mainTitle}>
-                  {pincode
-                    ? pincode === "__missing__"
-                      ? "Properties without a pincode"
-                      : `Properties in ${pincode}`
-                    : "Explore our properties"}
-                </Text>
-              </View>
-            </View>
 
             {/* Filter Area Clear Buttons if active */}
             {!!pincode && (
@@ -425,7 +473,7 @@ const s = StyleSheet.create({
     width: "100%",
     maxWidth: 1340,
     alignSelf: "center",
-    paddingHorizontal: 28,
+    paddingHorizontal: "2%",
   },
   alertNote: {
     paddingHorizontal: 28,
@@ -437,6 +485,51 @@ const s = StyleSheet.create({
     marginTop: 20,
     marginBottom: 10,
     position: "relative",
+  },
+  mobileHero: {
+    minHeight: 150,
+    borderRadius: 20,
+    overflow: "hidden",
+    backgroundColor: "#EAF4FB",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 20,
+    marginBottom: 12,
+  },
+  mobileSkyline: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  mobileSkylineBlueTint: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(3, 69, 108, 0.18)",
+  },
+  mobileHeroCopy: {
+    maxWidth: "78%",
+    zIndex: 1,
+  },
+  mobileEyebrow: {
+    color: "#03456C",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.3,
+    marginBottom: 7,
+  },
+  mobileTitle: {
+    color: "#0A192F",
+    fontSize: 26,
+    lineHeight: 31,
+    fontWeight: "800",
+    letterSpacing: -0.4,
+  },
+  mobileCount: {
+    color: "#03456C",
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 8,
   },
   eyebrowRow: {
     flexDirection: "row",
@@ -518,11 +611,11 @@ const s = StyleSheet.create({
     color: "#03456C",
   },
   mainCard: {
-    backgroundColor: "#FFFFFF",
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
     borderRadius: 32,
     minHeight: 360,
-    paddingVertical: 52,
-    paddingHorizontal: 28,
+    padding: 0,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -533,6 +626,10 @@ const s = StyleSheet.create({
     shadowRadius: 24,
     elevation: 4,
     marginVertical: 14,
+    ...Platform.select({
+      web: { backdropFilter: "blur(12px)" },
+      default: {},
+    }),
   },
   loadingContainer: {
     padding: 60,

@@ -12,6 +12,7 @@ export interface UserProfile {
   role: UserRole;
   isVerifiedIdentity: boolean;
   demoKycComplete?: boolean;
+  identityVerificationMode?: "staff" | "demo";
   kycDocuments?: string[];
   createdAt: string;
 }

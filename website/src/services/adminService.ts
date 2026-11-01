@@ -12,6 +12,9 @@ export type StaffAccount = {
 };
 
 export const adminService = {
+  async reviewIdentity(userId: string, approved: boolean, notes: string) {
+    return (await api.put(`/admin/users/${userId}/identity`, { approved, notes })).data;
+  },
   async listStaff(cursor?: string): Promise<StaffAccount[]> {
     const response = await api.get("/admin/staff", { params: { cursor } });
     return response.data;

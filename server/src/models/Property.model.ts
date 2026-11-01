@@ -106,7 +106,7 @@ const PropertySchema = new Schema<IProperty>(
     status: {
       type: String,
       enum: ["draft", "queued", "pending", "advisor_verified", "correction_required", "rejected", "verified", "sold"],
-      default: "pending",
+      default: "draft",
     },
     badges: {
       identityVerified: { type: Boolean, default: false },

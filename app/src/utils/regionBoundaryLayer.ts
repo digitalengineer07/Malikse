@@ -1,8 +1,8 @@
 import type { RegionGroup } from "../services/regionService";
 
-export type RegionBoundaryOptions = { level: "state" | "district" | "pincode"; state?: string; groups: RegionGroup[] };
+export type RegionBoundaryOptions = { level: "state" | "district" | "pincode"; state?: string; groups: RegionGroup[]; showCountTags?: boolean };
 
-/** Closure-free: serialized at build time for the native WebView. */
+/** Closure-free: also embedded in the native WebView, keeping both maps identical. */
 export function addRegionBoundaries(L: any, map: any, options: RegionBoundaryOptions, select: (key: string) => void, fail: () => void) {
   const normalize = (value: unknown) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
   const aliases: Record<string, string> = { orissa: "odisha", uttaranchal: "uttarakhand", pondicherry: "puducherry", nctofdelhi: "delhi", newdelhi: "delhi", bangaloreurban: "bengaluruurban", bangalorerural: "bengalururural", allahabad: "prayagraj", gurgaon: "gurugram" };
@@ -34,6 +34,7 @@ export function addRegionBoundaries(L: any, map: any, options: RegionBoundaryOpt
   };
   // Place one tag within the polygon's rings, respecting holes and concave outlines.
   const addTag = (feature: any, extent: number, coordinates: { x: number; y: number; z: number }) => {
+    if (options.showCountTags === false) return;
     const group = match(feature.properties);
     if (!group || feature.type !== 3 || !feature.geometry?.length || disposed) return;
     const rings = feature.geometry;
@@ -88,7 +89,7 @@ export function addRegionBoundaries(L: any, map: any, options: RegionBoundaryOpt
   const grid = new BoundaryGrid(`https://indianopenmaps.com/${source.path}/{z}/{x}/{y}.pbf`, {
     vectorTileLayerStyles: { [source.layer]: style }, interactive: true,
     maxNativeZoom: 14, maxZoom: 19, bounds: [[6, 67], [38, 98]],
-    attribution: 'Boundaries: <a href="https://indianopenmaps.com/">Indian Open Maps</a> · Survey of India / Department of Posts',
+    attribution: 'Boundaries: Survey of India',
   });
   const tooltip = L.tooltip({ sticky: true, direction: "top" });
   grid.on("mouseover", (event: any) => {

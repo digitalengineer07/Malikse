@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Modal,
   Platform,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import Image from "./PropertyImage";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import * as Location from "expo-location";
@@ -549,7 +549,7 @@ export default function ListingEditorScreen() {
   if (!hydrated) return <ActivityIndicator />;
   if (!user || authState !== "AUTHENTICATED") return <Redirect href="/login" />;
   if (user.role !== "user") return <Redirect href={dashboardRoutes[user.role]} />;
-  if (!user.demoKycComplete) return <Redirect href="/kyc" />;
+  if (!(user.isVerifiedIdentity || user.demoKycComplete)) return <Redirect href="/kyc" />;
 
   const field = (
     key: keyof typeof initialForm,

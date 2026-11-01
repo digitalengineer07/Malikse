@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useFonts } from "expo-font";
 import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SplashScreen from "expo-splash-screen";
 import "react-native-reanimated";
@@ -13,6 +13,8 @@ import { authService } from "../src/services/authService";
 
 import AppBackground from "../components/AppBackground";
 import { hydrateResume, resumeTabs, useResumeStore } from "../src/store/resumeStore";
+import { preloadStartupResources } from "../src/services/startupPreload";
+import { cachedMapAssets, preloadMapAssets } from "../src/services/mapAssets";
 
 // Prevent native splash screen from auto hiding before JS initializes
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -40,6 +42,14 @@ export default function RootLayout() {
   const pathname = usePathname();
   const [resumeReady, setResumeReady] = useState(Platform.OS === "web");
   useEffect(() => { hydrateResume().finally(() => setResumeReady(true)); }, []);
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    void preloadStartupResources();
+    const subscription = AppState.addEventListener("change", state => {
+      if (state === "active" && !cachedMapAssets()) preloadMapAssets().catch(() => {});
+    });
+    return () => subscription.remove();
+  }, []);
   useEffect(() => {
     if (resumeReady && Platform.OS !== "web" && resumeTabs.includes(pathname as typeof resumeTabs[number])) {
       useResumeStore.getState().setTab(pathname as typeof resumeTabs[number]);

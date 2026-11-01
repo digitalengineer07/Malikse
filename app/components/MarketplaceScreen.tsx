@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Platform,
   ScrollView,
   StyleSheet,
@@ -10,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import AppHeader from "./AppHeader";
@@ -17,46 +20,188 @@ import PropertyTypeTabs from "./PropertyTypeTabs";
 import CitySkyline from "./CitySkyline";
 import LocationSearchBar from "./LocationSearchBar";
 import PremiumIndiaMap from "./PremiumIndiaMap";
-import MapIntroOverlay from "./MapIntroOverlay";
-import StateSelectorPanel from "./StateSelectorPanel";
+import BiharLandIntelligenceCard from "./BiharLandIntelligenceCard";
+import BiharDistrictExplorerPanel from "./BiharDistrictExplorerPanel";
+import PropertyCard from "./PropertyCard";
+import { BIHAR_DISTRICTS_DATA, type BiharDistrictInfo } from "../src/data/biharDistrictsData";
 
 import {
-  fetchRegionCounts,
   cachedRegionCounts,
+  fetchRegionCounts,
   fetchLocationSuggestions,
   type LocationSuggestion,
   type RegionGroup,
 } from "../src/services/regionService";
-import type { PropertyType } from "../src/types/property.types";
+import { cachedPropertySearch, propertyService } from "../src/services/propertyService";
+import type { Property, PropertyType } from "../src/types/property.types";
 import type { MapFocus } from "../src/utils/nativeMapHtml";
 import type { IndiaStateInfo } from "../src/data/indiaStatesData";
 import { currentMapLocation } from "../src/services/currentMapLocation";
+import { geocodePlaceId, geocodeAddress } from "../src/utils/googleMaps";
 import { useResumeStore } from "../src/store/resumeStore";
+
+export interface GrowthCorridor {
+  id: string;
+  name: string;
+  tag: string;
+  district: string;
+  subDistrict: string;
+  description: string;
+  priceRange: string;
+  growth: string;
+  lat: number;
+  lng: number;
+  zoom: number;
+  icon: keyof typeof MaterialIcons.glyphMap;
+}
+
+export const BIHAR_CORRIDORS: GrowthCorridor[] = [
+  {
+    id: "patna_bihta",
+    name: "Patna – Bihta Airport Corridor",
+    tag: "HIGH APPRECIATION",
+    district: "Patna",
+    subDistrict: "Bihta / Danapur",
+    description: "Mega civil airport expansion, IIT Patna campus, IT SEZ, and direct elevated 4-lane expressway connecting AIIMS.",
+    priceRange: "₹2,400 - ₹5,800 / sq.ft",
+    growth: "+34% Annual",
+    lat: 25.5688,
+    lng: 84.8694,
+    zoom: 12,
+    icon: "flight-takeoff",
+  },
+  {
+    id: "patna_kanhauli",
+    name: "Greater Patna – Kanhauli & AIIMS Hub",
+    tag: "RESIDENTIAL PLOTTING",
+    district: "Patna",
+    subDistrict: "Kanhauli / Naubatpur",
+    description: "Interstate Ring Road junction, ISBT connector, and high-demand master-planned gated residential townships.",
+    priceRange: "₹1,800 - ₹3,600 / sq.ft",
+    growth: "+28% Annual",
+    lat: 25.52,
+    lng: 85.04,
+    zoom: 12,
+    icon: "home-work",
+  },
+  {
+    id: "muzaffarpur_nh",
+    name: "Muzaffarpur – Motipur Industrial Corridor",
+    tag: "COMMERCIAL & LOGISTICS",
+    district: "Muzaffarpur",
+    subDistrict: "Motipur / Bairia NH-28",
+    description: "North Bihar commercial capital, Mega Food Park, East-West corridor logistics belt, and smart city infrastructure.",
+    priceRange: "₹1,400 - ₹3,200 / sq.ft",
+    growth: "+22% Annual",
+    lat: 26.1209,
+    lng: 85.3647,
+    zoom: 12,
+    icon: "store",
+  },
+  {
+    id: "gaya_dobhi",
+    name: "Gaya – Bodh Gaya Industrial & Tourism Belt",
+    tag: "HERITAGE & AKIC NODE",
+    district: "Gaya",
+    subDistrict: "Bodh Gaya / Dobhi",
+    description: "Amritsar-Kolkata Industrial Corridor (AKIC Node), international spiritual tourism hotspot, and GT Road corridor.",
+    priceRange: "₹1,200 - ₹2,900 / sq.ft",
+    growth: "+26% Annual",
+    lat: 24.6961,
+    lng: 84.9869,
+    zoom: 12,
+    icon: "business",
+  },
+  {
+    id: "darbhanga_airport",
+    name: "Darbhanga – Airport & AIIMS Healthcare Node",
+    tag: "AIRPORT EXPANSION",
+    district: "Darbhanga",
+    subDistrict: "Mabbi / NH-57 Bypass",
+    description: "Mithila region aviation gateway with highest regional passenger traffic, 2nd AIIMS of Bihar, and medical estates.",
+    priceRange: "₹1,600 - ₹3,500 / sq.ft",
+    growth: "+25% Annual",
+    lat: 26.1542,
+    lng: 85.8918,
+    zoom: 12,
+    icon: "local-hospital",
+  },
+  {
+    id: "vaishali_hajipur",
+    name: "Vaishali – Hajipur Paswan Chowk Twin-City",
+    tag: "TWIN-CITY EXPRESSWAY",
+    district: "Vaishali",
+    subDistrict: "Hajipur / Bidupur",
+    description: "Direct 6-lane JP Setu & Kacchi Dargah bridge access to Patna. Industrial warehousing and prime residential plotting.",
+    priceRange: "₹1,500 - ₹3,400 / sq.ft",
+    growth: "+24% Annual",
+    lat: 25.6858,
+    lng: 85.2146,
+    zoom: 12,
+    icon: "directions-car",
+  },
+];
 
 export default function MarketplaceScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 980;
 
-  // State management
+  // Scroll ref for smooth navigation
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [heroEntrance] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    const animation = Animated.timing(heroEntrance, {
+      toValue: 1,
+      duration: 480,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [heroEntrance]);
+
+  // State management - Initialized directly to Bihar focus
   const savedSearch = useResumeStore.getState().search;
-  const [state, setState] = useState<RegionGroup | undefined>(savedSearch.state);
+  const initialRegionCounts = cachedRegionCounts({
+    state: savedSearch.state?.key || "Bihar",
+    district: savedSearch.district?.key,
+    type: savedSearch.type,
+  });
+  const initialDistrictCounts = cachedRegionCounts({ state: savedSearch.state?.key || "Bihar", type: savedSearch.type });
+  const initialProperties = cachedPropertySearch({
+    state: savedSearch.state?.name || "Bihar",
+    ...(savedSearch.district?.name ? { district: savedSearch.district.name } : {}),
+    ...(savedSearch.type ? { type: savedSearch.type } : {}),
+  });
+  const [state, setState] = useState<RegionGroup | undefined>(savedSearch.state ?? {
+    key: "Bihar",
+    name: "Bihar",
+    count: 14,
+    lat: 25.65,
+    lng: 85.35,
+  });
   const [district, setDistrict] = useState<RegionGroup | undefined>(savedSearch.district);
   const [type, setType] = useState<PropertyType | undefined>(savedSearch.type);
-  const [groups, setGroups] = useState<RegionGroup[]>([]);
+  const [groups, setGroups] = useState<RegionGroup[]>(initialRegionCounts?.groups ?? []);
+  const [districtGroups, setDistrictGroups] = useState<RegionGroup[]>(initialDistrictCounts?.groups ?? []);
   const [query, setQuery] = useState(savedSearch.query);
-  const suggestionKey = JSON.stringify([query.trim(), type]);
-  const [suggestionResult, setSuggestionResult] = useState<{ key: string; items: LocationSuggestion[]; error: boolean }>();
-  const suggestions = suggestionResult?.key === suggestionKey ? suggestionResult.items : [];
-  const suggesting = query.trim().length >= 2 && suggestionResult?.key !== suggestionKey;
-  const suggestionError = !!(suggestionResult?.key === suggestionKey && suggestionResult.error);
-  const [loading, setLoading] = useState(true), [error, setError] = useState("");
+  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestionError, setSuggestionError] = useState(false);
+  const [loading, setLoading] = useState(!initialRegionCounts);
+  const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   const [locating, setLocating] = useState(false);
   const [customFocus, setCustomFocus] = useState<MapFocus | undefined>(savedSearch.customFocus);
   useEffect(() => {
     useResumeStore.getState().setSearch({ state, district, type, query, customFocus });
   }, [state, district, type, query, customFocus]);
+  const [selectedCorridorId, setSelectedCorridorId] = useState<string | null>(null);
+  const [verifiedProperties, setVerifiedProperties] = useState<Property[]>(initialProperties ?? []);
+  const [allStateProperties, setAllStateProperties] = useState<Property[]>([]);
+  const [propertiesLoading, setPropertiesLoading] = useState(!initialProperties);
 
   const level = district ? "pincode" : state ? "district" : "state";
 
@@ -65,17 +210,25 @@ export default function MarketplaceScreen() {
     return groups.reduce((acc, curr) => acc + (curr.count || 0), 0);
   }, [groups]);
 
-  // Map of state name/code to counts for state panel
-  const stateCounts = useMemo(() => {
+  // Map of Bihar district names to counts for the Bihar District Explorer Panel
+  const districtCounts = useMemo(() => {
     const map: Record<string, number> = {};
-    if (level === "state") {
-      groups.forEach((g) => {
-        map[g.name] = g.count;
-        map[g.key] = g.count;
-      });
-    }
+    districtGroups.forEach((g) => {
+      map[g.name] = g.count;
+      map[g.key] = g.count;
+    });
     return map;
-  }, [groups, level]);
+  }, [districtGroups]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const filters = { state: state?.key || "Bihar", type };
+    setDistrictGroups(cachedRegionCounts(filters)?.groups ?? []);
+    fetchRegionCounts(filters, controller.signal)
+      .then(data => { if (!controller.signal.aborted) setDistrictGroups(data.groups); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [state?.key, type, revision]);
 
   // Fetch region counts based on current state / district / type
   useFocusEffect(
@@ -93,9 +246,7 @@ export default function MarketplaceScreen() {
           if (active) setGroups(data.groups);
         })
         .catch(() => {
-          if (active) setError(cached
-            ? "Showing saved area counts. Could not refresh; please try again."
-            : "Could not load area counts. Please try again.");
+          if (active && !cached) setError("Could not load area counts. Please try again.");
         })
         .finally(() => {
           if (active) setLoading(false);
@@ -105,38 +256,57 @@ export default function MarketplaceScreen() {
         active = false;
         controller.abort();
       };
-    // Revision explicitly retries the same region query.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state?.key, district?.key, type, revision])
   );
 
-  // Ignore responses for superseded queries and property types.
+  // Autocomplete suggestions debounce
   useEffect(() => {
     const term = query.trim();
-    if (term.length < 2) return;
+    if (term.length < 2) {
+      setSuggestions([]);
+      setSuggesting(false);
+      setSuggestionError(false);
+      return;
+    }
     const controller = new AbortController();
     let active = true;
+    setSuggesting(true);
+    setSuggestionError(false);
+    setSuggestions([]);
+
     const timer = setTimeout(() => {
       fetchLocationSuggestions(term, type, controller.signal)
-        .then(items => { if (active) setSuggestionResult({ key: suggestionKey, items, error: false }); })
-        .catch(() => { if (active) setSuggestionResult({ key: suggestionKey, items: [], error: true }); });
+        .then((data) => {
+          if (active) setSuggestions(data);
+        })
+        .catch(() => {
+          if (active) setSuggestionError(true);
+        })
+        .finally(() => {
+          if (active) setSuggesting(false);
+        });
     }, 250);
-    return () => { active = false;clearTimeout(timer);controller.abort(); };
-  }, [query, type, suggestionKey]);
 
-  // Calculated Map Focus
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query, type]);
+
+  // Calculated Map Focus - Focused on Bihar
   const mapFocus = useMemo<MapFocus | undefined>(() => {
     if (customFocus) return customFocus;
-    if (district) return { lat: district.lat, lng: district.lng, zoom: 10 };
-    if (state) return { lat: state.lat, lng: state.lng, zoom: 7.2 };
-    return undefined;
+    if (district) return { lat: district.lat, lng: district.lng, zoom: 11.5 };
+    if (state) return { lat: state.lat, lng: state.lng, zoom: 7.5 };
+    return { lat: 25.65, lng: 85.35, zoom: 7.5 };
   }, [state, district, customFocus]);
 
   // Handle pincode navigation to listings
   const openPincode = useCallback(
     (selectedPincode: string, selectedState: string, selectedDistrict: string) => {
       setQuery("");
-      setSuggestionResult(undefined);
+      setSuggestions([]);
       router.navigate({
         pathname: "/(tabs)/home",
         params: {
@@ -171,121 +341,202 @@ export default function MarketplaceScreen() {
     [state, district, openPincode]
   );
 
-  // Handle state selection from state selector panel or state pin
-  const handleSelectStateInfo = useCallback(
-    (stateInfo: IndiaStateInfo) => {
+  // Handle district selection from BiharDistrictExplorerPanel
+  const handleSelectDistrictInfo = useCallback(
+    (districtInfo: BiharDistrictInfo) => {
       setQuery("");
-      setDistrict(undefined);
-      setCustomFocus({
-        lat: stateInfo.lat,
-        lng: stateInfo.lng,
-        zoom: stateInfo.zoom || 7,
+      setState({
+        key: "Bihar",
+        name: "Bihar",
+        count: 14,
+        lat: 25.65,
+        lng: 85.35,
       });
-
-      const matchedGroup = groups.find(
-        (g) =>
-          g.name.toLowerCase() === stateInfo.name.toLowerCase() ||
-          g.key.toLowerCase() === stateInfo.name.toLowerCase()
-      );
-
-      if (matchedGroup) {
-        setState(matchedGroup);
-      } else {
-        setState({
-          key: stateInfo.name,
-          name: stateInfo.name,
-          count: 0,
-          lat: stateInfo.lat,
-          lng: stateInfo.lng,
-        });
-      }
+      setDistrict({
+        key: districtInfo.name,
+        name: districtInfo.name,
+        count: districtCounts[districtInfo.name] || 0,
+        lat: districtInfo.lat,
+        lng: districtInfo.lng,
+      });
+      setCustomFocus({
+        lat: districtInfo.lat,
+        lng: districtInfo.lng,
+        zoom: districtInfo.zoom || 11.5,
+      });
     },
-    [groups]
+    [districtCounts]
   );
 
-  // Reset to All India view
+  // Handle quick corridor selection from BiharLandIntelligenceCard
+  const handleSelectQuickHub = useCallback(
+    (districtName: string, lat: number, lng: number, zoom: number) => {
+      setQuery("");
+      setState({
+        key: "Bihar",
+        name: "Bihar",
+        count: 14,
+        lat: 25.65,
+        lng: 85.35,
+      });
+      setDistrict({
+        key: districtName,
+        name: districtName,
+        count: districtCounts[districtName] || 0,
+        lat,
+        lng,
+      });
+      setCustomFocus({ lat, lng, zoom });
+    },
+    [districtCounts]
+  );
+
+  // Reset to All Bihar view
   const handleClearSelection = useCallback(() => {
-    setState(undefined);
+    setState({
+      key: "Bihar",
+      name: "Bihar",
+      count: 14,
+      lat: 25.65,
+      lng: 85.35,
+    });
     setDistrict(undefined);
     setQuery("");
-    setCustomFocus(undefined);
+    setCustomFocus({ lat: 25.65, lng: 85.35, zoom: 7.5 });
   }, []);
 
   // Handle location suggestion selection
   const handleSelectSuggestion = useCallback(
-    (item: LocationSuggestion) => {
+    async (item: LocationSuggestion) => {
       const term = query.trim();
       setQuery("");
-      setSuggestionResult(undefined);
+      setSuggestions([]);
       setCustomFocus(undefined);
 
-      const stateGroup: RegionGroup = {
-        key: item.state,
-        name: item.state,
-        count: 0,
-        lat: item.lat,
-        lng: item.lng,
-      };
-      const districtGroup: RegionGroup = {
-        key: item.district || "",
-        name: item.district || "",
-        count: 0,
-        lat: item.lat,
-        lng: item.lng,
-      };
-
-      if (item.kind === "state") {
-        setState(stateGroup);
-        setDistrict(undefined);
-        return;
-      }
-      if (item.kind === "district") {
-        setState(stateGroup);
-        setDistrict(districtGroup);
-        return;
-      }
-      if (item.kind === "pincode") {
-        openPincode(item.pincode || "", item.state, item.district || "");
+      if (item.kind === "pincode" && item.pincode && item.district) {
+        openPincode(item.pincode, item.state, item.district);
         return;
       }
 
-      router.push({
-        pathname: "/(tabs)/home",
-        params: {
-          address: term,
-          state: "",
-          district: "",
-          pincode: "",
-          type: type || "",
-          query: "",
-          min: "",
-          max: "",
-        },
-      });
+      const matchedDistrict = BIHAR_DISTRICTS_DATA.find(
+        (d) =>
+          d.name.toLowerCase() === (item.district || "").toLowerCase() ||
+          item.label.toLowerCase().includes(d.name.toLowerCase())
+      );
+
+      // 1. If it's a district or matches a Bihar district
+      if (item.kind === "district" || matchedDistrict) {
+        const distName = matchedDistrict?.name || item.district || item.label.split(",")[0].trim();
+        const distLat = item.lat || matchedDistrict?.lat || 25.65;
+        const distLng = item.lng || matchedDistrict?.lng || 85.35;
+        const distZoom = matchedDistrict?.zoom || 11.5;
+
+        setState({
+          key: "Bihar",
+          name: "Bihar",
+          count: 14,
+          lat: 25.65,
+          lng: 85.35,
+        });
+        setDistrict({
+          key: distName,
+          name: distName,
+          count: districtCounts[distName] || 0,
+          lat: distLat,
+          lng: distLng,
+        });
+        setCustomFocus({ lat: distLat, lng: distLng, zoom: distZoom });
+        scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+        return;
+      }
+
+      // 2. If it has coordinates already (from DB suggest or verified properties)
+      if (item.lat && item.lng && item.lat !== 0 && item.lng !== 0) {
+        if (item.district) {
+          setDistrict({
+            key: item.district,
+            name: item.district,
+            count: districtCounts[item.district] || 0,
+            lat: item.lat,
+            lng: item.lng,
+          });
+        }
+        setCustomFocus({ lat: item.lat, lng: item.lng, zoom: 14 });
+        scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+        return;
+      }
+
+      // 3. If it has a Google placeId
+      if (item.placeId) {
+        const geo = await geocodePlaceId(item.placeId);
+        if (geo) {
+          setCustomFocus({ lat: geo.lat, lng: geo.lng, zoom: 14 });
+          scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+          return;
+        }
+      }
+
+      // 4. Fallback address geocoding
+      const geo = await geocodeAddress(item.label || term);
+      if (geo) {
+        setCustomFocus({ lat: geo.lat, lng: geo.lng, zoom: 13.5 });
+        scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+      }
     },
-    [query, router, type, openPincode]
+    [query, districtCounts, openPincode]
   );
 
-  // Execute general search
-  const handleSearchAll = useCallback(() => {
+  // Execute general search — focus and locate directly on the map below
+  const handleSearchAll = useCallback(async () => {
     const term = query.trim();
     if (term.length < 2) return;
-    setQuery("");
-    setSuggestionResult(undefined);
-    router.push({
-      pathname: "/(tabs)/home",
-      params: {
-        address: term,
-        state: "",
-        district: "",
-        pincode: "",
-        type: type || "",
-        query: "",
-        min: "",
-        max: "",
-      },
+    setSuggestions([]);
+
+    // Check if query matches any Bihar district
+    const matchedDistrict = BIHAR_DISTRICTS_DATA.find(
+      (d) =>
+        d.name.toLowerCase() === term.toLowerCase() ||
+        term.toLowerCase().includes(d.name.toLowerCase()) ||
+        d.headquarters.toLowerCase() === term.toLowerCase() ||
+        d.prominentHubs.toLowerCase().includes(term.toLowerCase())
+    );
+    if (matchedDistrict) {
+      handleSelectDistrictInfo(matchedDistrict);
+      scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+      return;
+    }
+
+    // Check if query matches any verified property in allStateProperties
+    const matchedProp = allStateProperties.find((p) => {
+      const fullText = `${p.title || ""} ${p.location?.mauza || ""} ${p.location?.block || ""} ${p.location?.district || ""}`.toLowerCase();
+      return fullText.includes(term.toLowerCase());
     });
-  }, [query, router, type]);
+    if (matchedProp && matchedProp.location?.lat && matchedProp.location?.lng) {
+      if (matchedProp.location.district) {
+        setDistrict({
+          key: matchedProp.location.district,
+          name: matchedProp.location.district,
+          count: districtCounts[matchedProp.location.district] || 0,
+          lat: matchedProp.location.lat,
+          lng: matchedProp.location.lng,
+        });
+      }
+      setCustomFocus({
+        lat: matchedProp.location.lat,
+        lng: matchedProp.location.lng,
+        zoom: 14,
+      });
+      scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+      return;
+    }
+
+    // Fallback Geocode via Google Maps
+    const geo = await geocodeAddress(term);
+    if (geo) {
+      setCustomFocus({ lat: geo.lat, lng: geo.lng, zoom: 13.5 });
+      scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+    }
+  }, [query, allStateProperties, districtCounts, handleSelectDistrictInfo]);
 
   // Current Geolocation GPS action
   const handleCurrentLocation = useCallback(async () => {
@@ -301,40 +552,228 @@ export default function MarketplaceScreen() {
     }
   }, [locating]);
 
+  // Fetch all verified properties for active state (to compute corridor metrics from live DB)
+  useEffect(() => {
+    let active = true;
+    const targetState = state?.name || "Bihar";
+    propertyService
+      .searchProperties({ state: targetState, limit: 50, view: "full" })
+      .then((results) => {
+        if (active) setAllStateProperties(results || []);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [state?.name, revision]);
+
+  // Fetch verified properties based on current state / district / type
+  useEffect(() => {
+    let active = true;
+
+    const targetState = state?.name || "Bihar";
+    const filters: any = {
+      state: targetState,
+    };
+    if (district?.name) filters.district = district.name;
+    if (type) filters.type = type;
+    const cached = cachedPropertySearch(filters);
+    setVerifiedProperties(cached ?? []);
+    setPropertiesLoading(!cached);
+
+    propertyService
+      .searchProperties(filters)
+      .then((results) => {
+        if (active) {
+          setVerifiedProperties(results || []);
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not load verified properties for explore:", err);
+        if (active && !cached) setVerifiedProperties([]);
+      })
+      .finally(() => {
+        if (active) setPropertiesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [state?.name, district?.name, type]);
+
+  // Dynamic growth corridors synchronized with live database properties & region counts
+  const dynamicCorridors = useMemo(() => {
+    return BIHAR_CORRIDORS.map((c) => {
+      const matched = allStateProperties.filter((p) => {
+        const matchesDistrict = p.location?.district?.toLowerCase() === c.district.toLowerCase();
+        if (!matchesDistrict) return false;
+        if (c.district.toLowerCase() !== "patna") return true;
+        const loc = `${p.location?.block || ""} ${p.location?.mauza || ""} ${p.title || ""}`.toLowerCase();
+        if (c.id === "patna_bihta") return loc.includes("bihta");
+        if (c.id === "patna_kanhauli") return loc.includes("kanhauli") || loc.includes("naubatpur") || loc.includes("aiims");
+        return true;
+      });
+
+      const rates = matched
+        .map((p) => (p.sellableArea || p.totalArea ? Math.round(p.price / (p.sellableArea || p.totalArea || 1)) : 0))
+        .filter((r) => r > 0);
+
+      const dynamicPriceRange =
+        rates.length > 1
+          ? `₹${Math.min(...rates).toLocaleString("en-IN")} - ₹${Math.max(...rates).toLocaleString("en-IN")} / sq.ft`
+          : rates.length === 1
+          ? `₹${rates[0].toLocaleString("en-IN")} / sq.ft`
+          : c.priceRange;
+
+      return {
+        ...c,
+        priceRange: dynamicPriceRange,
+        verifiedCount: matched.length,
+      };
+    });
+  }, [allStateProperties]);
+
+  // Filtered properties for map pins synchronized with active district and property type (land, flat, house, shop, office)
+  const filteredMapProperties = useMemo(() => {
+    let list = allStateProperties.length > 0 ? allStateProperties : verifiedProperties;
+
+    // Filter by district if selected
+    if (district?.name) {
+      list = list.filter(
+        (p) => p.location?.district?.toLowerCase() === district.name.toLowerCase()
+      );
+    }
+
+    // Filter by selected property type (land, flat, house, shop, office)
+    if (type) {
+      list = list.filter((p) => {
+        const pType = (p.type || "").toLowerCase();
+        if (type === "flat") return pType === "flat" || pType === "apartment";
+        if (type === "house") return pType === "house" || pType === "villa";
+        if (type === "land") return pType === "land" || pType === "plot";
+        return pType === type.toLowerCase();
+      });
+    }
+
+    return list;
+  }, [allStateProperties, verifiedProperties, district?.name, type]);
+
+  // When user toggles property type buttons (Land, Flat, House, Shop, Office), focus the map to show the listed items
+  useEffect(() => {
+    if (!type) {
+      if (!district) {
+        setCustomFocus({ lat: 25.65, lng: 85.35, zoom: 7.5 });
+      }
+      return;
+    }
+
+    const matching = allStateProperties.filter((p) => {
+      const pType = (p.type || "").toLowerCase();
+      if (type === "flat") return pType === "flat" || pType === "apartment";
+      if (type === "house") return pType === "house" || pType === "villa";
+      if (type === "land") return pType === "land" || pType === "plot";
+      return pType === type.toLowerCase();
+    });
+
+    if (matching.length === 1 && matching[0].location?.lat && matching[0].location?.lng) {
+      setCustomFocus({
+        lat: matching[0].location.lat,
+        lng: matching[0].location.lng,
+        zoom: 14.5,
+      });
+      scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+    } else if (matching.length > 1) {
+      setCustomFocus({
+        lat: 25.61,
+        lng: 85.12,
+        zoom: 11,
+      });
+      scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+    }
+  }, [type, allStateProperties, district]);
+
+  // Corridor focus handler
+  const handleSelectCorridor = useCallback((corridor: typeof dynamicCorridors[0]) => {
+    setSelectedCorridorId(corridor.id);
+    setQuery("");
+    setSuggestions([]);
+
+    setState({
+      key: "Bihar",
+      name: "Bihar",
+      count: 0,
+      lat: 25.6,
+      lng: 85.1,
+    });
+    setDistrict({
+      key: corridor.district,
+      name: corridor.district,
+      count: 0,
+      lat: corridor.lat,
+      lng: corridor.lng,
+    });
+    setCustomFocus({
+      lat: corridor.lat,
+      lng: corridor.lng,
+      zoom: corridor.zoom,
+    });
+
+    scrollViewRef.current?.scrollTo({ y: 220, animated: true });
+  }, []);
+
   return (
     <View style={styles.screen}>
       {/* Brand Header */}
       <AppHeader />
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        ref={scrollViewRef}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.contentInner}>
+        <View style={[styles.contentInner, !isDesktop && { paddingHorizontal: 16 }]}>
           {/* Hero Section */}
           <View style={styles.heroSection}>
-            {/* Introductory Eyebrow with Dash */}
-            <View style={styles.eyebrowRow}>
-              <Text style={styles.eyebrow}>FIND YOUR PERFECT LOCATION</Text>
-              <View style={styles.eyebrowDash} />
-            </View>
-
-            {/* Title Row with Skyline Graphic */}
-            <View style={styles.titleRow}>
-              <View style={styles.titleLeft}>
-                <Text style={styles.mainTitle}>Find properties by area</Text>
-                <Text style={styles.subTitle}>
-                  Explore verified lands, plots, flats, and commercial properties across India.
-                </Text>
-              </View>
-
-              {/* Skyline Backdrop Graphic on Desktop */}
-              {width >= 768 && (
-                <View style={styles.skylineWrap}>
-                  <CitySkyline width={width < 1100 ? 460 : 560} height={155} opacity={0.92} />
+            {width >= 800 ? (
+              <>
+                <View style={styles.eyebrowRow}>
+                  <Text style={styles.eyebrow}>FIND YOUR PERFECT LOCATION</Text>
+                  <View style={styles.eyebrowDash} />
                 </View>
-              )}
-            </View>
+                <View style={styles.titleRow}>
+                  <View style={styles.titleLeft}>
+                    <Text style={styles.mainTitle}>Find properties in Bihar</Text>
+                    <Text style={styles.subTitle}>
+                      Explore verified lands, plots, commercial corridors, and residential estates across Bihar.
+                    </Text>
+                  </View>
+                  <View style={styles.skylineWrap}>
+                    <CitySkyline width={width < 1100 ? 540 : 680} height={width < 1100 ? 180 : 225} opacity={0.94} />
+                  </View>
+                </View>
+              </>
+            ) : (
+              <Animated.View
+                style={[
+                  styles.mobileHero,
+                  {
+                    opacity: heroEntrance,
+                    transform: [{ translateY: heroEntrance.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+                  },
+                ]}
+              >
+                <View pointerEvents="none" style={styles.mobileSkyline}>
+                  <CitySkyline width="100%" height={150} opacity={0.5} />
+                  <View style={styles.mobileSkylineBlueTint} />
+                </View>
+                <View style={styles.mobileHeroCopy}>
+                  <Text style={styles.mobileEyebrow}>FIND YOUR PLACE</Text>
+                  <Text style={styles.mobileTitle}>Find properties in Bihar</Text>
+                  <Text style={styles.mobileDetail}>Explore verified property across Bihar</Text>
+                </View>
+              </Animated.View>
+            )}
 
             {/* Property Category Pill Filters */}
             <PropertyTypeTabs value={type} onChange={setType} />
@@ -352,60 +791,10 @@ export default function MarketplaceScreen() {
               locating={locating}
             />
 
-            {/* Active Breadcrumbs Bar */}
-            {(state || district) && (
-              <View style={styles.breadcrumbsBar}>
-                <MaterialIcons name="navigation" size={16} color="#075D91" style={{ marginRight: 6 }} />
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  onPress={handleClearSelection}
-                  style={styles.crumbBtn}
-                >
-                  <Text style={styles.crumbLink}>All India</Text>
-                </TouchableOpacity>
-
-                {state && (
-                  <>
-                    <Text style={styles.crumbDivider}>›</Text>
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      onPress={() => {
-                        setDistrict(undefined);
-                        setCustomFocus({ lat: state.lat, lng: state.lng, zoom: 7.2 });
-                      }}
-                      style={styles.crumbBtn}
-                    >
-                      <Text style={[styles.crumbLink, !district && styles.crumbCurrent]}>
-                        {state.name}
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-
-                {district && (
-                  <>
-                    <Text style={styles.crumbDivider}>›</Text>
-                    <Text style={[styles.crumbLink, styles.crumbCurrent]}>
-                      {district.name}
-                    </Text>
-                  </>
-                )}
-
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  onPress={handleClearSelection}
-                  style={styles.resetCrumbBtn}
-                >
-                  <MaterialIcons name="close" size={14} color="#075D91" />
-                  <Text style={styles.resetCrumbText}>Reset</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
             {/* Loading / Error Indicators */}
             {loading && (
               <View style={styles.statusBanner}>
-                <ActivityIndicator size="small" color="#075D91" />
+                <ActivityIndicator size="small" color="#03456C" />
                 <Text style={styles.statusBannerText}>Loading region verified counts…</Text>
               </View>
             )}
@@ -431,29 +820,41 @@ export default function MarketplaceScreen() {
             <View style={styles.mapCardDesktop}>
               {/* Full Interactive Leaflet India Map */}
               <PremiumIndiaMap
-                groups={loading ? [] : groups}
+                groups={loading || error ? [] : groups}
                 level={level}
                 state={state?.key}
                 focus={mapFocus}
+                properties={filteredMapProperties}
                 onSelectGroup={handleSelectGroup}
-                onSelectStateInfo={handleSelectStateInfo}
+                onSelectStateInfo={handleSelectDistrictInfo as any}
+                onSelectProperty={(prop) => {
+                  const targetId = prop.id || prop._id;
+                  if (targetId) {
+                    router.push({
+                      pathname: "/property/[id]" as any,
+                      params: { id: targetId },
+                    });
+                  }
+                }}
               />
 
-              {/* Left-Side Dark Translucent Introduction Overlay */}
+              {/* Left-Side Bihar Land Intelligence Overlay */}
               <View style={styles.leftOverlayWrap} pointerEvents="box-none">
-                <MapIntroOverlay
-                  totalCount={totalVerifiedCount}
-                  activeStateName={state?.name}
+                <BiharLandIntelligenceCard
+                  totalCount={filteredMapProperties.length}
+                  activeDistrictName={district?.name}
+                  onSelectQuickHub={handleSelectQuickHub}
+                  onResetView={handleClearSelection}
                 />
               </View>
 
-              {/* Right-Side Floating All States Panel */}
+              {/* Right-Side Floating Bihar Key Districts Panel */}
               <View style={styles.rightPanelWrap} pointerEvents="box-none">
-                <StateSelectorPanel
-                  selectedState={state?.name}
-                  onSelectState={handleSelectStateInfo}
-                  onClearState={handleClearSelection}
-                  stateCounts={stateCounts}
+                <BiharDistrictExplorerPanel
+                  selectedDistrict={district?.name}
+                  onSelectDistrict={handleSelectDistrictInfo}
+                  onClearDistrict={handleClearSelection}
+                  districtCounts={districtCounts}
                 />
               </View>
             </View>
@@ -463,35 +864,341 @@ export default function MarketplaceScreen() {
               {/* Interactive Map Box */}
               <View style={styles.mapCardMobile}>
                 <PremiumIndiaMap
-                  groups={loading ? [] : groups}
+                  groups={loading || error ? [] : groups}
                   level={level}
                   state={state?.key}
                   focus={mapFocus}
+                  properties={filteredMapProperties}
                   onSelectGroup={handleSelectGroup}
-                  onSelectStateInfo={handleSelectStateInfo}
+                  onSelectStateInfo={handleSelectDistrictInfo as any}
+                  onSelectProperty={(prop) => {
+                    const targetId = prop.id || prop._id;
+                    if (targetId) {
+                      router.push({
+                        pathname: "/property/[id]" as any,
+                        params: { id: targetId },
+                      });
+                    }
+                  }}
                 />
               </View>
 
-              {/* Mobile Intro Overview Card */}
+              {/* Mobile Bihar Land Intelligence Overview Card */}
               <View style={styles.mobileIntroCard}>
-                <MapIntroOverlay
-                  totalCount={totalVerifiedCount}
-                  activeStateName={state?.name}
+                <BiharLandIntelligenceCard
+                  totalCount={filteredMapProperties.length}
+                  activeDistrictName={district?.name}
+                  onSelectQuickHub={handleSelectQuickHub}
+                  onResetView={handleClearSelection}
                 />
               </View>
 
-              {/* Mobile All States Panel */}
+              {/* Mobile Bihar Key Districts Panel */}
               <View style={styles.mobileStatesCard}>
-                <StateSelectorPanel
-                  selectedState={state?.name}
-                  onSelectState={handleSelectStateInfo}
-                  onClearState={handleClearSelection}
-                  stateCounts={stateCounts}
+                <BiharDistrictExplorerPanel
+                  selectedDistrict={district?.name}
+                  onSelectDistrict={handleSelectDistrictInfo}
+                  onClearDistrict={handleClearSelection}
+                  districtCounts={districtCounts}
                 />
               </View>
             </View>
           )}
+
+          {/* Curated High-Growth Investment Corridors */}
+          <View style={styles.corridorsSection}>
+            <View style={styles.corridorsHeaderRow}>
+              <View style={styles.corridorsTitleCol}>
+                <View style={styles.eyebrowRow}>
+                  <Text style={styles.eyebrow}>INVESTMENT HOTSPOTS</Text>
+                  <View style={styles.eyebrowDash} />
+                </View>
+                <Text style={styles.sectionHeading}>
+                  Curated High-Growth Corridors in Bihar
+                </Text>
+                <Text style={styles.sectionSubtitle}>
+                  Select any high-potential growth belt to inspect on the satellite map, review connectivity nodes, and browse surveyor-verified plots.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.corridorsGrid}>
+              {dynamicCorridors.map((corridor) => {
+                const isSelected = selectedCorridorId === corridor.id;
+                return (
+                  <TouchableOpacity
+                    key={corridor.id}
+                    style={[
+                      styles.corridorCard,
+                      { width: isDesktop ? "31.8%" : width >= 680 ? "48.5%" : "100%" },
+                      isSelected && styles.corridorCardSelected,
+                    ]}
+                    onPress={() => handleSelectCorridor(corridor)}
+                    activeOpacity={0.88}
+                  >
+                    <View style={styles.corridorTopRow}>
+                      <View style={styles.corridorTagBadge}>
+                        <Text style={styles.corridorTagText}>{corridor.tag}</Text>
+                      </View>
+                      <View style={styles.corridorGrowthBadge}>
+                        <MaterialIcons name="verified" size={13} color="#059669" />
+                        <Text style={styles.corridorGrowthText}>
+                          {corridor.verifiedCount > 0
+                            ? `${corridor.verifiedCount} Verified Listing${corridor.verifiedCount === 1 ? "" : "s"}`
+                            : "Expanding Soon"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.corridorTitleRow}>
+                      <View style={styles.corridorIconBox}>
+                        <MaterialIcons name={corridor.icon} size={20} color="#03456C" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.corridorName} numberOfLines={1}>
+                          {corridor.name}
+                        </Text>
+                        <View style={styles.corridorLocRow}>
+                          <MaterialIcons name="place" size={13} color="#64748B" />
+                          <Text style={styles.corridorLocText}>{corridor.subDistrict}</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <Text style={styles.corridorDesc} numberOfLines={2}>
+                      {corridor.description}
+                    </Text>
+
+                    <View style={styles.corridorDivider} />
+
+                    <View style={styles.corridorFooter}>
+                      <View>
+                        <Text style={styles.corridorPriceLabel}>Est. Land Benchmark</Text>
+                        <Text style={styles.corridorPriceVal}>{corridor.priceRange}</Text>
+                      </View>
+                      <View style={[styles.corridorActionBtn, isSelected && styles.corridorActionBtnActive]}>
+                        <Text style={[styles.corridorActionText, isSelected && styles.corridorActionTextActive]}>
+                          {isSelected ? "Focused" : "View Map"}
+                        </Text>
+                        <MaterialIcons
+                          name={isSelected ? "my-location" : "arrow-forward"}
+                          size={13}
+                          color={isSelected ? "#FFFFFF" : "#03456C"}
+                        />
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Trending Verified Properties */}
+          <View style={styles.trendingSection}>
+            <View style={styles.trendingHeaderRow}>
+              <View style={styles.trendingTitleCol}>
+                <View style={styles.eyebrowRow}>
+                  <Text style={styles.eyebrow}>LIVE VERIFIED INVENTORY</Text>
+                  <View style={styles.eyebrowDash} />
+                </View>
+                <Text style={styles.sectionHeading}>
+                  {district
+                    ? `Verified Properties in ${district.name}`
+                    : state
+                    ? `Verified Properties in ${state.name}`
+                    : "Trending Verified Properties in Bihar"}
+                </Text>
+                <Text style={styles.sectionSubtitle}>
+                  Surveyor-demarcated plots, commercial land, and vetted residential properties with certified Khatiyan clearance.
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.browseAllLinkBtn}
+                onPress={() =>
+                  router.push({
+                    pathname: "/(tabs)/home",
+                    params: {
+                      state: state?.name || "Bihar",
+                      district: district?.name || "",
+                      type: type || "",
+                    },
+                  })
+                }
+                activeOpacity={0.8}
+              >
+                <Text style={styles.browseAllLinkText}>View All in Directory</Text>
+                <MaterialIcons name="arrow-forward" size={15} color="#03456C" />
+              </TouchableOpacity>
+            </View>
+
+            {propertiesLoading ? (
+              <View style={styles.propertiesLoadingBox}>
+                <ActivityIndicator size="small" color="#03456C" />
+                <Text style={styles.propertiesLoadingText}>Loading certified property listings…</Text>
+              </View>
+            ) : verifiedProperties.length > 0 ? (
+              <View style={styles.propertiesGrid}>
+                {verifiedProperties.slice(0, 6).map((property, idx) => (
+                  <View
+                    key={property.id || property._id || String(idx)}
+                    style={{ width: isDesktop ? "31.8%" : width >= 680 ? "48.5%" : "100%" }}
+                  >
+                    <PropertyCard property={property} />
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyPropertiesBox}>
+                <MaterialIcons name="landscape" size={38} color="#94A3B8" />
+                <Text style={styles.emptyTitle}>No verified listings found matching this exact filter</Text>
+                <Text style={styles.emptySub}>
+                  Our land surveyors are adding new Khatiyan-verified plots weekly across Bihar. Browse all live listings on MalikSe Home.
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyBrowseBtn}
+                  onPress={() => router.push("/(tabs)/home")}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.emptyBrowseText}>Browse All Verified Properties</Text>
+                  <MaterialIcons name="arrow-forward" size={14} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* Institutional Land Revenue & MVR Knowledge Guide */}
+          <View style={styles.knowledgeSection}>
+            <View style={styles.knowledgeHeader}>
+              <View style={styles.eyebrowRow}>
+                <Text style={styles.eyebrow}>TRANSPARENCY & DUE DILIGENCE</Text>
+                <View style={styles.eyebrowDash} />
+              </View>
+              <Text style={styles.sectionHeading}>
+                Institutional Land Verification Standard in Bihar
+              </Text>
+              <Text style={styles.sectionSubtitle}>
+                Purchasing land without institutional title checks leads to boundary disputes. Here is how MalikSe protects every transaction.
+              </Text>
+            </View>
+
+            <View style={styles.knowledgeGrid}>
+              {/* Card 1: Circle Rate / MVR */}
+              <View
+                style={[
+                  styles.knowledgeCard,
+                  { width: isDesktop ? "31.8%" : "100%" },
+                ]}
+              >
+                <View style={styles.knowledgeIconCircle}>
+                  <MaterialIcons name="account-balance" size={24} color="#03456C" />
+                </View>
+                <View style={styles.knowledgeTagBadge}>
+                  <Text style={styles.knowledgeTagText}>GOVERNMENT BENCHMARK</Text>
+                </View>
+                <Text style={styles.knowledgeCardTitle}>Minimum Value Register (MVR)</Text>
+                <Text style={styles.knowledgeCardDesc}>
+                  Bihar government official Circle Rates dictate minimum registry valuation and stamp duty. MalikSe lists official MVR benchmarks alongside asking rates to protect you against arbitrary market pricing.
+                </Text>
+                <View style={styles.knowledgeDivider} />
+                <View style={styles.knowledgeFeatureRow}>
+                  <MaterialIcons name="check-circle" size={15} color="#059669" />
+                  <Text style={styles.knowledgeFeatureText}>Circle Rates for all 38 Bihar Districts</Text>
+                </View>
+                <View style={styles.knowledgeFeatureRow}>
+                  <MaterialIcons name="check-circle" size={15} color="#059669" />
+                  <Text style={styles.knowledgeFeatureText}>Accurate Stamp Duty & Registry Estimates</Text>
+                </View>
+              </View>
+
+              {/* Card 2: Jamabandi & Mutation */}
+              <View
+                style={[
+                  styles.knowledgeCard,
+                  { width: isDesktop ? "31.8%" : "100%" },
+                ]}
+              >
+                <View style={styles.knowledgeIconCircle}>
+                  <MaterialIcons name="verified-user" size={24} color="#0284C7" />
+                </View>
+                <View style={[styles.knowledgeTagBadge, { backgroundColor: "#E0F2FE" }]}>
+                  <Text style={[styles.knowledgeTagText, { color: "#03456C" }]}>PEDIGREE & CLEARANCE</Text>
+                </View>
+                <Text style={styles.knowledgeCardTitle}>Jamabandi & Dakhil-Kharij Audit</Text>
+                <Text style={styles.knowledgeCardDesc}>
+                  Every parcel is cross-verified on the Bihar Bhumi Revenue Portal. We audit Khatiyan chain-of-title, active mutation (Dakhil-Kharij) clearance, and up-to-date Land Possession Certificate (LPC) receipts.
+                </Text>
+                <View style={styles.knowledgeDivider} />
+                <View style={styles.knowledgeFeatureRow}>
+                  <MaterialIcons name="check-circle" size={15} color="#059669" />
+                  <Text style={styles.knowledgeFeatureText}>100% Chain-of-Title Pedigree Check</Text>
+                </View>
+                <View style={styles.knowledgeFeatureRow}>
+                  <MaterialIcons name="check-circle" size={15} color="#059669" />
+                  <Text style={styles.knowledgeFeatureText}>Dispute-Free Revenue Portal Verification</Text>
+                </View>
+              </View>
+
+              {/* Card 3: DGPS Demarcation */}
+              <View
+                style={[
+                  styles.knowledgeCard,
+                  { width: isDesktop ? "31.8%" : "100%" },
+                ]}
+              >
+                <View style={styles.knowledgeIconCircle}>
+                  <MaterialIcons name="satellite-alt" size={24} color="#059669" />
+                </View>
+                <View style={[styles.knowledgeTagBadge, { backgroundColor: "#D1FAE5" }]}>
+                  <Text style={[styles.knowledgeTagText, { color: "#065F46" }]}>PHYSICAL ACCURACY</Text>
+                </View>
+                <Text style={styles.knowledgeCardTitle}>DGPS & Bhu-Naksha Demarcation</Text>
+                <Text style={styles.knowledgeCardDesc}>
+                  Physical plot corners are mapped by certified surveyors using Electronic Total Stations (ETS) and Bhu-Naksha revenue maps. Corner pillars are geo-tagged with exact GPS latitude and longitude coordinates.
+                </Text>
+                <View style={styles.knowledgeDivider} />
+                <View style={styles.knowledgeFeatureRow}>
+                  <MaterialIcons name="check-circle" size={15} color="#059669" />
+                  <Text style={styles.knowledgeFeatureText}>Sub-Centimeter Corner Pillar Demarcation</Text>
+                </View>
+                <View style={styles.knowledgeFeatureRow}>
+                  <MaterialIcons name="check-circle" size={15} color="#059669" />
+                  <Text style={styles.knowledgeFeatureText}>Geo-Tagged High-Resolution Satellite Map</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* Regional Quick Jump & Verification Callout */}
+          <View style={styles.quickJumpSection}>
+            <View style={styles.quickJumpCard}>
+              <View style={styles.quickJumpLeft}>
+                <View style={styles.quickJumpIconCircle}>
+                  <MaterialIcons name="share-location" size={22} color="#0284C7" />
+                </View>
+                <View style={{ flex: 1, minWidth: 260 }}>
+                  <Text style={styles.quickJumpTitle}>
+                    Looking for Demarcated Land in Bihar?
+                  </Text>
+                  <Text style={styles.quickJumpSub}>
+                    Explore verified Khatiyan-cleared plots across Patna, Bihta, Danapur, Muzaffarpur and Gaya with surveyor-certified coordinates.
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.quickJumpBtn}
+                onPress={() => router.push("/home")}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.quickJumpBtnText}>Browse Available Land</Text>
+                <MaterialIcons name="arrow-forward" size={15} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
+
+        {/* Global Website Footer */}
       </ScrollView>
     </View>
   );
@@ -503,17 +1210,63 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   scrollContent: {
-    paddingBottom: 140,
+    paddingBottom: 0,
+    flexGrow: 1,
   },
   contentInner: {
     width: "100%",
-    maxWidth: 1320,
+    maxWidth: 1340,
     alignSelf: "center",
-    paddingHorizontal: 24,
-    paddingTop: 12,
+    paddingHorizontal: 28,
+    paddingTop: 24,
   },
   heroSection: {
     marginBottom: 20,
+  },
+  mobileHero: {
+    minHeight: 150,
+    borderRadius: 20,
+    overflow: "hidden",
+    backgroundColor: "#EAF4FB",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 20,
+    marginBottom: 12,
+  },
+  mobileSkyline: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  mobileSkylineBlueTint: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(3, 69, 108, 0.18)",
+  },
+  mobileHeroCopy: {
+    maxWidth: "78%",
+    zIndex: 1,
+  },
+  mobileEyebrow: {
+    color: "#03456C",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.3,
+    marginBottom: 7,
+  },
+  mobileTitle: {
+    color: "#0A192F",
+    fontSize: 26,
+    lineHeight: 31,
+    fontWeight: "800",
+    letterSpacing: -0.4,
+  },
+  mobileDetail: {
+    color: "#03456C",
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 8,
   },
   eyebrowRow: {
     flexDirection: "row",
@@ -522,17 +1275,16 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   eyebrow: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
-    color: "#075D91",
-    letterSpacing: 1.5,
+    color: "#0284C7",
+    letterSpacing: 1.2,
   },
   eyebrowDash: {
-    width: 36,
+    width: 32,
     height: 2,
-    backgroundColor: "#075D91",
+    backgroundColor: "#0284C7",
     borderRadius: 1,
-    opacity: 0.8,
   },
   titleRow: {
     flexDirection: "row",
@@ -546,21 +1298,21 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   mainTitle: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: "800",
-    color: "#102B52",
+    color: "#0A192F",
     letterSpacing: -0.6,
   },
   subTitle: {
     fontSize: 14,
-    color: "#64809E",
+    color: "#64748B",
     fontWeight: "500",
     marginTop: 4,
     lineHeight: 20,
   },
   skylineWrap: {
     position: "absolute",
-    right: 0,
+    right: -80,
     bottom: -10,
     zIndex: 1,
     pointerEvents: "none",
@@ -572,13 +1324,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 9999,
     borderWidth: 1,
-    borderColor: "#D9E7F3",
+    borderColor: "#E2E8F0",
     paddingHorizontal: 16,
     paddingVertical: 8,
     marginBottom: 16,
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 8px rgba(7, 93, 145, 0.06)",
+        boxShadow: "0 2px 8px rgba(10, 25, 47, 0.04)",
       },
       default: {
         elevation: 2,
@@ -591,10 +1343,10 @@ const styles = StyleSheet.create({
   crumbLink: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#075D91",
+    color: "#03456C",
   },
   crumbCurrent: {
-    color: "#102B52",
+    color: "#0A192F",
     fontWeight: "700",
   },
   crumbDivider: {
@@ -610,18 +1362,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
-    backgroundColor: "#EEF7FE",
+    backgroundColor: "#E0F2FE",
   },
   resetCrumbText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#075D91",
+    color: "#03456C",
   },
   statusBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: "#EEF7FE",
+    backgroundColor: "#F0F9FF",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 12,
@@ -630,7 +1382,7 @@ const styles = StyleSheet.create({
   },
   statusBannerText: {
     fontSize: 12,
-    color: "#075D91",
+    color: "#03456C",
     fontWeight: "600",
   },
   errorBanner: {
@@ -658,21 +1410,21 @@ const styles = StyleSheet.create({
   /* Desktop Map Section */
   mapCardDesktop: {
     width: "100%",
-    height: 640,
-    borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: "rgba(255, 255, 255, 0.9)",
+    height: 660,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.9)",
     position: "relative",
     overflow: "hidden",
-    backgroundColor: "#EEF7FE",
+    backgroundColor: "#F8FAFC",
     ...Platform.select({
       web: {
-        boxShadow: "0 16px 44px rgba(16, 43, 82, 0.14)",
+        boxShadow: "0 10px 30px -5px rgba(10, 25, 47, 0.08)",
       },
       default: {
-        shadowColor: "#102B52",
+        shadowColor: "#0A192F",
         shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.15,
+        shadowOpacity: 0.12,
         shadowRadius: 20,
         elevation: 8,
       },
@@ -680,15 +1432,15 @@ const styles = StyleSheet.create({
   },
   leftOverlayWrap: {
     position: "absolute",
-    top: 24,
-    left: 24,
+    top: 20,
+    left: 20,
     zIndex: 300,
   },
   rightPanelWrap: {
     position: "absolute",
-    top: 24,
-    right: 24,
-    bottom: 24,
+    top: 20,
+    right: 20,
+    bottom: 20,
     zIndex: 300,
     display: "flex",
     justifyContent: "flex-start",
@@ -700,15 +1452,15 @@ const styles = StyleSheet.create({
   },
   mapCardMobile: {
     width: "100%",
-    height: 420,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: "#D9E7F3",
+    height: 440,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     overflow: "hidden",
-    backgroundColor: "#EEF7FE",
+    backgroundColor: "#F8FAFC",
     ...Platform.select({
       web: {
-        boxShadow: "0 8px 24px rgba(16, 43, 82, 0.1)",
+        boxShadow: "0 8px 24px rgba(10, 25, 47, 0.06)",
       },
       default: {
         elevation: 4,
@@ -720,5 +1472,423 @@ const styles = StyleSheet.create({
   },
   mobileStatesCard: {
     width: "100%",
+  },
+
+  /* Common Section Headers */
+  sectionHeading: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#0A192F",
+    letterSpacing: -0.5,
+    marginTop: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 13.5,
+    color: "#64748B",
+    marginTop: 4,
+    lineHeight: 20,
+    fontWeight: "500",
+  },
+
+  /* Curated High-Growth Corridors */
+  corridorsSection: {
+    marginTop: 36,
+    marginBottom: 8,
+  },
+  corridorsHeaderRow: {
+    marginBottom: 18,
+  },
+  corridorsTitleCol: {
+    flex: 1,
+  },
+  corridorsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+  },
+  corridorCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 18,
+    justifyContent: "space-between",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(10, 25, 47, 0.04)",
+        cursor: "pointer",
+        transition: "transform 0.2s ease, border-color 0.2s ease",
+      },
+    }),
+  },
+  corridorCardSelected: {
+    borderColor: "#0284C7",
+    borderWidth: 1.5,
+    backgroundColor: "#F0F9FF",
+  },
+  corridorTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  corridorTagBadge: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  corridorTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#03456C",
+    letterSpacing: 0.6,
+  },
+  corridorGrowthBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  corridorGrowthText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  corridorTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 10,
+  },
+  corridorIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  corridorName: {
+    fontSize: 14.5,
+    fontWeight: "800",
+    color: "#0A192F",
+  },
+  corridorLocRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    marginTop: 2,
+  },
+  corridorLocText: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  corridorDesc: {
+    fontSize: 12,
+    color: "#475569",
+    lineHeight: 17,
+    marginBottom: 14,
+  },
+  corridorDivider: {
+    height: 1,
+    backgroundColor: "#F1F5F9",
+    marginBottom: 12,
+  },
+  corridorFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  corridorPriceLabel: {
+    fontSize: 10,
+    color: "#94A3B8",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  corridorPriceVal: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#03456C",
+    marginTop: 2,
+  },
+  corridorActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: "#E0F2FE",
+  },
+  corridorActionBtnActive: {
+    backgroundColor: "#03456C",
+  },
+  corridorActionText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#03456C",
+  },
+  corridorActionTextActive: {
+    color: "#FFFFFF",
+  },
+
+  /* Trending Verified Properties */
+  trendingSection: {
+    marginTop: 36,
+    marginBottom: 8,
+  },
+  trendingHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    flexWrap: "wrap",
+    gap: 14,
+    marginBottom: 18,
+  },
+  trendingTitleCol: {
+    flex: 1,
+    minWidth: 260,
+  },
+  browseAllLinkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#E0F2FE",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  browseAllLinkText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#03456C",
+  },
+  propertiesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+  },
+  propertiesLoadingBox: {
+    paddingVertical: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  propertiesLoadingText: {
+    fontSize: 13,
+    color: "#03456C",
+    fontWeight: "600",
+  },
+  emptyPropertiesBox: {
+    paddingVertical: 36,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0A192F",
+    marginTop: 10,
+    textAlign: "center",
+  },
+  emptySub: {
+    fontSize: 12.5,
+    color: "#64748B",
+    marginTop: 6,
+    textAlign: "center",
+    maxWidth: 540,
+    lineHeight: 18,
+  },
+  emptyBrowseBtn: {
+    marginTop: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#03456C",
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 8,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  emptyBrowseText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+
+  /* Institutional Knowledge Guide */
+  knowledgeSection: {
+    marginTop: 36,
+    marginBottom: 8,
+  },
+  knowledgeHeader: {
+    marginBottom: 20,
+  },
+  knowledgeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+  },
+  knowledgeCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 22,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 12px rgba(10, 25, 47, 0.04)",
+      },
+    }),
+  },
+  knowledgeIconCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  knowledgeTagBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginBottom: 10,
+  },
+  knowledgeTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#03456C",
+    letterSpacing: 0.6,
+  },
+  knowledgeCardTitle: {
+    fontSize: 15.5,
+    fontWeight: "800",
+    color: "#0A192F",
+    marginBottom: 8,
+  },
+  knowledgeCardDesc: {
+    fontSize: 12.5,
+    color: "#475569",
+    lineHeight: 19,
+    marginBottom: 16,
+  },
+  knowledgeDivider: {
+    height: 1,
+    backgroundColor: "#F1F5F9",
+    marginBottom: 14,
+  },
+  knowledgeFeatureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  knowledgeFeatureText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+
+  /* Quick Jump Section */
+  quickJumpSection: {
+    width: "100%",
+    marginTop: 24,
+    marginBottom: 28,
+  },
+  quickJumpCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 16,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(10, 25, 47, 0.03)",
+      },
+    }),
+  },
+  quickJumpLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    flex: 1,
+  },
+  quickJumpIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  quickJumpTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0A192F",
+  },
+  quickJumpSub: {
+    fontSize: 12.5,
+    color: "#64748B",
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  quickJumpBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#03456C",
+    paddingVertical: 11,
+    paddingHorizontal: 22,
+    borderRadius: 10,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 2px 6px rgba(3, 69, 108, 0.2)",
+      },
+    }),
+  },
+  quickJumpBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

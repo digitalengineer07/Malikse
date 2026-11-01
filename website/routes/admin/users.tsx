@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { adminService } from "../../src/services/adminService";
 import { useAuthStore } from "../../src/store/authStore";
@@ -15,6 +15,8 @@ export default function ManageUsersScreen() {
   const [error, setError] = useState("");
   
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [identityNotes, setIdentityNotes] = useState("");
+  const [reviewingIdentity, setReviewingIdentity] = useState(false);
   const [propertyCursor, setPropertyCursor] = useState<string>();
   const [properties, setProperties] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any>({ inquiries: [], deals: [] });
@@ -40,6 +42,7 @@ export default function ManageUsersScreen() {
       return;
     }
     setSelectedUser(usr);
+    setIdentityNotes("");
     setLoadingProps(true);
     try {
       const [props, txs] = await Promise.all([
@@ -104,6 +107,16 @@ export default function ManageUsersScreen() {
         
         {selectedUser?._id === usr._id && (
           <View style={styles.propertiesSection}>
+            <Text style={styles.propsHeading}>Identity review: {usr.isVerifiedIdentity ? "Approved" : "Not approved"}</Text>
+            <TextInput accessibilityLabel="Identity review notes" placeholder="Record the identity evidence you reviewed" value={identityNotes} onChangeText={setIdentityNotes} multiline style={{ borderWidth: 1, borderColor: "#CBD5E1", padding: 12, marginBottom: 12 }} />
+            <TouchableOpacity disabled={reviewingIdentity || identityNotes.trim().length < 10} onPress={async () => {
+              setReviewingIdentity(true); setError("");
+              try {
+                const result = await adminService.reviewIdentity(usr._id, !usr.isVerifiedIdentity, identityNotes);
+                setUsers(old => old.map(item => item._id === usr._id ? { ...item, isVerifiedIdentity: result.isVerifiedIdentity } : item));
+                setIdentityNotes("");
+              } catch { setError("Could not save identity review"); } finally { setReviewingIdentity(false); }
+            }}><Text style={styles.link}>{reviewingIdentity ? "Saving…" : usr.isVerifiedIdentity ? "Revoke identity approval" : "Approve reviewed identity"}</Text></TouchableOpacity>
             <Text style={styles.propsHeading}>Properties Listed</Text>
             {loadingProps ? <ActivityIndicator color="#047857" /> : properties.length === 0 ? <Text style={styles.description}>No properties listed by this user.</Text> : properties.map((prop) => (
               <TouchableOpacity key={prop._id} style={styles.propRow} onPress={() => router.push({ pathname: "/verification/[id]", params: { id: prop._id } })}>
