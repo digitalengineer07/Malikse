@@ -14,6 +14,8 @@ import OfferSheet from "./OfferSheet";
 import { inquiryService } from "../src/services/inquiryService";
 import { userService } from "../src/services/userService";
 import { AppTheme } from "../constants/theme";
+import { hydrateUserAffinity, trackPropertyInteraction } from "../src/services/recommendationEngine";
+import type { Property } from "../src/types/property.types";
 
 const checks: Record<string, string> = { ownership: "Ownership information reviewed", location: "Property location reviewed", boundaries: "Boundaries and access reviewed", area: "Property area reviewed", disclosures: "Loans, disputes and possession reviewed", documentsReviewed: "Available documents reviewed (uploads are optional)", advisorReport: "Advisor report and inspection reviewed" };
 
@@ -47,6 +49,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
         const result = await workflowService.detail(id, publicView);
         if (!active) return;
         setProperty(result);
+        if (publicView) void hydrateUserAffinity().then(() => { if (active) trackPropertyInteraction(result as unknown as Property, "view"); });
         if (!publicView) {
           const documents = await documentService.getDocuments(id);
           if (active) { setDocs(documents); setDocCursor((documents as any).nextCursor); }
@@ -94,6 +97,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
     try {
       const res = await userService.toggleWishlist(id);
       setIsSaved(res.isWishlisted);
+      if (res.isWishlisted) { await hydrateUserAffinity(); trackPropertyInteraction(property as unknown as Property, "save"); }
     } catch { setIsSaved(previous); }
   }} canOffer={!user || user.role === "user"} onOffer={() => {
     if (!user || authState !== "AUTHENTICATED") router.push("/login");

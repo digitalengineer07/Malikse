@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -25,6 +26,7 @@ import HouseIllustration from "./HouseIllustration";
 import CitySkyline from "./CitySkyline";
 import { cachedPropertySearch, propertyService } from "../src/services/propertyService";
 import type { Property, PropertyType } from "../src/types/property.types";
+import { getRecommendedProperties, getUserAffinity, hydrateUserAffinity, setUserCustomPreferences, type RecommendationCategory } from "../src/services/recommendationEngine";
 
 const nameOf = (p: Property) => p.title || `${p.type} in ${p.location.district}`;
 const priceOf = (p: Property) => `₹${p.price.toLocaleString("en-IN")}`;
@@ -81,6 +83,19 @@ export default function VerifiedHomeScreen() {
     budgetMax: max ? Number(max) : undefined,
   });
   const [properties, setProperties] = useState<Property[]>(initialCachedProperties ?? []);
+  const [affinity, setAffinity] = useState(getUserAffinity);
+  const [preferencesReady, setPreferencesReady] = useState(false);
+  const [category, setCategory] = useState<RecommendationCategory>("for_you");
+  const [customize, setCustomize] = useState(false);
+  const [preferredDistrict, setPreferredDistrict] = useState("");
+  const [preferredBudget, setPreferredBudget] = useState("");
+  const [preferredIntent, setPreferredIntent] = useState<"residential" | "commercial" | "investment" | undefined>();
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    void hydrateUserAffinity().then(profile => { if (active) { setAffinity({ ...profile }); setPreferencesReady(true); } });
+    return () => { active = false; };
+  }, []));
+  const recommendations = useMemo(() => getRecommendedProperties(properties.filter(p => !type || p.type === type), category, affinity, 0), [properties, type, category, affinity]);
   const setType = (value: PropertyType | undefined) => router.setParams({ type: value || "" });
   useEffect(() => {
     if (areaSelection) resultsScroll.current?.scrollTo({ y: 0, animated: false });
@@ -257,6 +272,12 @@ export default function VerifiedHomeScreen() {
 
             {/* Filter Pills (All properties, Land, Flats, Houses, Shops, Offices) */}
             <PropertyTypeTabs value={type} onChange={setType} />
+            <Text style={{ fontSize: 20, fontWeight: "700", color: "#03456C", marginTop: 16 }}>Recommended for you</Text>
+            <Text style={{ color: "#526574", marginVertical: 8 }}>Based on your preferences and properties you view or save.</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>
+              {([["for_you", "For you"], ["residential", "Residential"], ["commercial", "Commercial"], ["investment", "Investment"], ["budget", "Budget"]] as const).map(([value, label]) => <TouchableOpacity key={value} accessibilityRole="button" accessibilityState={{ selected: category === value }} onPress={() => setCategory(value)} style={{ padding: 12, borderRadius: 18, backgroundColor: category === value ? "#03456C" : "#E8F0F5" }}><Text style={{ color: category === value ? "white" : "#03456C" }}>{label}</Text></TouchableOpacity>)}
+            </ScrollView>
+            <TouchableOpacity accessibilityRole="button" disabled={!preferencesReady} accessibilityState={{ disabled: !preferencesReady }} onPress={() => { setPreferredDistrict(affinity.preferredDistrict || ""); setPreferredBudget(affinity.preferredBudgetMax?.toString() || ""); setPreferredIntent(affinity.preferredIntent); setCustomize(true); }}><Text style={{ color: "#03456C", paddingVertical: 12 }}>{preferencesReady ? "Customize feed" : "Loading preferences…"}</Text></TouchableOpacity>
           </View>
 
           {/* Elevated Pure White Main Card */}
@@ -290,8 +311,7 @@ export default function VerifiedHomeScreen() {
             ) : (
               /* Property Cards Grid */
               <View style={s.propertyGrid}>
-                {properties
-                  .filter((p) => type === undefined || p.type === type)
+                {recommendations
                   .map((property) => (
                     <TouchableOpacity
                       key={property._id || property.id}
@@ -321,8 +341,8 @@ export default function VerifiedHomeScreen() {
                             <Text style={s.cardTitle} numberOfLines={1}>
                               {property.title || `${property.type} in ${property.location.district}`}
                             </Text>
-                            <TouchableOpacity style={s.heartBtn}>
-                              <MaterialIcons name="favorite-border" size={18} color="#4A5568" />
+                            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open property details" onPress={() => openProperty(property)} style={s.heartBtn}>
+                              <MaterialIcons name="arrow-forward" size={18} color="#4A5568" />
                             </TouchableOpacity>
                           </View>
                           <Text style={s.cardPriceRow}>
@@ -386,6 +406,22 @@ export default function VerifiedHomeScreen() {
       </ScrollView>
 
       {/* Property Preview Modal */}
+      <Modal visible={customize} transparent animationType="slide" onRequestClose={() => setCustomize(false)}>
+        <View style={{ flex: 1, justifyContent: "center", padding: 24, backgroundColor: "#0008" }}>
+          <ScrollView keyboardShouldPersistTaps="handled" style={{ flexGrow: 0, borderRadius: 20, backgroundColor: "white" }} contentContainerStyle={{ padding: 20, gap: 14 }}>
+            <Text style={{ fontSize: 22, fontWeight: "700" }}>Customize your feed</Text>
+            <Text>Preferred district</Text>
+            <TextInput accessibilityLabel="Preferred district" placeholder="Any district" value={preferredDistrict} onChangeText={setPreferredDistrict} style={{ borderWidth: 1, borderColor: "#CBD5E1", padding: 12, borderRadius: 8 }} />
+            <Text>Maximum budget (₹)</Text>
+            <TextInput accessibilityLabel="Maximum budget in rupees" placeholder="Any budget" keyboardType="numeric" value={preferredBudget} onChangeText={value => setPreferredBudget(value.replace(/[^0-9]/g, ""))} style={{ borderWidth: 1, borderColor: "#CBD5E1", padding: 12, borderRadius: 8 }} />
+            <Text>Property purpose</Text>
+            {([undefined, "residential", "commercial", "investment"] as const).map(value => <TouchableOpacity key={value || "any"} accessibilityRole="button" accessibilityState={{ selected: value === preferredIntent }} onPress={() => setPreferredIntent(value)}><Text style={{ padding: 8, color: value === preferredIntent ? "#047857" : "#334155" }}>{value === preferredIntent ? "✓ " : ""}{value || "Any purpose"}</Text></TouchableOpacity>)}
+            <TouchableOpacity accessibilityRole="button" onPress={() => { const budget = Number(preferredBudget); setUserCustomPreferences({ district: preferredDistrict.trim(), intent: preferredIntent, budgetMax: Number.isFinite(budget) && budget > 0 ? budget : undefined }); setAffinity({ ...getUserAffinity() }); setCustomize(false); }}><Text style={{ color: "#047857", padding: 12, fontWeight: "700" }}>Save preferences</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" onPress={() => { setUserCustomPreferences({}); setAffinity({ ...getUserAffinity() }); setCustomize(false); }}><Text style={{ padding: 12 }}>Reset preferences</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" onPress={() => setCustomize(false)}><Text style={{ padding: 12 }}>Cancel</Text></TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
       <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
         <View style={s.modalBackdrop}>
           <Pressable

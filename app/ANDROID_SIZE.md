@@ -4,7 +4,7 @@ The previous universal APK was 115,705,888 bytes. About 84 MiB was native
 libraries for four CPU architectures. Shipping only the device's architecture
 preserves application features. Download size is different from installed size.
 
-Verified local ARM64 release: **21.96 MB (20.95 MiB)**, built successfully with
+Verified local ARM64 release: **21.97 MB (20.95 MiB)**, built successfully with
 Java 17. The APK contains only `arm64-v8a` native libraries and passes the
 50,000,000-byte size check. Other architecture profiles and Play delivery sizes
 have not been measured. No connected device was available for runtime testing.
