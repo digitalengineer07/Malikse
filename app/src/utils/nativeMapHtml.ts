@@ -31,7 +31,7 @@ window.focusMap=(lat,lng,zoom)=>map.setView([lat,lng],zoom);
 let tiles;
 function setLayer(satellite){
  if(tiles)map.removeLayer(tiles);
- tiles=L.tileLayer(satellite ? (data.marketplace ? 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}' : ${JSON.stringify(parcelTileUrl)}) : data.marketplace ? 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}' : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',{subdomains:'0123',maxZoom:19,attribution:satellite || data.marketplace ? 'Map data &copy; <a href="https://maps.google.com">Google</a>' : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+ tiles=L.tileLayer(satellite ? (data.marketplace ? 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}' : ${JSON.stringify(parcelTileUrl)}) : 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{subdomains:'0123',maxZoom:19,attribution:'Map data &copy; <a href="https://maps.google.com">Google</a>'}).addTo(map);
 }
 setLayer(!!data.satellite);
 let loaded=false;

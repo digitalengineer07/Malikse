@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
 import { GlassBackdrop } from "./GlassSurface";
 
 // Each navigation scene owns an opaque backdrop, including during transitions.
 export default function AppScreen({ children }: { children: ReactNode }) {
   return (
-    <View style={styles.screen}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "android" ? "height" : undefined}>
       <GlassBackdrop><View style={styles.content}>{children}</View></GlassBackdrop>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

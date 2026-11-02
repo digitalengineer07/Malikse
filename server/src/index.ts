@@ -7,6 +7,7 @@ import { monitorPool } from "./services/performanceMetrics";
 import { closeRedis } from "./services/redis";
 import { startRegionCounts, stopRegionCounts } from "./services/regionCountStore";
 import { startSubmissionWorker } from "./services/submissionQueue";
+import { checkPushReceipts } from "./services/pushNotifications";
 
 let stopping = false;
 let initialized = false;
@@ -55,11 +56,16 @@ app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
   await startRegionCounts();
   initialized = true;
   const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => {} : startSubmissionWorker();
+  const receiptTimer = setInterval(() => {
+    void checkPushReceipts().catch(error => console.warn("[Push] Receipt check failed", error));
+  }, 5 * 60_000);
+  receiptTimer.unref();
   console.log("[MalikSe] API ready");
   const server = app.server;
   const shutdown = async () => {
     if (stopping) return;
     stopping = true;
+    clearInterval(receiptTimer);
     const deadline = setTimeout(() => { server.closeAllConnections(); process.exit(1); }, 15_000);
     deadline.unref();
     await Promise.all([app.close(), stopWorker()]);

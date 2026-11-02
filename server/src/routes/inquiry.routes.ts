@@ -5,6 +5,7 @@ import { OfferError, offerProperty } from "../services/marketplace";
 import { isValidObjectId, Types, PipelineStage } from "mongoose";
 import { pageInput, cursorFor } from "../services/pagination";
 import { replicaReadPreference } from "../services/readReplica";
+import { sendPush } from "../services/pushNotifications";
 
 const router = express.Router();
 router.param("id", (_req, res, next, id) => isValidObjectId(id) ? next() : res.status(400).json({ error: "Invalid inquiry ID" }));
@@ -27,6 +28,7 @@ router.post("/", authGuard, async (req: AuthRequest, res) => {
     });
 
     res.status(201).json(inquiry);
+    sendPush(property.ownerId.toString(), "New property inquiry", "Someone sent an inquiry about your property.", { kind: "inquiry", id: inquiry._id.toString() });
   } catch (err) {
     res.status(err instanceof OfferError ? err.status : 500).json({ error: err instanceof OfferError ? err.message : "Server error" });
   }
@@ -74,6 +76,21 @@ for (const [route, party, other] of [["/", "both", "both"], ["/sent", "buyerId",
   });
 }
 
+router.get("/:id", authGuard, async (req: AuthRequest, res) => {
+  try {
+    const inquiry = await Inquiry.findOne({
+      _id: req.params.id,
+      $or: [{ buyerId: req.user!.id }, { sellerId: req.user!.id }],
+    }).select({ messages: { $slice: -1 } }).populate([
+      { path: "propertyId", select: "title price status location" },
+      { path: "buyerId", select: "name" },
+      { path: "sellerId", select: "name" },
+    ]).lean();
+    if (!inquiry) return res.status(404).json({ error: "Inquiry not found" });
+    res.json(inquiry);
+  } catch { res.status(500).json({ error: "Could not load inquiry" }); }
+});
+
 router.get("/:id/messages", authGuard, async (req: AuthRequest, res) => {
   try {
     const before = req.query.before === undefined ? undefined : Number(req.query.before);
@@ -118,6 +135,7 @@ router.put("/:id/status", authGuard, async (req: AuthRequest, res) => {
 
     if (!inquiry) return res.status(404).json({ error: "Inquiry not found or unauthorized" });
     res.json(inquiry);
+    sendPush(inquiry.buyerId.toString(), "Inquiry update", `Your inquiry was ${status}.`, { kind: "inquiry", id: inquiry._id.toString() });
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }
@@ -138,6 +156,8 @@ router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
     if (!inquiry) return res.status(409).json({ error: "Conversation unavailable or its 1,000-message limit has been reached" });
 
     res.json(inquiry);
+    const recipientId = inquiry.buyerId.toString() === req.user!.id ? inquiry.sellerId : inquiry.buyerId;
+    sendPush(recipientId.toString(), "New message", "You have a new inquiry message.", { kind: "inquiry", id: inquiry._id.toString() });
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }

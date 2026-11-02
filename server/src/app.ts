@@ -9,6 +9,7 @@ import adminRoutes from "./routes/admin.routes";
 import userRoutes from "./routes/user.routes";
 import inquiryRoutes from "./routes/inquiry.routes";
 import photoRoutes from "./routes/photo.routes";
+import pushRoutes from "./routes/push.routes";
 import { validatePagination } from "./services/pagination";
 import { errorHandler, installRuntimeMiddleware, notFound } from "./middleware/runtime.middleware";
 
@@ -32,6 +33,7 @@ export function createApp(isReady = () => mongoose.connection.readyState === 1) 
   app.use("/admin", adminRoutes);
   app.use("/users", userRoutes);
   app.use("/inquiries", inquiryRoutes);
+  app.use("/push", pushRoutes);
   app.use(notFound);
   app.use(errorHandler);
   return app;

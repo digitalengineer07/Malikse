@@ -1,7 +1,7 @@
 import { renderAppScreen } from "../components/AppScreen";
 import React, { useState, useEffect } from "react";
 import { useFonts } from "expo-font";
-import { Stack, usePathname } from "expo-router";
+import { Stack, usePathname, useRouter, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -15,6 +15,7 @@ import AppBackground from "../components/AppBackground";
 import { hydrateResume, resumeTabs, useResumeStore } from "../src/store/resumeStore";
 import { preloadStartupResources } from "../src/services/startupPreload";
 import { cachedMapAssets, preloadMapAssets } from "../src/services/mapAssets";
+import { observePushOpens, registerPushDevice } from "../src/services/pushNotifications";
 
 // Prevent native splash screen from auto hiding before JS initializes
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -30,6 +31,8 @@ if (Platform.OS === "web" && typeof window !== "undefined") {
   }
 }
 
+let openingCompleted = false;
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     PoppinsRegular: require("../assets/fonts/Poppins-Regular.ttf"),
@@ -37,8 +40,11 @@ export default function RootLayout() {
     PoppinsSemiBold: require("../assets/fonts/Poppins-SemiBold.ttf"),
     PoppinsBold: require("../assets/fonts/Poppins-Bold.ttf"),
   });
-  const [showOpeningScreen, setShowOpeningScreen] = useState(true);
+  const [showOpeningScreen, setShowOpeningScreen] = useState(!openingCompleted);
   const hydrated = useAuthStore(state => state.hydrated);
+  const userId = useAuthStore(state => state.user?.id);
+  const accessToken = useAuthStore(state => state.accessToken);
+  const router = useRouter();
   const pathname = usePathname();
   const [resumeReady, setResumeReady] = useState(Platform.OS === "web");
   useEffect(() => { hydrateResume().finally(() => setResumeReady(true)); }, []);
@@ -63,6 +69,19 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
+    if (!hydrated || !userId || !accessToken || Platform.OS === "web") return;
+    void registerPushDevice(userId);
+    let active = true;
+    let dispose: (() => void) | undefined;
+    void observePushOpens((kind, id) => {
+      if (kind === "inquiry") router.push({ pathname: "/(tabs)/messages", params: { inquiryId: id } });
+      else router.push(`/deal/${id}` as Href);
+    }).then(stop => { if (active) dispose = stop; else stop(); })
+      .catch(error => console.warn("Could not observe push notifications", error));
+    return () => { active = false; dispose?.(); };
+  }, [hydrated, userId, accessToken, router]);
+
+  useEffect(() => {
     if ((fontsLoaded || fontError) && resumeReady) SplashScreen.hideAsync().catch(() => {});
   }, [fontsLoaded, fontError, resumeReady]);
 
@@ -77,6 +96,7 @@ export default function RootLayout() {
         <Stack.Screen name="property/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="listing/create" options={{ headerShown: false }} />
         <Stack.Screen name="dashboard" options={{ headerShown: false }} />
+        <Stack.Screen name="deal/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="kyc" options={{ headerShown: false }} />
         <Stack.Screen name="insights" options={{ headerShown: false }} />
         <Stack.Screen name="advisor" options={{ headerShown: false }} />
@@ -88,7 +108,7 @@ export default function RootLayout() {
 
       {/* Opening screen with active loading bar */}
       {showOpeningScreen && (
-        <AppOpeningScreen ready={hydrated} onFinish={() => setShowOpeningScreen(false)} />
+        <AppOpeningScreen ready={hydrated} onFinish={() => { openingCompleted = true; setShowOpeningScreen(false); }} />
       )}
     </SafeAreaProvider>
   );

@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 import { useAuthStore } from "../store/authStore";
 import type { UserProfile } from "../types/auth.types";
 import { invalidatePropertySearch } from "./searchCache";
+import { unregisterPushDevice } from "./pushNotifications";
 
 const configuredApiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
 function resolveApiUrl() {
@@ -52,6 +53,15 @@ api.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
+    // This readiness response is sent before handlers run, so replay is safe.
+    if (originalRequest && error.response?.status === 503 &&
+        error.response?.data?.message === "Service is initializing. Please try again shortly." &&
+        (originalRequest._startupRetries || 0) < 4) {
+      originalRequest._startupRetries = (originalRequest._startupRetries || 0) + 1;
+      await new Promise(resolve => setTimeout(resolve, originalRequest._startupRetries * 1000));
+      if (originalRequest.signal?.aborted) return Promise.reject(error);
+      return api(originalRequest);
+    }
     
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !["/auth/login", "/auth/register", "/auth/register/verify", "/auth/refresh"].includes(originalRequest.url)) {
       
@@ -171,6 +181,7 @@ export const authService = {
 
   async logout() {
     try {
+      await unregisterPushDevice().catch(() => {});
       // Best effort backend logout to invalidate refresh token
       await api.post("/auth/logout", undefined, { timeout: 10000 });
     } catch {
