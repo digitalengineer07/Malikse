@@ -146,29 +146,29 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
             <Text style={styles.link}>{label("हिन्दी", "English")}</Text>
           </TouchableOpacity>
         </View>
-        <View style={[styles.card, { height: cardHeight }]}>
-          <Image
+        <View style={[styles.card, register ? styles.registerCard : { height: cardHeight }]}>
+          {!register && <Image
             source={{ uri: "https://images.unsplash.com/photo-1628624747186-a941c476b7ef?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MjB8fGhvdXNlfGVufDB8fDB8fHww" }}
             style={styles.housePhoto}
             resizeMode="cover"
             accessibilityLabel={label("A home surrounded by greenery", "हरियाली से घिरा एक घर")}
-          />
-          <View pointerEvents="none" style={styles.photoShade} />
-          <Animated.View pointerEvents="none" style={[styles.photoBrand, { opacity: progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }) }]}>
+          />}
+          {!register && <View pointerEvents="none" style={styles.photoShade} />}
+          {!register && <Animated.View pointerEvents="none" style={[styles.photoBrand, { opacity: progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }) }]}>
             <View style={styles.brandSeal}><MaterialIcons name="wb-sunny" size={26} color="#20251F" /><Text style={styles.sealText}>MALIKSE</Text></View>
             <Text style={styles.brand}>MalikSe</Text>
             <Text style={styles.brandTagline}>{label("Your land. A safer future.", "आपकी ज़मीन। सुरक्षित भविष्य।")}</Text>
-          </Animated.View>
-          <Animated.View style={[styles.panel, { top: progress.interpolate({ inputRange: [0, 1], outputRange: [cardHeight * 0.61, cardHeight * 0.16] }) }]}>
-            <View pointerEvents="none" style={styles.panelCurve} />
+          </Animated.View>}
+          <Animated.View style={register ? styles.registerPanel : [styles.panel, { top: progress.interpolate({ inputRange: [0, 1], outputRange: [cardHeight * 0.61, cardHeight * 0.16] }) }]}>
+            {!register && <View pointerEvents="none" style={styles.panelCurve} />}
             <Animated.View pointerEvents={stage === "welcome" ? "auto" : "none"} accessibilityElementsHidden={stage !== "welcome"} importantForAccessibility={stage === "welcome" ? "auto" : "no-hide-descendants"} aria-hidden={stage !== "welcome"} style={[styles.welcome, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [1, 0, 0] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -24] }) }] }]}>
               <Text accessibilityRole="header" style={styles.welcomeTitle}>{label("WELCOME", "स्वागत है")}</Text>
               <Text style={styles.welcomeDescription}>{label("Find your next space, feel at home.\nWhere comfort meets confidence.", "अपना नया ठिकाना खोजें, घर जैसा महसूस करें।\nजहाँ सुकून और भरोसा साथ मिलें।")}</Text>
               <TouchableOpacity accessibilityRole="button" style={[styles.button, styles.welcomeButton]} onPress={() => reveal("login")}><Text style={styles.buttonText}>{label("Login", "लॉगिन")}</Text></TouchableOpacity>
               <TouchableOpacity accessibilityRole="button" style={[styles.button, styles.welcomeButton, styles.outlineButton]} onPress={() => reveal("register")}><Text style={styles.outlineButtonText}>{label("Sign Up", "साइन अप")}</Text></TouchableOpacity>
             </Animated.View>
-            {stage !== "welcome" && <Animated.View style={[styles.form, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0, 1] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
-              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContent}>
+            {stage !== "welcome" && <Animated.View style={[!register && styles.form, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0, 1] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
+              <View style={styles.formContent}>
                 <Text accessibilityRole="header" style={styles.heading}>{register ? label("Create your account", "अपना खाता बनाएं") : label("Welcome back", "वापस स्वागत है")}</Text>
                 <Text style={styles.description}>{register ? label("Your next chapter starts here.", "आपकी नई शुरुआत यहीं से।") : label("A place of your own is one step closer.", "आपका अपना ठिकाना, बस एक कदम दूर।")}</Text>
           {!(register && challenge) && <>
@@ -229,7 +229,7 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
           <TouchableOpacity accessibilityRole="button" style={styles.secondary} disabled={loading} onPress={() => reveal(register ? "login" : "register")}>
             <Text style={styles.link}>{register ? label("Already have an account? Sign in", "पहले से खाता है? साइन इन करें") : label("New to MalikSe? Create an account", "MalikSe पर नए हैं? खाता बनाएं")}</Text>
           </TouchableOpacity>
-              </ScrollView>
+              </View>
             </Animated.View>}
           </Animated.View>
         </View>
@@ -244,6 +244,7 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, paddingHorizontal: 18, alignItems: "center", justifyContent: "center" },
   topBar: { width: "100%", maxWidth: 440, flexDirection: "row", justifyContent: "space-between", marginBottom: 14, gap: 16 },
   card: { width: "100%", maxWidth: 440, backgroundColor: "#D9E4E5", borderRadius: 42, overflow: "hidden", shadowColor: "#20302B", shadowOffset: { width: 0, height: 18 }, shadowOpacity: 0.14, shadowRadius: 28, elevation: 7 },
+  registerCard: { backgroundColor: "white", borderRadius: 24 },
   housePhoto: { position: "absolute", top: 0, left: 0, right: 0, height: "76%", width: "100%" },
   photoShade: { position: "absolute", top: 0, left: 0, right: 0, height: "76%", backgroundColor: "rgba(10,24,21,0.12)" },
   photoBrand: { position: "absolute", top: "28%", left: 0, right: 0, alignItems: "center" },
@@ -251,6 +252,7 @@ const styles = StyleSheet.create({
   sealText: { fontFamily: "PoppinsBold", fontSize: 7, letterSpacing: 1 },
   brandTagline: { color: "white", fontFamily: "PoppinsMedium", fontSize: 11, marginTop: 2 },
   panel: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "white" },
+  registerPanel: { backgroundColor: "white" },
   panelCurve: { position: "absolute", top: -30, left: "-10%", width: "120%", height: 65, borderTopLeftRadius: "50%", borderTopRightRadius: "50%", backgroundColor: "white" },
   welcome: { position: "absolute", top: 16, left: 24, right: 24, alignItems: "center" },
   welcomeTitle: { fontSize: 28, fontFamily: "PoppinsBold", color: "#343632", letterSpacing: -0.8 },
@@ -258,7 +260,7 @@ const styles = StyleSheet.create({
   welcomeButton: { width: "78%", minHeight: 44, marginBottom: 10, paddingVertical: 10 },
   outlineButton: { backgroundColor: "white", borderWidth: 1, borderColor: "#DFE1DD" },
   outlineButtonText: { color: "#242723", fontFamily: "PoppinsMedium", fontSize: 14 },
-  form: { flex: 1 },
+  form: { flex: 1, minHeight: 0 },
   formContent: { padding: 26, paddingTop: 8, paddingBottom: 30 },
   backButton: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 7, paddingVertical: 10, marginBottom: 12 },
   backLabel: { color: "#72786F", fontFamily: "PoppinsMedium", fontSize: 12 },
