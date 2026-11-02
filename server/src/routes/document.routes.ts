@@ -4,7 +4,7 @@ import { Router } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
-import { randomUUID, randomBytes } from "crypto";
+import { randomUUID, randomBytes, createHash } from "crypto";
 import { DocumentDownload } from "../models/DocumentDownload.model";
 import { PropertyDocument } from "../models/Document.model";
 import { Property } from "../models/Property.model";
@@ -28,15 +28,35 @@ router.post("/", authGuard, roleGuard("user"), uploadCapacity, upload.single("fi
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
     const property = await Property.findOne({ _id: req.body.propertyId, ownerId: req.user.id, status: { $in: ["draft", "correction_required"] } });
     if (!property) return res.status(403).json({ message: "Upload documents only to your draft or correction request" });
-    const doc = new PropertyDocument({ propertyId: property._id, type: req.body.type, fileName: req.file.originalname, fileSize: req.file.size, fileUrl: req.file.filename, uploadedBy: req.user.id });
-    await doc.validate();
-    const updated = await Property.updateOne({ _id: property._id, __v: property.__v, status: property.status }, { $push: { documents: doc._id }, $inc: { __v: 1 } });
-    if (!updated.modifiedCount) return res.status(409).json({ message: "Property changed. Reload before uploading" });
-    try { await doc.save(); } catch (error) { await Property.updateOne({ _id: property._id }, { $pull: { documents: doc._id }, $inc: { __v: 1 } }); throw error; }
-    retained = true;
+    const uploadId = req.body.uploadId;
+    if (uploadId !== undefined && (typeof uploadId !== "string" || !/^[a-f0-9-]{36}$/i.test(uploadId))) return res.status(400).json({ message: "Invalid upload ID" });
+    // The built-in unique _id index makes retries safe without an index migration.
+    const id = uploadId ? createHash("sha256").update(`${req.user.id}:${property._id}:${uploadId}`).digest("hex").slice(0, 24) : undefined;
+    let doc = id ? await PropertyDocument.findById(id) : null;
+    if (!doc) {
+      doc = new PropertyDocument({ ...(id ? { _id: id } : {}), propertyId: property._id, type: req.body.type, fileName: req.file.originalname, fileSize: req.file.size, fileUrl: req.file.filename, uploadedBy: req.user.id });
+      try { await doc.save(); retained = true; }
+      catch (error: any) {
+        if (error.code !== 11000 || !id) throw error;
+        doc = await PropertyDocument.findById(id);
+        if (!doc) throw error;
+      }
+    }
+    // No __v compare: different files may safely attach concurrently. Replaying
+    // an upload also repairs a crash between saving the document and linking it.
+    const updated = await Property.updateOne({ _id: property._id, ownerId: req.user.id, status: { $in: ["draft", "correction_required"] } }, { $addToSet: { documents: doc._id }, $inc: { __v: 1 } });
+    if (!updated.matchedCount) return res.status(409).json({ message: "Property changed. Reload before uploading" });
     res.status(201).json({ _id: doc._id, type: doc.type, fileName: doc.fileName });
   } catch (error: any) { res.status(400).json({ message: error.message }); }
-  finally { if (!retained && req.file) await fs.rm(req.file.path, { force: true }).catch(() => {}); }
+  finally {
+    if (!retained && req.file) {
+      // A timed-out save may have committed. Never remove its document bytes.
+      try {
+        const saved = await PropertyDocument.exists({ fileUrl: req.file.filename });
+        if (!saved) await fs.rm(req.file.path, { force: true }).catch(() => {});
+      } catch { /* Preserve uncertain files for retry recovery. */ }
+    }
+  }
 });
 
 router.get("/", authGuard, async (req: any, res) => {

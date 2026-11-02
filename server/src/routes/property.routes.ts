@@ -21,6 +21,12 @@ import { enqueueSubmission } from "../services/submissionQueue";
 import { replicaReadPreference } from "../services/readReplica";
 
 const router = Router();
+async function restoreUploadedPhoto(id: string, ownerId: string, url: string) {
+  const result = await Property.updateOne({ _id: id, ownerId, status: { $in: ["draft", "correction_required"] },
+    $or: [{ "media.photos": url }, { "media.photos.9": { $exists: false } }],
+  }, { $addToSet: { "media.photos": url }, $inc: { __v: 1 } });
+  return result.matchedCount > 0;
+}
 const photoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 router.param("id", (_req, res, next, id) => isValidObjectId(id) ? next() : res.status(400).json({ message: "Invalid property ID" }));
 
@@ -135,15 +141,38 @@ router.post("/:id/photos", authGuard, roleGuard("user"), uploadCapacity, async (
     let retained = false;
     try {
       if (!req.file) return res.status(400).json({ message: "Select a photo to upload" });
+      const uploadId = req.body.uploadId;
+      if (uploadId !== undefined && (typeof uploadId !== "string" || !/^[a-f0-9-]{36}$/i.test(uploadId))) return res.status(400).json({ message: "Invalid upload ID" });
+      const receiptPath = uploadId ? `uploadReceipts.${uploadId}` : undefined;
+      const previous = receiptPath && await Property.findById(req.params.id).select("+uploadReceipts");
+      const previousUrl = previous && previous.uploadReceipts?.get(uploadId);
+      if (previousUrl) {
+        if (!await restoreUploadedPhoto(req.params.id, req.user.id, previousUrl)) return res.status(409).json({ message: "Property changed or photo limit reached" });
+        return res.status(200).json({ url: previousUrl });
+      }
       filename = await storePropertyPhoto(req.file.buffer, req.params.id);
       const origin = apiOrigin(req);
       const url = `${origin.replace(/\/$/, "")}/property-photos/${filename}`;
-      const property = await Property.findOneAndUpdate({ _id: req.params.id, ownerId: req.user.id, status: { $in: ["draft", "correction_required"] }, "media.photos.9": { $exists: false } }, { $push: { "media.photos": url }, $inc: { __v: 1 } }, { new: true });
-      if (!property) return res.status(409).json({ message: "Property changed or already has 10 photos. Reload and try again." });
+      const property = await Property.findOneAndUpdate({ _id: req.params.id, ownerId: req.user.id, status: { $in: ["draft", "correction_required"] }, "media.photos.9": { $exists: false }, ...(receiptPath ? { [receiptPath]: { $exists: false } } : {}) }, { ...(receiptPath ? { $set: { [receiptPath]: url } } : {}), $push: { "media.photos": url }, $inc: { __v: 1 } }, { new: true });
+      if (!property) {
+        const saved = receiptPath && await Property.findById(req.params.id).select("+uploadReceipts");
+        const savedUrl = saved && saved.uploadReceipts?.get(uploadId);
+        if (savedUrl && await restoreUploadedPhoto(req.params.id, req.user.id, savedUrl)) return res.status(200).json({ url: savedUrl });
+        return res.status(409).json({ message: "Property changed or already has 10 photos. Reload and try again." });
+      }
       retained = true;
       res.status(201).json({ url });
     } catch (cause: any) { res.status(400).json({ message: cause.message || "Could not upload photo" }); }
-    finally { if (filename && !retained) await discardPropertyPhoto(filename); }
+    finally {
+      if (filename && !retained) {
+        // A lost DB acknowledgement may still have committed the attachment.
+        // Preserve the file if that check fails; never delete a possibly saved photo.
+        try {
+          const attached = await Property.exists({ _id: req.params.id, "media.photos": { $regex: `/${filename.replace(/\./g, "\\.")}$` } });
+          if (!attached) await discardPropertyPhoto(filename);
+        } catch { /* Leave uncertain files intact for recovery. */ }
+      }
+    }
   });
 });
 export default router;
