@@ -48,8 +48,35 @@ console.log('Marketplace map checks passed: HTML safety, bridge selection, live 
 (async () => {
   context.window.google = { maps: {
     Map: function () {},
-    Geocoder: class { geocode(query, callback) { callback([{ geometry: { location: { lat: () => 25.6, lng: () => 85.1 } }, formatted_address: 'Patna, Bihar' }], 'OK'); } },
+    importLibrary: async () => ({
+      AutocompleteSessionToken: class {},
+      AutocompleteSuggestion: { fetchAutocompleteSuggestions: async request => {
+        assert.equal(request.input, 'Patna');
+        assert.deepEqual(Array.from(request.includedRegionCodes), ['in']);
+        return { suggestions: [{ placePrediction: {
+          placeId: 'place-1', text: { text: 'Patna, Bihar' },
+          mainText: { text: 'Patna' }, secondaryText: { text: 'Bihar' },
+          toPlace: () => new Place(),
+        } }] };
+      } },
+      Place,
+    }),
   } };
+  function Place() {
+    this.location = { lat: () => 25.6, lng: () => 85.1 };
+    this.formattedAddress = 'Patna, Bihar';
+    this.fetchFields = async request => assert.deepEqual(Array.from(request.fields), ['location', 'formattedAddress']);
+  }
+  Place.searchByText = async request => {
+    assert.equal(request.textQuery, 'Patna');
+    return { places: [new Place()] };
+  };
+  await context.window.runPlaceRequest({ id: 6, method: 'fetchGooglePlaceSuggestions', value: 'Patna' });
+  const suggestions = messages.find(message => message.type === 'placeResult' && message.payload.id === 6);
+  assert.equal(suggestions.payload.result[0].placeId, 'place-1');
+  await context.window.runPlaceRequest({ id: 8, method: 'geocodePlaceId', value: 'place-1' });
+  const selected = messages.find(message => message.type === 'placeResult' && message.payload.id === 8);
+  assert.equal(selected.payload.result.lat, 25.6);
   await context.window.runPlaceRequest({ id: 7, method: 'geocodeAddress', value: 'Patna' });
   const result = messages.find(message => message.type === 'placeResult' && message.payload.id === 7);
   assert.equal(result.payload.result.lat, 25.6);

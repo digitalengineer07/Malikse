@@ -111,69 +111,58 @@ export interface GooglePlaceSuggestion {
   secondaryText: string;
 }
 
-let autocompleteService: any = null;
+let autocompleteSessionToken: any = null;
+const predictionsById = new Map<string, any>();
 
 export async function fetchGooglePlaceSuggestions(input: string): Promise<GooglePlaceSuggestion[]> {
   if (!input || input.trim().length < 2) return [];
   try {
     const maps = await loadGoogleMaps();
-    if (!maps?.places?.AutocompleteService) return [];
-    if (!autocompleteService) {
-      autocompleteService = new maps.places.AutocompleteService();
-    }
-    return new Promise((resolve) => {
-      autocompleteService.getPlacePredictions(
-        {
-          input: input.trim(),
-          componentRestrictions: { country: "in" },
-        },
-        (predictions: any[], status: string) => {
-          if (status !== maps.places.PlacesServiceStatus?.OK || !predictions) {
-            resolve([]);
-            return;
-          }
-          resolve(
-            predictions.map((p) => ({
-              placeId: p.place_id,
-              description: p.description,
-              mainText: p.structured_formatting?.main_text || p.description,
-              secondaryText: p.structured_formatting?.secondary_text || "",
-            }))
-          );
-        }
-      );
+    const { AutocompleteSessionToken, AutocompleteSuggestion } = await maps.importLibrary("places");
+    autocompleteSessionToken ??= new AutocompleteSessionToken();
+    const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
+      input: input.trim(),
+      includedRegionCodes: ["in"],
+      sessionToken: autocompleteSessionToken,
+    });
+    predictionsById.clear();
+    return (suggestions || []).flatMap((suggestion: any) => {
+      const prediction = suggestion.placePrediction;
+      if (!prediction?.placeId) return [];
+      predictionsById.set(prediction.placeId, prediction);
+      const description = prediction.text?.text || "";
+      return [{
+        placeId: prediction.placeId,
+        description,
+        mainText: prediction.mainText?.text || description,
+        secondaryText: prediction.secondaryText?.text || "",
+      }];
     });
   } catch {
     return [];
   }
 }
 
-let geocoderInstance: any = null;
-
 export async function geocodePlaceId(
   placeId: string
 ): Promise<{ lat: number; lng: number; formattedAddress: string } | null> {
   try {
     const maps = await loadGoogleMaps();
-    if (!geocoderInstance) {
-      geocoderInstance = new maps.Geocoder();
-    }
-    return new Promise((resolve) => {
-      geocoderInstance.geocode({ placeId }, (results: any[], status: string) => {
-        if (status === "OK" && results && results[0]) {
-          const loc = results[0].geometry.location;
-          resolve({
-            lat: typeof loc.lat === "function" ? loc.lat() : loc.lat,
-            lng: typeof loc.lng === "function" ? loc.lng() : loc.lng,
-            formattedAddress: results[0].formatted_address,
-          });
-        } else {
-          resolve(null);
-        }
-      });
-    });
+    const { Place } = await maps.importLibrary("places");
+    const place = predictionsById.get(placeId)?.toPlace() || new Place({ id: placeId });
+    await place.fetchFields({ fields: ["location", "formattedAddress"] });
+    const location = place.location;
+    if (!location) return null;
+    const lat = typeof location.lat === "function" ? location.lat() : location.lat;
+    const lng = typeof location.lng === "function" ? location.lng() : location.lng;
+    return Number.isFinite(lat) && Number.isFinite(lng)
+      ? { lat, lng, formattedAddress: place.formattedAddress || "" }
+      : null;
   } catch {
     return null;
+  } finally {
+    autocompleteSessionToken = null;
+    predictionsById.clear();
   }
 }
 
@@ -183,26 +172,21 @@ export async function geocodeAddress(
   if (!address || !address.trim()) return null;
   try {
     const maps = await loadGoogleMaps();
-    if (!geocoderInstance) {
-      geocoderInstance = new maps.Geocoder();
-    }
-    return new Promise((resolve) => {
-      geocoderInstance.geocode(
-        { address: address.trim(), componentRestrictions: { country: "in" } },
-        (results: any[], status: string) => {
-          if (status === "OK" && results && results[0]) {
-            const loc = results[0].geometry.location;
-            resolve({
-              lat: typeof loc.lat === "function" ? loc.lat() : loc.lat,
-              lng: typeof loc.lng === "function" ? loc.lng() : loc.lng,
-              formattedAddress: results[0].formatted_address,
-            });
-          } else {
-            resolve(null);
-          }
-        }
-      );
+    const { Place } = await maps.importLibrary("places");
+    const { places } = await Place.searchByText({
+      textQuery: address.trim(),
+      fields: ["location", "formattedAddress"],
+      region: "in",
+      maxResultCount: 1,
     });
+    const place = places?.[0];
+    const location = place?.location;
+    if (!location) return null;
+    const lat = typeof location.lat === "function" ? location.lat() : location.lat;
+    const lng = typeof location.lng === "function" ? location.lng() : location.lng;
+    return Number.isFinite(lat) && Number.isFinite(lng)
+      ? { lat, lng, formattedAddress: place.formattedAddress || "" }
+      : null;
   } catch {
     return null;
   }

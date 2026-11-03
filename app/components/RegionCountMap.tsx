@@ -33,7 +33,12 @@ export default function RegionCountMap({ groups, focus, level, state, onSelect }
       cleanup = addRegionBoundaries(L, map.current, { groups, level, state }, key => {
         const group = groups.find(item => item.key === key);if (group) onSelect(group);
       }, () => { if (active) setFailed(true); });
-      if (focus && validMapPoint(focus)) map.current.flyTo([focus.lat, focus.lng], focus.zoom, { duration: 0.6 });
+      if (focus && validMapPoint(focus)) {
+        const zoom = Number.isFinite(focus.zoom) ? focus.zoom : 4;
+        const size = map.current.getSize();
+        if (size.x > 0 && size.y > 0) map.current.flyTo([focus.lat, focus.lng], zoom, { duration: 0.6 });
+        else map.current.setView([focus.lat, focus.lng], zoom);
+      }
       else map.current.setView([22.5, 79], 4);
     }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; cleanup?.(); };
