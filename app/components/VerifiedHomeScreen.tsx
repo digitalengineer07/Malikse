@@ -43,7 +43,7 @@ export default function VerifiedHomeScreen() {
       toValue: 1,
       duration: 480,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== "web",
     });
     animation.start();
     return () => animation.stop();
@@ -226,7 +226,7 @@ export default function VerifiedHomeScreen() {
                   },
                 ]}
               >
-                <View pointerEvents="none" style={s.mobileSkyline}>
+                <View style={[s.mobileSkyline, { pointerEvents: "none" }]}>
                   <CitySkyline width="100%" height={150} opacity={0.5} />
                   <View style={s.mobileSkylineBlueTint} />
                 </View>

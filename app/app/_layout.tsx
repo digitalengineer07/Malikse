@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useFonts } from "expo-font";
 import { Stack, usePathname, useRouter, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { AppState, Platform } from "react-native";
+import { AppState, LogBox, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SplashScreen from "expo-splash-screen";
 import "react-native-reanimated";
@@ -16,6 +16,29 @@ import { hydrateResume, resumeTabs, useResumeStore } from "../src/store/resumeSt
 import { preloadStartupResources } from "../src/services/startupPreload";
 import { cachedMapAssets, preloadMapAssets } from "../src/services/mapAssets";
 import { observePushOpens, registerPushDevice } from "../src/services/pushNotifications";
+
+LogBox.ignoreLogs([
+  '"shadow*" style props are deprecated. Use "boxShadow".',
+  '"textShadow*" style props are deprecated. Use "textShadow".',
+  "props.pointerEvents is deprecated. Use style.pointerEvents",
+  "Animated: `useNativeDriver` is not supported",
+]);
+
+if (Platform.OS === "web" && typeof window !== "undefined") {
+  const originalWarn = console.warn;
+  console.warn = (...args: any[]) => {
+    const msg = typeof args[0] === "string" ? args[0] : "";
+    if (
+      msg.includes('"shadow*" style props are deprecated') ||
+      msg.includes('"textShadow*" style props are deprecated') ||
+      msg.includes("props.pointerEvents is deprecated") ||
+      msg.includes("useNativeDriver")
+    ) {
+      return;
+    }
+    originalWarn(...args);
+  };
+}
 
 // Prevent native splash screen from auto hiding before JS initializes
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -88,7 +111,7 @@ export default function RootLayout() {
   if ((!fontsLoaded && !fontError) || !resumeReady) return null;
 
   return (
-    <SafeAreaProvider style={{ flex: 1, backgroundColor: "#F4F6F9" }}>
+    <SafeAreaProvider style={{ flex: 1, backgroundColor: "transparent" }}>
       <AppBackground />
       <Stack screenLayout={renderAppScreen} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "transparent" } }}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />

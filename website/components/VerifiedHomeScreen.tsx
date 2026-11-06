@@ -504,7 +504,7 @@ export default function VerifiedHomeScreen() {
           <View style={s.mainCardContainer}>
             {/* Skyline sitting DIRECTLY on the top edge of mainCard */}
             {isWide && (
-              <View style={s.skylineHorizonAnchor} pointerEvents="none">
+              <View style={[s.skylineHorizonAnchor, { pointerEvents: "none" }]}>
                 <CitySkyline
                   width={width < 1100 ? 840 : 1060}
                   maxWidth="82%"

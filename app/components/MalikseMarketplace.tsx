@@ -32,12 +32,12 @@ import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 const C = {
-  bg: "#f3f7ff",
-  ink: "#0b1b3f",
-  muted: "#475a82",
+  bg: "transparent",
+  ink: "#071a45",
+  muted: "#3d5278",
   blue: "#0a45b5",
-  line: "#dce5f5",
-  green: "#0b5a3a",
+  line: "rgba(10, 69, 181, 0.12)",
+  green: "#076c31",
 };
 const money = (n: number) =>
   `₹${n >= 10000000 ? (n / 10000000).toFixed(2) + " Cr" : n >= 100000 ? (n / 100000).toFixed(1) + " Lakh" : Number(n || 0).toLocaleString("en-IN")}`;
@@ -76,7 +76,7 @@ function Button({
       onPress={onPress}
       style={[s.button, secondary && s.secondary, disabled && { opacity: 0.5 }]}
     >
-      {icon && <Icon name={icon} color={secondary ? C.blue : "white"} />}
+      {icon && <Icon name={icon} color={secondary ? C.blue : "white"} size={17} />}
       <Text style={[s.buttonText, secondary && { color: C.blue }]}>
         {title}
       </Text>
@@ -85,8 +85,17 @@ function Button({
 }
 function Tag({ children, green = false }: any) {
   return (
-    <View style={[s.tag, green && { backgroundColor: "#e0f5e9" }]}>
-      <Text style={[s.tagText, green && { color: C.green }]}>{children}</Text>
+    <View
+      style={[
+        s.tag,
+        green && {
+          backgroundColor: "#e8f7ee",
+          borderColor: "rgba(7, 108, 49, 0.28)",
+          borderWidth: 1,
+        },
+      ]}
+    >
+      <Text style={[s.tagText, green && { color: "#076c31" }]}>{children}</Text>
     </View>
   );
 }
@@ -112,20 +121,20 @@ function Field({
   multiline = false,
 }: any) {
   return (
-    <View style={{ flex: 1, minWidth: 140, gap: 7 }}>
+    <View style={{ flex: 1, minWidth: 140, gap: 5 }}>
       <Text style={s.fieldLabel}>{title}</Text>
       <TextInput
         accessibilityLabel={title}
         style={[
           s.input,
-          multiline && { minHeight: 100, textAlignVertical: "top" },
+          multiline && { minHeight: 90, textAlignVertical: "top" },
         ]}
         value={value}
         onChangeText={onChangeText}
         keyboardType={numeric ? "decimal-pad" : "default"}
         multiline={multiline}
         placeholder={title}
-        placeholderTextColor="#8291ac"
+        placeholderTextColor="#6f82a8"
       />
     </View>
   );
@@ -134,7 +143,7 @@ function useData(path: string | null, deps: any[] = []) {
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(false),
-    [nextCursor, setNextCursor] = useState("");
+    [nextCursor, setNextCursor] = useState<string | null>(null);
   const refresh = useCallback(async () => {
     if (!path) return;
     setLoading(true);
@@ -142,7 +151,7 @@ function useData(path: string | null, deps: any[] = []) {
     try {
       const response = await api.get(path);
       setData(response.data);
-      setNextCursor(response.headers["x-next-cursor"] || "");
+      setNextCursor(response.headers["x-next-cursor"] || null);
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -173,7 +182,7 @@ function useData(path: string | null, deps: any[] = []) {
           (p: any) => !old.some((item) => item._id === p._id),
         ),
       ]);
-      setNextCursor(response.headers["x-next-cursor"] || "");
+      setNextCursor(response.headers["x-next-cursor"] || null);
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -244,7 +253,7 @@ export function MarketplaceShell({
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View
-        style={[s.header, { height: 76 + insets.top, paddingTop: insets.top }]}
+        style={[s.header, { height: 58 + insets.top, paddingTop: insets.top }]}
       >
         <View style={[s.row, { flex: 1 }]}>
           {back ? (
@@ -254,16 +263,16 @@ export function MarketplaceShell({
                 router.canGoBack() ? router.back() : router.replace("/home")
               }
             >
-              <Icon name="arrow-back" />
+              <Icon name="arrow-back" size={20} />
             </Pressable>
           ) : (
             <View style={s.logoIcon}>
-              <Icon name="roofing" color="white" />
+              <Icon name="roofing" color="white" size={18} />
             </View>
           )}
           <Pressable onPress={() => router.push("/home")}>
             <Text style={s.logo}>
-              MalikSe<Text style={{ color: "#18a06b" }}>.</Text>
+              MalikSe<Text style={{ color: "#0b8a3e" }}>.</Text>
             </Text>
           </Pressable>
           {width > 850 && (
@@ -274,7 +283,7 @@ export function MarketplaceShell({
           accessibilityLabel="Wishlist"
           onPress={() => router.push("/saved")}
         >
-          <Icon name="favorite-border" />
+          <Icon name="favorite-border" size={20} />
         </Pressable>
         <Pressable
           accessibilityLabel="Profile"
@@ -290,47 +299,58 @@ export function MarketplaceShell({
         keyboardShouldPersistTaps="handled"
       >
         <View style={s.content}>
-          {title && (
-            <View style={{ gap: 6 }}>
+          {Boolean(title) && (
+            <View style={{ gap: 4 }}>
               <Text style={s.h1}>{title}</Text>
-              {subtitle && <Text style={s.muted}>{subtitle}</Text>}
+              {Boolean(subtitle) && <Text style={s.muted}>{subtitle}</Text>}
             </View>
           )}
           {children}
         </View>
       </ScrollView>
-      <View style={[s.nav, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-        {[
-          ["/home", "home", "Home"],
-          ["/search", "search", "Search"],
-          ["/post", "add", "Post"],
-          ["/messages", "chat-bubble-outline", "Chats"],
-          ["/profile", "person-outline", "Profile"],
-        ].map(([url, icon, text]) => (
-          <Pressable
-            key={url}
-            accessibilityRole="button"
-            onPress={() => router.push(url as any)}
-            style={[s.navItem, url === "/post" && { marginTop: -18 }]}
-          >
-            <View style={url === "/post" ? s.postCircle : undefined}>
-              <Icon
-                name={icon}
-                color={
-                  url === "/post" ? "white" : path === url ? C.blue : C.muted
-                }
-              />
-            </View>
-            <Text
-              style={[
-                s.navText,
-                path === url && { color: C.blue, fontWeight: "800" },
-              ]}
-            >
-              {text}
-            </Text>
-          </Pressable>
-        ))}
+      <View
+        style={[s.dockWrapper, { bottom: Math.max(insets.bottom, 8), pointerEvents: "box-none" }]}
+      >
+        <View style={s.nav}>
+          {[
+            ["/home", "home", "Home"],
+            ["/search", "search", "Search"],
+            ["/post", "add", "Post"],
+            ["/messages", "chat-bubble-outline", "Chats"],
+            ["/profile", "person-outline", "Profile"],
+          ].map(([url, icon, text]) => {
+            const isActive = path === url;
+            const isPost = url === "/post";
+            return (
+              <Pressable
+                key={url}
+                accessibilityRole="button"
+                onPress={() => router.push(url as any)}
+                style={[s.navItem, isActive && !isPost && s.navItemActive]}
+              >
+                {isPost ? (
+                  <View style={s.postCircle}>
+                    <Icon name="add" color="white" size={22} />
+                  </View>
+                ) : (
+                  <Icon
+                    name={icon}
+                    color={isActive ? C.blue : C.muted}
+                    size={20}
+                  />
+                )}
+                <Text
+                  style={[
+                    s.navText,
+                    isActive && { color: C.blue, fontWeight: "800" },
+                  ]}
+                >
+                  {text}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -389,7 +409,7 @@ function PropertyCard({
           </View>
         )}
         <View style={s.imageTags}>
-          <Tag green>✓ Verified</Tag>
+          <Tag green>✓ Verified Owner</Tag>
         </View>
       </Pressable>
       <View style={[s.cardBody, compact && { flex: 1 }]}>
@@ -400,6 +420,7 @@ function PropertyCard({
               saved ? "Remove from wishlist" : "Save property"
             }
             disabled={action.busy}
+            style={s.heartBtn}
             onPress={() => {
               if (gate())
                 void action.run(async () => {
@@ -415,14 +436,14 @@ function PropertyCard({
                 });
             }}
           >
-            <Icon name={saved ? "favorite" : "favorite-border"} />
+            <Icon name={saved ? "favorite" : "favorite-border"} color={saved ? "#e11d48" : C.muted} size={18} />
           </Pressable>
         </View>
         <Pressable onPress={() => router.push(`/property/${p._id}` as any)}>
-          <Text style={s.cardTitle}>{label(p)}</Text>
+          <Text style={s.cardTitle} numberOfLines={1}>{label(p)}</Text>
         </Pressable>
-        <Text style={s.muted}>
-          {p.location?.district}, {p.location?.state}
+        <Text style={s.muted} numberOfLines={1}>
+          ⌖ {p.location?.district}, {p.location?.state}
         </Text>
         <View style={s.row}>
           <Tag>{p.type}</Tag>
@@ -457,21 +478,22 @@ export function HomeScreen() {
       subtitle="Find your next place, verified by people you can trust."
     >
       <View style={{ gap: 12 }}>
-        <View style={s.row}>
-          <Icon name="location-on" />
-          <Text style={s.cardTitle}>
+        <View style={[s.typeChip, { alignSelf: "flex-start", backgroundColor: "rgba(255, 255, 255, 0.94)", borderColor: "rgba(10, 69, 181, 0.16)", paddingHorizontal: 12, paddingVertical: 6, gap: 6 }]}>
+          <Icon name="location-on" size={17} color={C.blue} />
+          <Text style={[s.cardTitle, { fontSize: 13, color: C.ink }]}>
             {prefs.district || "Explore your preferred location"}
           </Text>
         </View>
         <View style={s.row}>
-          <View style={[s.input, s.row, { flex: 1 }]}>
-            <Icon name="search" />
+          <View style={[s.input, s.row, { flex: 1, backgroundColor: "#ffffff" }]}>
+            <Icon name="search" size={19} />
             <TextInput
               accessibilityLabel="Search location"
               placeholder="Search city, locality or property"
+              placeholderTextColor="#6f82a8"
               value={query}
               onChangeText={setQuery}
-              style={{ flex: 1, color: C.ink, fontSize: 15 }}
+              style={{ flex: 1, color: C.ink, fontSize: 13.5 }}
               onSubmitEditing={() =>
                 router.push({
                   pathname: "/search",
@@ -494,16 +516,16 @@ export function HomeScreen() {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 10 }}
+        contentContainerStyle={{ gap: 8 }}
       >
         {types.map(([id, text, icon]) => (
           <Pressable
             key={id}
-            onPress={() => setType(id)}
+            onPress={() => setType(type === id ? "" : id)}
             style={[s.typeChip, type === id && { backgroundColor: C.blue }]}
           >
-            <Icon name={icon} color={type === id ? "white" : C.blue} />
-            <Text style={{ color: type === id ? "white" : C.ink }}>{text}</Text>
+            <Icon name={icon} color={type === id ? "white" : C.blue} size={16} />
+            <Text style={[{ fontSize: 12, fontWeight: "600" }, { color: type === id ? "white" : C.ink }]}>{text}</Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -617,15 +639,16 @@ export function SearchScreen() {
       subtitle="Find your place on the map. Every listing is verified."
     >
       <View style={s.wrap}>
-        <View style={[s.input, s.row, { flex: 1, minWidth: 180 }]}>
-          <Icon name="search" />
+        <View style={[s.input, s.row, { flex: 1, minWidth: 180, backgroundColor: "#ffffff" }]}>
+          <Icon name="search" size={19} />
           <TextInput
             accessibilityLabel="Search properties"
             value={query}
             onChangeText={setQuery}
             placeholder="City, district or property"
+            placeholderTextColor="#6f82a8"
             onSubmitEditing={search}
-            style={{ flex: 1 }}
+            style={{ flex: 1, color: C.ink, fontSize: 13.5 }}
           />
         </View>
         <Button title="Search" onPress={search} />
@@ -698,7 +721,7 @@ export function SearchScreen() {
           ))}
         </View>
       )}
-      {feed.nextCursor && (
+      {Boolean(feed.nextCursor) && (
         <Button
           title="Load more properties"
           secondary
@@ -747,7 +770,7 @@ export function WishlistScreen() {
             onSaved={feed.refresh}
           />
         ))}
-        {feed.nextCursor && (
+        {Boolean(feed.nextCursor) && (
           <Button
             title="Load more properties"
             secondary
@@ -777,11 +800,11 @@ export function ProfileScreen() {
       <Protected>
         {user && (
           <>
-            <View style={[s.panel, { alignItems: "center", padding: 30 }]}>
+            <View style={[s.panel, { alignItems: "center", padding: 20 }]}>
               <View
-                style={[s.avatar, { width: 76, height: 76, borderRadius: 38 }]}
+                style={[s.avatar, { width: 60, height: 60, borderRadius: 30 }]}
               >
-                <Text style={[s.avatarText, { fontSize: 30 }]}>
+                <Text style={[s.avatarText, { fontSize: 22 }]}>
                   {user.name[0]}
                 </Text>
               </View>
@@ -945,7 +968,7 @@ export function ListingsScreen() {
             </View>
           </View>
         ))}
-        {feed.nextCursor && (
+        {Boolean(feed.nextCursor) && (
           <Button
             title="Load more properties"
             secondary
@@ -996,7 +1019,7 @@ export function KycScreen() {
             Your documents are private and reviewed by authorized staff.
             Submission does not automatically approve your identity.
           </Text>
-          {feed.data?.identityReview?.notes && (
+          {Boolean(feed.data?.identityReview?.notes) && (
             <Text style={s.muted}>{feed.data.identityReview.notes}</Text>
           )}
         </View>
@@ -1147,7 +1170,7 @@ export function PropertyDetailScreen() {
             </ScrollView>
           )}
           <View style={s.panel}>
-            <Text style={[s.price, { fontSize: 32 }]}>{money(p.price)}</Text>
+            <Text style={[s.price, { fontSize: 22, lineHeight: 28 }]}>{money(p.price)}</Text>
             <Text style={s.h1}>{label(p)}</Text>
             <Text style={s.muted}>
               ⌖ {p.location?.district}, {p.location?.state}
@@ -1322,7 +1345,7 @@ export function ChatsScreen() {
                     ]}
                   >
                     <Text style={s.body}>{c.message}</Text>
-                    {c.offerAmount && (
+                    {Boolean(c.offerAmount) && (
                       <Text style={s.cardTitle}>
                         Offer: {money(c.offerAmount)}
                       </Text>
@@ -1430,7 +1453,7 @@ export function ChatsScreen() {
                 </Pressable>
               );
             })}
-            {feed.nextCursor && (
+            {Boolean(feed.nextCursor) && (
               <Button
                 title="Load more properties"
                 secondary
@@ -2047,7 +2070,7 @@ export function PostScreen() {
                 onPress={() => (step === 5 ? submit() : setStep(step + 1))}
               />
             </View>
-            {draftId && (
+            {Boolean(draftId) && (
               <Text style={s.small}>
                 Draft saved: {draftId}. Uploads are retained if submission needs
                 to be retried.
@@ -2060,227 +2083,359 @@ export function PostScreen() {
   );
 }
 const font =
-  Platform.OS === "web" ? "Manrope, Inter, system-ui" : "PoppinsRegular";
+  Platform.OS === "web" ? "'Manrope', 'Inter', system-ui, sans-serif" : "PoppinsRegular";
+const fontDisplay =
+  Platform.OS === "web" ? "'Fraunces', Georgia, serif" : "PoppinsBold";
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg },
+  root: { flex: 1, backgroundColor: "transparent" },
   header: {
-    height: 76,
-    paddingHorizontal: 24,
+    height: 58,
+    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: 18,
-    backgroundColor: "white",
+    gap: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderBottomWidth: 1,
-    borderColor: C.line,
+    borderColor: "rgba(10, 69, 181, 0.10)",
+    shadowColor: "#0a2a6b",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    zIndex: 10,
   },
-  logo: { fontSize: 26, fontWeight: "800", color: C.blue, letterSpacing: -1 },
-  logoIcon: { backgroundColor: C.blue, padding: 7, borderRadius: 12 },
-  scroll: { padding: 20, paddingBottom: 35 },
-  content: { width: "100%", maxWidth: 1160, alignSelf: "center", gap: 24 },
-  row: { flexDirection: "row", alignItems: "center", gap: 12 },
+  logo: {
+    fontFamily: fontDisplay,
+    fontSize: 21,
+    fontWeight: "800",
+    color: C.blue,
+    letterSpacing: -0.5,
+  },
+  logoIcon: { backgroundColor: C.blue, padding: 5, borderRadius: 10 },
+  scroll: { padding: 16, paddingBottom: 100 },
+  content: { width: "100%", maxWidth: 1140, alignSelf: "center", gap: 18 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10 },
   between: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 10,
   },
-  wrap: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 18 },
+  wrap: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
   h1: {
-    fontFamily: font,
-    fontSize: 28,
-    fontWeight: "800",
-    color: C.ink,
-    letterSpacing: -0.6,
-  },
-  h2: { fontFamily: font, fontSize: 21, fontWeight: "700", color: C.ink },
-  muted: { fontFamily: font, fontSize: 14, lineHeight: 22, color: C.muted },
-  small: { fontFamily: font, fontSize: 12, lineHeight: 19, color: C.muted },
-  body: { fontFamily: font, fontSize: 15, lineHeight: 24, color: C.ink },
-  fieldLabel: {
-    fontFamily: font,
-    fontSize: 13,
+    fontFamily: fontDisplay,
+    fontSize: 21,
+    lineHeight: 27,
     fontWeight: "700",
     color: C.ink,
+    letterSpacing: -0.4,
+    textShadowColor: "rgba(255, 255, 255, 0.85)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  h2: {
+    fontFamily: fontDisplay,
+    fontSize: 17,
+    lineHeight: 23,
+    fontWeight: "700",
+    color: C.ink,
+    letterSpacing: -0.3,
+    textShadowColor: "rgba(255, 255, 255, 0.85)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  muted: { fontFamily: font, fontSize: 12.5, lineHeight: 18, color: C.muted, fontWeight: "500" },
+  small: { fontFamily: font, fontSize: 11.5, lineHeight: 16, color: "#4b628c", fontWeight: "600" },
+  body: { fontFamily: font, fontSize: 13.5, lineHeight: 21, color: C.ink, fontWeight: "500" },
+  fieldLabel: {
+    fontFamily: font,
+    fontSize: 12,
+    fontWeight: "700",
+    color: C.ink,
+    letterSpacing: 0.1,
   },
   button: {
-    minHeight: 46,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+    minHeight: 38,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 12,
     backgroundColor: C.blue,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 6,
+    shadowColor: "#0a45b5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 2,
   },
   secondary: {
-    backgroundColor: "#eaf1ff",
+    backgroundColor: "rgba(238, 244, 255, 0.95)",
     borderWidth: 1,
-    borderColor: C.line,
+    borderColor: "rgba(10, 69, 181, 0.18)",
+    shadowOpacity: 0,
+    elevation: 0,
   },
   buttonText: {
     fontFamily: font,
     fontSize: 13,
     fontWeight: "700",
     color: "white",
+    letterSpacing: 0.1,
   },
   input: {
     fontFamily: font,
-    minHeight: 48,
+    minHeight: 40,
     borderWidth: 1,
-    borderColor: C.line,
+    borderColor: "rgba(10, 69, 181, 0.18)",
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: "white",
-    fontSize: 15,
+    paddingVertical: 8,
+    backgroundColor: "#ffffff",
+    fontSize: 13.5,
     color: C.ink,
+    shadowColor: "#0a2a6b",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   hero: {
-    padding: 28,
-    gap: 18,
-    borderRadius: 24,
-    backgroundColor: "#e5efff",
+    padding: 20,
+    gap: 12,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.94)",
     borderWidth: 1,
-    borderColor: "#d0e0ff",
+    borderColor: "rgba(196, 211, 240, 0.75)",
+    shadowColor: "#0a2a6b",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.09,
+    shadowRadius: 18,
+    elevation: 3,
   },
   heroTitle: {
-    fontFamily: Platform.OS === "web" ? "Fraunces, Georgia" : "PoppinsBold",
-    fontSize: 40,
+    fontFamily: fontDisplay,
+    fontSize: 25,
+    lineHeight: 31,
     color: C.ink,
-    letterSpacing: -1,
+    letterSpacing: -0.5,
+    textShadowColor: "rgba(255, 255, 255, 0.85)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   tag: {
     alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    backgroundColor: "#eaf1ff",
-  },
-  tagText: { fontFamily: font, fontSize: 11, fontWeight: "700", color: C.blue },
-  typeChip: {
-    padding: 14,
-    borderWidth: 1,
-    borderColor: C.line,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 14,
-    backgroundColor: "white",
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderWidth: 1,
+    borderColor: "rgba(10, 69, 181, 0.14)",
+    shadowColor: "#0a2a6b",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+  },
+  tagText: { fontFamily: font, fontSize: 11, fontWeight: "700", color: C.blue, letterSpacing: 0.1 },
+  typeChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 13,
+    borderWidth: 1,
+    borderColor: "rgba(196, 211, 240, 0.75)",
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
+    shadowColor: "#0a2a6b",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   panel: {
-    padding: 22,
-    borderRadius: 20,
+    padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: "white",
-    gap: 16,
+    borderColor: "rgba(196, 211, 240, 0.70)",
+    backgroundColor: "rgba(255, 255, 255, 0.94)",
+    gap: 12,
+    shadowColor: "#0a2a6b",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
   },
   card: {
-    backgroundColor: "white",
+    backgroundColor: "rgba(255, 255, 255, 0.94)",
     borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 20,
+    borderColor: "rgba(196, 211, 240, 0.70)",
+    borderRadius: 16,
     overflow: "hidden",
+    shadowColor: "#0a2a6b",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
   },
-  photo: { height: 220, backgroundColor: "#dce7fa" },
+  photo: { height: 180, backgroundColor: "#dce7fa" },
   placeholder: {
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#e0eaff",
   },
-  imageTags: { position: "absolute", top: 12, left: 12 },
-  cardBody: { padding: 18, gap: 9 },
-  price: { fontFamily: font, fontSize: 25, fontWeight: "800", color: C.ink },
+  imageTags: { position: "absolute", top: 10, left: 10 },
+  cardBody: { padding: 14, gap: 6 },
+  price: { fontFamily: font, fontSize: 19, lineHeight: 23, fontWeight: "800", color: C.ink, letterSpacing: -0.4 },
   cardTitle: {
     fontFamily: font,
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: 14.5,
+    lineHeight: 20,
     fontWeight: "700",
     color: C.ink,
+    letterSpacing: -0.2,
   },
-  link: { fontSize: 13, fontWeight: "700", color: C.blue },
+  link: { fontSize: 12.5, fontWeight: "700", color: C.blue },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#e2ecff",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(26, 86, 219, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(26, 86, 219, 0.20)",
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontWeight: "800", color: C.blue, fontSize: 17 },
+  avatarText: { fontWeight: "800", color: C.blue, fontSize: 14 },
+  dockWrapper: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 8,
+    alignItems: "center",
+    paddingHorizontal: 12,
+    zIndex: 100,
+  },
   nav: {
-    minHeight: 76,
-    paddingBottom: Platform.OS === "web" ? 10 : 22,
-    paddingTop: 9,
+    width: "100%",
+    maxWidth: 500,
+    minHeight: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
     flexDirection: "row",
-    backgroundColor: "white",
-    borderTopWidth: 1,
-    borderColor: C.line,
-    justifyContent: "center",
+    alignItems: "center",
+    justifyContent: "space-around",
+    paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.98)",
+    shadowColor: "#0a2a6b",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.16,
+    shadowRadius: 20,
+    elevation: 10,
   },
   navItem: {
     flex: 1,
-    maxWidth: 180,
+    maxWidth: 90,
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
+    gap: 2,
+    paddingVertical: 4,
+    borderRadius: 18,
   },
-  navText: { fontSize: 11, color: C.muted },
+  navItemActive: {
+    backgroundColor: "rgba(26, 86, 219, 0.12)",
+  },
+  navText: { fontFamily: font, fontSize: 10.5, fontWeight: "600", color: C.muted },
   postCircle: {
-    height: 50,
-    width: 50,
-    borderRadius: 25,
+    height: 44,
+    width: 44,
+    borderRadius: 22,
+    marginTop: -22,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: C.blue,
-    borderWidth: 4,
-    borderColor: C.bg,
+    borderWidth: 3,
+    borderColor: "#ffffff",
+    shadowColor: "#0a45b5",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.40,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  heartBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(240, 244, 255, 0.90)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(10, 69, 181, 0.10)",
   },
   error: {
-    padding: 14,
-    borderRadius: 12,
+    padding: 12,
+    borderRadius: 10,
     backgroundColor: "#fff0f2",
     color: "#a8193c",
-    fontSize: 14,
+    fontSize: 12.5,
+    borderWidth: 1,
+    borderColor: "rgba(225, 29, 72, 0.20)",
+    fontWeight: "600",
   },
   map: {
-    height: 420,
-    borderRadius: 22,
+    height: 380,
+    borderRadius: 18,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: C.line,
+    borderColor: "rgba(10, 69, 181, 0.14)",
   },
   spec: {
-    minWidth: 140,
+    minWidth: 130,
     flex: 1,
-    padding: 16,
-    backgroundColor: C.bg,
-    borderRadius: 14,
-    gap: 6,
+    padding: 12,
+    backgroundColor: "rgba(244, 248, 255, 0.95)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(10, 69, 181, 0.10)",
+    gap: 4,
   },
-  chatArea: { gap: 16, minHeight: 260 },
-  bubble: { maxWidth: "85%", padding: 16, borderRadius: 18, gap: 7 },
+  chatArea: { gap: 14, minHeight: 240 },
+  bubble: { maxWidth: "85%", padding: 12, borderRadius: 16, gap: 5 },
   mine: {
     alignSelf: "flex-end",
-    backgroundColor: "#dce9ff",
+    backgroundColor: "#dbe8fd",
+    borderWidth: 1,
+    borderColor: "rgba(10, 69, 181, 0.18)",
     borderBottomRightRadius: 4,
   },
   theirs: {
     alignSelf: "flex-start",
-    backgroundColor: "white",
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: C.line,
+    borderColor: "rgba(196, 211, 240, 0.85)",
     borderBottomLeftRadius: 4,
+    shadowColor: "#061c46",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.blue },
-  history: { padding: 12, borderLeftWidth: 3, borderColor: C.line, gap: 4 },
-  progress: { flexDirection: "row", gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.blue },
+  history: {
+    padding: 10,
+    borderLeftWidth: 3,
+    borderColor: C.blue,
+    gap: 3,
+  },
+  progress: { flexDirection: "row", gap: 5 },
   progressPart: {
-    height: 5,
+    height: 4,
     flex: 1,
-    borderRadius: 5,
-    backgroundColor: C.line,
+    borderRadius: 4,
+    backgroundColor: "rgba(10, 69, 181, 0.15)",
   },
 });

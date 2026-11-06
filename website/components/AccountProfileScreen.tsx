@@ -594,7 +594,7 @@ export default function AccountProfileScreen() {
           </div>
         </>
       ) : (
-        <View style={styles.nativeSkyline} pointerEvents="none">
+        <View style={[styles.nativeSkyline, { pointerEvents: "none" }]}>
           <View style={styles.nativeLeftContainer}>
             <Image source={leftWatermarkAsset} style={styles.nativeWatermarkImg} resizeMode="contain" />
           </View>

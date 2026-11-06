@@ -16,6 +16,6 @@ export function renderAppScreen({ children }: { children: ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, position: "relative", overflow: "hidden", backgroundColor: "#F4F6F9" },
-  content: { flex: 1, position: "relative" },
+  screen: { flex: 1, position: "relative", overflow: "hidden", backgroundColor: "#f4f5f7" },
+  content: { flex: 1, position: "relative", backgroundColor: "transparent" },
 });

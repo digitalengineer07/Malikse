@@ -11,7 +11,7 @@ export function GlassBackdrop({ children, androidOnly = false }: { children: Rea
   if (androidOnly && Platform.OS !== "android") return <>{children}</>;
   return <GlassTarget.Provider value={target}>
     {Platform.OS === "android"
-      ? <BlurTargetView ref={target} pointerEvents="none" accessible={false} style={StyleSheet.absoluteFill}><AppBackground /></BlurTargetView>
+      ? <BlurTargetView ref={target} accessible={false} style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}><AppBackground /></BlurTargetView>
       : <AppBackground />}
     {children}
   </GlassTarget.Provider>;

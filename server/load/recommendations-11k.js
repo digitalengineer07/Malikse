@@ -1,15 +1,20 @@
-import http from 'k6/http';
 import { check } from 'k6';
+import http from 'k6/http';
 
 export const options = {
   scenarios: {
     recommendations_11k: {
-      executor: 'constant-arrival-rate',
-      rate: Number(__ENV.RPS || 11000),
+      executor: 'ramping-arrival-rate',
+      startRate: 2000,
       timeUnit: '1s',
-      duration: __ENV.DURATION || '10s',
-      preAllocatedVUs: Number(__ENV.PREALLOCATED_VUS || 150),
-      maxVUs: Number(__ENV.MAX_VUS || 600),
+      preAllocatedVUs: Number(__ENV.PREALLOCATED_VUS || 400),
+      maxVUs: Number(__ENV.MAX_VUS || 1200),
+      stages: [
+        { target: 6000, duration: '3s' },
+        { target: 11000, duration: '5s' },
+        { target: 11000, duration: '5s' },
+      ],
+      gracefulStop: '5s',
     },
   },
   thresholds: {

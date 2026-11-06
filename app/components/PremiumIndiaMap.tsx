@@ -605,7 +605,7 @@ export default function PremiumIndiaMap({
       />
 
       {/* Floating Top-Right Map Controls */}
-      <View style={styles.controlsWrap} pointerEvents="box-none">
+      <View style={[styles.controlsWrap, { pointerEvents: "box-none" }]}>
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="Zoom In"
@@ -652,7 +652,7 @@ export default function PremiumIndiaMap({
       </View>
 
       {/* Floating Bottom-Left Layer Mode Switcher & Quick Focus */}
-      <View style={styles.bottomControlsWrap} pointerEvents="box-none">
+      <View style={[styles.bottomControlsWrap, { pointerEvents: "box-none" }]}>
         {/* Google Maps Authenticity Badge */}
         <View style={styles.googleBrandBadge}>
           <Text style={styles.googleBrandText}>

@@ -156,7 +156,7 @@ export default function MarketplaceScreen() {
       toValue: 1,
       duration: 480,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== "web",
     });
     animation.start();
     return () => animation.stop();
@@ -763,7 +763,7 @@ export default function MarketplaceScreen() {
                   },
                 ]}
               >
-                <View pointerEvents="none" style={styles.mobileSkyline}>
+                <View style={[styles.mobileSkyline, { pointerEvents: "none" }]}>
                   <CitySkyline width="100%" height={150} opacity={0.5} />
                   <View style={styles.mobileSkylineBlueTint} />
                 </View>
@@ -839,7 +839,7 @@ export default function MarketplaceScreen() {
               />
 
               {/* Left-Side Bihar Land Intelligence Overlay */}
-              <View style={styles.leftOverlayWrap} pointerEvents="box-none">
+              <View style={[styles.leftOverlayWrap, { pointerEvents: "box-none" }]}>
                 <BiharLandIntelligenceCard
                   totalCount={filteredMapProperties.length}
                   activeDistrictName={district?.name}
@@ -849,7 +849,7 @@ export default function MarketplaceScreen() {
               </View>
 
               {/* Right-Side Floating Bihar Key Districts Panel */}
-              <View style={styles.rightPanelWrap} pointerEvents="box-none">
+              <View style={[styles.rightPanelWrap, { pointerEvents: "box-none" }]}>
                 <BiharDistrictExplorerPanel
                   selectedDistrict={district?.name}
                   onSelectDistrict={handleSelectDistrictInfo}
