@@ -9,8 +9,8 @@ import {
   ScrollView,
   useWindowDimensions,
 } from "react-native";
-import { useRouter } from "expo-router";
-import { MaterialIcons } from "@expo/vector-icons";
+import { useRouter } from "@/web/navigation";
+import { MaterialIcons } from "@/web/icons";
 import AppHeader from "../components/AppHeader";
 import BottomNav from "../components/BottomNav";
 import { useLanguageStore } from "../src/store/languageStore";

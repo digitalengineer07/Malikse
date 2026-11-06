@@ -11,9 +11,9 @@ import {
   Modal,
   Platform,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { MaterialIcons } from "@/web/icons";
+import { useSafeAreaInsets } from "@/web/safeArea";
+import { useRouter } from "@/web/navigation";
 import type { Listing } from "../src/services/workflowService";
 import AppHeader from "./AppHeader";
 import VerifiedPropertyMap from "./VerifiedPropertyMap";

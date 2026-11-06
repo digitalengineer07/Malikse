@@ -1,4 +1,4 @@
-import { Redirect } from "expo-router";
+import { Redirect } from "@/web/navigation";
 
 // The root layout owns the startup loader, including when opening a deep link.
 export default function Index() {

@@ -1,6 +1,6 @@
 /**
  * Google Maps Platform SDK Loader & Services
- * Uses EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
+ * Uses VITE_GOOGLE_MAPS_API_KEY
  */
 
 let googleMapsPromise: Promise<any> | null = null;
@@ -23,8 +23,9 @@ export function loadGoogleMaps(): Promise<any> {
   }
 
   const apiKey =
-    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+    import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
     "AIzaSyAD35RnKNgKBt2LDHSC6QHhui6tZrM_Pzw";
+  if (!apiKey) return Promise.reject(new Error("Google Maps is not configured. Use the property location fields."));
 
   googleMapsPromise = new Promise((resolve, reject) => {
     // Clean up stale or failed script elements

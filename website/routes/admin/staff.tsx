@@ -2,8 +2,8 @@ import { AppTheme } from "../../constants/theme";
 import TextInput from "../../components/FormInput";
 import React, { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useRouter, useFocusEffect } from "expo-router";
-import { MaterialIcons } from "@expo/vector-icons";
+import { useRouter, useFocusEffect } from "@/web/navigation";
+import { MaterialIcons } from "@/web/icons";
 import { adminService, type StaffAccount, type StaffRole } from "../../src/services/adminService";
 import { useAuthStore } from "../../src/store/authStore";
 

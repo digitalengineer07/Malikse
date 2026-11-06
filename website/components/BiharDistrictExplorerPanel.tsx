@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons } from "@/web/icons";
 import { BIHAR_DISTRICTS_DATA, type BiharDistrictInfo } from "../src/data/biharDistrictsData";
 
 interface BiharDistrictExplorerPanelProps {

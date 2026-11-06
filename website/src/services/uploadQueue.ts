@@ -1,5 +1,5 @@
-import { randomUUID } from "expo-crypto";
-import type { DocumentPickerAsset } from "expo-document-picker";
+import { randomUUID } from "@/web/crypto";
+import type { DocumentPickerAsset } from "@/web/files";
 import { prepareUpload } from "./prepareUpload";
 import { propertyService } from "./propertyService";
 import { documentService } from "./documentService";

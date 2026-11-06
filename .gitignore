@@ -77,3 +77,8 @@ server/load/*
 !server/load/README.md
 .md
 autocannon.md
+
+# Isolated workflow verification database
+server/.workflow-test-db/
+
+app/dist-workflow-check/

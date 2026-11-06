@@ -25,7 +25,7 @@ router.get("/:filename", async (req, res) => {
     if (!properties.length || properties.length > 100) return res.sendStatus(404);
     const owners = new Set((await User.find({ _id: { $in: properties.map(property => property.ownerId) }, isSuspended: { $ne: true }, isActive: { $ne: false } })
       .select("_id").lean().maxTimeMS(5000)).map(owner => String(owner._id)));
-    const privateProperties = properties.filter(property => !(property.status === "verified" && property.badges?.fullyVerified && property.advisorReview?.decision === "approve" && property.verifierReview?.decision === "approve" && owners.has(String(property.ownerId))));
+    const privateProperties = properties.filter(property => !(property.status === "verified" && property.badges?.fullyVerified && (property.advisorReview?.decision === "approve" || property.verifierReview?.decision === "approve") && owners.has(String(property.ownerId))));
     if (privateProperties.length) {
       const auth = await authenticateRequest(req.headers.authorization);
       if (auth.status || !auth.user) return res.status(auth.status || 401).json({ message: "Sign in to view this property photo" });

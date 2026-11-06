@@ -1,8 +1,8 @@
 import React from "react";
 import { View, Text, TouchableOpacity, Platform, StyleSheet, useWindowDimensions } from "react-native";
-import { usePathname, useRouter } from "expo-router";
-import { MaterialIcons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { usePathname, useRouter } from "@/web/navigation";
+import { MaterialIcons } from "@/web/icons";
+import { useSafeAreaInsets } from "@/web/safeArea";
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
 import { dashboardRoutes } from "../src/utils/accountRoutes";

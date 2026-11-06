@@ -1,7 +1,7 @@
 {
   "name": "malikse-server",
   "version": "1.0.0",
-  "description": "MalikSe backend — Node.js + Express + MongoDB",
+  "description": "MalikSe backend \u2014 Node.js + Express + MongoDB",
   "main": "dist/index.js",
   "scripts": {
     "test:fastify-property-reads": "npm run build && node load/test-fastify-property-reads.cjs",
@@ -30,7 +30,10 @@
     "test:public-cache": "npm run build && node load/test-public-cache.cjs",
     "load:pool-matrix": "npm run build && node load/pool-matrix.cjs",
     "test:performance": "npm run build && node load/test-performance.cjs",
-    "test:otp": "npm run build && node load/test-registration-otp.cjs"
+    "test:otp": "npm run build && node load/test-registration-otp.cjs",
+    "test:assigned-workflow": "npm run build && node load/test-assigned-workflow.cjs",
+    "db:migrate-assigned-workflow": "npm run build && node dist/scripts/migrateAssignedWorkflow.js",
+    "db:fix-urls": "ts-node fixUrls.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.1",

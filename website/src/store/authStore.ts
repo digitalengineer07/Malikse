@@ -1,5 +1,3 @@
-import * as SecureStore from "expo-secure-store";
-import { Platform } from "react-native";
 import { create } from "zustand";
 import type { AuthTokens, UserProfile, UserRole } from "../types/auth.types";
 import { useUserListingsStore } from "./userListingsStore";
@@ -22,7 +20,7 @@ interface AuthStore {
 }
 
 function readWebSession(): Partial<AuthStore> | null {
-  if (Platform.OS !== "web" || typeof localStorage === "undefined") return null;
+  if (typeof localStorage === "undefined") return null;
   try {
     const saved = localStorage.getItem(sessionKey);
     if (saved) {
@@ -44,63 +42,22 @@ function readWebSession(): Partial<AuthStore> | null {
 }
 
 const savedWebSession = readWebSession();
-let nativeWrite = Promise.resolve();
 function saveSession(state: AuthStore) {
-  const value = JSON.stringify({
-    user: state.user, accessToken: state.accessToken, refreshToken: state.refreshToken,
-  });
-  if (Platform.OS === "web") {
-    try {
-      if (state.user && state.accessToken) localStorage.setItem(sessionKey, value);
-      else localStorage.removeItem(sessionKey);
-      localStorage.removeItem("malikse_access");
-      localStorage.removeItem("malikse_refresh");
-      localStorage.removeItem("malikse_user");
-    } catch { /* Storage can be unavailable in private browsing. */ }
-  } else {
-    nativeWrite = nativeWrite.catch(() => {}).then(() => state.user && state.accessToken
-      ? SecureStore.setItemAsync(sessionKey, value)
-      : SecureStore.deleteItemAsync(sessionKey));
-  }
+  try {
+    if (state.user && state.accessToken) localStorage.setItem(sessionKey, JSON.stringify({ user: state.user, accessToken: state.accessToken, refreshToken: state.refreshToken }));
+    else localStorage.removeItem(sessionKey);
+    ["malikse_access", "malikse_refresh", "malikse_user"].forEach(key => localStorage.removeItem(key));
+  } catch { /* Private browsing may disable storage. */ }
 }
 
-let hydratePromise: Promise<void> | null = null;
 export const useAuthStore = create<AuthStore>((set, get) => ({
   user: savedWebSession?.user ?? null,
   accessToken: savedWebSession?.accessToken ?? null,
   refreshToken: savedWebSession?.refreshToken ?? null,
-  authState: Platform.OS === "web"
-    ? savedWebSession?.user && savedWebSession?.accessToken ? "AUTHENTICATED" : "NOT_AUTHENTICATED"
-    : "LOADING",
-  hydrated: Platform.OS === "web",
+  authState: savedWebSession?.user && savedWebSession?.accessToken ? "AUTHENTICATED" : "NOT_AUTHENTICATED",
+  hydrated: true,
   role: savedWebSession?.user?.role ?? null,
-
-  hydrateSession: () => {
-    if (get().hydrated) return Promise.resolve();
-    if (hydratePromise) return hydratePromise;
-    hydratePromise = (async () => {
-      try {
-        await nativeWrite;
-        const saved = await SecureStore.getItemAsync(sessionKey);
-        let session = saved ? JSON.parse(saved) : null;
-        if (session?.accessToken?.startsWith("dummy_") || session?.user?.id === "demo_id") {
-          await SecureStore.deleteItemAsync(sessionKey);
-          session = null;
-        }
-        set({
-          user: session?.user ?? null,
-          accessToken: session?.accessToken ?? null,
-          refreshToken: session?.refreshToken ?? null,
-          role: session?.user?.role ?? null,
-          authState: session?.accessToken && session?.user ? "AUTHENTICATED" : "NOT_AUTHENTICATED",
-          hydrated: true,
-        });
-      } catch {
-        set({ user: null, accessToken: null, refreshToken: null, role: null, authState: "NOT_AUTHENTICATED", hydrated: true });
-      }
-    })();
-    return hydratePromise;
-  },
+  hydrateSession: async () => {},
   setUser: (user) => {
     set({ user, role: user?.role ?? null });
     saveSession(get());

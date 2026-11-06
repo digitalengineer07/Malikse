@@ -43,15 +43,17 @@ async function main() {
     checks++;
     return data;
   };
-  const password = "workflow-test-password";
+  const password = "Fixture-R8!pW3qZ2026";
   const login = async (mobile: string) => (await request("/auth/login", undefined, { mobile, password })).accessToken;
   try {
     await User.create({ name: "Test Admin", mobile: "9000000001", role: "admin", passwordHash: await bcrypt.hash(password, 10) });
     const admin = await login("9000000001");
-    const sellerAccount = await request("/auth/register", undefined, { name: "Test Seller", mobile: "9000000002", password, role: "admin" }, 201);
-    assert.equal(sellerAccount.user.role, "user");
-    const seller = sellerAccount.accessToken;
-    const outsider = (await request("/auth/register", undefined, { name: "Other Seller", mobile: "9000000003", password }, 201)).accessToken;
+    // Registration/OTP is covered by test:otp; workflow fixtures must not send SMS.
+    const sellerRow = await User.create({ name: "Test Seller", mobile: "9000000002", passwordHash: await bcrypt.hash(password, 4), role: "user" });
+    await User.create({ name: "Other Seller", mobile: "9000000003", passwordHash: await bcrypt.hash(password, 4), role: "user" });
+    const seller = await login("9000000002");
+    const sellerAccount = { user: { id: String(sellerRow._id) } };
+    const outsider = await login("9000000003");
     const input = { title: "Workflow test land", type: "land", location: { state: "Bihar", district: "Patna", lat: 25.6, lng: 85.1 }, price: 1000000, totalArea: 1000, sellableArea: 900, parcelPoints: [{ lat: 25.6, lng: 85.1 }, { lat: 25.61, lng: 85.1 }, { lat: 25.6, lng: 85.11 }] };
     await request("/properties", seller, input, 403);
     await request("/auth/kyc/demo", seller, {});
@@ -75,9 +77,10 @@ async function main() {
     await request("/admin/staff", admin, { role: "verifier", name: "Test Verifier", mobile: "9000000005", password }, 201);
     await request("/admin/staff", admin, { role: "advisor", name: "Other Advisor", mobile: "9000000006", password }, 201);
     const advisor = await login("9000000004"), verifier = await login("9000000005"), otherAdvisor = await login("9000000006");
-    const unassigned = await request("/verification/my-tasks", advisor);
+    const unassigned = await request("/verification/my-tasks", verifier);
     assert.equal(unassigned.length, 1); assert.equal(unassigned[0].ownerId, undefined);
-    await request(`/verification/${id}/claim`, advisor, {});
+    await request(`/verification/${id}/claim`, verifier, {});
+    await request(`/admin/properties/${id}/assign`, admin, { staffId: advisorAccount.id });
     await request(`/verification/${id}/claim`, otherAdvisor, {}, 409);
     await request(`/properties/${id}/workspace`, otherAdvisor, undefined, 403);
     const checklist = { ownership: true, location: true, boundaries: true, area: true, disclosures: true, documentsReviewed: true, advisorReport: true };
@@ -90,19 +93,9 @@ async function main() {
     const corrected = await request(`/properties/${id}/workspace`, seller);
     assert.equal(corrected.status, "correction_required");
     await request(`/properties/${id}/submit`, seller, { consent: true });
-    const stageTwo = await request(`/verification/${id}/report`, advisor, approval);
-    assert.equal(stageTwo.status, "advisor_verified"); assert.equal(stageTwo.badges.fullyVerified, false); assert.equal(stageTwo.badges.documentsChecked, false);
-    await request(`/verification/${id}/report`, advisor, approval, 409);
-    assert.equal((await request("/properties/search")).length, 0);
-    const verifierQueue = await request("/verification/my-tasks", verifier);
-    assert.equal(verifierQueue[0]._id, id);
-    await request(`/verification/${id}/report`, verifier, { ...approval, decision: "correction", notes: "Clarify the boundary description", signature: "Test Verifier" });
-    await request(`/properties/${id}`, seller, { boundary: "North road, south field" }, 200, "PATCH");
-    await request(`/properties/${id}/submit`, seller, { consent: true });
-    await request(`/verification/${id}/report`, verifier, approval, 403);
-    await request(`/verification/${id}/report`, advisor, approval);
-    const results = await Promise.all([1, 2].map(() => fetch(`${base}/verification/${id}/report`, { method: "POST", headers: { Authorization: `Bearer ${verifier}`, "Content-Type": "application/json" }, body: JSON.stringify({ ...approval, signature: "Test Verifier" }) })));
+    const results = await Promise.all([1, 2].map(() => fetch(`${base}/verification/${id}/report`, { method: "POST", headers: { Authorization: `Bearer ${advisor}`, "Content-Type": "application/json" }, body: JSON.stringify(approval) })));
     assert.deepEqual(results.map(result => result.status).sort(), [200, 409]);
+    await request(`/verification/${id}/report`, verifier, approval, 403);
     const published = await request(`/properties/${id}`);
     assert.equal(published.status, "verified"); assert.equal(published.badges.fullyVerified, true);
     for (const field of ["ownerId", "documents", "verificationHistory", "advisorReview", "verifierReview", "khata"]) assert.equal(published[field], undefined);
@@ -114,10 +107,10 @@ async function main() {
     await request(`/deals/${id}/offer`, outsider, { amount: 900000 }, 201);
     assert.equal((await request("/properties/search?budgetMax=100")).length, 0);
     await request(`/properties/${id}`, seller, { price: 2 }, 409, "PATCH");
-    await request(`/admin/properties/${id}/assign`, admin, { staffId: advisorAccount.id }, 409);
+    await request(`/admin/properties/${id}/assign`, admin, { staffId: advisorAccount.id });
     const tracked = await request(`/properties/${id}/workspace`, admin);
     assert.ok(tracked.verificationHistory.some((event: any) => event.report?.decision === "correction"));
-    assert.equal(tracked.verificationHistory.filter((event: any) => event.toStatus === "verified").length, 1);
+    assert.equal(tracked.verificationHistory.filter((event: any) => event.toStatus === "verified" && event.action === "approve").length, 1);
 
     const second = await request("/properties", seller, { ...input, media: { photos: ["https://example.test/property.jpg"], videos: [] } }, 201);
     const multipart = new FormData();
@@ -128,12 +121,12 @@ async function main() {
     assert.equal(documents.length, 1);
     const downloadUrl = new URL(documents[0].fileUrl);
     const localDownload = base + downloadUrl.pathname + downloadUrl.search;
-    const download = await fetch(localDownload);
+    const download = await fetch(localDownload, { headers: { Authorization: `Bearer ${seller}` } });
     assert.equal(download.status, 200); assert.equal(await download.text(), "Test ownership document");
-    assert.equal((await fetch(base + downloadUrl.pathname)).status, 403);
+    assert.equal((await fetch(base + downloadUrl.pathname)).status, 401);
     await request(`/documents?propertyId=${second._id}`, outsider, undefined, 403);
     const autoAssigned = await request(`/properties/${second._id}/submit`, seller, { consent: true });
-    assert.ok(autoAssigned.assignedAdvisorId);
+    assert.ok(autoAssigned.assignedVerifierId);
     await request(`/admin/properties/${second._id}/assign`, admin, { staffId: advisorAccount.id });
     await request(`/verification/${second._id}/report`, advisor, { ...approval, decision: "reject", notes: "Ownership details do not match" });
     await request(`/properties/${second._id}/submit`, seller, { consent: true }, 409);

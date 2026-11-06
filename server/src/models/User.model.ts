@@ -11,6 +11,8 @@ export interface IUser extends Document {
   mobileVerifiedAt?: Date;
   emailVerifiedAt?: Date;
   kycDocuments: string[];
+  kycStatus?: "not_submitted" | "pending" | "approved" | "correction_required" | "rejected";
+  kycSubmittedAt?: Date;
   isVerifiedIdentity: boolean;
   identityReview?: { reviewerId: mongoose.Types.ObjectId; reviewedAt: Date; notes: string };
   demoKycComplete: boolean;
@@ -35,6 +37,8 @@ const UserSchema = new Schema<IUser>(
     passwordHash: { type: String },
     mobileVerifiedAt: { type: Date },
     emailVerifiedAt: { type: Date },
+    kycStatus: { type: String, enum: ["not_submitted", "pending", "approved", "correction_required", "rejected"], default: "not_submitted" },
+    kycSubmittedAt: Date,
     kycDocuments: { type: [String], default: [] },
     isVerifiedIdentity: { type: Boolean, default: false },
     identityReview: { reviewerId: { type: Schema.Types.ObjectId, ref: "User" }, reviewedAt: Date, notes: String },

@@ -5,12 +5,12 @@ export interface InquiryData {
   _id: string;
   propertyId: any;
   buyerId: any;
-  sellerId: any;
+  staffId: any;
   message: string;
   offerAmount?: number;
   status: "pending" | "accepted" | "rejected" | "countered";
   buyerReadAt?: string;
-  sellerReadAt?: string;
+  staffReadAt?: string;
   messages?: {
     _id: string;
     senderId: string;

@@ -33,7 +33,7 @@ export const adminService = {
       ...p,
       media: p.media ? {
         ...p.media,
-        photos: p.media.photos?.map((photo: string) => photo.replace("http://malikse.onrender.com", "https://malikse.onrender.com"))
+        photos: p.media.photos?.map((photo: string) => photo.replace(/^https?:\/\/malikse\.onrender\.com/i, "https://malikseserver.devoxa.in"))
       } : p.media
     })), { nextCursor: response.data.nextCursor });
   },

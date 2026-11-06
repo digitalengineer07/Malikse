@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons } from "@/web/icons";
 import type { RegionGroup } from "../src/services/regionService";
 import { validMapPoint, type MapFocus } from "../src/utils/nativeMapHtml";
 import { addRegionBoundaries } from "../src/utils/regionBoundaryLayer";

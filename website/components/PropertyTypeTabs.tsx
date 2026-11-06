@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 import { Platform, ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons } from "@/web/icons";
 import type { PropertyType } from "../src/types/property.types";
 
 const choices: {

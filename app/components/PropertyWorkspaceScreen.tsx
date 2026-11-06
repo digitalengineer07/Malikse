@@ -88,8 +88,8 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
     } catch (cause: any) { setError(cause.message || "Unable to capture location"); }
     finally { clearTimeout(timeout); setBusy(false); }
   };
-  const canReview = !publicView && property && ((user?.role === "advisor" && property.status === "pending" && actorId(property.assignedAdvisorId) === user.id) || (user?.role === "verifier" && property.status === "advisor_verified" && actorId(property.assignedVerifierId) === user.id));
-  const keys = Object.keys(checks).filter(key => user?.role === "verifier" || key !== "advisorReport");
+  const canReview = !publicView && property && ((user?.role === "advisor" && property.status === "pending" && actorId(property.assignedAdvisorId) === user.id) || (user?.role === "verifier" && property.status === "pending" && actorId(property.assignedVerifierId) === user.id));
+  const keys = Object.keys(checks).filter(key => key !== "advisorReport");
   if (publicView && !loading && property) return <PublicPropertyDetails property={property} isSaved={isSaved} onToggleSave={async () => {
     if (!user || authState !== "AUTHENTICATED") return router.push("/login");
     const previous = isSaved;
@@ -131,7 +131,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
         <Action title="Open location in maps" secondary onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${property.location.lat},${property.location.lng}`).catch(() => setError("Could not open maps"))} />
         {property.media?.photos?.map((url, index) => <Image key={index} source={{ uri: url }} style={{ width: "100%", height: 220 }} />)}
         {property.media?.videos?.map((url, index) => <Action key={index} title={`View property video ${index + 1}`} secondary onPress={() => Linking.openURL(url).catch(() => setError("Could not open video"))} />)}
-        {publicView && <Text style={ui.muted}>Approved by an Advisor and a Verifier. This is not a guarantee of legal title. KYC is currently a demo.</Text>}
+        {publicView && <Text style={ui.muted}>Approved by the assigned Advisor or Verifier. This is not a guarantee of legal title.</Text>}
         {publicView && (!user || user.role === "user") && <Action title="Make an offer" onPress={() => {
           if (!user || authState !== "AUTHENTICATED") router.push("/login");
           else if (!(user.isVerifiedIdentity || user.demoKycComplete)) router.push("/kyc");
@@ -167,9 +167,9 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
           {report!.gpsCheckIn && <Text style={ui.text}>Site check-in: {report!.gpsCheckIn.lat}, {report!.gpsCheckIn.lng} · {new Date(report!.gpsCheckIn.timestamp).toLocaleString()}</Text>}
         </View>)}
         {canReview && <View style={ui.card}>
-          <Text style={ui.heading}>{user?.role === "advisor" ? "Advisor inspection" : "Final Verifier review"}</Text>
+          <Text style={ui.heading}>{user?.role === "advisor" ? "Advisor inspection" : "Verifier inspection"}</Text>
           {keys.map(key => <Check key={key} label={checks[key]} checked={!!checklist[key]} onPress={() => setChecklist(previous => ({ ...previous, [key]: !previous[key] }))} />)}
-          {user?.role === "advisor" && <><Action title="Capture site GPS check-in (if visited)" secondary disabled={busy} onPress={captureGps} />{gps && <Text style={ui.text}>{gps.lat}, {gps.lng}</Text>}</>}
+          {["advisor", "verifier"].includes(user?.role || "") && <><Action title="Capture site GPS check-in (if visited)" secondary disabled={busy} onPress={captureGps} />{gps && <Text style={ui.text}>{gps.lat}, {gps.lng}</Text>}</>}
           <Field label="Report notes / correction or rejection reason" value={notes} onChangeText={setNotes} multiline />
           <Field label="Your full name as report signature" value={signature} onChangeText={setSignature} />
           {(() => {
@@ -180,12 +180,12 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
             if (missing.length > 0) return <Text style={ui.muted}>To approve: {missing.join(" · ")}.</Text>;
             return <Text style={ui.muted}>All set — pick an action below.</Text>;
           })()}
-          <View style={ui.row}>{(["approve", "correction", "reject"] as const).map(decision => <Action key={decision} title={decision === "approve" ? user?.role === "advisor" ? "Approve → Verifier" : "Approve and publish" : decision === "correction" ? "Request corrections" : "Reject"} disabled={busy || signature.trim().length < 2 || notes.trim().length < 5 || (decision === "approve" && keys.some(key => !checklist[key]))} secondary={decision !== "approve"} onPress={() => run(() => workflowService.review(id, { decision, notes, signature, checklist, gpsCheckIn: gps }))} />)}</View>
+          <View style={ui.row}>{(["approve", "correction", "reject"] as const).map(decision => <Action key={decision} title={decision === "approve" ? "Approve and publish" : decision === "correction" ? "Request corrections" : "Reject"} disabled={busy || signature.trim().length < 2 || notes.trim().length < 5 || (decision === "approve" && keys.some(key => !checklist[key]))} secondary={decision !== "approve"} onPress={() => run(() => workflowService.review(id, { decision, notes, signature, checklist, gpsCheckIn: gps }))} />)}</View>
         </View>}
-        {user?.role === "admin" && ["pending", "advisor_verified"].includes(property.status) && <View style={ui.card}>
+        {user?.role === "admin" && ["pending", "advisor_verified", "verified", "correction_required"].includes(property.status) && <View style={ui.card}>
           <Text style={ui.heading}>Assign / reassign reviewer</Text>
-          {!staff.some(person => person.isActive !== false && person.role === (property.status === "pending" ? "advisor" : "verifier")) && <Text style={ui.muted}>Create an account for this reviewer role first.</Text>}
-          {staff.filter(person => person.role === (property.status === "pending" ? "advisor" : "verifier")).map(person => <Action key={person.id} title={`${person.name} (${person.mobile})`} secondary disabled={busy} onPress={() => run(() => workflowService.assign(id, person.id))} />)}
+          {!staff.some(person => person.isActive !== false && ["advisor", "verifier"].includes(person.role)) && <Text style={ui.muted}>Create an account for this reviewer role first.</Text>}
+          {staff.filter(person => ["advisor", "verifier"].includes(person.role)).map(person => <Action key={person.id} title={`${person.name} (${person.mobile})`} secondary disabled={busy} onPress={() => run(() => workflowService.assign(id, person.id))} />)}
           <Action title="Manage staff accounts" secondary onPress={() => router.push("/admin/staff")} />
         </View>}
         <View style={ui.card}>

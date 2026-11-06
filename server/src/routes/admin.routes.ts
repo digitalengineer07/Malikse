@@ -23,12 +23,12 @@ router.post("/properties/:id/assign", authGuard, roleGuard("admin"), async (req:
   try {
     const property = await Property.findById(req.params.id);
     if (!property) return res.status(404).json({ message: "Property not found" });
-    const role = property.status === "pending" ? "advisor" : property.status === "advisor_verified" ? "verifier" : null;
+    const role = ["pending", "advisor_verified", "verified", "correction_required"].includes(property.status);
     if (!role) return res.status(409).json({ message: "Only pending review stages can be assigned" });
-    const staff = await User.findOne({ _id: req.body.staffId, role, ...activeStaffFilter });
+    const staff = await User.findOne({ _id: req.body.staffId, role: { $in: ["advisor", "verifier"] }, ...activeStaffFilter });
     if (!staff) return res.status(400).json({ message: `Choose an active ${role} account` });
-    const field = role === "advisor" ? "assignedAdvisorId" : "assignedVerifierId";
-    const updated = await transition(property, { [field]: staff._id }, historyEvent(req.user, property.status, property.status, "assigned", { staffId: staff._id, assignedRole: role }));
+    const field = staff.role === "advisor" ? "assignedAdvisorId" : "assignedVerifierId";
+    const updated = await transition(property, { assignedAdvisorId: null, assignedVerifierId: null, [field]: staff._id, ...(property.status === "advisor_verified" ? { status: "pending" } : {}) }, historyEvent(req.user, property.status, property.status, "assigned", { staffId: staff._id, assignedRole: staff.role }));
     if (!updated) return res.status(409).json({ message: "Property changed. Refresh and try again" });
     res.json(updated);
   } catch (error: any) { res.status(400).json({ message: error.message }); }
@@ -136,7 +136,7 @@ router.get("/properties", authGuard, roleGuard("admin"), async (req, res) => {
 router.get("/users", authGuard, roleGuard("admin"), async (req, res) => {
   try {
     const users = await readPage(User.find({ role: "user" })
-      .select("name mobile email role createdAt isVerifiedIdentity demoKycComplete isSuspended")
+      .select("name mobile email role createdAt isVerifiedIdentity demoKycComplete isSuspended kycStatus kycDocuments identityReview")
       .sort({ createdAt: -1 }), req, res);
     res.json(users);
   } catch (error: any) {
@@ -162,7 +162,7 @@ router.put("/users/:userId/identity", authGuard, roleGuard("admin"), async (req:
   }
   try {
     const user = await User.findOneAndUpdate({ _id: req.params.userId, role: "user", ...(approved ? { isSuspended: { $ne: true }, isActive: { $ne: false } } : {}) }, {
-      $set: { isVerifiedIdentity: approved, identityReview: { reviewerId: req.user.id, reviewedAt: new Date(), notes: notes.trim() } },
+      $set: { isVerifiedIdentity: approved, kycStatus: approved ? "approved" : req.body.correctionRequired === true ? "correction_required" : "rejected", identityReview: { reviewerId: req.user.id, reviewedAt: new Date(), notes: notes.trim() } },
     }, { new: true, runValidators: true });
     if (!user) return res.status(404).json({ message: "Active user not found" });
     return res.json({ id: user._id, isVerifiedIdentity: user.isVerifiedIdentity });
@@ -196,7 +196,7 @@ router.put("/staff/:staffId/status", authGuard, roleGuard("admin"), async (req: 
     // failed before releasing assignments. The assignment filter makes it safe.
     if (!staff.isActive) {
       const field = staff.role === "advisor" ? "assignedAdvisorId" : "assignedVerifierId";
-      const status = staff.role === "advisor" ? "pending" : "advisor_verified";
+      const status = "pending";
       await Property.updateMany({ [field]: staff._id, status }, {
         $unset: { [field]: 1 }, $inc: { __v: 1 },
         $push: { verificationHistory: historyEvent(req.user, status, status, "reviewer_deactivated", { staffId: staff._id }) },

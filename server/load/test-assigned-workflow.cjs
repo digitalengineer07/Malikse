@@ -1,0 +1,76 @@
+process.env.JWT_ACCESS_SECRET='workflow-test-access-secret-long-random-2026';
+process.env.JWT_REFRESH_SECRET='workflow-test-refresh-secret-long-random-2026';
+process.env.NODE_ENV='test';
+process.env.REQUEST_LOGS='false';
+const assert=require('node:assert/strict');
+const mongoose=require('mongoose');
+const {randomUUID}=require('crypto');
+const {createApp}=require('../dist/app');
+const {User}=require('../dist/models/User.model');
+const {Property}=require('../dist/models/Property.model');
+const {Inquiry}=require('../dist/models/Inquiry.model');
+const {Deal}=require('../dist/models/Deal.model');
+const {generateTokens}=require('../dist/services/security');
+const {processNextSubmission}=require('../dist/services/submissionQueue');
+(async()=>{
+ const dbName='assigned_workflow_test_'+randomUUID().replaceAll('-','');
+ await mongoose.connect('mongodb://127.0.0.1:27028/?replicaSet=workflow-test',{dbName});
+ await Promise.all([User.init(),Property.init(),Inquiry.init(),Deal.init()]);
+ const server=createApp().listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
+ const base='http://127.0.0.1:'+server.address().port;let checks=0;
+ const req=async(path,actor,body,status=200,method=body?'POST':'GET')=>{const response=await fetch(base+path,{method,headers:{'Content-Type':'application/json',...(actor?{Authorization:'Bearer '+generateTokens(actor).accessToken}:{})},body:body?JSON.stringify(body):undefined});const text=await response.text();assert.equal(response.status,status,method+' '+path+' '+text);checks++;try{return text?JSON.parse(text):null;}catch{return text;}};
+ try {
+  const [owner,buyer,buyer2,advisor,verifier,other,admin,unverified]=await User.create(['user','user','user','advisor','verifier','advisor','admin','user'].map((role,i)=>({role,name:'Test '+i,mobile:'900111110'+i,passwordHash:'fixture-password-hash',isVerifiedIdentity:i!==7})));
+  const input={title:'Single reviewer listing',type:'land',location:{state:'Bihar',district:'Patna',lat:25.6,lng:85.1},price:100000,totalArea:100,sellableArea:100,media:{photos:['https://example.test/a.jpg'],videos:[]}};
+  const report={decision:'approve',notes:'Ownership and site checked',signature:'Test Staff',checklist:{ownership:true,location:true,boundaries:true,area:true,disclosures:true,documentsReviewed:true}};
+  async function listing(requested){const p=await req('/properties',owner,{...input,...(requested?{requestedAdvisorId:String(requested._id)}:{})},201);await req('/properties/'+p._id+'/submit',owner,{consent:true},202);await processNextSubmission();return Property.findById(p._id);}
+  const p=await listing(advisor);assert.equal(String(p.assignedAdvisorId),String(advisor._id));assert.equal(p.assignedVerifierId,null);
+  await req('/verification/'+p._id+'/report',other,report,403);
+  await req('/verification/'+p._id+'/report',advisor,report);
+  await req('/properties/'+p._id);
+  const v=await listing();assert.equal(String(v.assignedVerifierId),String(verifier._id));await req('/verification/'+v._id+'/report',verifier,report);await req('/properties/'+v._id);
+  await req('/deals/'+p._id+'/offer',null,{amount:90000},401);
+  await req('/deals/'+p._id+'/offer',unverified,{amount:90000},403);
+  const chat=await req('/inquiries',buyer,{propertyId:String(p._id),message:'Interested',offerAmount:90000,requestKey:'workflow_offer_retry_key'},201);
+  assert.equal(String(chat.staffId),String(advisor._id));assert.ok(chat.dealId);
+  const repeated=await req('/inquiries',buyer,{propertyId:String(p._id),message:'Interested',offerAmount:90000,requestKey:'workflow_offer_retry_key'},201);assert.equal(repeated._id,chat._id);
+  await req('/recommendations/preferences',buyer,{district:'Patna',type:'land',maxPrice:150000},204);
+  await req('/users/wishlist/'+p._id,unverified,{});
+  await req('/users/kyc',unverified);
+  const kycForm=new FormData();kycForm.append('files',new Blob(['%PDF-1.4 test identity fixture'],{type:'application/pdf'}),'fixture.pdf');
+  const upload=await fetch(base+'/users/kyc',{method:'POST',headers:{Authorization:'Bearer '+generateTokens(unverified).accessToken},body:kycForm});assert.equal(upload.status,202);checks++;
+  const kyc=await req('/users/kyc',unverified);assert.equal(kyc.kycStatus,'pending');
+  await req('/users/kyc/'+kyc.kycDocuments[0],buyer,undefined,404);
+  await req('/users/kyc/'+kyc.kycDocuments[0]+'/download',buyer,{},404);
+  const ticket=await req('/users/kyc/'+kyc.kycDocuments[0]+'/download',admin,{});
+  const downloadPath=new URL(ticket.url).pathname+new URL(ticket.url).search;
+  await req(downloadPath,null);
+  await req(downloadPath,null,undefined,403);
+
+  await req('/admin/users/'+unverified._id+'/identity',admin,{approved:true,notes:'Identity documents reviewed and approved'},200,'PUT');
+  await req('/inquiries/'+chat._id,owner,undefined,403);await req('/inquiries/'+chat._id,other,undefined,403);
+  await req('/inquiries/'+chat._id+'/message',advisor,{text:'Welcome'});
+  await req('/inquiries/'+chat._id,buyer);
+  const second=await req('/deals/'+p._id+'/offer',buyer2,{amount:95000},201);
+  await req('/deals/'+chat.dealId+'/status',owner,{status:'accepted'},403,'PATCH');
+  await req('/deals/'+chat.dealId+'/status',advisor,{status:'countered',counterAmount:98000},200,'PATCH');
+  await req('/deals/'+chat.dealId+'/status',buyer,{status:'accepted'},200,'PATCH');
+  await req('/deals/'+second._id+'/status',advisor,{status:'accepted'},409,'PATCH');
+  await req('/deals/'+chat.dealId+'/status',buyer,{status:'completed'},403,'PATCH');
+  await req('/deals/'+chat.dealId+'/status',advisor,{status:'completed'},200,'PATCH');
+  await req('/deals/'+chat.dealId+'/status',advisor,{status:'completed'},200,'PATCH');
+  assert.equal((await Property.findById(p._id)).status,'sold');assert.equal((await Deal.findById(second._id)).status,'cancelled');
+  await req('/deals/'+p._id+'/offer',buyer2,{amount:95000},409);
+  await req('/inquiries/'+chat._id+'/message',buyer,{text:'new offer'},409);
+  await req('/properties/'+p._id,undefined,undefined,404);
+  for(const mode of ['new','trending','personalized']){const items=await req('/recommendations?mode='+mode);assert.ok(!items.some(x=>x._id===String(p._id)));}
+  const vc=await req('/inquiries',buyer,{propertyId:String(v._id),message:'Verifier chat'},201);await req('/inquiries/'+vc._id+'/message',verifier,{text:'I handle this property'});
+  await req('/admin/properties/'+v._id+'/assign',admin,{staffId:String(other._id)});
+  await req('/inquiries/'+vc._id,verifier,undefined,403);await req('/inquiries/'+vc._id,other);
+  const race=await listing(advisor);await req('/verification/'+race._id+'/report',advisor,report);
+  const ra=await req('/deals/'+race._id+'/offer',buyer,{amount:80000},201),rb=await req('/deals/'+race._id+'/offer',buyer2,{amount:85000},201);
+  const results=await Promise.all([ra,rb].map(d=>fetch(base+'/deals/'+d._id+'/status',{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:'Bearer '+generateTokens(advisor).accessToken},body:JSON.stringify({status:'accepted'})}).then(r=>r.status)));
+  assert.deepEqual(results.sort(),[200,409]);checks+=2;
+  console.log('PASS: '+checks+' HTTP checks plus assignment, privacy, reservation, sale and recommendation assertions');
+ } finally {await new Promise(r=>server.close(r));await mongoose.connection.dropDatabase();await mongoose.disconnect();}
+})().catch(e=>{console.error(e);process.exitCode=1});

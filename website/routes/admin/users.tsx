@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { useRouter, useFocusEffect } from "expo-router";
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useRouter, useFocusEffect } from "@/web/navigation";
+import api from "../../src/services/authService";
 import { adminService } from "../../src/services/adminService";
 import { useAuthStore } from "../../src/store/authStore";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons } from "@/web/icons";
 
 export default function ManageUsersScreen() {
   const router = useRouter();
@@ -108,15 +109,26 @@ export default function ManageUsersScreen() {
         {selectedUser?._id === usr._id && (
           <View style={styles.propertiesSection}>
             <Text style={styles.propsHeading}>Identity review: {usr.isVerifiedIdentity ? "Approved" : "Not approved"}</Text>
+            <Text style={styles.userDetail}>KYC: {usr.kycStatus || "not_submitted"}</Text>
+            {(usr.kycDocuments || []).map((id: string, index: number) => <TouchableOpacity key={id} onPress={async () => {
+              try { const result = await api.post(`/users/kyc/${id}/download`); await Linking.openURL(result.data.url); }
+              catch { setError("Could not open identity document"); }
+            }}><Text style={styles.link}>Review identity document {index + 1}</Text></TouchableOpacity>)}
             <TextInput accessibilityLabel="Identity review notes" placeholder="Record the identity evidence you reviewed" value={identityNotes} onChangeText={setIdentityNotes} multiline style={{ borderWidth: 1, borderColor: "#CBD5E1", padding: 12, marginBottom: 12 }} />
             <TouchableOpacity disabled={reviewingIdentity || identityNotes.trim().length < 10} onPress={async () => {
               setReviewingIdentity(true); setError("");
               try {
                 const result = await adminService.reviewIdentity(usr._id, !usr.isVerifiedIdentity, identityNotes);
-                setUsers(old => old.map(item => item._id === usr._id ? { ...item, isVerifiedIdentity: result.isVerifiedIdentity } : item));
+                setUsers(old => old.map(item => item._id === usr._id ? { ...item, isVerifiedIdentity: result.isVerifiedIdentity, kycStatus: result.isVerifiedIdentity ? "approved" : "rejected" } : item));
                 setIdentityNotes("");
               } catch { setError("Could not save identity review"); } finally { setReviewingIdentity(false); }
             }}><Text style={styles.link}>{reviewingIdentity ? "Saving…" : usr.isVerifiedIdentity ? "Revoke identity approval" : "Approve reviewed identity"}</Text></TouchableOpacity>
+            {!usr.isVerifiedIdentity && ["Request correction", "Reject KYC"].map(action => <TouchableOpacity key={action} disabled={reviewingIdentity || identityNotes.trim().length < 10} onPress={async () => {
+              setReviewingIdentity(true); setError("");
+              try { await api.put(`/admin/users/${usr._id}/identity`, { approved: false, correctionRequired: action === "Request correction", notes: identityNotes });
+                setUsers(old => old.map(item => item._id === usr._id ? { ...item, kycStatus: action === "Request correction" ? "correction_required" : "rejected" } : item)); setIdentityNotes("");
+              } catch { setError("Could not save identity review"); } finally { setReviewingIdentity(false); }
+            }}><Text style={styles.link}>{action}</Text></TouchableOpacity>)}
             <Text style={styles.propsHeading}>Properties Listed</Text>
             {loadingProps ? <ActivityIndicator color="#047857" /> : properties.length === 0 ? <Text style={styles.description}>No properties listed by this user.</Text> : properties.map((prop) => (
               <TouchableOpacity key={prop._id} style={styles.propRow} onPress={() => router.push({ pathname: "/verification/[id]", params: { id: prop._id } })}>

@@ -1,1 +1,1 @@
-export { default } from "../../components/AccountProfileScreen";
+export { ProfileScreen as default } from "../../components/MalikseMarketplace";

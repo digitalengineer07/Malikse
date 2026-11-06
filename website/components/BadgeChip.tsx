@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
+import { FontAwesome5, MaterialIcons } from "@/web/icons";
 import { AppTheme } from "../constants/theme";
 
 interface BadgeChipProps {

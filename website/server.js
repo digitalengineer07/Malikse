@@ -12,19 +12,22 @@ const indexPath = path.join(distDir, "index.html");
 if (!fs.existsSync(indexPath)) {
   console.log("[MalikSe Website] dist/index.html not found. Building web bundle now...");
   try {
-    execSync("npx expo export --platform web", { stdio: "inherit", cwd: __dirname });
+    execSync("npm run build", { stdio: "inherit", cwd: __dirname });
   } catch (err) {
     console.error("[MalikSe Website] Build step failed:", err.message);
   }
 }
 
-// Serve static assets from dist with 1-day cache
-app.use(express.static(distDir, { maxAge: "1d" }));
+// Hash-named assets are immutable; entry HTML must pick up new deployments.
+app.use(express.static(distDir, { maxAge: "1d", setHeaders(res, filePath) {
+  if (filePath.endsWith(".html")) res.setHeader("Cache-Control", "no-cache");
+} }));
 
 // Universal SPA fallback: use app.use() instead of app.get('*')
 // This avoids Express 5 path-to-regexp v8 wildcard syntax error (TypeError: Missing parameter name at index 1: *)
 app.use((req, res) => {
   if (fs.existsSync(indexPath)) {
+    res.setHeader("Cache-Control", "no-cache");
     res.sendFile(indexPath);
   } else {
     res.status(503).send("Website is building or dist/index.html is missing. Please refresh in a moment.");

@@ -1,6 +1,6 @@
 import React from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TouchableOpacity, View, useWindowDimensions, type StyleProp, type ViewStyle, type TextStyle, type TextInputProps } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "@/web/safeArea";
 import FormInput from "./FormInput";
 import { AppTheme } from "../constants/theme";
 import { premiumStyles } from "../constants/typography";

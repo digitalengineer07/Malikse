@@ -3,8 +3,8 @@ import { premiumStyles } from "../constants/typography";
 import React from "react";
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import Image from "./PropertyImage";
-import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter, type Href } from "expo-router";
+import { MaterialIcons } from "@/web/icons";
+import { useRouter, type Href } from "@/web/navigation";
 import { useAuthStore } from "../src/store/authStore";
 import type { UserRole } from "../src/types/auth.types";
 import { authService } from "../src/services/authService";
@@ -107,7 +107,7 @@ export default function RoleDashboard({
         {/* Enhanced Hero Banner */}
         <View style={[styles.hero, compact && styles.heroCompact]}>
           <Image
-            source={require("../assets/saved_villa_house.jpg")}
+            source={{ uri: new URL("../assets/saved_villa_house.jpg", import.meta.url).href }}
             style={styles.heroBackground}
             resizeMode="cover"
           />

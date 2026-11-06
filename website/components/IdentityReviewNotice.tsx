@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter } from "@/web/navigation";
 import { useAuthStore } from "../src/store/authStore";
 import { authService } from "../src/services/authService";
 

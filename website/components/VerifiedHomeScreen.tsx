@@ -13,10 +13,10 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
-import { MaterialIcons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BlurView } from "expo-blur";
+import { useFocusEffect, useRouter, useLocalSearchParams } from "@/web/navigation";
+import { MaterialIcons } from "@/web/icons";
+import { useSafeAreaInsets } from "@/web/safeArea";
+import { BlurView } from "@/web/blur";
 
 import AppHeader from "./AppHeader";
 import PropertyTypeTabs from "./PropertyTypeTabs";

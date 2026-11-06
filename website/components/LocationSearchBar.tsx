@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons } from "@/web/icons";
 import type { LocationSuggestion } from "../src/services/regionService";
 
 interface LocationSearchBarProps {

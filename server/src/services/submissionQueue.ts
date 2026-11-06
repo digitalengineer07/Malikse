@@ -38,9 +38,12 @@ export async function processNextSubmission(): Promise<boolean> {
     if (!seller || seller.isActive === false || seller.isSuspended || !identityApproved(seller)) throw new Error("Your account must be active with identity verification complete before submitting.");
     const invalid = validateListing(property);
     if (invalid) throw new Error(invalid);
-    const advisorId = await availableStaff("advisor", property.assignedAdvisorId);
+    const requested = property.requestedAdvisorId || property.assignedAdvisorId;
+    const advisorId = requested ? (await User.findOne({ _id: requested, role: "advisor", isActive: { $ne: false }, isSuspended: { $ne: true }, passwordHash: { $exists: true } }))?._id : undefined;
+    if (property.requestedAdvisorId && !advisorId) throw new Error("Requested Advisor is unavailable");
+    const verifierId = advisorId ? undefined : await availableStaff("verifier", property.assignedVerifierId);
     await Property.updateOne(filter, {
-      $set: { status: "pending", assignedAdvisorId: advisorId || null, assignedVerifierId: null,
+      $set: { status: "pending", assignedAdvisorId: advisorId || null, assignedVerifierId: verifierId || null,
         advisorReview: null, verifierReview: null, rejectionReason: "",
         badges: { identityVerified: false, documentsChecked: false, siteVisited: false, lawyerReviewed: false, fullyVerified: false },
         "submission.completedAt": new Date(), "submission.error": "" },

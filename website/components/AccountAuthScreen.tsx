@@ -12,8 +12,8 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
 } from "react-native";
-import { Redirect, useRouter } from "expo-router";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Redirect, useRouter, useLocalSearchParams } from "@/web/navigation";
+import { MaterialIcons } from "@/web/icons";
 import { authService, type RegisterResponse } from "../src/services/authService";
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
@@ -27,6 +27,8 @@ interface AccountAuthScreenProps {
 
 export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   const router = useRouter();
+  const { returnTo } = useLocalSearchParams();
+  const destination = typeof returnTo === "string" && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/home";
   const { width } = useWindowDimensions();
   const isDesktop = width >= 900;
 
@@ -319,7 +321,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
           )
         );
         setTimeout(() => {
-          router.replace("/home");
+          router.replace(destination as any);
         }, 1200);
       } catch (cause: any) {
         const serverMsg =
@@ -501,7 +503,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
         const channel = challenge.channel || registerMethod;
         const identifier = (channel === "email" && cleanEmail) ? cleanEmail : cleanMobile;
         await authService.verifyRegistration(identifier, challenge.challengeId, cleanOtp);
-        router.replace("/home");
+        router.replace(destination as any);
       } catch (cause: any) {
         const serverMsg =
           cause?.response?.data?.message ||
@@ -564,7 +566,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
     try {
       await authService.login(identifier, password);
-      router.replace("/home");
+      router.replace(destination as any);
     } catch (cause: any) {
       const serverMsg = cause?.response?.data?.message;
       setError(
@@ -589,7 +591,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   }
 
   if (authState === "AUTHENTICATED" && user) {
-    return <Redirect href="/home" />;
+    return <Redirect href={destination as any} />;
   }
 
   return (
@@ -634,7 +636,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                         <Text style={styles.leftHeading}>
                           {label(
-                            "Direct deals.\nVerified titles.\nZero brokerage.",
+                            "Verified properties.\nVerified titles.\nZero brokerage.",
                             "सीधे सौदे।\nसत्यापित ज़मीन।\nशून्य ब्रोकरेज।"
                           )}
                         </Text>
@@ -685,7 +687,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                                 {label("₹0 Brokerage Direct Deals", "शून्य ब्रोकरेज सीधे सौदे")}
                               </Text>
                               <Text style={styles.pillarDesc}>
-                                {label("Connect directly with genuine title holders", "सीधे असली ज़मीन मालिकों से संपर्क करें")}
+                                {label("Connect with your assigned property team", "नियुक्त संपत्ति टीमों से संपर्क करें")}
                               </Text>
                             </View>
                           </View>
@@ -697,7 +699,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                         <MaterialIcons name="security" size={16} color="#38BDF8" />
                         <Text style={styles.leftTrustText}>
                           {label(
-                            "100% Legal-Checked · 38 Districts · ₹0 Brokerage",
+                            "Staff-reviewed · 38 Districts · ₹0 Brokerage",
                             "100% कानूनी जांच · 38 जिले · 0% ब्रोकरेज"
                           )}
                         </Text>
@@ -1479,8 +1481,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                     <MaterialIcons name="security" size={15} color="#15803D" />
                     <Text style={styles.securityText}>
                       {label(
-                        "Bank-Grade 256-Bit SSL · 100% Title Guarantee · Zero Broker Spam",
-                        "256-बिट सुरक्षित · शून्य स्पैम · 100% सत्यापन गारंटी"
+                        "Private account access · Staff-reviewed listings",
+                        "निजी खाता · टीम द्वारा सत्यापित संपत्तियाँ"
                       )}
                     </Text>
                   </View>
@@ -1515,7 +1517,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                     {label("Physical GPS Demarcation", "मौके पर जीपीएस पैमाइश")}
                   </Text>
                   <Text style={styles.authTrustSub}>
-                    {label("Official surveyor pegs with cadastral mapping", "सरकारी अमीन द्वारा सीमांकन व सैटेलाइट मैपिंग")}
+                    {label("Property location and boundary information", "संपत्ति के स्थान और सीमा की जानकारी")}
                   </Text>
                 </View>
               </View>
@@ -1528,10 +1530,10 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                 </View>
                 <View style={styles.authTrustTextBox}>
                   <Text style={styles.authTrustTitle}>
-                    {label("Direct Verified Owners", "सीधे असली ज़मीन मालिक")}
+                    {label("Assigned Property Team", "नियुक्त संपत्ति टीम")}
                   </Text>
                   <Text style={styles.authTrustSub}>
-                    {label("₹0 broker commission · Zero hidden costs", "शून्य ब्रोकरेज · सीधे पारदर्शी सौदे")}
+                    {label("Questions and offers handled by your assigned team", "आपकी नियुक्त टीम सवालों और प्रस्तावों में मदद करती है")}
                   </Text>
                 </View>
               </View>

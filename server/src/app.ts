@@ -1,3 +1,5 @@
+import kycRoutes from "./routes/kyc.routes";
+import recommendationRoutes from "./routes/recommendation.routes";
 import express from "express";
 import mongoose from "mongoose";
 import authRoutes from "./routes/auth.routes";
@@ -26,11 +28,13 @@ export function createApp(isReady = () => mongoose.connection.readyState === 1) 
   });
   app.use("/property-photos", photoRoutes);
   app.use("/auth", authRoutes);
+  app.use("/recommendations", recommendationRoutes);
   app.use("/properties", propertyRoutes);
   app.use("/documents", documentRoutes);
   app.use("/deals", dealRoutes);
   app.use("/verification", advisorRoutes);
   app.use("/admin", adminRoutes);
+  app.use("/users/kyc", kycRoutes);
   app.use("/users", userRoutes);
   app.use("/inquiries", inquiryRoutes);
   app.use("/push", pushRoutes);

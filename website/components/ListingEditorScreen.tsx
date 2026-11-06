@@ -11,10 +11,10 @@ import {
   View,
 } from "react-native";
 import Image from "./PropertyImage";
-import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import * as DocumentPicker from "expo-document-picker";
-import * as Location from "expo-location";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Redirect, useLocalSearchParams, useRouter } from "@/web/navigation";
+import * as DocumentPicker from "@/web/files";
+import * as Location from "@/web/location";
+import { MaterialIcons } from "@/web/icons";
 import { Action, Check, Field, ui, WorkflowScreen } from "./WorkflowUI";
 import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
 import { useAuthStore } from "../src/store/authStore";

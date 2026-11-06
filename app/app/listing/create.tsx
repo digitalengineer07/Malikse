@@ -1,1 +1,1 @@
-export { default } from "../../components/ListingEditorScreen";
+export { PostScreen as default } from "../../components/MalikseMarketplace";

@@ -2,7 +2,7 @@ import { Property, IProperty } from "../models/Property.model";
 import { User } from "../models/User.model";
 import { AssignmentCursor } from "../models/AssignmentCursor.model";
 
-export const editableFields = ["title", "description", "type", "location", "parcelPoints", "khata", "khesra", "holdingNumber", "totalArea", "sellableArea", "boundary", "roadWidth", "price", "negotiable", "media", "disclosures"];
+export const editableFields = ["requestedAdvisorId", "title", "description", "type", "location", "parcelPoints", "khata", "khesra", "holdingNumber", "totalArea", "sellableArea", "boundary", "roadWidth", "price", "negotiable", "media", "disclosures"];
 export const listingFields = (body: Record<string, unknown>) => Object.fromEntries(Object.entries(body).filter(([key]) => editableFields.includes(key)));
 export const canReadProperty = (property: IProperty, actor: { id: string; role: string }) =>
   actor.role === "admin" || property.ownerId.toString() === actor.id ||
@@ -49,4 +49,4 @@ export async function transition(property: IProperty, changes: object, event: ob
   return updated;
 }
 
-export const publicFields = "title description type location parcelPoints totalArea sellableArea boundary roadWidth price negotiable media disclosures status badges createdAt updatedAt";
+export const publicFields = "title description type location parcelPoints totalArea sellableArea boundary roadWidth price negotiable media disclosures status badges firstPublishedAt createdAt updatedAt";
