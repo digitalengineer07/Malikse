@@ -11,8 +11,8 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
-import { Redirect, useFocusEffect, useRouter } from "expo-router";
+import { MaterialIcons } from "@/web/icons";
+import { Redirect, useFocusEffect, useRouter } from "@/web/navigation";
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
 import { useUserListingsStore } from "../src/store/userListingsStore";
@@ -22,8 +22,8 @@ import { dashboardRoutes } from "../src/utils/accountRoutes";
 import AppHeader from "./AppHeader";
 import BottomNav from "./BottomNav";
 
-const leftWatermarkAsset = require("../assets/malikse-left-bottom-watermark.png");
-const rightWatermarkAsset = require("../assets/malikse-right-bottom-watermark.png");
+const leftWatermarkAsset = { uri: new URL("../assets/malikse-left-bottom-watermark.png", import.meta.url).href };
+const rightWatermarkAsset = { uri: new URL("../assets/malikse-right-bottom-watermark.png", import.meta.url).href };
 
 function resolveAssetUri(asset: any): string {
   if (typeof asset === "string") return asset;

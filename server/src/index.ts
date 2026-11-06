@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { deliverNotifications } from "./services/notificationQueue";
 import mongoose from "mongoose";
 import { createFastifyApp } from "./fastifyApp";
 import { positiveInteger } from "./middleware/runtime.middleware";
@@ -56,6 +57,8 @@ app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
   await startRegionCounts();
   initialized = true;
   const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => {} : startSubmissionWorker();
+  const notificationTimer = setInterval(() => { void deliverNotifications().catch(() => console.warn("Notification retry deferred")); }, 10000);
+  notificationTimer.unref();
   const receiptTimer = setInterval(() => {
     void checkPushReceipts().catch(error => console.warn("[Push] Receipt check failed", error));
   }, 5 * 60_000);
@@ -66,6 +69,7 @@ app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
     if (stopping) return;
     stopping = true;
     clearInterval(receiptTimer);
+    clearInterval(notificationTimer);
     const deadline = setTimeout(() => { server.closeAllConnections(); process.exit(1); }, 15_000);
     deadline.unref();
     await Promise.all([app.close(), stopWorker()]);

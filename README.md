@@ -1,4 +1,4 @@
-# MalikSe — Verified Owner-to-Buyer Property Marketplace
+# MalikSe — Verified Property Marketplace
 
 See [the production readiness plan](PRODUCTION_READINESS_PLAN.md) for the complete endpoint audit, applied hardening, deployment configuration and remaining release gates.
 
@@ -6,34 +6,28 @@ The [10,000 RPS implementation plan](IMPLEMENTATION_PLAN_10000_RPS.md) specifies
 
 MalikSe uses four roles: **User** (buying and selling), **Advisor**, **Verifier**, and **Admin**.
 
-## Current account and verification flow
+## Current marketplace flow
 
-- Login and registration open the verified marketplace. The Profile button opens the signed-in account's role dashboard; **My profile** there opens account details and logout.
-- Users complete the explicitly labeled demo KYC step, then fill in property details, location/boundaries, and optional ownership documents. Web supports boundary drawing; mobile supports GPS capture or manual coordinates.
-- The final submission saves a draft, uploads photos and optional documents, then durably queues the submitted details. The app shows the queued state until a worker assigns Advisor review. Failed uploads retain the draft.
-- New submissions are assigned to available Advisors in round-robin order. Advisor approval assigns an available Verifier using a separate round-robin counter. Corrections retain the previous Advisor when that account remains eligible. If no reviewer exists, the property stays unassigned and can be claimed after a staff account is created. Admin can assign or reassign pending reviews.
-- Advisors and Verifiers see their assigned properties, seller records, protected documents, checklists and reports. Unassigned queues show only summaries until claimed.
-- Both stages can approve, request corrections, or reject with signed notes. Seller corrections restart Advisor review; previous reports remain in history. Rejected listings cannot be resubmitted through this flow.
-- Only final Verifier approval publishes a listing. Public search and details require both recorded approvals and expose neither private seller contact details nor documents/reports. Fully Verified is not a legal-title guarantee.
-- Submitted or published listings cannot be silently edited. Reviewer decisions use version checks, preventing duplicate approvals or concurrent overwrites. History stores actor, role, timestamp, old/new status and report snapshots.
-- Ownership documents are optional and restricted to the owner, assigned reviewers and Admin, with expiring download links. KYC remains a demo. OTP, payments, legal title guarantees and other planned requirements are not implemented by this workflow.
+Guests can browse verified, available listings and trending, new, and personalized recommendations. Wishlist requires sign-in; listing submission, buyer chat and offers require approved KYC. KYC documents are private and reviewed through the existing Admin identity controls.
 
-### Roles
+A seller may supply an active Advisor ID. Otherwise submission assigns an eligible Verifier. The assigned person performs one review, handles buyer conversations and offers, and confirms sale closure. Approval publishes immediately; corrections return the same listing to the seller. There is no mandatory Advisor-to-Verifier handoff. Public responses exclude owner contact details and private evidence.
 
-- **User:** browse, create listings, correct/resubmit and track reviews.
-- **Advisor:** first-stage review; cannot publish.
-- **Verifier:** final review and publication after Advisor approval.
-- **Admin:** create staff accounts, assign reviews and inspect all property history; cannot bypass final Verifier approval.
+Accepted offers reserve the property atomically. Assigned staff completion marks it sold and closes competing offers. Sold/reserved listings are excluded from public availability. Admin account, staff, suspension, assignment and audit facilities remain available.
 
-### Verify the workflow
+See [requirements, implementation and rollout notes](ASSIGNED_WORKFLOW_IMPLEMENTATION.md) for migration details and validation limits. MongoDB transactions require a replica set or Atlas. The local integration suite uses an isolated replica set on port 27028.
 
-With MongoDB available, run `npm --prefix server run test:workflow`. The test uses a uniquely named temporary database and deletes only its own test database and uploaded fixture when finished. It exercises role restrictions, assignment, both correction loops, duplicate approvals, optional documents, protected downloads and publication.
+```powershell
+npm --prefix server run test:assigned-workflow
+npm --prefix server run test:workflow
+npm --prefix server run test:security
+```
 
-Run `npm --prefix server run test:security` for the audit regression suite. It also uses a unique temporary database and checks private-data access, photo traversal, token replay/concurrent rotation, active-reviewer assignment, profile validation, deal transitions, document-link revocation and unread-message tracking. Downloads in both suites stay on their local test server.
+The latter two commands use `MONGO_URI`; point them at a test replica set and set `MONGO_READ_REPLICA=false` for a single-node local replica. They create and clean up uniquely named test databases. Provide independent test JWT secrets for `test:workflow`.
 
 ## 🛠 Tech Stack
 
-- **Frontend**: React Native (Expo SDK 57), TypeScript, Expo Router.
+- **Website**: React, Vite, React Router and React Native Web.
+- **Mobile app**: React Native (Expo SDK 57), TypeScript, Expo Router.
 - **Web Support**: React Native Web with Leaflet integration for property pins.
 - **State Management**: Zustand (Auth, Language, Listing Filters).
 - **Backend**: Node.js (Express) REST API.

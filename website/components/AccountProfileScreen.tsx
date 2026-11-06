@@ -11,8 +11,8 @@ import {
   Image,
   useWindowDimensions,
 } from "react-native";
-import { Redirect, useRouter } from "expo-router";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Redirect, useRouter } from "@/web/navigation";
+import { MaterialIcons } from "@/web/icons";
 import AppHeader from "./AppHeader";
 import TextInput from "./FormInput";
 import { useAuthStore } from "../src/store/authStore";
@@ -22,8 +22,8 @@ import { userService } from "../src/services/userService";
 import { dashboardRoutes, roleLabels } from "../src/utils/accountRoutes";
 import type { UserRole } from "../src/types/auth.types";
 
-const leftWatermarkAsset = require("../assets/malikse-left-bottom-watermark.png");
-const rightWatermarkAsset = require("../assets/malikse-right-bottom-watermark.png");
+const leftWatermarkAsset = { uri: new URL("../assets/malikse-left-bottom-watermark.png", import.meta.url).href };
+const rightWatermarkAsset = { uri: new URL("../assets/malikse-right-bottom-watermark.png", import.meta.url).href };
 
 // Dynamically mask user's mobile number, preserving only the last 4 digits
 function maskMobile(mobile: string | undefined): string {

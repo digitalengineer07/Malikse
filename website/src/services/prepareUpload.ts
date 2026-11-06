@@ -1,4 +1,4 @@
-import type { DocumentPickerAsset } from "expo-document-picker";
+import type { DocumentPickerAsset } from "@/web/files";
 
 export async function prepareUpload(asset: DocumentPickerAsset, document: boolean) {
   const file = asset.file || new File([await (await fetch(asset.uri)).blob()], asset.name, { type: asset.mimeType });

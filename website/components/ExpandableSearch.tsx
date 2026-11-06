@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Keyboard, Platform, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons } from "@/web/icons";
 import { AppTheme } from "../constants/theme";
 
 export default function ExpandableSearch({ value, onChangeText, language = "en", label, placeholder, onOpen, onClose }: {

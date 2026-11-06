@@ -55,7 +55,7 @@ async function rebuild() {
     // Recount only in this background job, never in the map's request handler.
     // First collapse listings by owner/location/type to keep the owner join small.
     const buckets = await Property.aggregate([
-      { $match: { status: "verified", "badges.fullyVerified": true, "advisorReview.decision": "approve", "verifierReview.decision": "approve" } },
+      { $match: { status: "verified", reservedDealId: null, "badges.fullyVerified": true, $or: [{ "advisorReview.decision": "approve" }, { "verifierReview.decision": "approve" }] } },
       { $group: { _id: { owner: "$ownerId", state: "$location.state", district: "$location.district", pincode: { $ifNull: ["$location.pincode", ""] }, type: "$type" }, count: { $sum: 1 }, latSum: { $sum: "$location.lat" }, lngSum: { $sum: "$location.lng" } } },
       { $lookup: { from: User.collection.name, localField: "_id.owner", foreignField: "_id", pipeline: [{ $match: { isSuspended: { $ne: true }, isActive: { $ne: false } } }, { $project: { _id: 1 } }], as: "owner" } },
       { $match: { "owner.0": { $exists: true } } },

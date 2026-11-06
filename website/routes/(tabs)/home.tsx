@@ -1,1 +1,1 @@
-export { default } from "../../components/VerifiedHomeScreen";
+export { HomeScreen as default } from "../../components/MalikseMarketplace";

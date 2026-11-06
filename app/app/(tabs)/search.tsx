@@ -1,1 +1,1 @@
-export { default } from "../../components/MarketplaceScreen";
+export { SearchScreen as default } from "../../components/MalikseMarketplace";

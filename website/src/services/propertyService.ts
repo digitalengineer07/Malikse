@@ -30,7 +30,7 @@ export const propertyService = {
       ...p,
       media: p.media ? {
         ...p.media,
-        photos: p.media.photos?.map((photo: string) => photo.replace("http://malikse.onrender.com", "https://malikse.onrender.com"))
+        photos: p.media.photos?.map((photo: string) => photo.replace(/^https?:\/\/malikse\.onrender\.com/i, "https://malikseserver.devoxa.in"))
       } : p.media
     }));
   },
@@ -47,7 +47,7 @@ export const propertyService = {
       ...p,
       media: p.media ? {
         ...p.media,
-        photos: p.media.photos?.map((photo: string) => photo.replace("http://malikse.onrender.com", "https://malikse.onrender.com"))
+        photos: p.media.photos?.map((photo: string) => photo.replace(/^https?:\/\/malikse\.onrender\.com/i, "https://malikseserver.devoxa.in"))
       } : p.media
     }));
     Object.assign(properties, { nextCursor: res.data.nextCursor });
@@ -66,7 +66,7 @@ export const propertyService = {
     const res = await api.get(`/properties/${id}`);
     const p = res.data;
     if (p.media && p.media.photos) {
-      p.media.photos = p.media.photos.map((photo: string) => photo.replace("http://malikse.onrender.com", "https://malikse.onrender.com"));
+      p.media.photos = p.media.photos.map((photo: string) => photo.replace(/^https?:\/\/malikse\.onrender\.com/i, "https://malikseserver.devoxa.in"));
     }
     return p;
   },

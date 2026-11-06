@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
-import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
+import { MaterialIcons, FontAwesome5 } from "@/web/icons";
 import { useLanguageStore } from "../src/store/languageStore";
 import { t } from "../src/i18n/translations";
 import { loadGoogleMaps, geocodeAddress, geocodePlaceId } from "../src/utils/googleMaps";

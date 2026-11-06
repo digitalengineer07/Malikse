@@ -4,7 +4,7 @@ import type { Schema } from "mongoose";
 const dirty = () => import("./regionCountStore").then(store => store.markRegionCountsDirty());
 export function regionCountHooks(schema: Schema, options: { account?: boolean } = {}) {
   const touched = new WeakSet<object>();
-  const fields = options.account ? ["isSuspended", "isActive"] : ["ownerId", "type", "location", "status", "badges", "advisorReview", "verifierReview"];
+  const fields = options.account ? ["isSuspended", "isActive"] : ["reservedDealId", "ownerId", "type", "location", "status", "badges", "advisorReview", "verifierReview"];
   const relevant = (context: any, op: string) => {
     if (/delete|replace|insert|bulk/i.test(op)) return true;
     if (op === "save") return context.isNew || fields.some(field => context.isModified(field));

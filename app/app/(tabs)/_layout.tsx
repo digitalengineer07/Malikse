@@ -7,7 +7,7 @@ import BottomNav from "../../components/BottomNav";
 export default function TabLayout() {
   return (
     <View style={styles.bg}>
-      <Tabs screenLayout={renderAppScreen} tabBar={() => <BottomNav />} screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: "transparent" } }}>
+      <Tabs screenLayout={renderAppScreen} tabBar={() => null} screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: "transparent" } }}>
         <Tabs.Screen name="home" />
         <Tabs.Screen name="search" />
         <Tabs.Screen name="my-properties" />

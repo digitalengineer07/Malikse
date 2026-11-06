@@ -9,9 +9,9 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { MaterialIcons } from "@expo/vector-icons";
+import { useFocusEffect, useRouter } from "@/web/navigation";
+import { useSafeAreaInsets } from "@/web/safeArea";
+import { MaterialIcons } from "@/web/icons";
 
 import AppHeader from "./AppHeader";
 import PropertyTypeTabs from "./PropertyTypeTabs";

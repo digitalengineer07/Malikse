@@ -1,7 +1,7 @@
 /**
  * Parcel service — localStorage-backed for testing
  */
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import AsyncStorage from "@/web/storage";
 
 const PARCELS_KEY = "landroid_parcels";
 const VAULT_KEY = "landroid_vault";

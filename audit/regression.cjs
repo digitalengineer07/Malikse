@@ -59,10 +59,12 @@ async function main() {
     const admin = await User.create({name:'Audit Admin',mobile:'9100000003',role:'admin',passwordHash});
     const inactive = await User.create({name:'Inactive Advisor',mobile:'9100000004',role:'advisor',passwordHash,isActive:false});
     const active = await User.create({name:'Active Advisor',mobile:'9100000005',role:'advisor',passwordHash});
+    const verifier = await User.create({name:'Active Verifier',mobile:'9100000006',role:'verifier',passwordHash});
+    const rt=generateTokens(active).accessToken;
     const st=generateTokens(seller).accessToken, bt=generateTokens(buyer).accessToken, at=generateTokens(admin).accessToken;
     const input={ownerId:seller._id,type:'land',title:'Audit property',location:{state:'Bihar',district:'Patna',lat:25.6,lng:85.1},price:100000,totalArea:1000,sellableArea:900,media:{photos:['https://example.test/photo.jpg']},status:'draft',advisorReview:{decision:'approve',notes:'PRIVATE_REVIEW'},verifierReview:{decision:'approve'},verificationHistory:[{actorId:String(inactive._id),action:'approve',role:'advisor'}]};
     const property = await Property.create(input);
-    const published = await Property.create({...input,status:'verified',badges:{fullyVerified:true}});
+    const published = await Property.create({...input,status:'verified',assignedAdvisorId:active._id,badges:{fullyVerified:true}});
 
     for(const filename of ['..%2Fprivate.txt','..%5Cprivate.txt','..%2F..%2Fsrc%2Findex.ts','not-an-image.jpg']) await call('/property-photos/'+filename,undefined,undefined,404);
     const photoForm = new FormData();
@@ -100,7 +102,7 @@ async function main() {
     await call('/deals/'+published._id+'/offer',bt,{amount:100},409);
     await User.updateOne({_id:seller._id},{$set:{isSuspended:false}});
     const inquiry=await call('/inquiries',bt,{propertyId:published._id,message:'Hello',offerAmount:100},201);
-    assert.equal((await call('/inquiries/sent',bt))[0].sellerId.mobile,undefined);
+    assert.equal((await call('/inquiries/sent',bt))[0].staffId.mobile,undefined);
     pass('Inquiry and deal eligibility enforced; contact details stay private');
 
     const login=await call('/auth/login',undefined,{mobile:buyer.mobile,password});
@@ -133,20 +135,20 @@ async function main() {
     await call('/admin/staff/'+active._id+'/status',at,{},200,'PUT');
     const correction=await Property.create({...input,status:'correction_required',assignedAdvisorId:inactive._id});
     const submitted=await call('/properties/'+correction._id+'/submit',st,{consent:true});
-    assert.equal(submitted.assignedAdvisorId,String(active._id));
+    assert.equal(submitted.assignedVerifierId,String(verifier._id));
     pass('Inactive staff excluded from automatic/manual/resubmission assignment; deactivation releases pending work');
 
     const deal=await Deal.create({propertyId:published._id,buyerId:buyer._id,ownerId:seller._id,offerAmount:100000,commissionAmount:1180,status:'completed'});
     const buyerDeal=await call('/deals/'+deal._id,bt);
     assert.equal(buyerDeal.propertyId.advisorReview,undefined);assert.equal(buyerDeal.propertyId.verificationHistory,undefined);
-    assert.equal((await call('/deals/'+deal._id,st)).propertyId.advisorReview.notes,'PRIVATE_REVIEW');
-    await call('/deals/'+deal._id+'/status',st,{status:'rejected'},409,'PATCH');
+    await call('/deals/'+deal._id,st,undefined,403);
+    await call('/deals/'+deal._id+'/status',st,{status:'rejected'},403,'PATCH');
     await call('/deals/'+deal._id+'/status',at,{status:'accepted'},409,'PATCH');
     const offered=await call('/deals/'+published._id+'/offer',bt,{amount:110000},201);
-    const transitions=await Promise.all(['accepted','rejected'].map(status=>fetch(base+'/deals/'+offered._id+'/status',{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:'Bearer '+st},body:JSON.stringify({status})})));
+    const transitions=await Promise.all(['accepted','rejected'].map(status=>fetch(base+'/deals/'+offered._id+'/status',{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:'Bearer '+rt},body:JSON.stringify({status})})));
     assert.deepEqual(transitions.map(r=>r.status).sort(),[200,409]);
     pass('Deal buyers receive public fields; terminal and concurrent transitions are protected');
-    assert.equal((await call('/admin/users/'+seller._id+'/transactions',at)).deals.length,2);
+    assert.equal((await call('/admin/users/'+seller._id+'/transactions',at)).deals.length,3);
     assert.ok((await call('/admin/staff/'+inactive._id+'/workload',at)).history.some(p=>p._id===String(property._id)));
     assert.equal((await call('/admin/properties/'+property._id+'/audit',at)).verificationHistory[0].action,'approve');
     pass('Admin seller transactions, staff history and property audits use actual schema fields');
@@ -175,22 +177,23 @@ async function main() {
     await call(staffLink.pathname+staffLink.search,undefined,undefined,403);
     pass('Documents require bearer authorization or a single-use ticket; replay and disabled actors denied');
 
-    let received=(await call('/inquiries/received',st))[0];
-    assert.equal(inquiryActivity(received,String(seller._id)).unread,true);
-    await call('/inquiries/'+inquiry._id+'/read',st,{through:received.createdAt});
-    received=(await call('/inquiries/received',st))[0];assert.equal(inquiryActivity(received,String(seller._id)).unread,false);
+    await User.updateOne({_id:active._id},{$set:{isActive:true}});
+    let received=(await call('/inquiries/received',rt))[0];
+    assert.equal(inquiryActivity(received,String(active._id)).unread,true);
+    await call('/inquiries/'+inquiry._id+'/read',rt,{through:received.createdAt});
+    received=(await call('/inquiries/received',rt))[0];assert.equal(inquiryActivity(received,String(active._id)).unread,false);
     const message=await call('/inquiries/'+inquiry._id+'/message',bt,{text:'Latest incoming message'});
     const through=message.messages.at(-1).createdAt;
-    received=(await call('/inquiries/received',st))[0];
-    const activity=inquiryActivity(received,String(seller._id));
+    received=(await call('/inquiries/received',rt))[0];
+    const activity=inquiryActivity(received,String(active._id));
     assert.equal(activity.lastMsg,'Latest incoming message');assert.equal(activity.timestampNum,Date.parse(through));assert.equal(activity.unread,true);
-    await call('/inquiries/'+inquiry._id+'/read',at,{through},404);
-    await call('/inquiries/'+inquiry._id+'/read',st,{through:'invalid'},400);
-    await call('/inquiries/'+inquiry._id+'/read',st,{through:new Date(Date.now()+60000).toISOString()},400);
-    await call('/inquiries/'+inquiry._id+'/read',st,{through});
-    await call('/inquiries/'+inquiry._id+'/read',st,{through:received.createdAt});
-    received=(await call('/inquiries/received',st))[0];assert.equal(inquiryActivity(received,String(seller._id)).unread,false);
-    assert.equal(new Date((await Inquiry.findById(inquiry._id)).sellerReadAt).getTime(),Date.parse(through));
+    await call('/inquiries/'+inquiry._id+'/read',at,{through},403);
+    await call('/inquiries/'+inquiry._id+'/read',rt,{through:'invalid'},400);
+    await call('/inquiries/'+inquiry._id+'/read',rt,{through:new Date(Date.now()+60000).toISOString()},400);
+    await call('/inquiries/'+inquiry._id+'/read',rt,{through});
+    await call('/inquiries/'+inquiry._id+'/read',rt,{through:received.createdAt});
+    received=(await call('/inquiries/received',rt))[0];assert.equal(inquiryActivity(received,String(active._id)).unread,false);
+    assert.equal(new Date((await Inquiry.findById(inquiry._id)).staffReadAt).getTime(),Date.parse(through));
     pass('Latest-message previews and unread state persist, remain actor-scoped and never move backwards');
 
     const pendingDeal=await Deal.create({propertyId:published._id,buyerId:buyer._id,ownerId:seller._id,offerAmount:100,commissionAmount:1,status:'offered'});

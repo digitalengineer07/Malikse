@@ -1,20 +1,9 @@
 import axios from "axios";
-import Constants from "expo-constants";
-import { Platform } from "react-native";
 import { useAuthStore } from "../store/authStore";
 import type { UserProfile } from "../types/auth.types";
 import { invalidatePropertySearch } from "./searchCache";
 
-const configuredApiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
-function resolveApiUrl() {
-  if (Platform.OS === "web" || !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(configuredApiUrl)) {
-    return configuredApiUrl;
-  }
-  const expoHost = Constants.expoConfig?.hostUri?.split(":")[0];
-  const host = expoHost && expoHost !== "localhost" ? expoHost : Platform.OS === "android" ? "10.0.2.2" : "localhost";
-  return configuredApiUrl.replace(/localhost|127\.0\.0\.1/, host);
-}
-const API_URL = resolveApiUrl();
+const API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const api = axios.create({ baseURL: API_URL, timeout: 15000 });
 

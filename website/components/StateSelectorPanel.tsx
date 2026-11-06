@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons } from "@/web/icons";
 import { INDIA_STATES_DATA, type IndiaStateInfo } from "../src/data/indiaStatesData";
 
 interface StateSelectorPanelProps {

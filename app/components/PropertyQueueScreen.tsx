@@ -79,7 +79,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
         )}
       </View>
     </View>
-    <Text style={ui.muted}>Draft → Advisor review → Verifier review → Published. Corrections return to the seller and restart review after resubmission.</Text>
+    <Text style={ui.muted}>Draft → Assigned staff review → Published. Corrections return to the seller and restart review after resubmission.</Text>
     {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}
     {loading ? <ActivityIndicator color={AppTheme.colors.primary} /> : !error && filtered.length === 0 ? <Text style={ui.text}>No properties in this queue.</Text> : null}
     {loading ? null : filtered.map(property => {

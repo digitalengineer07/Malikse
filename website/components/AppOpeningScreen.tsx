@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Image, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MaterialIcons } from "@/web/icons";
+import { useSafeAreaInsets } from "@/web/safeArea";
 import { useLanguageStore } from "../src/store/languageStore";
 import AppBackground from "./AppBackground";
 

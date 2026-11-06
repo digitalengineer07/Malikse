@@ -8,7 +8,7 @@ import { Property } from "../models/Property.model";
 import { User } from "../models/User.model";
 import { listFields, readPage } from "../services/pagination";
 import { discardPropertyPhoto, storePropertyPhoto } from "../services/propertyPhotos";
-import { canReadProperty, historyEvent, listingFields, publicFields, transition, validateListing } from "../services/propertyWorkflow";
+import { activeStaffFilter, canReadProperty, historyEvent, listingFields, publicFields, transition, validateListing } from "../services/propertyWorkflow";
 
 import { publishedFilter } from "../services/marketplace";
 import { apiOrigin } from "../services/security";
@@ -123,6 +123,7 @@ router.post("/:id/submit", authGuard, roleGuard("user"), async (req: any, res) =
     const error = validateListing(property);
     if (error) return res.status(400).json({ message: error });
     if (!property.media?.photos?.length) return res.status(400).json({ message: "Upload at least one property photo before submitting" });
+    if (property.requestedAdvisorId && (!isValidObjectId(property.requestedAdvisorId) || !await User.exists({ _id: property.requestedAdvisorId, role: "advisor", ...activeStaffFilter }))) return res.status(400).json({ message: "Advisor ID is invalid or unavailable. Correct it or leave it blank for Verifier assignment" });
     const result = await enqueueSubmission(property, req.user);
     if (!result) return res.status(409).json({ message: "Property changed. Reload and try again" });
     res.status(202).json(result);

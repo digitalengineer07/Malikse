@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import * as Location from "expo-location";
+import * as Location from "@/web/location";
 import { validMapPoint, type MapPoint } from "../utils/nativeMapHtml";
 
 // Called only from the user's expand-search gesture; never on page load.

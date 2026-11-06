@@ -1,2 +1,1 @@
-import PropertyQueueScreen from "../../components/PropertyQueueScreen";
-export default function MyProperties() { return <PropertyQueueScreen role="user" />; }
+export { ListingsScreen as default } from "../../components/MalikseMarketplace";

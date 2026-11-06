@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 import { Platform, StyleSheet, View } from "react-native";
-import { BlurTargetView, BlurView } from "expo-blur";
+import { BlurTargetView, BlurView } from "@/web/blur";
 import AppBackground from "./AppBackground";
 
 /** Keep text readable even on platforms where native blur is unavailable. */

@@ -1,8 +1,8 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, } from "react-native";
 import Image from "./PropertyImage";
-import { FontAwesome5, MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { FontAwesome5, MaterialIcons } from "@/web/icons";
+import { useRouter } from "@/web/navigation";
 import type { Property } from "../src/types/property.types";
 import { AppTheme } from "../constants/theme";
 import { useLanguageStore } from "../src/store/languageStore";

@@ -9,7 +9,7 @@ interface CitySkylineProps {
   style?: StyleProp<ViewStyle>;
 }
 
-const skylineAsset = require("../assets/city_skyline_hero.png");
+const skylineAsset = { uri: new URL("../assets/city_skyline_hero.png", import.meta.url).href };
 
 export default function CitySkyline({
   width = "100%",

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
-import { Redirect, useRouter } from "expo-router";
+import { Redirect, useRouter, useLocalSearchParams } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { authService } from "../src/services/authService";
@@ -35,6 +35,8 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
     }).start();
   };
   const router = useRouter();
+  const { returnTo } = useLocalSearchParams();
+  const destination = typeof returnTo === "string" && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/home";
   const insets = useSafeAreaInsets();
   const { user, authState, hydrated } = useAuthStore();
   const { language, toggleLanguage } = useLanguageStore();
@@ -122,7 +124,7 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
         if (!/^\d{6}$/.test(otp)) { setError(label("Enter the six-digit OTP.", "छह अंकों का OTP दर्ज करें।")); return; }
         await authService.verifyRegistration(challenge.identifier, challenge.challengeId, otp);
       } else { await authService.login(loginMethod === "email" ? loginEmail.trim().toLowerCase() : mobile.trim(), password); }
-      router.replace("/home");
+      router.replace(destination as any);
     } catch (cause: any) {
       if (cause?.response?.data?.retryAfterSeconds) setRetryAt(Date.now() + cause.response.data.retryAfterSeconds * 1000);
       setError(cause?.response?.data?.message || cause?.message || label("Unable to connect. Please try again.", "कनेक्ट नहीं हो सका। फिर से कोशिश करें।"));
@@ -133,13 +135,13 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
   };
 
   if (!hydrated) return <View style={styles.center}><ActivityIndicator color="#047857" /></View>;
-  if (authState === "AUTHENTICATED" && user) return <Redirect href="/search" />;
+  if (authState === "AUTHENTICATED" && user) return <Redirect href={destination as any} />;
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 20 }]}>
         <View style={styles.topBar}>
-          <TouchableOpacity accessibilityRole="button" disabled={loading} onPress={() => stage === "welcome" ? router.replace("/home") : reveal("welcome")}>
+          <TouchableOpacity accessibilityRole="button" disabled={loading} onPress={() => stage === "welcome" ? router.replace(destination as any) : reveal("welcome")}>
             <Text style={styles.link}>← {stage === "welcome" ? label("Marketplace", "मार्केटप्लेस") : label("Welcome", "स्वागत है")}</Text>
           </TouchableOpacity>
           <TouchableOpacity accessibilityRole="button" onPress={toggleLanguage}>

@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, Platform } from "react-native";
-import { useRouter } from "expo-router";
-import { MaterialIcons } from "@expo/vector-icons";
+import { useRouter } from "@/web/navigation";
+import { MaterialIcons } from "@/web/icons";
 
 export default function WebFooter() {
   const router = useRouter();
@@ -26,15 +26,15 @@ export default function WebFooter() {
           <View style={styles.trustBadgesRow}>
             <View style={styles.ribbonBadgeItem}>
               <MaterialIcons name="gavel" size={14} color="#059669" />
-              <Text style={styles.ribbonBadgeText}>100% Jamabandi & Khatiyan Audited</Text>
+              <Text style={styles.ribbonBadgeText}>Property details reviewed</Text>
             </View>
             <View style={styles.ribbonBadgeItem}>
               <MaterialIcons name="gps-fixed" size={14} color="#0284C7" />
-              <Text style={styles.ribbonBadgeText}>Surveyor GPS Demarcated</Text>
+              <Text style={styles.ribbonBadgeText}>Location information</Text>
             </View>
             <View style={styles.ribbonBadgeItem}>
               <MaterialIcons name="handshake" size={14} color="#D97706" />
-              <Text style={styles.ribbonBadgeText}>Direct Owners · ₹0 Brokerage</Text>
+              <Text style={styles.ribbonBadgeText}>Verified listings · Assigned support</Text>
             </View>
           </View>
         </View>
@@ -62,7 +62,7 @@ export default function WebFooter() {
             </View>
 
             <Text style={styles.brandDesc}>
-              Bihar’s premier verified property ecosystem. Every property undergoes rigorous revenue record verification, physical boundary inspection, and lawyer approval.
+              Browse verified properties in Bihar, with an assigned Advisor or Verifier to help you with questions, offers and deal closure.
             </Text>
 
             <View style={styles.badgesRow}>
@@ -114,10 +114,10 @@ export default function WebFooter() {
               <Text style={styles.linkText}>Saved Properties</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push("/messages")}>
-              <Text style={styles.linkText}>Direct Inquiries</Text>
+              <Text style={styles.linkText}>Property Inquiries</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push("/kyc")}>
-              <Text style={styles.linkText}>Demo KYC Verification</Text>
+              <Text style={styles.linkText}>Identity Verification</Text>
             </TouchableOpacity>
           </View>
 

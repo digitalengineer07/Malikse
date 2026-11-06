@@ -70,7 +70,7 @@ export function getPublicSearchResponse(input: Record<string, unknown>): Promise
     while (visible.length <= limit) {
       if (scanned >= 15000 || Date.now() >= deadline) throw publicBusy();
       // Bound both the property page and owner set; never enumerate all disabled owners.
-      const batch: any[] = await Property.find({ ...publishedFilter, ...filters, ...cursor })
+      const batch: any[] = await Property.find({ $and: [publishedFilter, filters, cursor] })
         .select(projection).sort({ createdAt: -1, _id: -1 }).limit(batchSize).read(replicaReadPreference()).maxTimeMS(1500).lean();
       if (!batch.length) break;
       scanned += batch.length;
