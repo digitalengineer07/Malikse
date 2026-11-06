@@ -3,31 +3,26 @@
   src: url('../assets/icons/MaterialIcons.ttf') format('truetype');
   font-display: block;
 }
-
 @font-face {
   font-family: FontAwesome5;
   src: url('../assets/icons/FontAwesome5_Solid.ttf') format('truetype');
   font-display: block;
 }
-
 @font-face {
   font-family: PoppinsRegular;
   src: url('../assets/fonts/Poppins-Regular.ttf') format('truetype');
   font-display: swap;
 }
-
 @font-face {
   font-family: PoppinsMedium;
   src: url('../assets/fonts/Poppins-Medium.ttf') format('truetype');
   font-display: swap;
 }
-
 @font-face {
   font-family: PoppinsSemiBold;
   src: url('../assets/fonts/Poppins-SemiBold.ttf') format('truetype');
   font-display: swap;
 }
-
 @font-face {
   font-family: PoppinsBold;
   src: url('../assets/fonts/Poppins-Bold.ttf') format('truetype');
@@ -49,9 +44,7 @@
   --green-bg: #e3f7ea;
 }
 
-html,
-body,
-#root {
+html, body, #root {
   height: 100%;
   margin: 0;
 }
@@ -82,9 +75,7 @@ body {
   box-sizing: border-box;
 }
 
-input,
-textarea,
-button {
+input, textarea, button {
   font: inherit;
 }
 
@@ -93,11 +84,7 @@ a {
   text-decoration: none;
 }
 
-button,
-input,
-textarea,
-a,
-[role="button"] {
+button, input, textarea, a, [role="button"] {
   outline-offset: 3px;
 }
 
@@ -130,28 +117,9 @@ a,
   top: 0;
   right: 0;
   width: max(100vw, 65vh);
+  max-width: 650px;
   aspect-ratio: 424/707;
   opacity: 0.40;
-  pointer-events: none;
-}
-
-@media (min-width: 768px) {
-  .ms-bg .stage {
-    width: max(85vw, 95vh);
-    min-width: 960px;
-    top: -20px;
-    right: 0;
-    opacity: 0.38;
-  }
-}
-
-@media (min-width: 1400px) {
-  .ms-bg .stage {
-    width: 80vw;
-    min-width: 1240px;
-    right: -2vw;
-    opacity: 0.35;
-  }
 }
 
 .ms-bg b,
@@ -204,9 +172,7 @@ a,
 }
 
 /* ============ Typography Tokens ============ */
-h1,
-h2,
-.ms-heading {
+h1, h2, .ms-heading {
   font-family: 'Fraunces', Georgia, serif !important;
   font-variation-settings: "opsz" 72, "SOFT" 40;
   font-weight: 700;
@@ -297,15 +263,8 @@ h2 {
 
 /* Smooth Entrance */
 @keyframes ms-rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
 }
 
 .ms-animate-rise {
