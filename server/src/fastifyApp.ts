@@ -11,6 +11,7 @@ import { performanceMetrics } from "./services/performanceMetrics";
 import { getPublicSearchResponse } from "./services/propertySearch";
 import { regionCounts } from "./services/propertyRegions";
 import { locationSuggestions } from "./services/propertyLocationSuggestions";
+import { getRecommendationsResponse } from "./services/recommendationService";
 import { PublicResponse, publicResponse } from "./services/publicResponseCache";
 import { assertPublicGeneration } from "./services/publicCacheGeneration";
 import { authenticateRequest } from "./middleware/auth.middleware";
@@ -117,6 +118,16 @@ export function createFastifyApp(isReady?: () => boolean) {
         }
       });
     }
+    native.get("/recommendations", { config: { nativePropertyRead: true } }, async (request, reply) => {
+      try {
+        const response = await getRecommendationsResponse(request.query as Record<string, unknown>, request.headers.authorization);
+        return sendPublicResponse(request, reply, response);
+      } catch (error: any) {
+        const unavailable = error.status === 503 || error.code === 50 || /Mongo|Mongoose/.test(error.name || "");
+        if (unavailable) reply.header("Retry-After", "1");
+        return reply.code(unavailable ? 503 : (error.status || 400)).send({ message: error.message || "Recommendations unavailable. Please retry" });
+      }
+    });
     native.get("/properties/mine", { config: { nativePropertyRead: true } }, async (request, reply) => {
       const auth = await authenticateRequest(request.headers.authorization);
       if (auth.status) return reply.code(auth.status).send({ message: auth.message });

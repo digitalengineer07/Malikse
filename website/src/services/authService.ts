@@ -3,7 +3,29 @@ import { useAuthStore } from "../store/authStore";
 import type { UserProfile } from "../types/auth.types";
 import { invalidatePropertySearch } from "./searchCache";
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:5000";
+const configuredApiUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+
+function resolveApiUrl(): string {
+  // If explicitly configured with a non-localhost remote URL, use it directly
+  if (configuredApiUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(?:\/|$)/i.test(configuredApiUrl)) {
+    return configuredApiUrl.replace(/\/$/, "");
+  }
+
+  // If running in browser and NOT on localhost (e.g. deployed on production domain or preview)
+  if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+    return "https://malikseserver.devoxa.in";
+  }
+
+  // If built for production
+  if (import.meta.env.PROD) {
+    return "https://malikseserver.devoxa.in";
+  }
+
+  // Local development fallback
+  return configuredApiUrl ? configuredApiUrl.replace(/\/$/, "") : "http://localhost:5000";
+}
+
+const API_URL = resolveApiUrl();
 
 const api = axios.create({ baseURL: API_URL, timeout: 15000 });
 
