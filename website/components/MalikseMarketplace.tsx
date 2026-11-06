@@ -31,6 +31,7 @@ import { prepareUpload } from "../src/services/prepareUpload";
 import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
+import WebFooter from "./WebFooter";
 const C = {
   bg: "#f3f7ff",
   ink: "#0b1b3f",
@@ -238,100 +239,191 @@ export function MarketplaceShell({
     path = usePathname(),
     { width } = useWindowDimensions(),
     user = useAuthStore((x) => x.user);
+  const isDesktop = width >= 768;
+
+  const navLinks = [
+    ["/home", "home", "Home"],
+    ["/search", "search", "Explore"],
+    ["/messages", "chat-bubble-outline", "Chats"],
+    ["/saved", "favorite-border", "Saved"],
+  ];
+
   return (
     <KeyboardAvoidingView
       style={s.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View
-        style={[s.header, { height: 76 + insets.top, paddingTop: insets.top }]}
+        style={[s.header, { minHeight: 74 + insets.top, paddingTop: insets.top }]}
       >
-        <View style={[s.row, { flex: 1 }]}>
-          {back ? (
-            <Pressable
-              accessibilityLabel="Back"
-              onPress={() =>
-                router.canGoBack() ? router.back() : router.replace("/home")
-              }
-            >
-              <Icon name="arrow-back" />
-            </Pressable>
-          ) : (
-            <View style={s.logoIcon}>
-              <Icon name="roofing" color="white" />
-            </View>
-          )}
-          <Pressable onPress={() => router.push("/home")}>
-            <Text style={s.logo}>
-              MalikSe<Text style={{ color: "#18a06b" }}>.</Text>
-            </Text>
-          </Pressable>
-          {width > 850 && (
-            <Text style={s.muted}>Verified spaces. Trusted connections.</Text>
-          )}
-        </View>
-        <Pressable
-          accessibilityLabel="Wishlist"
-          onPress={() => router.push("/saved")}
-        >
-          <Icon name="favorite-border" />
-        </Pressable>
-        <Pressable
-          accessibilityLabel="Profile"
-          onPress={() => router.push("/profile")}
-          style={s.avatar}
-        >
-          <Text style={s.avatarText}>{user?.name?.[0] || "M"}</Text>
-        </Pressable>
-      </View>
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={s.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={s.content}>
-          {!!title && (
-            <View style={{ gap: 6 }}>
-              <Text style={s.h1}>{title}</Text>
-              {!!subtitle && <Text style={s.muted}>{subtitle}</Text>}
-            </View>
-          )}
-          {children}
-        </View>
-      </ScrollView>
-      <View style={[s.nav, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-        {[
-          ["/home", "home", "Home"],
-          ["/search", "search", "Search"],
-          ["/post", "add", "Post"],
-          ["/messages", "chat-bubble-outline", "Chats"],
-          ["/profile", "person-outline", "Profile"],
-        ].map(([url, icon, text]) => (
-          <Pressable
-            key={url}
-            accessibilityRole="button"
-            onPress={() => router.push(url as any)}
-            style={[s.navItem, url === "/post" && { marginTop: -18 }]}
-          >
-            <View style={url === "/post" ? s.postCircle : undefined}>
-              <Icon
-                name={icon}
-                color={
-                  url === "/post" ? "white" : path === url ? C.blue : C.muted
+        <View style={s.headerInner}>
+          <View style={s.row}>
+            {back ? (
+              <Pressable
+                accessibilityLabel="Back"
+                onPress={() =>
+                  router.canGoBack() ? router.back() : router.replace("/home")
                 }
-              />
+                style={{ padding: 6, marginRight: 2 }}
+              >
+                <Icon name="arrow-back" size={22} color={C.ink} />
+              </Pressable>
+            ) : (
+              <View style={s.logoIcon}>
+                <Icon name="roofing" color="white" size={20} />
+              </View>
+            )}
+            <Pressable
+              onPress={() => router.push("/home")}
+              style={{ flexDirection: "row", alignItems: "center" }}
+            >
+              <Text style={s.logo}>
+                MalikSe<Text style={{ color: "#18a06b" }}>.</Text>
+              </Text>
+            </Pressable>
+            {width >= 1080 && (
+              <Text style={[s.muted, { fontSize: 13, marginLeft: 8 }]}>
+                Verified spaces. Trusted connections.
+              </Text>
+            )}
+          </View>
+
+          {isDesktop && (
+            <View style={s.topNavRow}>
+              {navLinks.map(([url, icon, label]) => {
+                const isActive =
+                  path === url ||
+                  (url === "/home" && (path === "/" || path === "/home"));
+                return (
+                  <Pressable
+                    key={url}
+                    accessibilityRole="button"
+                    onPress={() => router.push(url as any)}
+                    style={[s.topNavItem, isActive && s.topNavItemActive]}
+                  >
+                    <Icon
+                      name={icon}
+                      size={18}
+                      color={isActive ? C.blue : C.muted}
+                    />
+                    <Text
+                      style={[
+                        s.topNavText,
+                        isActive && s.topNavTextActive,
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                    {isActive && <View style={s.topNavIndicator} />}
+                  </Pressable>
+                );
+              })}
             </View>
-            <Text
+          )}
+
+          <View style={[s.row, { gap: 10 }]}>
+            {isDesktop && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Post Property"
+                onPress={() => router.push("/post")}
+                style={s.topPostBtn}
+              >
+                <Icon name="add" size={18} color="white" />
+                <Text style={s.topPostBtnText}>Post Property</Text>
+              </Pressable>
+            )}
+
+            <Pressable
+              accessibilityLabel="Wishlist"
+              onPress={() => router.push("/saved")}
               style={[
-                s.navText,
-                path === url && { color: C.blue, fontWeight: "800" },
+                s.iconBtn,
+                path === "/saved" && {
+                  backgroundColor: "#eaf1ff",
+                  borderColor: C.blue,
+                },
               ]}
             >
-              {text}
-            </Text>
-          </Pressable>
-        ))}
+              <Icon
+                name={path === "/saved" ? "favorite" : "favorite-border"}
+                size={20}
+                color={path === "/saved" ? "#e11d48" : C.ink}
+              />
+            </Pressable>
+
+            <Pressable
+              accessibilityLabel="Profile"
+              onPress={() => router.push(user ? "/profile" : "/login")}
+              style={isDesktop ? s.topProfileBtn : s.avatar}
+            >
+              <View style={s.avatar}>
+                <Text style={s.avatarText}>{user?.name?.[0] || "M"}</Text>
+              </View>
+              {isDesktop && (
+                <Text style={s.topProfileName} numberOfLines={1}>
+                  {user?.name?.split(" ")[0] || "Account"}
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
       </View>
+
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={s.scroll}>
+          <View style={s.content}>
+            {!!title && (
+              <View style={{ gap: 6 }}>
+                <Text style={s.h1}>{title}</Text>
+                {!!subtitle && <Text style={s.muted}>{subtitle}</Text>}
+              </View>
+            )}
+            {children}
+          </View>
+        </View>
+        {isDesktop && <WebFooter />}
+      </ScrollView>
+
+      {!isDesktop && (
+        <View style={[s.nav, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+          {[
+            ["/home", "home", "Home"],
+            ["/search", "search", "Search"],
+            ["/post", "add", "Post"],
+            ["/messages", "chat-bubble-outline", "Chats"],
+            ["/profile", "person-outline", "Profile"],
+          ].map(([url, icon, text]) => (
+            <Pressable
+              key={url}
+              accessibilityRole="button"
+              onPress={() => router.push(url as any)}
+              style={[s.navItem, url === "/post" && { marginTop: -18 }]}
+            >
+              <View style={url === "/post" ? s.postCircle : undefined}>
+                <Icon
+                  name={icon}
+                  color={
+                    url === "/post" ? "white" : path === url ? C.blue : C.muted
+                  }
+                />
+              </View>
+              <Text
+                style={[
+                  s.navText,
+                  path === url && { color: C.blue, fontWeight: "800" },
+                ]}
+              >
+                {text}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -452,27 +544,60 @@ export function HomeScreen() {
     trending = useData("/recommendations?mode=trending"),
     { width } = useWindowDimensions();
   return (
-    <MarketplaceShell
-      title={`Hello${user ? ", " + user.name.split(" ")[0] : ", welcome"} 👋`}
-      subtitle="Find your next place, verified by people you can trust."
-    >
-      <View style={{ gap: 12 }}>
-        <View style={s.row}>
-          <Icon name="location-on" />
-          <Text style={s.cardTitle}>
-            {prefs.district || "Explore your preferred location"}
+    <MarketplaceShell>
+      <View style={s.webHeroCard}>
+        <View style={{ gap: 6, marginBottom: 4 }}>
+          <Text style={s.h1}>
+            {`Hello${user ? ", " + user.name.split(" ")[0] : ", welcome"} 👋`}
+          </Text>
+          <Text style={s.muted}>
+            Find your next place, verified by people you can trust.
           </Text>
         </View>
-        <View style={s.row}>
-          <View style={[s.input, s.row, { flex: 1 }]}>
-            <Icon name="search" />
-            <TextInput
-              accessibilityLabel="Search location"
-              placeholder="Search city, locality or property"
-              value={query}
-              onChangeText={setQuery}
-              style={{ flex: 1, color: C.ink, fontSize: 15 }}
-              onSubmitEditing={() =>
+
+        <View style={{ gap: 12 }}>
+          <View style={s.row}>
+            <Icon name="location-on" color={C.blue} size={20} />
+            <Text style={s.cardTitle}>
+              {prefs.district || "Explore your preferred location"}
+            </Text>
+          </View>
+          <View
+            style={[
+              s.row,
+              { flexWrap: width < 600 ? "wrap" : "nowrap", gap: 12 },
+            ]}
+          >
+            <View
+              style={[
+                s.input,
+                s.row,
+                {
+                  flex: 1,
+                  minWidth: 260,
+                  backgroundColor: "#f8faff",
+                  borderColor: C.line,
+                },
+              ]}
+            >
+              <Icon name="search" color={C.blue} size={20} />
+              <TextInput
+                accessibilityLabel="Search location"
+                placeholder="Search city, locality or property"
+                value={query}
+                onChangeText={setQuery}
+                style={{ flex: 1, color: C.ink, fontSize: 15 }}
+                onSubmitEditing={() =>
+                  router.push({
+                    pathname: "/search",
+                    params: { q: query, type },
+                  } as any)
+                }
+              />
+            </View>
+            <Button
+              title="Search"
+              onPress={() =>
                 router.push({
                   pathname: "/search",
                   params: { q: query, type },
@@ -480,33 +605,39 @@ export function HomeScreen() {
               }
             />
           </View>
-          <Button
-            title="Search"
-            onPress={() =>
-              router.push({
-                pathname: "/search",
-                params: { q: query, type },
-              } as any)
-            }
-          />
+        </View>
+
+        <View style={[s.wrap, { marginTop: 4 }]}>
+          {types.map(([id, text, icon]) => (
+            <Pressable
+              key={id}
+              onPress={() => setType(id)}
+              style={[
+                s.typeChip,
+                type === id && {
+                  backgroundColor: C.blue,
+                  borderColor: C.blue,
+                },
+              ]}
+            >
+              <Icon
+                name={icon}
+                color={type === id ? "white" : C.blue}
+                size={18}
+              />
+              <Text
+                style={{
+                  color: type === id ? "white" : C.ink,
+                  fontWeight: type === id ? "700" : "500",
+                  fontSize: 14,
+                }}
+              >
+                {text}
+              </Text>
+            </Pressable>
+          ))}
         </View>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 10 }}
-      >
-        {types.map(([id, text, icon]) => (
-          <Pressable
-            key={id}
-            onPress={() => setType(id)}
-            style={[s.typeChip, type === id && { backgroundColor: C.blue }]}
-          >
-            <Icon name={icon} color={type === id ? "white" : C.blue} />
-            <Text style={{ color: type === id ? "white" : C.ink }}>{text}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
       {[
         [
           "Recommended for You",
@@ -2064,19 +2195,114 @@ const font =
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   header: {
-    height: 76,
+    minHeight: 74,
     paddingHorizontal: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 18,
     backgroundColor: "white",
     borderBottomWidth: 1,
     borderColor: C.line,
+    justifyContent: "center",
+    zIndex: 100,
+  },
+  headerInner: {
+    width: "100%",
+    maxWidth: 1200,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  topNavRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  topNavItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    position: "relative",
+  },
+  topNavItemActive: {
+    backgroundColor: "#edf4ff",
+  },
+  topNavText: {
+    fontFamily: font,
+    fontSize: 14,
+    fontWeight: "600",
+    color: C.muted,
+  },
+  topNavTextActive: {
+    color: C.blue,
+    fontWeight: "700",
+  },
+  topNavIndicator: {
+    position: "absolute",
+    bottom: -6,
+    left: 14,
+    right: 14,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: C.blue,
+  },
+  topPostBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: C.blue,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  topPostBtnText: {
+    fontFamily: font,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "white",
+  },
+  topProfileBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: C.line,
+    backgroundColor: "white",
+  },
+  topProfileName: {
+    fontFamily: font,
+    fontSize: 13,
+    fontWeight: "700",
+    color: C.ink,
+    paddingRight: 4,
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.line,
+    backgroundColor: "white",
+  },
+  webHeroCard: {
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 20,
+    padding: 26,
+    gap: 18,
   },
   logo: { fontSize: 26, fontWeight: "800", color: C.blue, letterSpacing: -1 },
   logoIcon: { backgroundColor: C.blue, padding: 7, borderRadius: 12 },
-  scroll: { padding: 20, paddingBottom: 35 },
-  content: { width: "100%", maxWidth: 1160, alignSelf: "center", gap: 24 },
+  scroll: { padding: 24, paddingBottom: 40 },
+  content: { width: "100%", maxWidth: 1200, alignSelf: "center", gap: 26 },
   row: { flexDirection: "row", alignItems: "center", gap: 12 },
   between: {
     flexDirection: "row",
