@@ -1,3 +1,4 @@
+import { removeLeafletMap } from "../src/utils/removeLeafletMap";
 import React, { useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -112,7 +113,7 @@ export default function PremiumIndiaMap({
       resizeObserver?.disconnect();
       plotMarkersLayerRef.current?.clearLayers();
       stateMarkersLayerRef.current?.clearLayers();
-      mapRef.current?.remove();
+      removeLeafletMap(mapRef.current);
       mapRef.current = null;
     };
   }, []);

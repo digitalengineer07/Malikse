@@ -30,7 +30,7 @@ export default function AppHeader(props: AppHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 800;
+  const isDesktop = width >= 768;
   const showNavLinks = props.showNavLinks ?? isDesktop;
   const showPostProperty = props.showPostPropertyBtn ?? isDesktop;
 
@@ -43,6 +43,7 @@ export default function AppHeader(props: AppHeaderProps) {
   const isMyListingsActive = pathname === "/my-properties" || pathname?.startsWith("/my-properties");
   const isDashboardActive = pathname === "/dashboard" || pathname?.startsWith("/dashboard");
   const isProfileActive = pathname === "/profile";
+  const isKycActive = pathname === "/kyc";
 
   const { hasListings, checkUserListings } = useUserListingsStore();
 
@@ -142,6 +143,17 @@ export default function AppHeader(props: AppHeaderProps) {
               {isMessagesActive && <View style={styles.navActiveDot} />}
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={[styles.navLink, isKycActive && styles.navLinkActive]}
+              onPress={() => router.push(authState === "AUTHENTICATED" ? "/kyc" : "/login")}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.navLinkText, isKycActive && styles.navLinkTextActive]}>
+                {language === "hi" ? "सत्यापन (KYC)" : "Trust & KYC"}
+              </Text>
+              {isKycActive && <View style={styles.navActiveDot} />}
+            </TouchableOpacity>
+
             {authState === "AUTHENTICATED" && user?.role === "user" && hasListings && (
               <TouchableOpacity
                 style={[styles.navLink, isMyListingsActive && styles.navLinkActive]}
@@ -170,7 +182,7 @@ export default function AppHeader(props: AppHeaderProps) {
           </View>
         )}
 
-        {/* Right Element: Post Button, Profile, Language Toggle */}
+        {/* Right Element: Post Button, Profile, Wishlist, Language Toggle */}
         <View style={styles.rightContainer}>
           {showPostProperty && (
             <TouchableOpacity
@@ -185,7 +197,18 @@ export default function AppHeader(props: AppHeaderProps) {
             </TouchableOpacity>
           )}
 
-          {isDesktop && (
+            {!isDesktop && (
+          <TouchableOpacity
+            accessibilityLabel="Wishlist"
+            style={styles.mobileIconBtn}
+            onPress={() => router.push("/saved")}
+            activeOpacity={0.75}
+          >
+            <MaterialIcons name="favorite-border" size={20} color="#0A192F" />
+          </TouchableOpacity>
+          )}
+
+          {isDesktop ? (
             <TouchableOpacity
               style={[styles.profileBtn, isProfileActive && styles.profileBtnActive]}
               onPress={() => router.push(authState === "AUTHENTICATED" ? "/profile" : "/login")}
@@ -198,6 +221,17 @@ export default function AppHeader(props: AppHeaderProps) {
               />
               <Text style={[styles.profileBtnText, isProfileActive && styles.profileBtnTextActive]}>
                 {authState === "AUTHENTICATED" ? (user?.name?.split(" ")[0] || "Account") : (language === "hi" ? "लॉग इन" : "Sign In")}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              accessibilityLabel="Profile"
+              style={styles.mobileAvatar}
+              onPress={() => router.push(authState === "AUTHENTICATED" ? "/profile" : "/login")}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.mobileAvatarText}>
+                {user?.name?.[0]?.toUpperCase() || "M"}
               </Text>
             </TouchableOpacity>
           )}
@@ -226,10 +260,21 @@ export default function AppHeader(props: AppHeaderProps) {
 const styles = StyleSheet.create({
   headerContainer: {
     width: "100%",
-    backgroundColor: "transparent",
+    backgroundColor: "rgba(255, 255, 255, 0.94)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(10, 69, 181, 0.10)",
     paddingBottom: 10,
-    paddingHorizontal: 28,
+    paddingHorizontal: 24,
     zIndex: 20,
+    ...Platform.select({
+      web: {
+        backdropFilter: "blur(24px) saturate(1.8)",
+        WebkitBackdropFilter: "blur(24px) saturate(1.8)",
+        boxShadow: "0 4px 20px -8px rgba(10, 42, 107, 0.12)",
+        position: "sticky" as any,
+        top: 0,
+      },
+    }),
   },
   headerInner: {
     maxWidth: 1340,
@@ -250,7 +295,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 19,
-    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
@@ -260,7 +305,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   brandTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "800",
     color: "#0A192F",
     letterSpacing: -0.5,
@@ -268,13 +313,18 @@ const styles = StyleSheet.create({
   navLinksRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 28,
-    backgroundColor: "rgba(255, 255, 255, 0.65)",
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    gap: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
+    paddingHorizontal: 18,
+    paddingVertical: 7,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.9)",
+    borderColor: "rgba(10, 69, 181, 0.12)",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(10, 42, 107, 0.05)",
+      },
+    }),
   },
   navLink: {
     paddingVertical: 4,
@@ -284,7 +334,7 @@ const styles = StyleSheet.create({
   },
   navLinkActive: {},
   navLinkText: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: "600",
     color: "#475569",
     letterSpacing: -0.2,
@@ -310,27 +360,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#03456C",
+    backgroundColor: "#0a45b5",
     paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 20,
-    shadowColor: "#03456C",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 3,
+    paddingVertical: 8.5,
+    borderRadius: 18,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 14px -3px rgba(10, 69, 181, 0.40)",
+      },
+    }),
   },
   postBtnText: {
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "700",
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   profileBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
     borderWidth: 1,
     borderColor: "#E2E8F0",
     paddingHorizontal: 12,
@@ -340,11 +390,11 @@ const styles = StyleSheet.create({
   profileBtnActive: {
     backgroundColor: "#102B52",
     borderColor: "#102B52",
-    shadowColor: "#0873B9",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 2,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 8px rgba(8, 115, 185, 0.20)",
+      },
+    }),
   },
   profileBtnText: {
     fontSize: 13,
@@ -357,16 +407,41 @@ const styles = StyleSheet.create({
   langBtn: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 11,
+    paddingVertical: 6.5,
     borderRadius: 18,
-    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
   langText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: "700",
     color: "#0A192F",
+  },
+  mobileIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  mobileAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(10, 69, 181, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(10, 69, 181, 0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mobileAvatarText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0a45b5",
   },
 });

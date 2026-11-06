@@ -945,7 +945,7 @@ export function ListingsScreen() {
               {p.location.district} · {p.totalArea} sq ft
             </Text>
             <Text style={s.price}>{money(p.price)}</Text>
-            {p.rejectionReason && <ErrorBox text={p.rejectionReason} />}
+            {Boolean(p.rejectionReason) && <ErrorBox text={p.rejectionReason} />}
             <View style={s.wrap}>
               {["draft", "correction_required"].includes(p.status) && (
                 <Button

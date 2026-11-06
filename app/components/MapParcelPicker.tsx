@@ -1,3 +1,4 @@
+import { removeLeafletMap } from "../src/utils/removeLeafletMap";
 import TextInput from "./FormInput";
 import { addParcelBaseLayer, parcelStyle } from "../src/utils/parcelMap";
 import React, { useEffect, useState, useRef } from "react";
@@ -588,7 +589,7 @@ export default function MapParcelPicker({
       if (!isMounted || !mapContainerRef.current) return;
 
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        removeLeafletMap(mapInstanceRef.current);
         mapInstanceRef.current = null;
       }
 
@@ -697,7 +698,7 @@ export default function MapParcelPicker({
     return () => {
       isMounted = false;
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        removeLeafletMap(mapInstanceRef.current);
         mapInstanceRef.current = null;
       }
     };
