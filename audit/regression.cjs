@@ -71,7 +71,9 @@ async function main() {
     assert.equal(photoResponse.status,201);
     const photo = await photoResponse.json();
     assert.equal(new URL(photo.url).origin,'https://api.example.test');
-    const image=await fetch(base+new URL(photo.url).pathname);assert.equal(image.status,200);assert.ok((await image.arrayBuffer()).byteLength>0);
+    await call(new URL(photo.url).pathname,undefined,undefined,401);
+    await call(new URL(photo.url).pathname,bt,undefined,403);
+    const image=await fetch(base+new URL(photo.url).pathname,{headers:{Authorization:'Bearer '+st}});assert.equal(image.status,200);assert.ok((await image.arrayBuffer()).byteLength>0);
     pass('Photo traversal rejected; normal photo upload/download works');
 
     await call('/users/wishlist/'+property._id,bt,{},404);
@@ -152,20 +154,26 @@ async function main() {
     const fd=new FormData();fd.append('propertyId',String(property._id));fd.append('type','Registry');fd.append('file',new Blob(['AUDIT_DOCUMENT']),'audit.txt');
     const upload=await fetch(base+'/documents',{method:'POST',headers:{Authorization:'Bearer '+st},body:fd});assert.equal(upload.status,201);
     let docs=await call('/documents?propertyId='+property._id,st);
-    const link=new URL(docs[0].fileUrl);assert.equal(link.origin,'https://api.example.test');
-    assert.equal((await fetch(base+link.pathname+link.search)).status,200);
-    await call(link.pathname,undefined,undefined,403);
+    const link=new URL(docs[0].fileUrl);assert.equal(link.origin,'https://api.example.test');assert.equal(link.search,'');
+    assert.equal((await fetch(base+link.pathname,{headers:{Authorization:'Bearer '+st}})).status,200);
+    await call(link.pathname,undefined,undefined,401);
+    await call('/documents/'+docs[0]._id+'/download',bt,{},403);
+    const download = async token => new URL((await call('/documents/'+docs[0]._id+'/download',token,{})).url);
+    const firstDownload=await download(st);
+    assert.equal((await fetch(base+firstDownload.pathname+firstDownload.search)).status,200);
+    await call(firstDownload.pathname+firstDownload.search,undefined,undefined,403);
+    const pendingDownload=await download(st);
     const stored=await PropertyDocument.findById(docs[0]._id);
     await call('/property-photos/..%2F'+stored.fileUrl,undefined,undefined,404);
     await User.updateOne({_id:seller._id},{$set:{isSuspended:true}});
-    await call(link.pathname+link.search,undefined,undefined,403);
+    await call(pendingDownload.pathname+pendingDownload.search,undefined,undefined,403);
     await User.updateOne({_id:seller._id},{$set:{isSuspended:false}});
     await Property.updateOne({_id:property._id},{$set:{assignedAdvisorId:active._id}});
     docs=await call('/documents?propertyId='+property._id,generateTokens(active).accessToken);
-    const staffLink=new URL(docs[0].fileUrl);
+    const staffLink=await download(generateTokens(active).accessToken);
     await User.updateOne({_id:active._id},{$set:{isActive:false}});
     await call(staffLink.pathname+staffLink.search,undefined,undefined,403);
-    pass('Document URLs use configured HTTPS origin; missing authorization and disabled actors denied');
+    pass('Documents require bearer authorization or a single-use ticket; replay and disabled actors denied');
 
     let received=(await call('/inquiries/received',st))[0];
     assert.equal(inquiryActivity(received,String(seller._id)).unread,true);
@@ -185,6 +193,22 @@ async function main() {
     assert.equal(new Date((await Inquiry.findById(inquiry._id)).sellerReadAt).getTime(),Date.parse(through));
     pass('Latest-message previews and unread state persist, remain actor-scoped and never move backwards');
 
+    const pendingDeal=await Deal.create({propertyId:published._id,buyerId:buyer._id,ownerId:seller._id,offerAmount:100,commissionAmount:1,status:'offered'});
+    await call('/deals/'+pendingDeal._id+'/status',bt,{status:'cancelled'},200,'PATCH');
+    assert.equal((await Deal.findById(pendingDeal._id)).status,'cancelled');
+    const previousEnv=process.env.NODE_ENV;process.env.NODE_ENV='production';
+    try {
+      await call('/auth/kyc/demo',bt,{},403);
+      await call('/properties',bt,input,403);
+      await call('/admin/users/'+buyer._id+'/identity',bt,{approved:true,notes:'Reviewed valid identity evidence'},403,'PUT');
+      await call('/admin/users/'+buyer._id+'/identity',at,{approved:true,notes:'Reviewed valid identity evidence'},200,'PUT');
+      const approved=await User.findById(buyer._id);assert.equal(approved.isVerifiedIdentity,true);assert.equal(String(approved.identityReview.reviewerId),String(admin._id));
+      const draft=await call('/properties',bt,input,201);assert.equal(draft.status,'draft');await Property.deleteOne({_id:draft._id});
+      await call('/admin/users/'+buyer._id+'/identity',at,{approved:false,notes:'Identity evidence revoked by review'},200,'PUT');
+      await call('/properties',bt,input,403);
+    } finally {process.env.NODE_ENV=previousEnv;}
+    pass('Buyers can cancel pending offers; production ignores demo KYC and requires audited admin identity review');
+
     const bootstrap=`require(${JSON.stringify(req.resolve('ts-node'))}).register({project:${JSON.stringify(path.join(root,'server/tsconfig.json'))},transpileOnly:true});require(${JSON.stringify(path.join(root,'server/src/services/security.ts'))});`;
     for(const [name, env] of [
       ['missing access secret',{JWT_ACCESS_SECRET:''}],
@@ -199,6 +223,7 @@ async function main() {
     pass('Startup fails closed for missing/known/shared JWT secrets and unsafe production origin');
     console.log(`Security regression passed: ${checks} HTTP/configuration checks plus model and UI activity assertions.`);
   } finally {
+    await require("../server/src/services/regionCountStore").stopRegionCounts();
     if(mongoose.connection.name===dbName) {
       for(const doc of await PropertyDocument.find()) {
         const filename=path.basename(doc.fileUrl);

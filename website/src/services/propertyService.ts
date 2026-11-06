@@ -1,3 +1,4 @@
+import type { UploadOptions } from "./uploadQueue";
 /**
  * MalikSe — Property Service
  */
@@ -12,10 +13,11 @@ export function cachedPropertySearch(filters: PropertySearchFilters): Property[]
 }
 
 export const propertyService = {
-  async uploadPhoto(propertyId: string, file: File | Blob, fileName: string): Promise<{ url: string }> {
+  async uploadPhoto(propertyId: string, file: File | Blob, fileName: string, options?: UploadOptions): Promise<{ url: string }> {
     const body = new FormData();
+    if (options) body.append("uploadId", options.uploadId);
     body.append("file", file, fileName);
-    return (await api.post(`/properties/${propertyId}/photos`, body, { headers: { "Content-Type": "multipart/form-data" } })).data;
+    return (await api.post(`/properties/${propertyId}/photos`, body, { timeout: 120000, onUploadProgress: event => options?.onProgress(Math.round(100 * event.loaded / (event.total || event.loaded || 1))), headers: { "Content-Type": "multipart/form-data" } })).data;
   },
   async createProperty(data: any): Promise<Property> {
     const res = await api.post("/properties", data);

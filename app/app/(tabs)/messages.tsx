@@ -15,7 +15,7 @@ import {
   KeyboardAvoidingView,
   ActivityIndicator,
 } from "react-native";
-import { Redirect, useFocusEffect } from "expo-router";
+import { Redirect, useFocusEffect, useLocalSearchParams } from "expo-router";
 import type { UserProfile } from "../../src/types/auth.types";
 import { inquiryActivity } from "../../src/utils/inquiryActivity";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
@@ -75,6 +75,8 @@ export default function MessagesScreen() {
 }
 
 function MessagesContent({ user }: { user: UserProfile }) {
+  const { inquiryId } = useLocalSearchParams<{ inquiryId?: string }>();
+  const openedNotificationId = React.useRef<string | null>(null);
   const chatInsets = useSafeAreaInsets();
   const { language } = useLanguageStore();
 
@@ -150,9 +152,14 @@ function MessagesContent({ user }: { user: UserProfile }) {
     const fetchInquiries = () => {
       if (fetching) return;
       fetching = true;
-      return inquiryService.getConversations(conversationCursor).then(all => {
+      return inquiryService.getConversations(conversationCursor).then(async all => {
       if (!active) return;
       setNextConversationCursor((all as any).nextCursor);
+      if (inquiryId && !all.some(i => i._id === inquiryId)) {
+        const target = await inquiryService.getInquiry(inquiryId).catch(() => null);
+        if (target) all = [target, ...all];
+      }
+      if (!active) return;
       const mapped = all.map(i => {
         const buyerIdStr = typeof i.buyerId === "object" && i.buyerId !== null ? i.buyerId._id : i.buyerId;
         const isBuyer = buyerIdStr === user.id;
@@ -222,6 +229,14 @@ function MessagesContent({ user }: { user: UserProfile }) {
       setLoading(false);
       
       setSelectedChat(prev => {
+        if (inquiryId && openedNotificationId.current !== inquiryId) {
+          const target = mapped.find(c => c.id === inquiryId);
+          if (target) {
+            openedNotificationId.current = inquiryId;
+            inquiryService.markRead(target.id, target.activityAt).catch(() => {});
+            return target;
+          }
+        }
         if (!prev) return prev;
         const updatedChat = mapped.find(c => c.id === prev.id);
         return updatedChat ? { ...updatedChat, messages: prev.messages } : prev;
@@ -233,7 +248,7 @@ function MessagesContent({ user }: { user: UserProfile }) {
     const intervalId = setInterval(fetchInquiries, 5000);
 
     return () => { active = false; clearInterval(intervalId); };
-  }, [user, selectedChat?.id, conversationCursor]));
+  }, [user, selectedChat?.id, conversationCursor, inquiryId]));
 
   // Unread count
   const unreadCount = useMemo(() => {

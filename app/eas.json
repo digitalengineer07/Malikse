@@ -11,7 +11,8 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=arm64-v8a"
       },
       "env": {
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyDy5-JRs3leGCOqa79EWO4oZM3-3IlK7BY",
@@ -27,6 +28,21 @@
     "production": {
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://malikse.devoxa.in"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
+    },
+    "preview-arm32": {
+      "extends": "preview",
+      "android": {
+        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=armeabi-v7a"
+      }
+    },
+    "preview-emulator": {
+      "extends": "preview",
+      "android": {
+        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=x86_64"
       }
     }
   }

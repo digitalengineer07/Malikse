@@ -1,3 +1,4 @@
+process.env.PUBLIC_BROTLI_COMPRESSION = "true"; // Exercise the optional Brotli representation.
 const assert = require('assert/strict');
 const { randomUUID } = require('crypto');
 const http = require('http');

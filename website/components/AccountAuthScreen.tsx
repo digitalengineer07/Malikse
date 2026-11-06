@@ -134,13 +134,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
     try {
       const cleanMobile = mobile.trim().replace(/\D/g, "");
       const cleanEmail = email.trim().toLowerCase();
-      const res = await authService.register({
-        name: name.trim(),
-        mobile: cleanMobile || undefined,
-        email: cleanEmail || undefined,
-        password,
-        method: registerMethod,
-      });
+      if (!challenge) return;
+      const res = await authService.resendRegistration(challenge.challengeId);
       const currentTime = Date.now();
       setChallenge({
         challengeId: res.challengeId,

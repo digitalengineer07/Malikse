@@ -6,6 +6,7 @@ import { validMapPoint, type MapFocus } from "../src/utils/nativeMapHtml";
 import { addRegionBoundaries } from "../src/utils/regionBoundaryLayer";
 import { INDIA_STATES_DATA, type IndiaStateInfo } from "../src/data/indiaStatesData";
 import { currentMapLocation } from "../src/services/currentMapLocation";
+import { hasParcelBoundary } from "../src/utils/parcelMap";
 import type { Property } from "../src/types/property.types";
 
 interface PremiumIndiaMapProps {
@@ -258,7 +259,13 @@ export default function PremiumIndiaMap({
 
       // 4. Handle focus or flyTo
       if (focus && validMapPoint(focus)) {
-        map.flyTo([focus.lat, focus.lng], focus.zoom, { duration: 0.8 });
+        const zoom = Number.isFinite(focus.zoom) ? focus.zoom : DEFAULT_CENTER.zoom;
+        const size = map.getSize();
+        if (size.x > 0 && size.y > 0) {
+          map.flyTo([focus.lat, focus.lng], zoom, { duration: 0.8 });
+        } else {
+          map.setView([focus.lat, focus.lng], zoom);
+        }
       } else {
         map.setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], DEFAULT_CENTER.zoom);
       }
@@ -315,10 +322,7 @@ export default function PremiumIndiaMap({
         const lat = property.location?.lat;
         const lng = property.location?.lng;
         if (
-          typeof lat !== "number" ||
-          typeof lng !== "number" ||
-          isNaN(lat) ||
-          isNaN(lng) ||
+          !validMapPoint({ lat, lng }) ||
           lat === 0 ||
           lng === 0
         ) {
@@ -525,8 +529,9 @@ export default function PremiumIndiaMap({
         layer.addLayer(marker);
 
         // If parcelPoints are present (GIS demarcation), render polygon boundary
-        if (Array.isArray(property.parcelPoints) && property.parcelPoints.length >= 3) {
-          const latLngs: [number, number][] = property.parcelPoints.map((pt) => [pt.lat, pt.lng]);
+        const parcelPoints = property.parcelPoints;
+        if (parcelPoints && hasParcelBoundary(parcelPoints)) {
+          const latLngs: [number, number][] = parcelPoints.map((pt) => [pt.lat, pt.lng]);
           const polygon = L.polygon(latLngs, {
             color: "#0284C7",
             weight: 2,

@@ -6,7 +6,8 @@ import { authGuard, AuthRequest } from "../middleware/auth.middleware";
 import { isValidObjectId, Types } from "mongoose";
 import { publicUser } from "../services/security";
 import { publicFields } from "../services/propertyWorkflow";
-import { publicPropertyFilter } from "../services/marketplace";
+import { publishedFilter, enabledOwnerStages } from "../services/marketplace";
+import { replicaReadPreference } from "../services/readReplica";
 
 const router = express.Router();
 
@@ -48,7 +49,7 @@ router.put("/profile", authGuard, async (req: AuthRequest, res) => {
 // Get User's Listed Properties
 router.get("/my-properties", authGuard, async (req: AuthRequest, res) => {
   try {
-    const properties = await readPage(Property.find({ ownerId: req.user?.id }).select(listFields), req, res);
+    const properties = await readPage(Property.find({ ownerId: req.user?.id }).select(listFields).read(replicaReadPreference()), req, res);
     res.json(properties);
   } catch (err) {
     res.status(500).json({ error: "Server error" });
@@ -66,7 +67,11 @@ router.get("/wishlist", authGuard, async (req: AuthRequest, res) => {
     const index = anchor ? order.indexOf(anchor) : -1;
     if (anchor && index < 0) return res.status(400).json({ error: "Saved list changed. Refresh to continue." });
     const ids = order.slice(index + 1, index + 1 + limit);
-    const found = await Property.find({ ...await publicPropertyFilter(), _id: { $in: ids } }).select(publicFields).lean().maxTimeMS(5000);
+    const found = await Property.aggregate([
+      { $match: { ...publishedFilter, _id: { $in: ids.map(id => new Types.ObjectId(id)) } } },
+      ...enabledOwnerStages(),
+      { $project: Object.fromEntries(publicFields.split(" ").map(field => [field, 1])) },
+    ]).read(replicaReadPreference()).option({ maxTimeMS: 5000 });
     const byId = new Map(found.map(row => [String(row._id), row]));
     const properties = ids.map(id => byId.get(id)).filter(Boolean);
     res.setHeader("X-Next-Cursor", index + 1 + limit < order.length ? cursorFor({ _id: ids.at(-1), createdAt: new Date(0) }) : "");
@@ -91,7 +96,10 @@ router.post("/wishlist/:propertyId", authGuard, async (req: AuthRequest, res) =>
     if (!isValidObjectId(propId)) return res.status(400).json({ error: "Invalid property ID" });
     const isWishlisted = user.wishlist.some(id => id.toString() === propId.toString());
 
-    if (!isWishlisted && !await Property.exists({ ...await publicPropertyFilter(), _id: propId })) return res.status(404).json({ error: "Published property not found" });
+    if (!isWishlisted) {
+      const visible = await Property.aggregate([{ $match: { ...publishedFilter, _id: new Types.ObjectId(propId) } }, ...enabledOwnerStages(), { $limit: 1 }, { $project: { _id: 1 } }]).option({ maxTimeMS: 5000 });
+      if (!visible.length) return res.status(404).json({ error: "Published property not found" });
+    }
     const objectId = new Types.ObjectId(propId);
     const updated = await User.findOneAndUpdate({ _id: user._id, $or: [{ wishlist: objectId }, { $expr: { $lt: [{ $size: "$wishlist" }, 1000] } }] }, [
       { $set: { wishlist: { $cond: [{ $in: [objectId, "$wishlist"] }, { $filter: { input: "$wishlist", as: "id", cond: { $ne: ["$$id", objectId] } } }, { $concatArrays: ["$wishlist", [objectId]] }] } } },

@@ -1,7 +1,8 @@
 import { AppTheme } from "../constants/theme";
 import { premiumStyles } from "../constants/typography";
 import React from "react";
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import Image from "./PropertyImage";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter, type Href } from "expo-router";
 import { useAuthStore } from "../src/store/authStore";

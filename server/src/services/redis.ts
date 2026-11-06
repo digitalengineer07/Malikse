@@ -2,7 +2,7 @@ import { createClient, createCluster } from "redis";
 import { performanceMetrics } from "./performanceMetrics";
 
 export function redisConfigured() {
-  return Boolean(process.env.REDIS_CLUSTER_NODES?.trim() || process.env.REDIS_URL);
+  return process.env.REDIS_CACHE_ENABLED !== "false" && Boolean(process.env.REDIS_CLUSTER_NODES?.trim() || process.env.REDIS_URL);
 }
 function timeout(name: string, fallback: number) {
   const value = Number(process.env[name]);

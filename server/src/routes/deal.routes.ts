@@ -5,6 +5,7 @@ import { publicFields } from "../services/propertyWorkflow";
 import { OfferError, offerProperty } from "../services/marketplace";
 
 import { authGuard, roleGuard } from "../middleware/auth.middleware";
+import { sendPush } from "../services/pushNotifications";
 
 const router = Router();
 router.param("id", (_req, res, next, id) => isValidObjectId(id) ? next() : res.status(400).json({ message: "Invalid deal ID" }));
@@ -29,6 +30,7 @@ router.post("/:propertyId/offer", authGuard, roleGuard("user"), async (req: any,
 
     await deal.save();
     res.status(201).json(deal);
+    sendPush(property.ownerId.toString(), "New offer", "You received an offer on your property.", { kind: "deal", id: deal._id.toString() });
   } catch (error: any) {
     res.status(error instanceof OfferError ? error.status : 500).json({ message: error instanceof OfferError ? error.message : "An unexpected server error occurred" });
   }
@@ -65,7 +67,8 @@ router.patch("/:id/status", authGuard, async (req: any, res) => {
       completed: [], cancelled: [], rejected: [],
     };
     const ownerAction = deal.ownerId.toString() === req.user.id && ["accepted", "rejected", "countered"].includes(status);
-    if (!ownerAction && req.user.role !== "admin") return res.status(403).json({ message: "Unauthorized to change status" });
+    const buyerCancellation = deal.buyerId.toString() === req.user.id && status === "cancelled" && deal.status === "offered";
+    if (!ownerAction && !buyerCancellation && req.user.role !== "admin") return res.status(403).json({ message: "Unauthorized to change status" });
     if (!transitions[deal.status]?.includes(status)) return res.status(409).json({ message: "This deal cannot move to that status" });
     const changes: any = { status };
     if (status === "countered") {
@@ -77,6 +80,11 @@ router.patch("/:id/status", authGuard, async (req: any, res) => {
     const updated = await Deal.findOneAndUpdate({ _id: deal._id, status: deal.status, __v: deal.__v }, { $set: changes, $inc: { __v: 1 } }, { new: true, runValidators: true });
     if (!updated) return res.status(409).json({ message: "Deal changed. Reload and try again" });
     res.json(updated);
+    for (const participant of [updated.buyerId, updated.ownerId]) {
+      if (participant.toString() !== req.user.id) {
+        sendPush(participant.toString(), "Deal update", `Your deal is now ${status.replace(/_/g, " ")}.`, { kind: "deal", id: updated._id.toString() });
+      }
+    }
   } catch (error: any) {
     res.status(500).json({ message: "An unexpected server error occurred" });
   }

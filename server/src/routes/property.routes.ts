@@ -1,3 +1,4 @@
+import { identityApproved } from "../services/security";
 import { Router } from "express";
 import { isValidObjectId } from "mongoose";
 import multer from "multer";
@@ -17,8 +18,15 @@ import { regionCounts } from "../services/propertyRegions";
 import { getPublicSearchResponse } from "../services/propertySearch";
 import { publicResponse, sendPublicResponse } from "../services/publicResponseCache";
 import { enqueueSubmission } from "../services/submissionQueue";
+import { replicaReadPreference } from "../services/readReplica";
 
 const router = Router();
+async function restoreUploadedPhoto(id: string, ownerId: string, url: string) {
+  const result = await Property.updateOne({ _id: id, ownerId, status: { $in: ["draft", "correction_required"] },
+    $or: [{ "media.photos": url }, { "media.photos.9": { $exists: false } }],
+  }, { $addToSet: { "media.photos": url }, $inc: { __v: 1 } });
+  return result.matchedCount > 0;
+}
 const photoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 router.param("id", (_req, res, next, id) => isValidObjectId(id) ? next() : res.status(400).json({ message: "Invalid property ID" }));
 
@@ -51,7 +59,7 @@ router.get("/search", async (req, res) => {
 });
 
 router.get("/mine", authGuard, roleGuard("user"), async (req: any, res) => {
-  try { res.json(await readPage(Property.find({ ownerId: req.user.id }).select(listFields), req, res)); }
+  try { res.json(await readPage(Property.find({ ownerId: req.user.id }).select(listFields).read(replicaReadPreference()), req, res)); }
   catch (error: any) { res.status(500).json({ message: "An unexpected server error occurred" }); }
 });
 
@@ -68,8 +76,8 @@ router.get("/:id/workspace", authGuard, async (req: any, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const response = await publicResponse({ db: Property.db.name, kind: "detail", id: req.params.id }, async () => {
-      const property = await Property.findOne({ ...publishedFilter, _id: req.params.id }).select(publicFields + " ownerId").maxTimeMS(1500).lean();
-      const owner = property && await User.exists({ _id: property.ownerId, isSuspended: { $ne: true }, isActive: { $ne: false } }).maxTimeMS(1000);
+      const property = await Property.findOne({ ...publishedFilter, _id: req.params.id }).select(publicFields + " ownerId").read(replicaReadPreference()).maxTimeMS(1500).lean();
+      const owner = property && await User.exists({ _id: property.ownerId, isSuspended: { $ne: true }, isActive: { $ne: false } }).read(replicaReadPreference()).maxTimeMS(1000);
       if (!property || !owner) return { data: { message: "Published property not found" }, status: 404 };
       const { ownerId: _owner, ...dto } = property;
       return { data: dto };
@@ -81,7 +89,7 @@ router.get("/:id", async (req, res) => {
 router.post("/", authGuard, roleGuard("user"), async (req: any, res) => {
   try {
     const seller = await User.findById(req.user.id);
-    if (!seller?.demoKycComplete) return res.status(403).json({ message: "Complete demo KYC before listing" });
+    if ((!seller || !identityApproved(seller))) return res.status(403).json({ message: "Complete identity verification before listing" });
     const data = listingFields(req.body);
     const error = validateListing(data);
     if (error) return res.status(400).json({ message: error });
@@ -107,7 +115,7 @@ router.patch("/:id", authGuard, roleGuard("user"), async (req: any, res) => {
 router.post("/:id/submit", authGuard, roleGuard("user"), async (req: any, res) => {
   try {
     const seller = await User.findById(req.user.id);
-    if (!seller?.demoKycComplete) return res.status(403).json({ message: "Complete demo KYC first" });
+    if ((!seller || !identityApproved(seller))) return res.status(403).json({ message: "Complete identity verification first" });
     const property = await Property.findOne({ _id: req.params.id, ownerId: req.user.id });
     if (!property) return res.status(404).json({ message: "Property not found" });
     if (!["draft", "correction_required"].includes(property.status)) return res.status(409).json({ message: "Property has already been submitted or cannot be resubmitted" });
@@ -133,15 +141,38 @@ router.post("/:id/photos", authGuard, roleGuard("user"), uploadCapacity, async (
     let retained = false;
     try {
       if (!req.file) return res.status(400).json({ message: "Select a photo to upload" });
-      filename = await storePropertyPhoto(req.file.buffer);
+      const uploadId = req.body.uploadId;
+      if (uploadId !== undefined && (typeof uploadId !== "string" || !/^[a-f0-9-]{36}$/i.test(uploadId))) return res.status(400).json({ message: "Invalid upload ID" });
+      const receiptPath = uploadId ? `uploadReceipts.${uploadId}` : undefined;
+      const previous = receiptPath && await Property.findById(req.params.id).select("+uploadReceipts");
+      const previousUrl = previous && previous.uploadReceipts?.get(uploadId);
+      if (previousUrl) {
+        if (!await restoreUploadedPhoto(req.params.id, req.user.id, previousUrl)) return res.status(409).json({ message: "Property changed or photo limit reached" });
+        return res.status(200).json({ url: previousUrl });
+      }
+      filename = await storePropertyPhoto(req.file.buffer, req.params.id);
       const origin = apiOrigin(req);
       const url = `${origin.replace(/\/$/, "")}/property-photos/${filename}`;
-      const property = await Property.findOneAndUpdate({ _id: req.params.id, ownerId: req.user.id, status: { $in: ["draft", "correction_required"] }, "media.photos.9": { $exists: false } }, { $push: { "media.photos": url }, $inc: { __v: 1 } }, { new: true });
-      if (!property) return res.status(409).json({ message: "Property changed or already has 10 photos. Reload and try again." });
+      const property = await Property.findOneAndUpdate({ _id: req.params.id, ownerId: req.user.id, status: { $in: ["draft", "correction_required"] }, "media.photos.9": { $exists: false }, ...(receiptPath ? { [receiptPath]: { $exists: false } } : {}) }, { ...(receiptPath ? { $set: { [receiptPath]: url } } : {}), $push: { "media.photos": url }, $inc: { __v: 1 } }, { new: true });
+      if (!property) {
+        const saved = receiptPath && await Property.findById(req.params.id).select("+uploadReceipts");
+        const savedUrl = saved && saved.uploadReceipts?.get(uploadId);
+        if (savedUrl && await restoreUploadedPhoto(req.params.id, req.user.id, savedUrl)) return res.status(200).json({ url: savedUrl });
+        return res.status(409).json({ message: "Property changed or already has 10 photos. Reload and try again." });
+      }
       retained = true;
       res.status(201).json({ url });
     } catch (cause: any) { res.status(400).json({ message: cause.message || "Could not upload photo" }); }
-    finally { if (filename && !retained) await discardPropertyPhoto(filename); }
+    finally {
+      if (filename && !retained) {
+        // A lost DB acknowledgement may still have committed the attachment.
+        // Preserve the file if that check fails; never delete a possibly saved photo.
+        try {
+          const attached = await Property.exists({ _id: req.params.id, "media.photos": { $regex: `/${filename.replace(/\./g, "\\.")}$` } });
+          if (!attached) await discardPropertyPhoto(filename);
+        } catch { /* Leave uncertain files intact for recovery. */ }
+      }
+    }
   });
 });
 export default router;

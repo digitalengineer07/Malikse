@@ -19,6 +19,7 @@ import { Property } from "./models/Property.model";
 import { User } from "./models/User.model";
 import { canReadProperty, publicFields } from "./services/propertyWorkflow";
 import { publishedFilter } from "./services/marketplace";
+import { replicaReadPreference } from "./services/readReplica";
 
 function sendPublicResponse(request: FastifyRequest, reply: FastifyReply, value: PublicResponse) {
   assertPublicGeneration(value.generation);
@@ -123,7 +124,7 @@ export function createFastifyApp(isReady?: () => boolean) {
       try {
         const { limit, filter } = pageInput(request.query);
         const rows = await Property.find({ ownerId: auth.user!.id }).select(listFields).and([filter])
-          .sort({ createdAt: -1, _id: -1 }).limit(limit + 1).maxTimeMS(5000).lean();
+          .sort({ createdAt: -1, _id: -1 }).limit(limit + 1).read(replicaReadPreference()).maxTimeMS(5000).lean();
         reply.header("X-Next-Cursor", rows.length > limit ? cursorFor(rows[limit - 1]) : "");
         return reply.send(rows.slice(0, limit));
       } catch { return reply.code(500).send({ message: "An unexpected server error occurred" }); }
@@ -144,8 +145,8 @@ export function createFastifyApp(isReady?: () => boolean) {
       if (!isValidObjectId(request.params.id)) return reply.code(400).send({ message: "Invalid property ID" });
       try {
         const response = await publicResponse({ db: Property.db.name, kind: "detail", id: request.params.id }, async () => {
-          const property = await Property.findOne({ ...publishedFilter, _id: request.params.id }).select(publicFields + " ownerId").maxTimeMS(1500).lean();
-          const owner = property && await User.exists({ _id: property.ownerId, isSuspended: { $ne: true }, isActive: { $ne: false } }).maxTimeMS(1000);
+          const property = await Property.findOne({ ...publishedFilter, _id: request.params.id }).select(publicFields + " ownerId").read(replicaReadPreference()).maxTimeMS(1500).lean();
+          const owner = property && await User.exists({ _id: property.ownerId, isSuspended: { $ne: true }, isActive: { $ne: false } }).read(replicaReadPreference()).maxTimeMS(1000);
           if (!property || !owner) return { data: { message: "Published property not found" }, status: 404 };
           const { ownerId: _owner, ...dto } = property;
           return { data: dto };

@@ -21,7 +21,13 @@ export interface InquiryData {
 }
 
 export const inquiryService = {
-  async getConversations(cursor?: string): Promise<InquiryData[]> { return (await api.get("/inquiries", { params: { cursor } })).data; },
+  async getInquiry(id: string): Promise<InquiryData> {
+    return (await api.get(`/inquiries/${id}`)).data;
+  },
+  async getConversations(cursor?: string): Promise<InquiryData[]> {
+    const res = await api.get("/inquiries", { params: { cursor } });
+    return Object.assign(res.data as InquiryData[], { nextCursor: res.headers["x-next-cursor"] || undefined });
+  },
   async getMessages(id: string, before?: number): Promise<{ messages: NonNullable<InquiryData["messages"]>; nextBefore: number | null }> {
     return (await api.get(`/inquiries/${id}/messages`, { params: { before } })).data;
   },

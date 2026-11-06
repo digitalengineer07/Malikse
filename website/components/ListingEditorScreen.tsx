@@ -1,7 +1,7 @@
+import { uploadListingFiles } from "../src/services/uploadQueue";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Modal,
   Platform,
   StyleSheet,
@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import Image from "./PropertyImage";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import * as Location from "expo-location";
@@ -167,6 +168,7 @@ export default function ListingEditorScreen() {
   const [picked, setPicked] = useState<Picked[]>([]);
   const [existingDocs, setExistingDocs] = useState<any[]>([]);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
   const submitting = useRef(false);
 
   // Clear stored draft upon successful submission
@@ -469,46 +471,15 @@ export default function ListingEditorScreen() {
         savedId = property._id || property.id;
         setPropertyId(savedId);
       }
-      for (const asset of photoFiles) {
-        const file: any =
-          Platform.OS === "web"
-            ? asset.file ||
-              new File([await (await fetch(asset.uri)).blob()], asset.name, {
-                type: asset.mimeType,
-              })
-            : {
-                uri: asset.uri,
-                name: asset.name,
-                type: asset.mimeType || "image/jpeg",
-              };
-        const result = await propertyService.uploadPhoto(savedId!, file, asset.name);
-        setForm((previous) => ({
-          ...previous,
-          photos: [previous.photos, result.url].filter(Boolean).join("\n"),
-        }));
-        setPhotoFiles((previous) => previous.filter((item) => item !== asset));
-      }
-      for (const document of picked) {
-        const { asset } = document;
-        const file: any =
-          Platform.OS === "web"
-            ? asset.file ||
-              new File([await (await fetch(asset.uri)).blob()], asset.name, {
-                type: asset.mimeType,
-              })
-            : {
-                uri: asset.uri,
-                name: asset.name,
-                type: asset.mimeType || "application/octet-stream",
-              };
-        await documentService.uploadDocument(
-          savedId!,
-          document.type,
-          file,
-          asset.name
-        );
-        setPicked((previous) => previous.filter((item) => item !== document));
-      }
+      await uploadListingFiles(savedId!, photoFiles, picked, {
+        progress: setUploadProgress,
+        photo: (asset, url) => {
+          setForm(previous => ({ ...previous, photos: [previous.photos, url].filter(Boolean).join("\n") }));
+          setPhotoFiles(previous => previous.filter(item => item !== asset));
+        },
+        document: item => setPicked(previous => previous.filter(document => document !== item)),
+      });
+      setUploadProgress("Submitting for Advisor verification…");
       await workflowService.submit(savedId!);
       clearSessionDraft();
       setSubmissionSuccess(true);
@@ -549,7 +520,7 @@ export default function ListingEditorScreen() {
   if (!hydrated) return <ActivityIndicator />;
   if (!user || authState !== "AUTHENTICATED") return <Redirect href="/login" />;
   if (user.role !== "user") return <Redirect href={dashboardRoutes[user.role]} />;
-  if (!user.demoKycComplete) return <Redirect href="/kyc" />;
+  if (!(user.isVerifiedIdentity || user.demoKycComplete)) return <Redirect href="/kyc" />;
 
   const field = (
     key: keyof typeof initialForm,
@@ -1369,6 +1340,7 @@ export default function ListingEditorScreen() {
           </View>
         ) : null}
 
+        {!!uploadProgress && <Text accessibilityLiveRegion="polite" style={{ margin: 16, lineHeight: 22 }}>{uploadProgress}</Text>}
         {/* Submission Success Confirmation Modal */}
         <Modal
           visible={submissionSuccess}

@@ -6,13 +6,15 @@ import { Property } from "../models/Property.model";
 import { Inquiry } from "../models/Inquiry.model";
 import { Deal } from "../models/Deal.model";
 import { PropertyDocument } from "../models/Document.model";
-import { SearchCache } from "../models/SearchCache.model";
+import { DocumentDownload } from "../models/DocumentDownload.model";
+import { PushDevice } from "../models/PushDevice.model";
+import { PushReceipt } from "../models/PushReceipt.model";
 
 async function main() {
   await mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/malikse", { autoIndex: false });
   try {
     // Additive only: never drop existing indexes automatically during a deployment.
-    for (const model of [Registration, User, Property, Inquiry, Deal, PropertyDocument, SearchCache]) {
+    for (const model of [Registration, User, Property, Inquiry, Deal, PropertyDocument, DocumentDownload, PushDevice, PushReceipt]) {
       await model.createIndexes();
       console.log(`Indexes ready: ${model.modelName}`);
     }

@@ -9,7 +9,7 @@ import jwt from "jsonwebtoken";
 import { authGuard } from "../middleware/auth.middleware";
 import { User } from "../models/User.model";
 
-import { REFRESH_SECRET, accountEnabled, generateTokens, publicUser, tokenDigest } from "../services/security";
+import { REFRESH_SECRET, accountEnabled, generateTokens, publicUser, tokenDigest, refreshExpiry } from "../services/security";
 import { sendEmailOtp } from "../services/mailer";
 
 const router = Router();
@@ -22,19 +22,19 @@ function timingSafeMatch(a: string, b: string): boolean {
   return timingSafeEqual(bufA, bufB);
 }
 
-// Deterministic challenge-bound SHA-256 (independent of environment secrets or server restarts)
+// Challenge-bound keyed digests prevent offline OTP guessing from a database-only leak.
 const otpDigest = (id: string, code: string) =>
-  createHash("sha256").update("registration-otp:" + id + ":" + String(code).replace(/\D/g, "").slice(0, 6)).digest("hex");
+  createHmac("sha256", REFRESH_SECRET).update("registration-otp:" + id + ":" + String(code).replace(/\D/g, "").slice(0, 6)).digest("hex");
 
 const resetOtpDigest = (id: string, code: string) =>
-  createHash("sha256").update("password-reset-otp:" + id + ":" + String(code).replace(/\D/g, "").slice(0, 6)).digest("hex");
+  createHmac("sha256", REFRESH_SECRET).update("password-reset-otp:" + id + ":" + String(code).replace(/\D/g, "").slice(0, 6)).digest("hex");
 
 function verifyRegistrationOtp(challengeId: string, inputCode: string, storedHash: string): boolean {
   const clean = String(inputCode || "").replace(/\D/g, "").slice(0, 6);
   if (!clean || !storedHash) return false;
 
-  // 1. Direct challenge-bound SHA-256
-  const sha = otpDigest(challengeId, clean);
+  // Legacy in-flight challenges expire after two minutes.
+  const sha = createHash("sha256").update("registration-otp:" + challengeId + ":" + clean).digest("hex");
   if (timingSafeMatch(sha, storedHash)) return true;
 
   // 2. Legacy HMAC with REFRESH_SECRET (for any in-flight registrations)
@@ -43,11 +43,6 @@ function verifyRegistrationOtp(challengeId: string, inputCode: string, storedHas
     if (timingSafeMatch(hmac, storedHash)) return true;
   } catch {}
 
-  // 3. Fallback HMAC
-  try {
-    const fallbackHmac = createHmac("sha256", "your_refresh_secret_here").update("registration-otp:" + challengeId + ":" + clean).digest("hex");
-    if (timingSafeMatch(fallbackHmac, storedHash)) return true;
-  } catch {}
 
   return false;
 }
@@ -56,8 +51,8 @@ function verifyPasswordResetOtp(challengeId: string, inputCode: string, storedHa
   const clean = String(inputCode || "").replace(/\D/g, "").slice(0, 6);
   if (!clean || !storedHash) return false;
 
-  // 1. Direct challenge-bound SHA-256
-  const sha = resetOtpDigest(challengeId, clean);
+  // Legacy in-flight challenges expire after two minutes.
+  const sha = createHash("sha256").update("password-reset-otp:" + challengeId + ":" + clean).digest("hex");
   if (timingSafeMatch(sha, storedHash)) return true;
 
   // 2. Legacy HMAC with REFRESH_SECRET
@@ -66,11 +61,6 @@ function verifyPasswordResetOtp(challengeId: string, inputCode: string, storedHa
     if (timingSafeMatch(hmac, storedHash)) return true;
   } catch {}
 
-  // 3. Fallback HMAC
-  try {
-    const fallbackHmac = createHmac("sha256", "your_refresh_secret_here").update("password-reset-otp:" + challengeId + ":" + clean).digest("hex");
-    if (timingSafeMatch(fallbackHmac, storedHash)) return true;
-  } catch {}
 
   return false;
 }
@@ -214,7 +204,7 @@ router.post("/register", async (req, res) => {
       }
 
       const passwordHash = await bcrypt.hash(password, 10);
-      const stubCode = process.env.OTP_STUB_CODE?.trim();
+      const stubCode = process.env.NODE_ENV === "test" ? process.env.OTP_STUB_CODE?.trim() : undefined;
       const code = stubCode || randomInt(0, 1000000).toString().padStart(6, "0");
       let delivered = false;
 
@@ -229,13 +219,13 @@ router.post("/register", async (req, res) => {
             }
             delivered = true;
           } else {
-            console.warn(`[AUTH] Twilio credentials not configured. Verification OTP for ${cleanMobile} is: ${code}`);
+            console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
           }
         } catch (smsErr: any) {
-          console.error(`[AUTH] SMS delivery error (${smsErr.message}). Verification OTP for ${cleanMobile} is: ${code}`);
-          const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production";
-          if (stubCode || allowDevOtp || !process.env.TWILIO_ACCOUNT_SID) {
-            // Logged to server console; allow verification
+          console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
+          const allowDevOtp = process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true";
+          if (stubCode || allowDevOtp) {
+            // Explicit non-production test mode only.
           } else {
             throw Object.assign(
               new Error(`${smsErr.message || "Failed to send SMS OTP"}. Alternatively, you can register instantly using Email Address.`),
@@ -249,14 +239,15 @@ router.post("/register", async (req, res) => {
           await sendEmailOtp(cleanEmail, code, "register");
           delivered = true;
         } catch (mailErr: any) {
-          console.error(`[AUTH] Email delivery error (${mailErr.message}). Verification OTP for ${cleanEmail} is: ${code}`);
-          const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV === "test";
+          console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
+          const allowDevOtp = process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true";
           if (!allowDevOtp) {
             throw mailErr;
           }
         }
       }
 
+      if (!delivered && !stubCode && !(process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true")) throw Object.assign(new Error("OTP delivery is unavailable"), { status: 503 });
       const expiresAt = new Date(Date.now() + 120000);
       const resendAt = new Date(Date.now() + 60000);
       await Registration.updateOne({ _id: challengeKey, challengeId }, { $set: {
@@ -299,6 +290,36 @@ router.post("/register", async (req, res) => {
 });
 
 // Only a matching, unexpired, single-use code can create an account.
+router.post("/register/resend", rateLimit({ windowMs: 60000, limit: 5, standardHeaders: "draft-8", legacyHeaders: false, validate: { xForwardedForHeader: false, default: true } }), async (req, res) => {
+  const challengeId = req.body?.challengeId;
+  if (typeof challengeId !== "string" || challengeId.length > 100) return res.status(400).json({ message: "Challenge ID is required" });
+  const now = new Date();
+  let locked: any;
+  try {
+    locked = await Registration.findOneAndUpdate({ challengeId, deleteAt: { $gt: now }, passwordHash: { $exists: true },
+      resendAt: { $lte: now }, lockUntil: { $lte: now },
+    }, { $set: { lockUntil: new Date(Date.now() + 30000), resendAt: new Date(Date.now() + 60000), expiresAt: now } }, { new: true });
+    if (!locked) return res.status(429).json({ message: "Registration expired or resend is not available yet. Please wait or start again.", retryAfterSeconds: 60 });
+    const nextChallenge = randomUUID();
+    const stub = process.env.NODE_ENV === "test" ? process.env.OTP_STUB_CODE?.trim() : undefined;
+    const code = stub || randomInt(0, 1000000).toString().padStart(6, "0");
+    if (!stub) {
+      if (locked.channel === "email") await sendEmailOtp(locked.email, code, "register");
+      else if (hasDedicatedTwilioPhone()) await sendSMS(locked.mobile, `Your MalikSe verification code is ${code}. It expires in 2 minutes. Do not share this code.`);
+      else await sendTwilioVerification(locked.mobile);
+    }
+    const updated = await Registration.updateOne({ _id: locked._id, challengeId }, { $set: {
+      challengeId: nextChallenge, otpHash: otpDigest(nextChallenge, code), attempts: 0,
+      expiresAt: new Date(Date.now() + 120000), resendAt: new Date(Date.now() + 60000), lockUntil: new Date(0),
+    } });
+    if (!updated.modifiedCount) return res.status(409).json({ message: "Registration changed. Please start again." });
+    return res.status(202).json({ challengeId: nextChallenge, channel: locked.channel, expiresInSeconds: 120, resendAfterSeconds: 60, ...(stub ? { stubCode: stub } : {}) });
+  } catch {
+    if (locked) await Registration.updateOne({ _id: locked._id, challengeId }, { $set: { lockUntil: new Date(0), expiresAt: new Date(0) } }).catch(() => {});
+    return res.status(503).json({ message: "Could not resend verification code. Please try again." });
+  }
+});
+
 router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false, validate: { xForwardedForHeader: false, default: true } }), async (req, res) => {
   const rawIdentifier = String(req.body.identifier || req.body.mobile || req.body.email || "").trim();
   const rawChallengeId = String(req.body.challengeId || "").trim();
@@ -317,9 +338,9 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
   }
 
   const cleanMobile = rawIdentifier.replace(/\D/g, "").slice(0, 10);
-  const isMobile = mobilePattern.test(cleanMobile);
   const cleanEmail = rawIdentifier.toLowerCase();
   const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
+  const isMobile = !rawIdentifier.includes("@") && mobilePattern.test(cleanMobile);
 
   if (!isMobile && !isEmail) {
     return res.status(400).json({ message: "Enter a valid 10-digit mobile number or email address" });
@@ -391,6 +412,7 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
     const user = new User(userPayload);
     const { accessToken, refreshToken } = generateTokens(user);
     user.refreshTokenHash = tokenDigest(refreshToken);
+    user.refreshTokenExpiresAt = refreshExpiry(refreshToken);
     await user.save();
     await Registration.deleteOne({ _id: registrationKey, challengeId: rawChallengeId });
     return res.status(201).json({ accessToken, refreshToken, user: publicUser(user) });
@@ -420,7 +442,7 @@ router.post("/login", async (req, res) => {
     }
     const input = rawInput.trim();
     const cleanMobile = input.replace(/\D/g, "");
-    const isMobile = /^[0-9]{10}$/.test(cleanMobile);
+    const isMobile = !input.includes("@") && /^[0-9]{10}$/.test(cleanMobile);
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.toLowerCase());
 
     if (!isMobile && !isEmail) {
@@ -450,6 +472,7 @@ router.post("/login", async (req, res) => {
     const { accessToken, refreshToken } = generateTokens(user);
 
     user.refreshTokenHash = tokenDigest(refreshToken);
+    user.refreshTokenExpiresAt = refreshExpiry(refreshToken);
     await user.save();
 
     res.json({
@@ -464,6 +487,7 @@ router.post("/login", async (req, res) => {
 
 // POST /auth/kyc/demo — a UI prototype toggle, not identity verification.
 router.post("/kyc/demo", authGuard, async (req: any, res) => {
+  if (process.env.NODE_ENV === "production") return res.status(403).json({ message: "Identity verification requires staff review" });
   try {
   if (req.user.role !== "user") return res.status(403).json({ message: "User role required" });
   const user = await User.findById(req.user.id);
@@ -489,7 +513,7 @@ router.post("/refresh", async (req, res) => {
     if (!user || !accountEnabled(user)) return res.status(401).json({ message: "Invalid refresh token" });
     const tokens = generateTokens(user);
     // Compare and replace in one write: only one concurrent refresh may win.
-    const rotated = await User.updateOne({ _id: user._id, refreshTokenHash: tokenDigest(refreshToken), isSuspended: { $ne: true }, isActive: { $ne: false } }, { $set: { refreshTokenHash: tokenDigest(tokens.refreshToken) } });
+    const rotated = await User.updateOne({ _id: user._id, refreshTokenHash: tokenDigest(refreshToken), $or: [{ refreshTokenExpiresAt: { $gt: new Date() } }, { refreshTokenExpiresAt: { $exists: false } }], isSuspended: { $ne: true }, isActive: { $ne: false } }, { $set: { refreshTokenHash: tokenDigest(tokens.refreshToken), refreshTokenExpiresAt: refreshExpiry(tokens.refreshToken) } });
     if (!rotated.modifiedCount) return res.status(401).json({ message: "Refresh token mismatch or expired. Please sign in again" });
     res.json({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, user: publicUser(user) });
   } catch (error: any) {
@@ -503,6 +527,7 @@ router.post("/logout", authGuard, async (req: any, res) => {
     const user = await User.findById(req.user.id);
     if (user) {
       user.refreshTokenHash = undefined;
+      user.refreshTokenExpiresAt = undefined;
       await user.save();
     }
     res.json({ message: "Logged out successfully" });
@@ -592,7 +617,7 @@ router.post(
         return res.status(429).json({ message: "Please wait before requesting another OTP", retryAfterSeconds: 60 });
       }
 
-      const stubCode = process.env.OTP_STUB_CODE?.trim();
+      const stubCode = process.env.NODE_ENV === "test" ? process.env.OTP_STUB_CODE?.trim() : undefined;
       const code = stubCode || randomInt(0, 1000000).toString().padStart(6, "0");
       let smsDelivered = false;
       let emailDelivered = false;
@@ -603,8 +628,8 @@ router.post(
           await sendEmailOtp(user.email, code, "forgot");
           emailDelivered = true;
         } catch (mailErr: any) {
-          console.error(`[AUTH] Email password reset delivery error (${mailErr.message}). Code for ${user.email} is: ${code}`);
-          const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV === "test";
+          console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
+          const allowDevOtp = process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true";
           if (!allowDevOtp && !user.mobile) {
             throw mailErr;
           }
@@ -625,13 +650,13 @@ router.post(
             }
             smsDelivered = true;
           } else {
-            console.warn(`[AUTH] Twilio credentials not configured. Password reset OTP for ${user.mobile} is: ${code}`);
+            console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
           }
         } catch (smsErr: any) {
-          console.error(`[AUTH] SMS delivery error (${smsErr.message}). Password reset OTP for ${user.mobile || user.email} is: ${code}`);
-          const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production";
-          if (stubCode || allowDevOtp || !process.env.TWILIO_ACCOUNT_SID) {
-            // Logged to server console; allow verification
+          console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
+          const allowDevOtp = process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true";
+          if (stubCode || allowDevOtp) {
+            // Explicit non-production test mode only.
           } else if (!emailDelivered) {
             throw Object.assign(
               new Error(smsErr.message || "Failed to send SMS OTP. Please try again or use email."),
@@ -652,7 +677,8 @@ router.post(
       }
 
       if (!smsDelivered && !emailDelivered) {
-        console.log(`[AUTH] Password reset OTP for ${user.email || user.mobile} is: ${code}`);
+        if (!stubCode && !(process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true")) throw Object.assign(new Error("OTP delivery is unavailable"), { status: 503 });
+        console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
       }
 
       const expiresAt = new Date(Date.now() + 120000);
@@ -726,7 +752,7 @@ router.post(
       }
 
       const newChallengeId = randomUUID();
-      const stubCode = process.env.OTP_STUB_CODE?.trim();
+      const stubCode = process.env.NODE_ENV === "test" ? process.env.OTP_STUB_CODE?.trim() : undefined;
       const code = stubCode || randomInt(0, 1000000).toString().padStart(6, "0");
       let smsDelivered = false;
       let emailDelivered = false;
@@ -737,8 +763,8 @@ router.post(
           await sendEmailOtp(user.email, code, "forgot");
           emailDelivered = true;
         } catch (mailErr: any) {
-          console.error(`[AUTH] Resend email delivery error (${mailErr.message}). Password reset OTP for ${user.email} is: ${code}`);
-          const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV === "test";
+          console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
+          const allowDevOtp = process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true";
           if (!allowDevOtp && !user.mobile) {
             throw mailErr;
           }
@@ -758,13 +784,13 @@ router.post(
             }
             smsDelivered = true;
           } else {
-            console.warn(`[AUTH] Twilio credentials not configured. Resend password reset OTP for ${user.mobile} is: ${code}`);
+            console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
           }
         } catch (smsErr: any) {
-          console.error(`[AUTH] Resend SMS delivery error (${smsErr.message}). Password reset OTP for ${user.mobile || user.email} is: ${code}`);
-          const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production";
-          if (stubCode || allowDevOtp || !process.env.TWILIO_ACCOUNT_SID) {
-            // Logged to server console; allow verification
+          console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
+          const allowDevOtp = process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true";
+          if (stubCode || allowDevOtp) {
+            // Explicit non-production test mode only.
           } else if (!emailDelivered) {
             throw Object.assign(
               new Error(smsErr.message || "Failed to resend SMS OTP. Please try again or use email."),
@@ -784,7 +810,8 @@ router.post(
       }
 
       if (!smsDelivered && !emailDelivered) {
-        console.log(`[AUTH] Resend password reset OTP for ${user.email || user.mobile} is: ${code}`);
+        if (!stubCode && !(process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true")) throw Object.assign(new Error("OTP delivery is unavailable"), { status: 503 });
+        console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
       }
 
       const expiresAt = new Date(Date.now() + 120000);
@@ -915,6 +942,7 @@ router.post(
       // Invalidate old refresh tokens and issue fresh login tokens
       const { accessToken, refreshToken } = generateTokens(user);
       user.refreshTokenHash = tokenDigest(refreshToken);
+    user.refreshTokenExpiresAt = refreshExpiry(refreshToken);
       await user.save();
 
       // Delete password reset record

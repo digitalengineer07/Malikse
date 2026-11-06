@@ -59,7 +59,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
       <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
         <Action title="My dashboard" secondary onPress={() => router.push(dashboardRoutes[role])} />
         <Action title="Refresh" secondary onPress={() => setRevision(value => value + 1)} />
-        {role === "user" && <Action title="List a property" onPress={() => router.push(user.demoKycComplete ? "/listing/create" : "/kyc")} />}
+        {role === "user" && <Action title="List a property" onPress={() => router.push((user.isVerifiedIdentity || user.demoKycComplete) ? "/listing/create" : "/kyc")} />}
       </View>
       
       <View style={{ position: "relative", zIndex: 20 }}>

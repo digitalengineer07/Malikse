@@ -9,7 +9,7 @@ function dispatch() {
   while (queue.length) {
     let slot = slots.find(s => !s.job);
     if (!slot && slots.length < 2) {
-      const worker = new Worker(`const {parentPort,workerData}=require('worker_threads'); const bcrypt=require(workerData); parentPort.on('message',m=>{try{parentPort.postMessage({value:m.operation==='hash'?bcrypt.hashSync(m.value,m.argument):bcrypt.compareSync(m.value,m.argument)})}catch{parentPort.postMessage({error:true})}});`, { eval: true, workerData: require.resolve("bcryptjs") });
+      const worker = new Worker(`const {parentPort,workerData}=require('worker_threads'); const bcrypt=require(workerData); parentPort.on('message',m=>{try{parentPort.postMessage({value:m.operation==='hash'?bcrypt.hashSync(m.value,m.argument):bcrypt.compareSync(m.value,m.argument)})}catch{parentPort.postMessage({error:true})}});`, { eval: true, workerData: require.resolve("bcrypt") });
       slot = { worker }; slots.push(slot);
       const current = slot;
       const fail = () => {

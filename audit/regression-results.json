@@ -1,5 +1,5 @@
 {
-  "checks": 66,
+  "checks": 81,
   "passed": [
     "Photo traversal rejected; normal photo upload/download works",
     "Wishlist requires publication, filters suspended owners and excludes private fields",
@@ -9,8 +9,9 @@
     "Inactive staff excluded from automatic/manual/resubmission assignment; deactivation releases pending work",
     "Deal buyers receive public fields; terminal and concurrent transitions are protected",
     "Admin seller transactions, staff history and property audits use actual schema fields",
-    "Document URLs use configured HTTPS origin; missing authorization and disabled actors denied",
+    "Documents require bearer authorization or a single-use ticket; replay and disabled actors denied",
     "Latest-message previews and unread state persist, remain actor-scoped and never move backwards",
+    "Buyers can cancel pending offers; production ignores demo KYC and requires audited admin identity review",
     "Startup fails closed for missing/known/shared JWT secrets and unsafe production origin"
   ]
 }

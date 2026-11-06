@@ -38,8 +38,8 @@ export async function sendEmailOtp(
 
   const configured = isSmtpConfigured();
   if (!configured) {
-    console.warn(`[Mailer] Hostinger SMTP not configured. Email OTP for ${cleanEmail} is: ${cleanCode}`);
-    if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEV_OTP !== "true") {
+    console.warn("[Mailer] SMTP is not configured; OTP withheld from logs");
+    if (process.env.NODE_ENV === "production" || !(process.env.ALLOW_DEV_OTP === "true" || (process.env.NODE_ENV === "test" && process.env.OTP_STUB_CODE))) {
       throw Object.assign(
         new Error("Email service is not configured on the server. Please set SMTP_USER and SMTP_PASS in server settings."),
         { status: 503 }

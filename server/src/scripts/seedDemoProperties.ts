@@ -30,6 +30,11 @@ const areas = [
   { state: "Uttar Pradesh", district: "Lucknow", pincode: "226001", lat: 26.846, lng: 80.946, count: 8 },
   { state: "West Bengal", district: "Kolkata", pincode: "700001", lat: 22.572, lng: 88.363, count: 8 },
   { state: "Tamil Nadu", district: "Chennai", pincode: "600001", lat: 13.083, lng: 80.283, count: 8 },
+  { state: "Bihar", district: "Bhagalpur", pincode: "812001", lat: 25.244, lng: 86.971, count: 10 },
+  { state: "Bihar", district: "Darbhanga", pincode: "846004", lat: 26.154, lng: 85.891, count: 10 },
+  { state: "Bihar", district: "Nalanda", pincode: "803101", lat: 25.136, lng: 85.443, count: 10 },
+  { state: "Bihar", district: "Purnia", pincode: "854301", lat: 25.778, lng: 87.475, count: 10 },
+  { state: "Bihar", district: "Begusarai", pincode: "851101", lat: 25.418, lng: 86.127, count: 10 },
 ] as const;
 const propertyTypes = ["land", "flat", "house", "shop", "office"] as const;
 const disclaimer = "SAMPLE DATA ONLY. This is not a real property offer. Photo, price, coordinates and outlined boundary are illustrative and must not be used for a transaction or land survey.";
@@ -49,12 +54,20 @@ function approximateBoundary(lat: number, lng: number, area: number) {
 async function main() {
   const uri = process.env.MONGO_URI || "mongodb://localhost:27017/malikse";
   const endpoint = new URL(uri);
-  if (endpoint.protocol !== "mongodb:" || !["localhost", "127.0.0.1"].includes(endpoint.hostname) || endpoint.pathname !== "/malikse") {
-    throw new Error("This demo seeder only writes to the local malikse database");
+  const localDatabase = endpoint.protocol === "mongodb:" && ["localhost", "127.0.0.1"].includes(endpoint.hostname) && endpoint.pathname === "/malikse";
+  const authorizedAtlasDatabase = process.env.ALLOW_REMOTE_DEMO_SEED === "true" && endpoint.protocol === "mongodb+srv:" && endpoint.pathname === "/MalikSe";
+  if (!localDatabase && !authorizedAtlasDatabase) {
+    throw new Error("This demo seeder requires local malikse or explicit authorization for the Atlas MalikSe database");
   }
   const port = Number(process.env.PORT || 5000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid local API port");
-  const origin = `http://localhost:${port}`;
+  if (authorizedAtlasDatabase && !process.env.PUBLIC_API_URL) throw new Error("PUBLIC_API_URL is required when seeding Atlas");
+  const origin = (process.env.PUBLIC_API_URL || `http://localhost:${port}`).replace(/\/$/, "");
+  const publicEndpoint = new URL(origin);
+  if (!["http:", "https:"].includes(publicEndpoint.protocol) || publicEndpoint.username || publicEndpoint.password || publicEndpoint.search || publicEndpoint.hash || !["", "/"].includes(publicEndpoint.pathname)) {
+    throw new Error("PUBLIC_API_URL must be an HTTP(S) origin without path or credentials");
+  }
+  if (authorizedAtlasDatabase && publicEndpoint.protocol !== "https:") throw new Error("PUBLIC_API_URL must use HTTPS when seeding Atlas");
   await mongoose.connect(uri, { autoIndex: false });
   try {
     let owner = await User.findOne({ email: "demo-properties@malikse.invalid", role: "user" });
@@ -112,11 +125,24 @@ async function main() {
         media: { photos: [photoURLs[(sequence - 1) % photoURLs.length]], videos: [] },
       });
     }
-    if (sequence !== 144) throw new Error("Expected 144 generated samples");
+    if (sequence !== 194) throw new Error("Expected 194 generated samples");
     if (additional.length) await Property.insertMany(additional, { ordered: true });
+    const demoListings = await Property.find({ ownerId: owner._id, title: /^DEMO · / }).select("media.photos").lean();
+    const photoUpdates = demoListings.flatMap(listing => {
+      const photos = (listing.media?.photos || []).map(photo => {
+        try {
+          const filename = path.posix.basename(new URL(photo).pathname);
+          return `${origin}/property-photos/${filename}`;
+        } catch { return photo; }
+      });
+      return JSON.stringify(photos) === JSON.stringify(listing.media?.photos || []) ? [] : [{
+        updateOne: { filter: { _id: listing._id }, update: { $set: { "media.photos": photos } } },
+      }];
+    });
+    if (photoUpdates.length) await Property.bulkWrite(photoUpdates);
     const total = await Property.countDocuments({ ownerId: owner._id, title: /^DEMO · / });
-    if (total !== 150) throw new Error(`Expected 150 demo properties; found ${total}`);
-    console.log(`Demo owner ${owner._id}; created ${additional.length} additional listings; ${total} total. Six uploaded GridFS images are reused across the examples.`);
+    if (total !== 200) throw new Error(`Expected 200 demo properties; found ${total}`);
+    console.log(`Demo owner ${owner._id}; created ${additional.length} additional listings; updated ${photoUpdates.length} photo references; ${total} total. Six uploaded GridFS images are reused across the examples.`);
   } finally { await mongoose.disconnect(); }
 }
 main().catch(error => { console.error("Demo seed failed:", error.message); process.exitCode = 1; });

@@ -5,6 +5,7 @@ import { publicFields } from "./propertyWorkflow";
 import { pageInput, cursorFor } from "./pagination";
 import { publicResponse, PublicResponse } from "./publicResponseCache";
 import { publicBusy } from "./publicCacheGeneration";
+import { replicaReadPreference } from "./readReplica";
 
 function scalar(value: unknown, name: string): string | undefined {
   if (value === undefined) return undefined;
@@ -70,11 +71,11 @@ export function getPublicSearchResponse(input: Record<string, unknown>): Promise
       if (scanned >= 15000 || Date.now() >= deadline) throw publicBusy();
       // Bound both the property page and owner set; never enumerate all disabled owners.
       const batch: any[] = await Property.find({ ...publishedFilter, ...filters, ...cursor })
-        .select(projection).sort({ createdAt: -1, _id: -1 }).limit(batchSize).maxTimeMS(1500).lean();
+        .select(projection).sort({ createdAt: -1, _id: -1 }).limit(batchSize).read(replicaReadPreference()).maxTimeMS(1500).lean();
       if (!batch.length) break;
       scanned += batch.length;
       const ownerIds = [...new Set(batch.map(row => String(row.ownerId)))];
-      const owners = await User.find({ _id: { $in: ownerIds }, isSuspended: { $ne: true }, isActive: { $ne: false } }).select("_id").maxTimeMS(1000).lean();
+      const owners = await User.find({ _id: { $in: ownerIds }, isSuspended: { $ne: true }, isActive: { $ne: false } }).select("_id").read(replicaReadPreference()).maxTimeMS(1000).lean();
       const enabled = new Set(owners.map(owner => String(owner._id)));
       for (const row of batch) {
         if (!enabled.has(String(row.ownerId))) continue;

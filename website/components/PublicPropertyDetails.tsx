@@ -942,7 +942,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       web: {
         boxShadow: "0 12px 36px rgba(3, 69, 108, 0.12)",
-      },
+      } as any,
     }),
   },
   placeholderContainer: {
@@ -1460,7 +1460,7 @@ const styles = StyleSheet.create({
         position: "sticky",
         top: 24,
         boxShadow: "0 12px 36px rgba(3, 69, 108, 0.12)",
-      },
+      } as any,
     }),
   },
   sidebarPriceSection: {

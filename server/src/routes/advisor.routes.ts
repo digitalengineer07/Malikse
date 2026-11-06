@@ -1,6 +1,7 @@
-import { readPage, listFields } from "../services/pagination";
+import { enabledOwnerStages } from "../services/marketplace";
+import { readAggregatePage, listFields } from "../services/pagination";
 import { Router } from "express";
-import { isValidObjectId } from "mongoose";
+import { isValidObjectId, Types } from "mongoose";
 import { Property } from "../models/Property.model";
 import { authGuard, roleGuard } from "../middleware/auth.middleware";
 import { availableStaff, historyEvent, transition } from "../services/propertyWorkflow";
@@ -15,15 +16,12 @@ router.get("/my-tasks", async (req: any, res) => {
     const field = advisor ? "assignedAdvisorId" : "assignedVerifierId";
     const pending = advisor ? "pending" : "advisor_verified";
 
-    // Exclude suspended users
-    const { User } = require("../models/User.model");
-    const suspendedUsers = await User.find({ isSuspended: true }).select('_id');
-    const suspendedUserIds = suspendedUsers.map((u: any) => u._id);
-    const filter: any = {};
-    if (suspendedUserIds.length > 0) filter.ownerId = { $nin: suspendedUserIds };
-
-    // Queue summaries never expose owner contact details before assignment.
-    const rows = await readPage(Property.find({ ...filter, $or: [{ [field]: req.user.id }, { [field]: null, status: pending }] }).select(listFields), req, res);
+    // Join only owners of matching queue items; never materialize all suspended IDs.
+    const rows = await readAggregatePage(Property, [
+      { $match: { $or: [{ [field]: new Types.ObjectId(req.user.id) }, { [field]: null, status: pending }] } },
+      ...enabledOwnerStages(),
+      { $project: Object.fromEntries(listFields.split(" ").map(field => [field, 1])) },
+    ], req, res);
     for (const row of rows) if (!row[field]) {
       for (const key of Object.keys(row)) if (!["_id", "title", "type", "location", "status", "totalArea", "price", "createdAt"].includes(key)) delete row[key];
     }

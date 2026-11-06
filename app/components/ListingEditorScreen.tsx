@@ -1,5 +1,7 @@
+import { uploadListingFiles } from "../src/services/uploadQueue";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, Platform, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
+import Image from "./PropertyImage";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import { currentMapLocation } from "../src/services/currentMapLocation";
@@ -35,6 +37,7 @@ export default function ListingEditorScreen() {
   const [photoFiles, setPhotoFiles] = useState<DocumentPicker.DocumentPickerAsset[]>([]);
   const [picked, setPicked] = useState<Picked[]>([]);
   const [existingDocs, setExistingDocs] = useState<any[]>([]);
+  const [uploadProgress, setUploadProgress] = useState("");
   const submitting = useRef(false);
   const change = (key: keyof typeof initialForm, value: string) => setForm(previous => ({ ...previous, [key]: value }));
   const onParcelChange = useCallback((next: LatLngPoint[]) => {
@@ -105,18 +108,15 @@ export default function ListingEditorScreen() {
       let savedId = propertyId;
       if (savedId) await propertyService.updateProperty(savedId, data);
       else { const property = await propertyService.createProperty(data); savedId = property._id || property.id; setPropertyId(savedId); }
-      for (const asset of photoFiles) {
-        const file: any = Platform.OS === "web" ? asset.file || new File([await (await fetch(asset.uri)).blob()], asset.name, { type: asset.mimeType }) : { uri: asset.uri, name: asset.name, type: asset.mimeType || "image/jpeg" };
-        const result = await propertyService.uploadPhoto(savedId!, file, asset.name);
-        setForm(previous => ({ ...previous, photos: [previous.photos, result.url].filter(Boolean).join("\n") }));
-        setPhotoFiles(previous => previous.filter(item => item !== asset));
-      }
-      for (const document of picked) {
-        const { asset } = document;
-        const file: any = Platform.OS === "web" ? asset.file || new File([await (await fetch(asset.uri)).blob()], asset.name, { type: asset.mimeType }) : { uri: asset.uri, name: asset.name, type: asset.mimeType || "application/octet-stream" };
-        await documentService.uploadDocument(savedId!, document.type, file, asset.name);
-        setPicked(previous => previous.filter(item => item !== document));
-      }
+      await uploadListingFiles(savedId!, photoFiles, picked, {
+        progress: setUploadProgress,
+        photo: (asset, url) => {
+          setForm(previous => ({ ...previous, photos: [previous.photos, url].filter(Boolean).join("\n") }));
+          setPhotoFiles(previous => previous.filter(item => item !== asset));
+        },
+        document: item => setPicked(previous => previous.filter(document => document !== item)),
+      });
+      setUploadProgress("Submitting for Advisor verification…");
       await workflowService.submit(savedId!);
       router.replace("/my-properties");
     } catch (cause: any) { setError(cause.response?.data?.message || "Could not finish submission. Any saved draft and uploaded documents are retained. Please retry."); }
@@ -133,7 +133,7 @@ export default function ListingEditorScreen() {
   if (!hydrated) return <ActivityIndicator />;
   if (!user || authState !== "AUTHENTICATED") return <Redirect href="/login" />;
   if (user.role !== "user") return <Redirect href={dashboardRoutes[user.role]} />;
-  if (!user.demoKycComplete) return <Redirect href="/kyc" />;
+  if (!(user.isVerifiedIdentity || user.demoKycComplete)) return <Redirect href="/kyc" />;
   const field = (key: keyof typeof initialForm, label: string, numeric = false, multiline = false) => <Field key={key} label={label} value={form[key]} onChangeText={value => change(key, value)} numeric={numeric} multiline={multiline} />;
   return <WorkflowScreen title={initialId ? "Update property listing" : "List a property"}>
     <Text style={ui.text}>Step {step} of 3 · {step === 1 ? "Property details" : step === 2 ? "Location and boundaries" : "Documents and submission"}</Text>
@@ -160,7 +160,7 @@ export default function ListingEditorScreen() {
         {field("lat", "Latitude *", true)}{field("lng", "Longitude *", true)}
         {field("boundary", "Boundary description", false, true)}{field("roadWidth", "Road width (feet)", true)}
         <Text style={ui.heading}>Property photos *</Text>
-        <Text style={ui.muted}>Add 1–10 JPEG, PNG or WebP photos, up to 10 MB each. The first photo is your listing cover. Photos are publicly visible after upload; do not include private documents.</Text>
+        <Text style={ui.muted}>Add 1–10 JPEG, PNG or WebP photos, up to 10 MB each. The first photo is your listing cover. Draft photos are visible only to you and authorized reviewers. Published listing photos are public; do not include private documents.</Text>
         <View style={ui.row}>{form.photos.split("\n").filter(Boolean).map((uri, index) => <View key={uri} style={{ gap: 6 }}><Image source={{ uri }} style={{ width: 130, height: 100, borderRadius: 14 }} /><Text style={ui.muted}>{index === 0 ? "Cover photo" : "Uploaded"}</Text><Action title="Remove photo" secondary disabled={busy} onPress={() => change("photos", form.photos.split("\n").filter(value => value !== uri).join("\n"))} /></View>)}
         {photoFiles.map((asset, index) => <View key={`${asset.uri}-${index}`} style={{ gap: 6 }}><Image source={{ uri: asset.uri }} style={{ width: 130, height: 100, borderRadius: 14 }} /><Text style={ui.muted}>{!form.photos && index === 0 ? "Cover photo" : "Ready to upload"}</Text><Action title="Remove photo" secondary disabled={busy} onPress={() => setPhotoFiles(previous => previous.filter((_, i) => i !== index))} /></View>)}</View>
         <Action title="Upload property photos" secondary disabled={busy} onPress={pickPhotos} />
@@ -180,6 +180,7 @@ export default function ListingEditorScreen() {
         <Text style={ui.text}>{form.title || form.type} · {form.district}, {form.state} · ₹{Number(form.price).toLocaleString("en-IN")}</Text>
         <Text style={ui.text}>Sellable area: {form.sellableArea} sq.ft · GPS: {form.lat}, {form.lng}</Text>
         <Check label="I confirm the property information and disclosures are accurate and authorize review of this listing." checked={consent} onPress={() => setConsent(!consent)} />
+        {!!uploadProgress && <Text accessibilityLiveRegion="polite" style={ui.muted}>{uploadProgress}</Text>}
         <Action title={busy ? "Submitting…" : "Submit for Advisor verification"} disabled={busy || !consent} onPress={submit} />
       </View>}
       <View style={ui.row}>{step > 1 && <Action title="Back" secondary disabled={busy} onPress={() => { setStep(value => value - 1); setError(""); }} />}{step < 3 && <Action title="Continue" disabled={busy} onPress={next} />}</View>

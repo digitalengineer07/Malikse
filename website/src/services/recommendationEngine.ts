@@ -86,7 +86,7 @@ export function getUserAffinity(): UserAffinityProfile {
       return memoryProfile;
     }
     const parsed = JSON.parse(raw);
-    memoryProfile = {
+    const profile: UserAffinityProfile = {
       ...DEFAULT_PROFILE,
       ...parsed,
       districtAffinity: parsed.districtAffinity || {},
@@ -95,7 +95,8 @@ export function getUserAffinity(): UserAffinityProfile {
         ...(parsed.intentAffinity || {}),
       },
     };
-    return memoryProfile;
+    memoryProfile = profile;
+    return profile;
   } catch {
     memoryProfile = { ...DEFAULT_PROFILE, lastUpdated: Date.now() };
     return memoryProfile;

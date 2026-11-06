@@ -300,7 +300,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
                   accessibilityRole="button"
                   style={styles.primaryActionBtn}
                   onPress={() =>
-                    router.push(user.demoKycComplete ? "/listing/create" : "/kyc")
+                    router.push((user.isVerifiedIdentity || user.demoKycComplete) ? "/listing/create" : "/kyc")
                   }
                   activeOpacity={0.85}
                 >
@@ -531,7 +531,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
                     accessibilityRole="button"
                     style={styles.emptyPrimaryBtn}
                     onPress={() =>
-                      router.push(user.demoKycComplete ? "/listing/create" : "/kyc")
+                      router.push((user.isVerifiedIdentity || user.demoKycComplete) ? "/listing/create" : "/kyc")
                     }
                     activeOpacity={0.85}
                   >

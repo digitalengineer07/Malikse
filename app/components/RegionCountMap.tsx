@@ -16,7 +16,7 @@ export default function RegionCountMap({ groups, focus, level, state, onSelect }
       await import("leaflet.vectorgrid");
       if (!active || !container.current) return;
       map.current = L.map(container.current, { zoomControl: false }).setView([22.5, 79], 4);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19 }).addTo(map.current);
+      L.tileLayer("https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", { subdomains: '0123', attribution: 'Map data &copy; <a href="https://maps.google.com">Google</a>', maxZoom: 19 }).addTo(map.current);
       resize = new ResizeObserver(() => map.current?.invalidateSize());resize.observe(container.current);
       setReady(true);
     }).catch(() => { if (active) setFailed(true); });
@@ -33,7 +33,12 @@ export default function RegionCountMap({ groups, focus, level, state, onSelect }
       cleanup = addRegionBoundaries(L, map.current, { groups, level, state }, key => {
         const group = groups.find(item => item.key === key);if (group) onSelect(group);
       }, () => { if (active) setFailed(true); });
-      if (focus && validMapPoint(focus)) map.current.flyTo([focus.lat, focus.lng], focus.zoom, { duration: 0.6 });
+      if (focus && validMapPoint(focus)) {
+        const zoom = Number.isFinite(focus.zoom) ? focus.zoom : 4;
+        const size = map.current.getSize();
+        if (size.x > 0 && size.y > 0) map.current.flyTo([focus.lat, focus.lng], zoom, { duration: 0.6 });
+        else map.current.setView([focus.lat, focus.lng], zoom);
+      }
       else map.current.setView([22.5, 79], 4);
     }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; cleanup?.(); };

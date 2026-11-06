@@ -13,7 +13,7 @@ export type DealStatus =
 
 export interface Deal {
   id: string;
-  propertyId: string;
+  propertyId: string | { _id: string; title?: string };
   buyerId: string;
   ownerId: string;
   offerAmount: number;

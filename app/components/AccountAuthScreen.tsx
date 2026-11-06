@@ -43,12 +43,15 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [registerMethod, setRegisterMethod] = useState<"mobile" | "email">("mobile");
+  const [loginMethod, setLoginMethod] = useState<"mobile" | "email">("mobile");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const submitting = useRef(false);
-  const [challenge, setChallenge] = useState<{ challengeId: string; expiresAt: number; resendAt: number } | null>(null);
+  const [challenge, setChallenge] = useState<{ challengeId: string; channel: "mobile" | "email"; identifier: string; expiresAt: number; resendAt: number } | null>(null);
   const [otp, setOtp] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [retryAt, setRetryAt] = useState(0);
@@ -59,7 +62,9 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
   const expiresIn = Math.max(0, Math.ceil(((challenge?.expiresAt || 0) - now) / 1000));
   const resendIn = Math.max(0, Math.ceil((Math.max(challenge?.resendAt || 0, retryAt) - now) / 1000));
   const sendCode = async () => {
-    const result = await authService.register(name.trim(), mobile.trim(), password, email.trim().toLowerCase() || undefined);
+    const cleanMobile = mobile.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const result = challenge ? await authService.resendRegistration(challenge.challengeId) : await authService.register({ name: name.trim(), password, method: registerMethod, mobile: cleanMobile || undefined, email: cleanEmail || undefined });
     const sentAt = Date.now();
     setNow(sentAt);
     if (result.testOnly) {
@@ -69,8 +74,10 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
       setNotice(label("Trial test SMS requested. The sample code is for delivery testing only; no account was created.", "ट्रायल टेस्ट SMS का अनुरोध भेजा गया। यह केवल डिलीवरी टेस्ट है; खाता नहीं बनाया गया।"));
       return;
     }
+    if (!result.challengeId) throw new Error(result.message || "Verification could not be started. Please try again.");
+    const channel = result.channel || registerMethod;
     setNotice("");
-    setChallenge({ challengeId: result.challengeId, expiresAt: sentAt + result.expiresInSeconds * 1000, resendAt: sentAt + result.resendAfterSeconds * 1000 });
+    setChallenge({ challengeId: result.challengeId, channel, identifier: channel === "email" ? cleanEmail : cleanMobile, expiresAt: sentAt + (result.expiresInSeconds || 120) * 1000, resendAt: sentAt + result.resendAfterSeconds * 1000 });
     setOtp("");
   };
   const resend = async () => {
@@ -92,16 +99,19 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
       setError(label("Enter your full name (at least 2 characters).", "अपना पूरा नाम दर्ज करें (कम से कम 2 अक्षर)।"));
       return;
     }
-    if (!/^[0-9]{10}$/.test(mobile.trim())) {
-      setError(label("Enter a valid 10-digit mobile number.", "सही 10 अंकों का मोबाइल नंबर दर्ज करें।"));
+    const mobileRequired = register ? registerMethod === "mobile" : loginMethod === "mobile";
+    if ((mobileRequired || (register && mobile.trim())) && !/^[0-9]{10}$/.test(mobile.trim())) {
+      setError(label(register && !mobileRequired ? "Enter a valid 10-digit mobile number or leave it empty." : "Enter a valid 10-digit mobile number.", "सही 10 अंकों का मोबाइल नंबर दर्ज करें या इसे खाली छोड़ दें।"));
+      return;
+    }
+    const emailValue = register ? email.trim() : loginEmail.trim();
+    const emailRequired = register ? registerMethod === "email" : loginMethod === "email";
+    if ((emailRequired || (register && emailValue)) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+      setError(label(emailRequired ? "Enter a valid email address." : "Enter a valid email address or leave it empty.", "सही ईमेल पता दर्ज करें।"));
       return;
     }
     if (password.length < 6) {
       setError(label("Password must be at least 6 characters.", "पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।"));
-      return;
-    }
-    if (register && email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError(label("Enter a valid email address or leave it empty.", "सही ईमेल पता दर्ज करें या इसे खाली छोड़ दें।"));
       return;
     }
     submitting.current = true;
@@ -110,12 +120,12 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
       if (register) {
         if (!challenge) { await sendCode(); return; }
         if (!/^\d{6}$/.test(otp)) { setError(label("Enter the six-digit OTP.", "छह अंकों का OTP दर्ज करें।")); return; }
-        await authService.verifyRegistration(mobile.trim(), challenge.challengeId, otp);
-      } else { await authService.login(mobile.trim(), password); }
+        await authService.verifyRegistration(challenge.identifier, challenge.challengeId, otp);
+      } else { await authService.login(loginMethod === "email" ? loginEmail.trim().toLowerCase() : mobile.trim(), password); }
       router.replace("/home");
     } catch (cause: any) {
       if (cause?.response?.data?.retryAfterSeconds) setRetryAt(Date.now() + cause.response.data.retryAfterSeconds * 1000);
-      setError(cause?.response?.data?.message || label("Unable to connect. Please try again.", "कनेक्ट नहीं हो सका। फिर से कोशिश करें।"));
+      setError(cause?.response?.data?.message || cause?.message || label("Unable to connect. Please try again.", "कनेक्ट नहीं हो सका। फिर से कोशिश करें।"));
     } finally {
       submitting.current = false;
       setLoading(false);
@@ -136,43 +146,56 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
             <Text style={styles.link}>{label("हिन्दी", "English")}</Text>
           </TouchableOpacity>
         </View>
-        <View style={[styles.card, { height: cardHeight }]}>
-          <Image
+        <View style={[styles.card, register ? styles.registerCard : { height: cardHeight }]}>
+          {!register && <Image
             source={{ uri: "https://images.unsplash.com/photo-1628624747186-a941c476b7ef?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MjB8fGhvdXNlfGVufDB8fDB8fHww" }}
             style={styles.housePhoto}
             resizeMode="cover"
             accessibilityLabel={label("A home surrounded by greenery", "हरियाली से घिरा एक घर")}
-          />
-          <View pointerEvents="none" style={styles.photoShade} />
-          <Animated.View pointerEvents="none" style={[styles.photoBrand, { opacity: progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }) }]}>
+          />}
+          {!register && <View pointerEvents="none" style={styles.photoShade} />}
+          {!register && <Animated.View pointerEvents="none" style={[styles.photoBrand, { opacity: progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }) }]}>
             <View style={styles.brandSeal}><MaterialIcons name="wb-sunny" size={26} color="#20251F" /><Text style={styles.sealText}>MALIKSE</Text></View>
             <Text style={styles.brand}>MalikSe</Text>
             <Text style={styles.brandTagline}>{label("Your land. A safer future.", "आपकी ज़मीन। सुरक्षित भविष्य।")}</Text>
-          </Animated.View>
-          <Animated.View style={[styles.panel, { top: progress.interpolate({ inputRange: [0, 1], outputRange: [cardHeight * 0.61, cardHeight * 0.16] }) }]}>
-            <View pointerEvents="none" style={styles.panelCurve} />
+          </Animated.View>}
+          <Animated.View style={register ? styles.registerPanel : [styles.panel, { top: progress.interpolate({ inputRange: [0, 1], outputRange: [cardHeight * 0.61, cardHeight * 0.16] }) }]}>
+            {!register && <View pointerEvents="none" style={styles.panelCurve} />}
             <Animated.View pointerEvents={stage === "welcome" ? "auto" : "none"} accessibilityElementsHidden={stage !== "welcome"} importantForAccessibility={stage === "welcome" ? "auto" : "no-hide-descendants"} aria-hidden={stage !== "welcome"} style={[styles.welcome, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [1, 0, 0] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -24] }) }] }]}>
               <Text accessibilityRole="header" style={styles.welcomeTitle}>{label("WELCOME", "स्वागत है")}</Text>
               <Text style={styles.welcomeDescription}>{label("Find your next space, feel at home.\nWhere comfort meets confidence.", "अपना नया ठिकाना खोजें, घर जैसा महसूस करें।\nजहाँ सुकून और भरोसा साथ मिलें।")}</Text>
               <TouchableOpacity accessibilityRole="button" style={[styles.button, styles.welcomeButton]} onPress={() => reveal("login")}><Text style={styles.buttonText}>{label("Login", "लॉगिन")}</Text></TouchableOpacity>
               <TouchableOpacity accessibilityRole="button" style={[styles.button, styles.welcomeButton, styles.outlineButton]} onPress={() => reveal("register")}><Text style={styles.outlineButtonText}>{label("Sign Up", "साइन अप")}</Text></TouchableOpacity>
             </Animated.View>
-            {stage !== "welcome" && <Animated.View style={[styles.form, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0, 1] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
-              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContent}>
+            {stage !== "welcome" && <Animated.View style={[!register && styles.form, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0, 1] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
+              <View style={styles.formContent}>
                 <Text accessibilityRole="header" style={styles.heading}>{register ? label("Create your account", "अपना खाता बनाएं") : label("Welcome back", "वापस स्वागत है")}</Text>
                 <Text style={styles.description}>{register ? label("Your next chapter starts here.", "आपकी नई शुरुआत यहीं से।") : label("A place of your own is one step closer.", "आपका अपना ठिकाना, बस एक कदम दूर।")}</Text>
           {!(register && challenge) && <>
+          <View style={styles.methodRow}>
+            {(["mobile", "email"] as const).map(method => {
+              const selected = (register ? registerMethod : loginMethod) === method;
+              return <TouchableOpacity key={method} accessibilityRole="button" accessibilityState={{ selected, disabled: loading }} disabled={loading} style={[styles.methodButton, selected && styles.methodButtonActive]} onPress={() => { if (register) { setRegisterMethod(method); setRetryAt(0); } else setLoginMethod(method); setError(""); }}>
+                <MaterialIcons name={method === "mobile" ? "phone-iphone" : "mail-outline"} size={17} color={selected ? "#1F5548" : "#6B756F"} />
+                <Text style={[styles.methodText, selected && styles.methodTextActive]}>{method === "mobile" ? label("Mobile", "मोबाइल") : label("Email", "ईमेल")}</Text>
+              </TouchableOpacity>;
+            })}
+          </View>
           {register && <View style={styles.field}>
             <Text style={styles.label}>{label("Full name", "पूरा नाम")}</Text>
             <TextInput accessibilityLabel={label("Full name", "पूरा नाम")} style={styles.input} value={name} onChangeText={setName} editable={!loading} autoComplete="name" autoCapitalize="words" placeholder={label("Enter your full name", "अपना पूरा नाम दर्ज करें")} placeholderTextColor="#718078" />
           </View>}
-          <View style={styles.field}>
-            <Text style={styles.label}>{label("Mobile number", "मोबाइल नंबर")}</Text>
+          {(register ? registerMethod === "email" : loginMethod === "email") && <View style={styles.field}>
+            <Text style={styles.label}>{label("Email address", "ईमेल पता")}</Text>
+            <TextInput accessibilityLabel={label("Email address", "ईमेल पता")} style={styles.input} value={register ? email : loginEmail} onChangeText={register ? setEmail : setLoginEmail} editable={!loading} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" placeholder="name@example.com" placeholderTextColor="#718078" />
+          </View>}
+          {(register || loginMethod === "mobile") && <View style={styles.field}>
+            <Text style={styles.label}>{register && registerMethod === "email" ? label("Mobile number (optional)", "मोबाइल नंबर (वैकल्पिक)") : label("Mobile number", "मोबाइल नंबर")}</Text>
             <View style={styles.phoneRow}>
               <Text style={styles.prefix}>+91</Text>
               <TextInput accessibilityLabel={label("Mobile number", "मोबाइल नंबर")} style={styles.phoneInput} value={mobile} onChangeText={setMobile} editable={!loading} keyboardType="phone-pad" autoComplete="tel-national" maxLength={10} placeholder={label("10-digit mobile number", "10 अंकों का मोबाइल नंबर")} placeholderTextColor="#718078" />
             </View>
-          </View>
+          </View>}
           <View style={styles.field}>
             <Text style={styles.label}>{label("Password", "पासवर्ड")}</Text>
             <View style={styles.phoneRow}>
@@ -182,14 +205,14 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
               </TouchableOpacity>
             </View>
           </View>
-          {register && <View style={styles.field}>
+          {register && registerMethod === "mobile" && <View style={styles.field}>
             <Text style={styles.label}>{label("Email (optional)", "ईमेल (वैकल्पिक)")}</Text>
             <TextInput accessibilityLabel={label("Email (optional)", "ईमेल (वैकल्पिक)")} style={styles.input} value={email} onChangeText={setEmail} editable={!loading} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" placeholder="name@example.com" placeholderTextColor="#718078" returnKeyType="go" onSubmitEditing={submit} />
           </View>}
           </>}
           {register && challenge && <View style={styles.field}>
-            <Text style={styles.label}>{label("OTP sent to", "OTP भेजा गया")} +91 {mobile}</Text>
-            <TextInput accessibilityLabel="OTP" style={styles.input} value={otp} onChangeText={value => setOtp(value.replace(/\D/g, ""))} keyboardType="number-pad" maxLength={6} autoComplete="sms-otp" textContentType="oneTimeCode" editable={!loading && expiresIn > 0} onSubmitEditing={submit} placeholder="6-digit OTP" />
+            <Text style={styles.label}>{label("OTP sent to", "OTP भेजा गया")} {challenge.channel === "email" ? challenge.identifier : `+91 ${challenge.identifier}`}</Text>
+            <TextInput accessibilityLabel="OTP" style={styles.input} value={otp} onChangeText={value => setOtp(value.replace(/\D/g, ""))} keyboardType="number-pad" maxLength={6} autoComplete={challenge.channel === "mobile" ? "sms-otp" : "off"} textContentType={challenge.channel === "mobile" ? "oneTimeCode" : "none"} editable={!loading && expiresIn > 0} onSubmitEditing={submit} placeholder="6-digit OTP" />
             <Text style={styles.description}>{expiresIn > 0 ? label(`Code expires in ${expiresIn}s`, `कोड ${expiresIn} सेकंड में समाप्त होगा`) : label("OTP expired. Request a new code.", "OTP समाप्त हो गया। नया कोड मांगें।")}</Text>
             <TouchableOpacity accessibilityRole="button" disabled={loading || resendIn > 0} onPress={resend} style={styles.secondary}>
               <Text style={styles.link}>{resendIn > 0 ? label(`Resend OTP in ${resendIn}s`, `OTP फिर भेजें: ${resendIn} सेकंड`) : label("Resend OTP", "OTP फिर भेजें")}</Text>
@@ -201,12 +224,12 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
           {!!error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
           <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: loading, busy: loading }} style={[styles.button, loading && styles.disabled]} onPress={submit} disabled={loading || (register && (challenge ? expiresIn === 0 : resendIn > 0))}>
             {loading && <ActivityIndicator color="white" />}
-            <Text style={styles.buttonText}>{loading ? label("Please wait…", "कृपया प्रतीक्षा करें…") : register ? (challenge ? label("Verify & create account", "सत्यापित करें और खाता बनाएं") : label("Send OTP", "OTP भेजें")) : label("Sign in", "साइन इन करें")}</Text>
+            <Text style={styles.buttonText}>{loading ? label("Please wait…", "कृपया प्रतीक्षा करें…") : register ? (challenge ? label("Verify & create account", "सत्यापित करें और खाता बनाएं") : registerMethod === "email" ? label("Send email OTP", "ईमेल OTP भेजें") : label("Send OTP", "OTP भेजें")) : label("Sign in", "साइन इन करें")}</Text>
           </TouchableOpacity>
           <TouchableOpacity accessibilityRole="button" style={styles.secondary} disabled={loading} onPress={() => reveal(register ? "login" : "register")}>
             <Text style={styles.link}>{register ? label("Already have an account? Sign in", "पहले से खाता है? साइन इन करें") : label("New to MalikSe? Create an account", "MalikSe पर नए हैं? खाता बनाएं")}</Text>
           </TouchableOpacity>
-              </ScrollView>
+              </View>
             </Animated.View>}
           </Animated.View>
         </View>
@@ -221,6 +244,7 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, paddingHorizontal: 18, alignItems: "center", justifyContent: "center" },
   topBar: { width: "100%", maxWidth: 440, flexDirection: "row", justifyContent: "space-between", marginBottom: 14, gap: 16 },
   card: { width: "100%", maxWidth: 440, backgroundColor: "#D9E4E5", borderRadius: 42, overflow: "hidden", shadowColor: "#20302B", shadowOffset: { width: 0, height: 18 }, shadowOpacity: 0.14, shadowRadius: 28, elevation: 7 },
+  registerCard: { backgroundColor: "white", borderRadius: 24 },
   housePhoto: { position: "absolute", top: 0, left: 0, right: 0, height: "76%", width: "100%" },
   photoShade: { position: "absolute", top: 0, left: 0, right: 0, height: "76%", backgroundColor: "rgba(10,24,21,0.12)" },
   photoBrand: { position: "absolute", top: "28%", left: 0, right: 0, alignItems: "center" },
@@ -228,6 +252,7 @@ const styles = StyleSheet.create({
   sealText: { fontFamily: "PoppinsBold", fontSize: 7, letterSpacing: 1 },
   brandTagline: { color: "white", fontFamily: "PoppinsMedium", fontSize: 11, marginTop: 2 },
   panel: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "white" },
+  registerPanel: { backgroundColor: "white" },
   panelCurve: { position: "absolute", top: -30, left: "-10%", width: "120%", height: 65, borderTopLeftRadius: "50%", borderTopRightRadius: "50%", backgroundColor: "white" },
   welcome: { position: "absolute", top: 16, left: 24, right: 24, alignItems: "center" },
   welcomeTitle: { fontSize: 28, fontFamily: "PoppinsBold", color: "#343632", letterSpacing: -0.8 },
@@ -235,13 +260,18 @@ const styles = StyleSheet.create({
   welcomeButton: { width: "78%", minHeight: 44, marginBottom: 10, paddingVertical: 10 },
   outlineButton: { backgroundColor: "white", borderWidth: 1, borderColor: "#DFE1DD" },
   outlineButtonText: { color: "#242723", fontFamily: "PoppinsMedium", fontSize: 14 },
-  form: { flex: 1 },
+  form: { flex: 1, minHeight: 0 },
   formContent: { padding: 26, paddingTop: 8, paddingBottom: 30 },
   backButton: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 7, paddingVertical: 10, marginBottom: 12 },
   backLabel: { color: "#72786F", fontFamily: "PoppinsMedium", fontSize: 12 },
   brand: { color: "white", fontSize: 29, fontFamily: "PoppinsBold", letterSpacing: -1 },
   heading: { fontSize: 26, fontFamily: "PoppinsBold", color: "#242723" },
   description: { color: "#858A81", fontFamily: "PoppinsRegular", fontSize: 12, lineHeight: 20, marginTop: 8, marginBottom: 24 },
+  methodRow: { flexDirection: "row", gap: 8, marginBottom: 18 },
+  methodButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 44, borderWidth: 1, borderColor: "#E3E6DF", borderRadius: 12 },
+  methodButtonActive: { backgroundColor: "#EAF4EF", borderColor: "#87B49F" },
+  methodText: { color: "#6B756F", fontFamily: "PoppinsMedium", fontSize: 13 },
+  methodTextActive: { color: "#1F5548" },
   field: { marginBottom: 14 },
   label: { color: "#3E566B", fontWeight: "600", marginBottom: 8 },
   input: { borderWidth: 1, borderColor: "#E3E6DF", borderRadius: 14, padding: 14, fontSize: 16, color: "#111827", minHeight: 50 },

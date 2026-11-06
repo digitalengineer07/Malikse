@@ -39,7 +39,15 @@
       ],
       "expo-secure-store",
       "expo-web-browser",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "color": "#1D4ED8",
+          "defaultChannel": "updates"
+        }
+      ],
+      "./plugins/withSmallAndroidBuild"
     ],
     "experiments": {
       "typedRoutes": true,

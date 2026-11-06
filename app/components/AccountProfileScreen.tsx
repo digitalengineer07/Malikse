@@ -59,6 +59,8 @@ export default function AccountProfileScreen() {
   if (!user || authState !== "AUTHENTICATED") return <Redirect href="/login" />;
 
   const joined = new Date(user.createdAt);
+  const staffReview = user.identityVerificationMode === "staff";
+  const identityComplete = Boolean(user.isVerifiedIdentity || (!staffReview && user.demoKycComplete));
   const details = [
     [label("Full name", "पूरा नाम"), user.name],
     [label("Mobile number", "मोबाइल नंबर"), `+91 ${user.mobile}`],
@@ -120,11 +122,11 @@ export default function AccountProfileScreen() {
         {user.role === "user" && !isEditing && <Text style={styles.note}>{label("Your account can buy and sell property.", "आपका खाता संपत्ति खरीद और बेच सकता है।")}</Text>}
       </View>
       {user.role === "user" && <View style={styles.card}>
-        <Text style={styles.sectionTitle}>{label("KYC (demo)", "केवाईसी (डेमो)")}</Text>
-        <Text style={styles.note}>{user.demoKycComplete ? label("Demo step complete", "डेमो चरण पूरा हुआ") : label("Demo step not completed", "डेमो चरण पूरा नहीं हुआ")}</Text>
-        <Text style={styles.muted}>{label("This is a placeholder. Identity verification has not been performed.", "यह एक डेमो है। पहचान सत्यापन नहीं किया गया है।")}</Text>
-        {!user.demoKycComplete && <TouchableOpacity accessibilityRole="button" style={styles.linkButton} onPress={() => router.push("/kyc")}>
-          <Text style={styles.link}>{label("Complete demo KYC →", "डेमो केवाईसी पूरा करें →")}</Text>
+        <Text style={styles.sectionTitle}>{staffReview || user.isVerifiedIdentity ? label("Identity verification", "पहचान सत्यापन") : label("KYC (demo)", "केवाईसी (डेमो)")}</Text>
+        <Text style={styles.note}>{user.isVerifiedIdentity ? label("Identity verified", "पहचान सत्यापित") : staffReview ? label("Staff review required", "कर्मचारी समीक्षा आवश्यक") : user.demoKycComplete ? label("Demo step complete", "डेमो चरण पूरा हुआ") : label("Demo step not completed", "डेमो चरण पूरा नहीं हुआ")}</Text>
+        <Text style={styles.muted}>{user.isVerifiedIdentity ? label("Your identity review has been approved by staff.", "कर्मचारियों ने आपकी पहचान समीक्षा स्वीकृत कर दी है।") : staffReview ? label("Staff must review your identity before you can submit a listing.", "लिस्टिंग जमा करने से पहले कर्मचारी आपकी पहचान की समीक्षा करेंगे।") : label("This is a placeholder. Identity verification has not been performed.", "यह एक डेमो है। पहचान सत्यापन नहीं किया गया है।")}</Text>
+        {!identityComplete && <TouchableOpacity accessibilityRole="button" style={styles.linkButton} onPress={() => router.push("/kyc")}>
+          <Text style={styles.link}>{staffReview ? label("View verification status →", "सत्यापन स्थिति देखें →") : label("Complete demo KYC →", "डेमो केवाईसी पूरा करें →")}</Text>
         </TouchableOpacity>}
       </View>}
       <TouchableOpacity accessibilityRole="button" style={styles.button} onPress={() => router.push(dashboardRoutes[user.role])}>

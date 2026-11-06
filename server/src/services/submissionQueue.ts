@@ -1,3 +1,4 @@
+import { identityApproved } from "./security";
 import { createHash, randomUUID } from "crypto";
 import { Property, IProperty } from "../models/Property.model";
 import { User } from "../models/User.model";
@@ -5,15 +6,18 @@ import { availableStaff, historyEvent, listingFields, transition, validateListin
 
 const maxAttempts = 5;
 const leaseMs = 60_000;
+const wakeWorkers = new Set<() => void>();
 
 // The job and immutable submitted details live in the same document. Accepting a
 // submission and persisting its job therefore cannot be separated by a crash.
 export async function enqueueSubmission(property: IProperty, actor: { id: string; role: string }) {
   const digest = createHash("sha256").update(JSON.stringify(listingFields(property.toObject()))).digest("hex");
-  return transition(property, {
+  const result = await transition(property, {
     status: "queued",
     submission: { id: randomUUID(), digest, attempts: 0, nextAttemptAt: new Date() },
   }, historyEvent(actor, property.status, "queued", "submission_queued", { consent: true, digest }));
+  if (result) wakeWorkers.forEach(wake => wake());
+  return result;
 }
 
 export async function processNextSubmission(): Promise<boolean> {
@@ -31,7 +35,7 @@ export async function processNextSubmission(): Promise<boolean> {
   try {
     if (property.submission!.attempts > maxAttempts) throw new Error("Submission processing failed repeatedly. Please submit again.");
     const seller = await User.findById(property.ownerId);
-    if (!seller || seller.isActive === false || seller.isSuspended || !seller.demoKycComplete) throw new Error("Your account must be active with demo KYC complete before submitting.");
+    if (!seller || seller.isActive === false || seller.isSuspended || !identityApproved(seller)) throw new Error("Your account must be active with identity verification complete before submitting.");
     const invalid = validateListing(property);
     if (invalid) throw new Error(invalid);
     const advisorId = await availableStaff("advisor", property.assignedAdvisorId);
@@ -65,6 +69,15 @@ export async function processNextSubmission(): Promise<boolean> {
 export function startSubmissionWorker() {
   let stopped = false;
   let running: Promise<void> | undefined;
+  let timer: NodeJS.Timeout | undefined;
+  let emptyPolls = 0;
+  let wakePending = false;
+  const schedule = (delay: number) => {
+    if (stopped) return;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(tick, delay);
+    timer.unref();
+  };
   const tick = () => {
     if (stopped || running) return;
     let processed = 0;
@@ -74,9 +87,16 @@ export function startSubmissionWorker() {
         processed++;
       }
     })().catch(() => console.error("[submission-worker] Database unavailable; retrying on next poll"))
-      .finally(() => { running = undefined; if (processed === 10 && !stopped) setImmediate(tick); });
+      .finally(() => {
+        running = undefined;
+        emptyPolls = processed ? 0 : Math.min(emptyPolls + 1, 3);
+        const delay = wakePending || processed === 10 ? 0 : [1000, 5000, 15000, 30000][emptyPolls];
+        wakePending = false;
+        schedule(delay);
+      });
   };
-  const timer = setInterval(tick, 1000);
+  const wake = () => { emptyPolls = 0; if (running) wakePending = true; else schedule(0); };
+  wakeWorkers.add(wake);
   tick();
-  return async () => { stopped = true; clearInterval(timer); await running; };
+  return async () => { stopped = true; wakeWorkers.delete(wake); if (timer) clearTimeout(timer); await running; };
 }
