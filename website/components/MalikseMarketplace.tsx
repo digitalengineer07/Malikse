@@ -421,20 +421,71 @@ export function HomeScreen() {
   const user = useAuthStore((x) => x.user),
     router = useRouter(),
     [query, setQuery] = useState(""),
+    [locationInput, setLocationInput] = useState(""),
     [type, setType] = useState(""),
     [prefs, setPrefs] = useState<any>({});
+
   useEffect(() => {
     AsyncStorage.getItem(`marketplace_preferences_${user?.id || "guest"}`)
-      .then((v) => setPrefs(v ? JSON.parse(v) : {}))
+      .then((v) => {
+        if (v) {
+          const parsed = JSON.parse(v);
+          setPrefs(parsed);
+          if (parsed.district && parsed.district.toLowerCase() !== "rps") {
+            setLocationInput(parsed.district);
+          }
+        }
+      })
       .catch(() => {});
   }, [user?.id]);
+
+  const handleSearch = () => {
+    const params: Record<string, string> = {};
+    if (query.trim()) params.q = query.trim();
+    if (
+      locationInput.trim() &&
+      locationInput.trim().toLowerCase() !== "all bihar" &&
+      locationInput.trim().toLowerCase() !== "explore all bihar"
+    ) {
+      params.district = locationInput.trim();
+    }
+    if (type) params.type = type;
+    router.push({
+      pathname: "/search",
+      params,
+    } as any);
+  };
+
+  const hasActiveSearch = Boolean(
+    query.trim() ||
+      (locationInput.trim() && locationInput.trim().toLowerCase() !== "all bihar") ||
+      type
+  );
+
+  const activeDistrictParam =
+    locationInput.trim() && locationInput.trim().toLowerCase() !== "all bihar"
+      ? locationInput.trim()
+      : "";
+
+  const liveSearchResults = useData(
+    hasActiveSearch
+      ? `/properties/search?limit=12&q=${encodeURIComponent(query.trim())}${
+          activeDistrictParam ? "&district=" + encodeURIComponent(activeDistrictParam) : ""
+        }${type ? "&type=" + type : ""}`
+      : null,
+    [query, activeDistrictParam, type]
+  );
+
   const personal = useData(
-      `/recommendations?mode=personalized&district=${encodeURIComponent(prefs.district || "")}&type=${type || prefs.type || ""}&maxPrice=${prefs.maxPrice || ""}`,
-      [user?.id],
+      `/recommendations?mode=personalized&district=${encodeURIComponent(
+        activeDistrictParam || prefs.district || ""
+      )}&type=${type || prefs.type || ""}&maxPrice=${prefs.maxPrice || ""}`,
+      [user?.id, activeDistrictParam, type],
     ),
     recent = useData("/recommendations?mode=new"),
     trending = useData("/recommendations?mode=trending"),
     { width } = useWindowDimensions();
+
   return (
     <MarketplaceShell>
       <View style={s.heroContainer}>
@@ -459,17 +510,37 @@ export function HomeScreen() {
         </View>
 
         {/* Segmented Luxury Search Console */}
-        <View style={[s.searchConsole, width < 768 && { flexDirection: "column", alignItems: "stretch", padding: 10 }]}>
-          <View style={s.searchSegmentLocation}>
+        <View
+          style={[
+            s.searchConsole,
+            width < 768 && { flexDirection: "column", alignItems: "stretch", padding: 10 },
+          ]}
+        >
+          <View style={[s.searchSegmentLocation, { flex: 1 }]}>
             <View style={s.searchSegmentIconWrap}>
               <Icon name="location-on" size={18} color={C.blue} />
             </View>
             <View style={{ flex: 1, gap: 1 }}>
               <Text style={s.searchSegmentLabel}>LOCATION</Text>
-              <Text style={s.searchSegmentValue} numberOfLines={1}>
-                {prefs.district ? `${prefs.district}, Bihar` : "Explore All Bihar"}
-              </Text>
+              <TextInput
+                accessibilityLabel="Location or District"
+                placeholder="District (e.g. Patna, Gaya...)"
+                placeholderTextColor="#94a3b8"
+                value={locationInput}
+                onChangeText={setLocationInput}
+                style={s.searchTextInput}
+                onSubmitEditing={handleSearch}
+              />
             </View>
+            {!!locationInput && (
+              <TouchableOpacity
+                onPress={() => setLocationInput("")}
+                style={{ padding: 4 }}
+                accessibilityLabel="Clear location"
+              >
+                <Icon name="close" size={16} color="#94a3b8" />
+              </TouchableOpacity>
+            )}
           </View>
 
           {width >= 768 ? (
@@ -478,44 +549,93 @@ export function HomeScreen() {
             <View style={{ height: 1, backgroundColor: "#e2e8f0", marginVertical: 6 }} />
           )}
 
-          <View style={[s.searchSegmentInput, width < 768 && { paddingHorizontal: 4 }]}>
+          <View style={[s.searchSegmentInput, { flex: 1.4 }, width < 768 && { paddingHorizontal: 4 }]}>
             <View style={s.searchSegmentIconWrap}>
               <Icon name="search" size={18} color="#94a3b8" />
             </View>
             <View style={{ flex: 1, gap: 1 }}>
               <Text style={s.searchSegmentLabel}>SEARCH PROPERTY</Text>
               <TextInput
-                accessibilityLabel="Search location"
+                accessibilityLabel="Search property"
                 placeholder="City, locality, road corridor or ID..."
                 placeholderTextColor="#94a3b8"
                 value={query}
                 onChangeText={setQuery}
                 style={s.searchTextInput}
-                onSubmitEditing={() =>
-                  router.push({
-                    pathname: "/search",
-                    params: { q: query, type },
-                  } as any)
-                }
+                onSubmitEditing={handleSearch}
               />
             </View>
+            {!!query && (
+              <TouchableOpacity
+                onPress={() => setQuery("")}
+                style={{ padding: 4 }}
+                accessibilityLabel="Clear query"
+              >
+                <Icon name="close" size={16} color="#94a3b8" />
+              </TouchableOpacity>
+            )}
           </View>
 
-          <Pressable
+          <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel="Search"
-            onPress={() =>
-              router.push({
-                pathname: "/search",
-                params: { q: query, type },
-              } as any)
-            }
+            onPress={handleSearch}
             style={[s.searchSubmitBtn, width < 768 && { marginTop: 8, justifyContent: "center" }]}
+            activeOpacity={0.85}
           >
             <Icon name="search" size={18} color="white" />
             <Text style={s.searchSubmitBtnText}>Search</Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
+
+        {/* Quick Popular Districts Selector */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8, paddingVertical: 2, alignItems: "center" }}
+        >
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: "700",
+              color: "#64748B",
+              marginRight: 4,
+              fontFamily: font,
+            }}
+          >
+            Popular:
+          </Text>
+          {popularDistricts.map((d) => {
+            const isSelected =
+              (d === "All Bihar" && (!locationInput || locationInput.toLowerCase() === "all bihar")) ||
+              locationInput.toLowerCase() === d.toLowerCase();
+            return (
+              <TouchableOpacity
+                key={d}
+                onPress={() => setLocationInput(d === "All Bihar" ? "" : d)}
+                style={{
+                  paddingVertical: 5,
+                  paddingHorizontal: 12,
+                  borderRadius: 14,
+                  backgroundColor: isSelected ? "#0A45B5" : "#FFFFFF",
+                  borderWidth: 1,
+                  borderColor: isSelected ? "#0A45B5" : "#E2E8F0",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: isSelected ? "700" : "600",
+                    color: isSelected ? "#FFFFFF" : "#475569",
+                    fontFamily: font,
+                  }}
+                >
+                  {d}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
         {/* Category Filter Pills */}
         <View style={s.categoryPillsRow}>
@@ -524,7 +644,7 @@ export function HomeScreen() {
             return (
               <Pressable
                 key={id}
-                onPress={() => setType(id)}
+                onPress={() => setType(isSelected ? "" : id)}
                 style={[
                   s.categoryPill,
                   isSelected && s.categoryPillActive,
@@ -566,6 +686,84 @@ export function HomeScreen() {
           </View>
         </View>
       </View>
+
+      {/* Live Search Results Section (Renders immediately when searching/filtering on Home) */}
+      {hasActiveSearch && (
+        <View style={{ gap: 14, marginVertical: 6 }}>
+          <View style={s.between}>
+            <View style={{ gap: 3, flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <Text style={s.h2}>Search Results</Text>
+                <View
+                  style={{
+                    backgroundColor: "#EFF6FF",
+                    paddingHorizontal: 10,
+                    paddingVertical: 3,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: "#DBEAFE",
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#0A45B5", fontFamily: font }}>
+                    {liveSearchResults.data?.length ?? 0} Found
+                  </Text>
+                </View>
+              </View>
+              <Text style={s.small}>
+                {query.trim() ? `Matching "${query.trim()}"` : "All listings"}
+                {activeDistrictParam ? ` in ${activeDistrictParam}` : ""}
+                {type ? ` · ${types.find((t) => t[0] === type)?.[1] || type}` : ""}
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  setQuery("");
+                  setLocationInput("");
+                  setType("");
+                }}
+                style={{
+                  paddingVertical: 4,
+                  paddingHorizontal: 10,
+                  backgroundColor: "#F1F5F9",
+                  borderRadius: 10,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "600", color: "#475569", fontFamily: font }}>
+                  Reset Filters
+                </Text>
+              </TouchableOpacity>
+              <Pressable onPress={handleSearch}>
+                <Text style={s.link}>Open in Map / Explore →</Text>
+              </Pressable>
+            </View>
+          </View>
+          {liveSearchResults.loading ? (
+            <ActivityIndicator color={C.blue} style={{ padding: 24 }} />
+          ) : liveSearchResults.error ? (
+            <ErrorBox text={liveSearchResults.error} />
+          ) : !liveSearchResults.data?.length ? (
+            <Empty
+              title="No properties found"
+              text={`No matching verified spaces for "${query || activeDistrictParam}". Try searching by another district or keyword.`}
+            />
+          ) : (
+            <View style={s.grid}>
+              {liveSearchResults.data.map((p: any) => (
+                <View
+                  key={p._id}
+                  style={{
+                    width: width > 1000 ? "31.8%" : width > 650 ? "48.5%" : "100%",
+                  }}
+                >
+                  <PropertyCard property={p} />
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
       {[
         [
           "Recommended for You",
@@ -633,19 +831,33 @@ export function HomeScreen() {
     </MarketplaceShell>
   );
 }
+
 export function SearchScreen() {
   const params = useLocalSearchParams(),
     router = useRouter(),
     user = useAuthStore((x) => x.user),
-    [query, setQuery] = useState(String(params.q || "")),
+    [query, setQuery] = useState(String(params.q || params.location || "")),
+    [district, setDistrict] = useState(String(params.district || "")),
     [type, setType] = useState(String(params.type || "")),
     [max, setMax] = useState(""),
     [filter, setFilter] = useState(false),
     [map, setMap] = useState(true),
     [selected, setSelected] = useState<any>(null),
-    [submitted, setSubmitted] = useState(String(params.q || ""));
+    [submitted, setSubmitted] = useState(String(params.q || params.location || ""));
+
+  useEffect(() => {
+    const qVal = String(params.q || params.location || "");
+    setQuery(qVal);
+    setSubmitted(qVal);
+    if (params.district !== undefined) setDistrict(String(params.district || ""));
+    if (params.type !== undefined) setType(String(params.type || ""));
+  }, [params.q, params.location, params.district, params.type]);
+
   const feed = useData(
-    `/properties/search?limit=50&location=${encodeURIComponent(submitted)}${type ? "&type=" + type : ""}${max ? "&maxPrice=" + max : ""}`,
+    `/properties/search?limit=50&q=${encodeURIComponent(submitted)}${
+      district ? "&district=" + encodeURIComponent(district) : ""
+    }${type ? "&type=" + type : ""}${max ? "&maxPrice=" + max : ""}`,
+    [submitted, district, type, max]
   );
   const select = useCallback((p: any) => setSelected(p), []);
   useEffect(() => {
@@ -660,14 +872,14 @@ export function SearchScreen() {
     if (user)
       void api
         .post("/recommendations/preferences", {
-          district: query,
+          district: district || query,
           type,
           ...(max ? { maxPrice: Number(max) } : {}),
         })
         .catch(() => {});
     void AsyncStorage.setItem(
       `marketplace_preferences_${user?.id || "guest"}`,
-      JSON.stringify({ district: query, type, maxPrice: max }),
+      JSON.stringify({ district: district || query, type, maxPrice: max }),
     );
   };
   return (
@@ -676,17 +888,40 @@ export function SearchScreen() {
       subtitle="Find your place on the map. Every listing is verified."
     >
       <View style={s.wrap}>
-        <View style={[s.input, s.row, { flex: 1, minWidth: 180 }]}>
+        <View style={[s.input, s.row, { flex: 1.5, minWidth: 200 }]}>
           <Icon name="search" />
           <TextInput
             accessibilityLabel="Search properties"
             value={query}
             onChangeText={setQuery}
-            placeholder="City, district or property"
+            placeholder="Property name, locality, road or ID..."
             onSubmitEditing={search}
             style={{ flex: 1 }}
           />
+          {!!query && (
+            <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); }}>
+              <Icon name="close" size={16} color="#94a3b8" />
+            </TouchableOpacity>
+          )}
         </View>
+
+        <View style={[s.input, s.row, { flex: 1, minWidth: 150 }]}>
+          <Icon name="location-on" color="#94a3b8" />
+          <TextInput
+            accessibilityLabel="Filter by district"
+            value={district}
+            onChangeText={setDistrict}
+            placeholder="District (e.g. Patna, Gaya)"
+            onSubmitEditing={search}
+            style={{ flex: 1 }}
+          />
+          {!!district && (
+            <TouchableOpacity onPress={() => setDistrict("")}>
+              <Icon name="close" size={16} color="#94a3b8" />
+            </TouchableOpacity>
+          )}
+        </View>
+
         <Button title="Search" onPress={search} />
         <Button
           title="Filters"
@@ -695,6 +930,40 @@ export function SearchScreen() {
           onPress={() => setFilter(!filter)}
         />
       </View>
+
+      {(!!submitted || !!district || !!type) && (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", paddingVertical: 2 }}>
+          <Text style={{ fontSize: 13, color: "#64748B", fontWeight: "600", fontFamily: font }}>Filters:</Text>
+          {!!submitted && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#EFF6FF", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#DBEAFE" }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#0A45B5", fontFamily: font }}>Query: "{submitted}"</Text>
+              <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); }}>
+                <Icon name="close" size={14} color="#0A45B5" />
+              </TouchableOpacity>
+            </View>
+          )}
+          {!!district && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#ECFDF5", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#A7F3D0" }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#059669", fontFamily: font }}>District: {district}</Text>
+              <TouchableOpacity onPress={() => setDistrict("")}>
+                <Icon name="close" size={14} color="#059669" />
+              </TouchableOpacity>
+            </View>
+          )}
+          {!!type && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#FFF7ED", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#FFEDD5" }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#EA580C", fontFamily: font }}>Type: {type.toUpperCase()}</Text>
+              <TouchableOpacity onPress={() => setType("")}>
+                <Icon name="close" size={14} color="#EA580C" />
+              </TouchableOpacity>
+            </View>
+          )}
+          <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); setDistrict(""); setType(""); setMax(""); }}>
+            <Text style={{ fontSize: 12, fontWeight: "700", color: "#DC2626", marginLeft: 4, fontFamily: font }}>Clear All</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {filter && (
         <View style={s.panel}>
           <Field
@@ -709,7 +978,7 @@ export function SearchScreen() {
                 key={id}
                 secondary={type !== id}
                 title={text}
-                onPress={() => setType(id)}
+                onPress={() => setType(type === id ? "" : id)}
               />
             ))}
           </View>
