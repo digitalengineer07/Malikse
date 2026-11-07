@@ -34,7 +34,7 @@ export default function AppHeader(props: AppHeaderProps) {
   const showNavLinks = props.showNavLinks ?? isDesktop;
   const showPostProperty = props.showPostPropertyBtn ?? (width >= 640);
 
-  const showBack = props.showBack ?? (!["/home", "/", "/search"].includes(pathname));
+  const showBack = props.showBack === true;
 
   const isHomeActive = pathname === "/home" || pathname === "/";
   const isSearchActive = pathname === "/search";

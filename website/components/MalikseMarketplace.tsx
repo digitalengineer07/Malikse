@@ -1699,10 +1699,53 @@ const defaultPostForm = {
   media: { photos: [], videos: [] },
 };
 
+const postCategories = [
+  {
+    id: "land",
+    title: "Plot / Land",
+    sub: "Residential & Commercial",
+    icon: "landscape",
+  },
+  {
+    id: "flat",
+    title: "Flat / Apartment",
+    sub: "Flats & Builder Floors",
+    icon: "apartment",
+  },
+  {
+    id: "house",
+    title: "House / Villa",
+    sub: "Independent Houses",
+    icon: "home",
+  },
+  {
+    id: "shop",
+    title: "Commercial Shop",
+    sub: "Shops & Showrooms",
+    icon: "storefront",
+  },
+  {
+    id: "office",
+    title: "Office Space",
+    sub: "Offices & Workspaces",
+    icon: "business",
+  },
+];
+
+const postSteps = [
+  { num: 1, label: "Category & Title", icon: "category" },
+  { num: 2, label: "Location & GPS", icon: "place" },
+  { num: 3, label: "Price & Area", icon: "payments" },
+  { num: 4, label: "Photos & Docs", icon: "photo-library" },
+  { num: 5, label: "Review & Submit", icon: "verified" },
+];
+
 export function PostScreen() {
   const router = useRouter(),
     params = useLocalSearchParams(),
     user = useAuthStore((x) => x.user),
+    { width } = useWindowDimensions(),
+    isDesktop = width >= 768,
     [draftId, setDraftId] = useState(String(params.id || "")),
     [step, setStep] = useState(1),
     [done, setDone] = useState(false),
@@ -1800,6 +1843,16 @@ export function PostScreen() {
   const uploadKey = (uri: string) => {
     if (!uploadKeys.current.has(uri)) uploadKeys.current.set(uri, randomUUID());
     return uploadKeys.current.get(uri)!;
+  };
+
+  const handleBack = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    } else if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.push("/home");
+    }
   };
 
   const goToNextStep = () => {
@@ -1962,135 +2015,131 @@ export function PostScreen() {
       setDone(true);
     });
 
+  const katthaApprox = form.totalArea && Number(form.totalArea) > 0
+    ? (Number(form.totalArea) / 1361.25).toFixed(2)
+    : null;
+
   return (
-    <MarketplaceShell
-      title="Post Property"
-      subtitle={
-        done
-          ? "Your listing has been submitted"
-          : `Step ${step} of 5 · Private until verified`
-      }
-      back
-    >
+    <MarketplaceShell back={false}>
       {!user ? (
-        <View style={s.panel}>
-          <View style={{ alignItems: "center", paddingVertical: 24, gap: 16 }}>
+        <View style={postStyles.cardContainer}>
+          <View style={{ alignItems: "center", paddingVertical: 36, gap: 16 }}>
             <View
               style={{
-                width: 68,
-                height: 68,
-                borderRadius: 34,
+                width: 72,
+                height: 72,
+                borderRadius: 36,
                 backgroundColor: "#EBF2FF",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Icon name="add-business" size={34} color={C.blue} />
+              <MaterialIcons name="add-business" size={36} color="#0A45B5" />
             </View>
-            <Text style={[s.h1, { textAlign: "center", fontSize: 26, color: C.ink }]}>
+            <Text style={[postStyles.cardHeaderTitle, { textAlign: "center", fontSize: 28 }]}>
               List Your Property on MalikSe
             </Text>
             <Text
-              style={[
-                s.body,
-                { textAlign: "center", color: C.muted, maxWidth: 540, lineHeight: 22 },
-              ]}
+              style={{
+                textAlign: "center",
+                color: "#475A82",
+                maxWidth: 540,
+                lineHeight: 24,
+                fontSize: 15,
+              }}
             >
               Connect directly with verified buyers across Bihar. Enjoy 0% brokerage, legal deed audit, and on-ground GPS boundary demarcation with your assigned property team.
             </Text>
 
-            <View style={{ flexDirection: "row", gap: 16, marginVertical: 8, flexWrap: "wrap", justifyContent: "center" }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#EBF2FF", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
-                <Icon name="verified" size={16} color={C.blue} />
-                <Text style={{ fontSize: 13, fontWeight: "700", color: C.blue }}>Verified Title Checks</Text>
+            <View style={{ flexDirection: "row", gap: 12, marginVertical: 12, flexWrap: "wrap", justifyContent: "center" }}>
+              <View style={postStyles.trustMiniBadge}>
+                <MaterialIcons name="verified" size={16} color="#0A45B5" />
+                <Text style={postStyles.trustMiniBadgeText}>Verified Title Checks</Text>
               </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#ECFDF5", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
-                <Icon name="check-circle" size={16} color={C.green} />
-                <Text style={{ fontSize: 13, fontWeight: "700", color: C.green }}>0% Brokerage</Text>
+              <View style={[postStyles.trustMiniBadge, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
+                <MaterialIcons name="check-circle" size={16} color="#059669" />
+                <Text style={[postStyles.trustMiniBadgeText, { color: "#059669" }]}>0% Brokerage</Text>
               </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEF3C7", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
-                <Icon name="place" size={16} color="#B45309" />
-                <Text style={{ fontSize: 13, fontWeight: "700", color: "#B45309" }}>GPS Demarcated</Text>
+              <View style={[postStyles.trustMiniBadge, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
+                <MaterialIcons name="place" size={16} color="#B45309" />
+                <Text style={[postStyles.trustMiniBadgeText, { color: "#B45309" }]}>GPS Demarcated</Text>
               </View>
             </View>
 
-            <View
-              style={{
-                flexDirection: "row",
-                gap: 14,
-                flexWrap: "wrap",
-                justifyContent: "center",
-                marginTop: 12,
-              }}
-            >
-              <Button
-                title="Sign In to Post Property"
-                icon="login"
+            <View style={{ flexDirection: "row", gap: 14, flexWrap: "wrap", justifyContent: "center", marginTop: 8 }}>
+              <TouchableOpacity
+                style={postStyles.primaryBtnLg}
                 onPress={() =>
                   router.push({
                     pathname: "/login",
                     params: { returnTo: "/post" },
                   } as any)
                 }
-              />
-              <Button
-                title="Create Free Account"
-                secondary
-                icon="person-add"
+              >
+                <MaterialIcons name="login" size={18} color="#FFFFFF" />
+                <Text style={postStyles.primaryBtnLgText}>Sign In to Post Property</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={postStyles.secondaryBtnLg}
                 onPress={() =>
                   router.push({
                     pathname: "/register",
                     params: { returnTo: "/post" },
                   } as any)
                 }
-              />
+              >
+                <MaterialIcons name="person-add" size={18} color="#0A45B5" />
+                <Text style={postStyles.secondaryBtnLgText}>Create Free Account</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
       ) : user.role !== "user" ? (
-        <View style={s.panel}>
-          <Text style={s.h2}>Staff Account Notice</Text>
-          <Text style={s.muted}>
+        <View style={postStyles.cardContainer}>
+          <Text style={postStyles.cardHeaderTitle}>Staff Account Notice</Text>
+          <Text style={{ color: "#475A82", fontSize: 15, marginVertical: 8 }}>
             Property posting is available for User accounts (buyers & sellers). You are currently logged in with a staff account ({user.role}).
           </Text>
-          <Button
-            title="Go to Staff Dashboard"
+          <TouchableOpacity
+            style={[postStyles.primaryBtnLg, { alignSelf: "flex-start", marginTop: 12 }]}
             onPress={() =>
               router.push((dashboardRoutes[user.role] || "/dashboard") as any)
             }
-          />
+          >
+            <Text style={postStyles.primaryBtnLgText}>Go to Staff Dashboard</Text>
+          </TouchableOpacity>
         </View>
       ) : done ? (
-        <View style={s.panel}>
-          <View style={{ alignItems: "center", paddingVertical: 24, gap: 14 }}>
+        <View style={postStyles.cardContainer}>
+          <View style={{ alignItems: "center", paddingVertical: 36, gap: 16 }}>
             <View
               style={{
-                width: 64,
-                height: 64,
-                borderRadius: 32,
+                width: 72,
+                height: 72,
+                borderRadius: 36,
                 backgroundColor: "#DCFCE7",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Icon name="check" size={36} color="#15803D" />
+              <MaterialIcons name="check-circle" size={42} color="#15803D" />
             </View>
-            <Text style={[s.h1, { fontSize: 24, textAlign: "center" }]}>
+            <Text style={[postStyles.cardHeaderTitle, { fontSize: 26, textAlign: "center" }]}>
               Property Submitted Successfully!
             </Text>
-            <Text style={[s.muted, { textAlign: "center", maxWidth: 500, lineHeight: 22 }]}>
-              Your listing has been submitted for verification. An assigned Advisor or Verifier will review legal details and coordinate on-ground demarcation.
+            <Text style={{ textAlign: "center", maxWidth: 540, lineHeight: 24, color: "#475A82", fontSize: 15 }}>
+              Your listing has been safely registered and placed in review. Your assigned Advisor or Verifier will review legal details and coordinate on-ground cadastral demarcation.
             </Text>
-            <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap", justifyContent: "center", marginTop: 12 }}>
-              <Button
-                title="View My Listings"
-                icon="list-alt"
+            <View style={{ flexDirection: "row", gap: 14, flexWrap: "wrap", justifyContent: "center", marginTop: 14 }}>
+              <TouchableOpacity
+                style={postStyles.primaryBtnLg}
                 onPress={() => router.replace("/my-properties")}
-              />
-              <Button
-                title="Post Another Property"
-                secondary
-                icon="add"
+              >
+                <MaterialIcons name="list-alt" size={18} color="#FFFFFF" />
+                <Text style={postStyles.primaryBtnLgText}>View My Listings</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={postStyles.secondaryBtnLg}
                 onPress={() => {
                   setDone(false);
                   setStep(1);
@@ -2101,501 +2150,1662 @@ export function PostScreen() {
                   setConsent(false);
                   setDraftId("");
                 }}
-              />
+              >
+                <MaterialIcons name="add" size={18} color="#0A45B5" />
+                <Text style={postStyles.secondaryBtnLgText}>Post Another Property</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
       ) : (
-        <>
-          <View style={s.progress}>
-            {[1, 2, 3, 4, 5].map((i) => (
-              <View
-                key={i}
-                style={[
-                  s.progressPart,
-                  i <= step && { backgroundColor: C.blue },
-                ]}
-              />
-            ))}
-          </View>
-          <ErrorBox text={action.error} />
+        <View style={postStyles.pageContainer}>
+          {/* Top Row: Back button (relocated here) & Trust Badges */}
+          <View style={postStyles.topNavRow}>
+            <TouchableOpacity
+              style={postStyles.backButtonPill}
+              onPress={handleBack}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="arrow-back" size={18} color="#0A45B5" />
+              <Text style={postStyles.backButtonPillText}>
+                {step > 1 ? `Back to Step ${step - 1}` : "Back to Home"}
+              </Text>
+            </TouchableOpacity>
 
-          {step === 1 && (
-            <View style={s.panel}>
-              <Text style={s.h2}>What kind of property are you listing?</Text>
-              <View style={s.wrap}>
-                {types
-                  .filter(([id]) => id)
-                  .map(([id, title, icon]) => (
-                    <Button
-                      key={id}
-                      title={title}
-                      icon={icon}
-                      secondary={form.type !== id}
-                      onPress={() => set("type")(id)}
-                    />
-                  ))}
-              </View>
-              <Field
-                title="Property title *"
-                placeholder="e.g. 2,400 sq ft Commercial Plot near Bailey Road"
-                value={form.title}
-                onChangeText={set("title")}
-              />
-              <Field
-                title="Description"
-                placeholder="Provide details about access, boundary, surroundings, road width and documents..."
-                value={form.description}
-                onChangeText={set("description")}
-                multiline
-              />
+            <View style={postStyles.verifiedBadgePill}>
+              <MaterialIcons name="verified-user" size={15} color="#0A45B5" />
+              <Text style={postStyles.verifiedBadgeText}>
+                {isDesktop ? "100% On-Ground & Document-Verified Spaces" : "Verified Portal"}
+              </Text>
             </View>
-          )}
+          </View>
 
-          {step === 2 && (
-            <View style={s.panel}>
-              <Text style={s.h2}>Where is the property located?</Text>
-              
-              <Text style={[s.fieldLabel, { marginTop: 4 }]}>Quick Select Popular Bihar Districts</Text>
-              <View style={[s.wrap, { marginVertical: 4 }]}>
-                {BIHAR_DISTRICTS.map((d) => (
+          {/* Hero Header Block */}
+          <View style={postStyles.heroHeaderRow}>
+            <View style={{ gap: 4, flex: 1 }}>
+              <Text style={postStyles.heroTitle}>Post Your Property in Bihar</Text>
+              <Text style={postStyles.heroSubtitle}>
+                Step {step} of 5 · Private & confidential until verified by your assigned Advisor
+              </Text>
+            </View>
+            {isDesktop && (
+              <View style={postStyles.zeroBrokerageBadge}>
+                <MaterialIcons name="handshake" size={16} color="#059669" />
+                <Text style={postStyles.zeroBrokerageText}>Zero Brokerage</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Premium Stepper Wizard */}
+          <View style={postStyles.stepperContainer}>
+            {postSteps.map((st, idx) => {
+              const isActive = step === st.num;
+              const isCompleted = step > st.num;
+              return (
+                <React.Fragment key={st.num}>
                   <TouchableOpacity
-                    key={d.name}
                     onPress={() => {
-                      setForm((f: any) => ({
-                        ...f,
-                        district: d.name,
-                        lat: d.lat,
-                        lng: d.lng,
-                        pincode: f.pincode || d.pincode,
-                      }));
+                      if (st.num < step) setStep(st.num);
                     }}
-                    style={[
-                      s.tag,
-                      form.district?.toLowerCase() === d.name.toLowerCase()
-                        ? { backgroundColor: C.blue }
-                        : { backgroundColor: "#EBF2FF" },
-                    ]}
+                    disabled={st.num > step}
+                    style={postStyles.stepItem}
+                    activeOpacity={st.num < step ? 0.7 : 1}
                   >
-                    <Text
+                    <View
                       style={[
-                        s.tagText,
-                        form.district?.toLowerCase() === d.name.toLowerCase()
-                          ? { color: "#FFFFFF" }
-                          : { color: C.blue },
+                        postStyles.stepCircle,
+                        isActive && postStyles.stepCircleActive,
+                        isCompleted && postStyles.stepCircleCompleted,
                       ]}
                     >
-                      {d.name}
-                    </Text>
+                      {isCompleted ? (
+                        <MaterialIcons name="check" size={16} color="#FFFFFF" />
+                      ) : (
+                        <Text
+                          style={[
+                            postStyles.stepCircleText,
+                            isActive && postStyles.stepCircleTextActive,
+                          ]}
+                        >
+                          {st.num}
+                        </Text>
+                      )}
+                    </View>
+                    {isDesktop && (
+                      <View style={postStyles.stepTextCol}>
+                        <Text
+                          style={[
+                            postStyles.stepLabel,
+                            isActive && postStyles.stepLabelActive,
+                            isCompleted && postStyles.stepLabelCompleted,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {st.label}
+                        </Text>
+                        <Text style={postStyles.stepSubLabel}>
+                          {isCompleted ? "Completed" : isActive ? "Active" : `Step ${st.num}`}
+                        </Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={s.row}>
-                <Field
-                  title="State"
-                  value={form.state}
-                  onChangeText={set("state")}
-                />
-                <Field
-                  title="City / District *"
-                  value={form.district}
-                  onChangeText={set("district")}
-                  placeholder="e.g. Patna"
-                />
-              </View>
-
-              <View style={s.row}>
-                <Field
-                  title="Locality / Block"
-                  value={form.block}
-                  onChangeText={set("block")}
-                  placeholder="e.g. Danapur"
-                />
-                <Field
-                  title="Pincode"
-                  value={form.pincode}
-                  onChangeText={set("pincode")}
-                  numeric
-                  placeholder="e.g. 801503"
-                />
-              </View>
-
-              <Button
-                secondary
-                title="Use Current GPS Location"
-                icon="my-location"
-                onPress={() =>
-                  action.run(async () => {
-                    const permission =
-                      await Location.requestForegroundPermissionsAsync();
-                    if (permission.status !== "granted")
-                      throw new Error(
-                        "Location permission denied. Enter coordinates manually.",
-                      );
-                    const location = await Location.getCurrentPositionAsync({
-                      accuracy: Location.Accuracy.High,
-                    });
-                    set("lat")(String(location.coords.latitude));
-                    set("lng")(String(location.coords.longitude));
-                  })
-                }
-              />
-
-              <View style={s.row}>
-                <Field
-                  title="Latitude *"
-                  value={form.lat}
-                  onChangeText={set("lat")}
-                  numeric
-                />
-                <Field
-                  title="Longitude *"
-                  value={form.lng}
-                  onChangeText={set("lng")}
-                  numeric
-                />
-              </View>
-
-              <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.line }}>
-                <Text style={s.h2}>Demarcate Property Boundary (Optional)</Text>
-                <Text style={s.muted}>
-                  Draw the boundary outline on the satellite map. Tap points around the plot corners to mark the perimeter.
-                </Text>
-                <View
-                  style={{
-                    minHeight: Platform.OS === "web" ? 480 : 420,
-                    borderRadius: 16,
-                    overflow: "hidden",
-                    marginVertical: 12,
-                    borderWidth: 1,
-                    borderColor: C.line,
-                  }}
-                >
-                  <MapParcelPicker
-                    initialPoints={points}
-                    onParcelChange={onParcelChange}
-                    areaSqFt={form.totalArea || "2,400"}
-                  />
-                </View>
-                <Field
-                  title="Boundary description (North / South / East / West)"
-                  placeholder="e.g. North: 30ft Road, South: Plot 42, East: Boundary wall, West: Green belt"
-                  value={form.boundary}
-                  onChangeText={set("boundary")}
-                  multiline
-                />
-                <Field
-                  title="Road width in front of plot (feet)"
-                  placeholder="e.g. 30"
-                  value={form.roadWidth}
-                  onChangeText={set("roadWidth")}
-                  numeric
-                />
-              </View>
-            </View>
-          )}
-
-          {step === 3 && (
-            <View style={s.panel}>
-              <Text style={s.h2}>Set your price & area</Text>
-              
-              <Field
-                numeric
-                title="Expected price (₹) *"
-                placeholder="e.g. 4500000"
-                value={form.price}
-                onChangeText={set("price")}
-              />
-              {Number(form.price) > 0 && (
-                <Text style={[s.small, { color: C.blue, fontWeight: "700", marginTop: -8 }]}>
-                  Formatted Price: {money(Number(form.price))}
-                </Text>
-              )}
-
-              <View style={s.row}>
-                <Field
-                  numeric
-                  title="Total area (sq ft) *"
-                  placeholder="e.g. 1800"
-                  value={form.totalArea}
-                  onChangeText={(v: string) => {
-                    setForm((f: any) => ({
-                      ...f,
-                      totalArea: v,
-                      sellableArea: (!f.sellableArea || f.sellableArea === f.totalArea) ? v : f.sellableArea,
-                    }));
-                  }}
-                />
-                <Field
-                  numeric
-                  title="Sellable area (sq ft)"
-                  placeholder="e.g. 1800"
-                  value={form.sellableArea}
-                  onChangeText={set("sellableArea")}
-                />
-              </View>
-
-              {[
-                ["negotiable", "Price is negotiable"],
-                ["hasLoan", "Property has an existing loan"],
-                ["hasDispute", "Property has a dispute"],
-              ].map(([key, title]) => (
-                <Pressable
-                  key={key}
-                  style={s.row}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: form[key] }}
-                  onPress={() => set(key)(!form[key])}
-                >
-                  <Icon
-                    name={form[key] ? "check-box" : "check-box-outline-blank"}
-                  />
-                  <Text style={s.body}>{title}</Text>
-                </Pressable>
-              ))}
-
-              <Text style={[s.fieldLabel, { marginTop: 8 }]}>Possession Status</Text>
-              <View style={s.wrap}>
-                {["Immediate", "Within 3 Months", "Under Construction", "With Owner"].map((pos) => (
-                  <Button
-                    key={pos}
-                    title={pos}
-                    secondary={form.possessionStatus !== pos}
-                    onPress={() => set("possessionStatus")(pos)}
-                  />
-                ))}
-              </View>
-            </View>
-          )}
-
-          {step === 4 && (
-            <View style={s.panel}>
-              <Text style={s.h2}>Photos & ownership documents</Text>
-              <Text style={s.muted}>
-                At least one property photo is required. Ownership documents remain confidential and private.
-              </Text>
-
-              <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
-                <Button
-                  secondary
-                  title="Add property photos"
-                  icon="add-a-photo"
-                  onPress={() => action.run(() => pick())}
-                />
-                <Button
-                  secondary
-                  title="Add Demo Sample Photo"
-                  icon="image"
-                  onPress={addSamplePhoto}
-                />
-              </View>
-
-              <View style={s.wrap}>
-                {form.media?.photos?.map((uri: string, index: number) => (
-                  <View key={uri + index} style={{ position: "relative" }}>
-                    <Image
-                      source={{ uri }}
-                      style={{ width: 130, height: 95, borderRadius: 12, backgroundColor: "#E2E8F0" }}
+                  {idx < postSteps.length - 1 && (
+                    <View
+                      style={[
+                        postStyles.stepConnectorLine,
+                        isCompleted && postStyles.stepConnectorLineCompleted,
+                      ]}
                     />
-                    <TouchableOpacity
-                      onPress={() => removePhoto(index, false)}
-                      style={{
-                        position: "absolute",
-                        top: -6,
-                        right: -6,
-                        width: 24,
-                        height: 24,
-                        borderRadius: 12,
-                        backgroundColor: "#EF4444",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <MaterialIcons name="close" size={14} color="#FFFFFF" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-                {photos.map((p, index) => (
-                  <View key={p.uri + index} style={{ position: "relative" }}>
-                    <Image
-                      source={{ uri: p.uri }}
-                      style={{ width: 130, height: 95, borderRadius: 12, backgroundColor: "#E2E8F0" }}
-                    />
-                    <TouchableOpacity
-                      onPress={() => removePhoto(index, true)}
-                      style={{
-                        position: "absolute",
-                        top: -6,
-                        right: -6,
-                        width: 24,
-                        height: 24,
-                        borderRadius: 12,
-                        backgroundColor: "#EF4444",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <MaterialIcons name="close" size={14} color="#FFFFFF" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-
-              <View style={{ marginTop: 12, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.line }}>
-                <Text style={s.h2}>Ownership documents (optional)</Text>
-                <Button
-                  secondary
-                  title="Add ownership documents (PDF, JPG)"
-                  icon="upload-file"
-                  onPress={() => action.run(() => pick(true))}
-                />
-                {documents.map((d, index) => (
-                  <View key={d.uri + index} style={[s.row, { justifyContent: "space-between", backgroundColor: "#F8FAFC", padding: 10, borderRadius: 8, marginVertical: 4 }]}>
-                    <Text style={[s.small, { flex: 1 }]} numberOfLines={1}>
-                      📄 {d.name}
-                    </Text>
-                    <TouchableOpacity onPress={() => removeDocument(index)}>
-                      <MaterialIcons name="delete" size={18} color="#EF4444" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {step === 5 && (
-            <View style={s.panel}>
-              <Text style={s.h2}>Assign your property team</Text>
-              <Field
-                title="Advisor ID (optional)"
-                placeholder="Leave blank for automatic assignment"
-                value={form.requestedAdvisorId}
-                onChangeText={set("requestedAdvisorId")}
-              />
-              <Text style={s.muted}>
-                Enter the Advisor ID if an Advisor assisted you. Leave it blank to automatically assign the next available verified staff.
-              </Text>
-
-              <View style={[s.panel, { backgroundColor: "#F8FAFC", gap: 8, marginVertical: 8 }]}>
-                <Text style={s.cardTitle}>{form.title || `${form.type} in ${form.district || ""}`}</Text>
-                <Text style={s.price}>{money(Number(form.price))}</Text>
-                <Text style={s.body}>
-                  📍 {form.block ? `${form.block}, ` : ""}{form.district}, {form.state} {form.pincode}
-                </Text>
-                <Text style={s.small}>
-                  📐 Total Area: {form.totalArea} sq ft · Sellable: {form.sellableArea || form.totalArea} sq ft · Type: {form.type}
-                </Text>
-                {points.length >= 3 && (
-                  <Text style={[s.small, { color: C.green, fontWeight: "600" }]}>
-                    ✓ Boundary demarcated with {points.length} GPS points
-                  </Text>
-                )}
-                {!!form.boundary && (
-                  <Text style={[s.small, { color: C.muted }]}>
-                    Boundary description: {form.boundary}
-                  </Text>
-                )}
-                <Text style={[s.small, { color: C.muted }]}>
-                  📷 {photos.length + (form.media?.photos?.length || 0)} photo(s) attached
-                </Text>
-              </View>
-
-              <View
-                style={{
-                  backgroundColor: approved(user) ? "#ECFDF5" : "#EFF6FF",
-                  borderColor: approved(user) ? "#A7F3D0" : "#BFDBFE",
-                  borderWidth: 1,
-                  borderRadius: 14,
-                  padding: 14,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <Icon
-                  name={approved(user) ? "verified" : "info"}
-                  size={28}
-                  color={approved(user) ? "#059669" : C.blue}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontWeight: "700", color: approved(user) ? "#065F46" : "#1E40AF" }}>
-                    {approved(user)
-                      ? "Identity Verified Seller"
-                      : "Demo Mode: Verification Auto-Completes on Submit"}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: approved(user) ? "#047857" : "#3B82F6", marginTop: 2 }}>
-                    {approved(user)
-                      ? "Your account has full verified seller listing privileges."
-                      : "You can click Submit directly, or verify beforehand."}
-                  </Text>
-                </View>
-                {!approved(user) && (
-                  <TouchableOpacity
-                    onPress={() =>
-                      action.run(async () => {
-                        await authService.completeDemoKyc();
-                      })
-                    }
-                    style={{
-                      backgroundColor: C.blue,
-                      paddingHorizontal: 12,
-                      paddingVertical: 8,
-                      borderRadius: 8,
-                    }}
-                  >
-                    <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>
-                      Verify Now
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              <Pressable
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: consent }}
-                style={[s.row, { marginTop: 8 }]}
-                onPress={() => setConsent(!consent)}
-              >
-                <Icon
-                  name={consent ? "check-box" : "check-box-outline-blank"}
-                />
-                <Text style={[s.body, { flex: 1 }]}>
-                  I am authorized to list this property and confirm that all its details, disclosures, and title representations are accurate.
-                </Text>
-              </Pressable>
-            </View>
-          )}
-
-          <View style={s.between}>
-            <Button
-              title="Back"
-              secondary
-              disabled={step === 1 || action.busy}
-              onPress={() => setStep(step - 1)}
-            />
-            <Button
-              title={
-                action.busy
-                  ? "Submitting…"
-                  : step === 5
-                    ? "Submit for verification"
-                    : "Continue →"
-              }
-              disabled={action.busy || (step === 5 && !consent)}
-              onPress={() => (step === 5 ? submit() : goToNextStep())}
-            />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </View>
-          {!!draftId && (
-            <Text style={s.small}>
-              Draft saved: {draftId}. Uploads are retained if submission needs to be retried.
-            </Text>
-          )}
-        </>
+
+          <ErrorBox text={action.error} />
+
+          {/* Main Card Container */}
+          <View style={postStyles.cardContainer}>
+            {/* STEP 1: Property Type & Title */}
+            {step === 1 && (
+              <View style={{ gap: 24 }}>
+                <View style={{ gap: 4 }}>
+                  <Text style={postStyles.cardHeaderTitle}>What type of property are you listing?</Text>
+                  <Text style={postStyles.cardHeaderSubtitle}>
+                    Select your property category to configure the right verification and cadastral parameters.
+                  </Text>
+                </View>
+
+                {/* 5 Property Category Cards */}
+                <View style={postStyles.categoryGrid}>
+                  {postCategories.map((cat) => {
+                    const isSelected = form.type === cat.id;
+                    return (
+                      <TouchableOpacity
+                        key={cat.id}
+                        style={[
+                          postStyles.categoryCard,
+                          isSelected && postStyles.categoryCardSelected,
+                        ]}
+                        onPress={() => set("type")(cat.id)}
+                        activeOpacity={0.85}
+                      >
+                        {isSelected && (
+                          <View style={postStyles.categoryCheckBadge}>
+                            <MaterialIcons name="check" size={12} color="#FFFFFF" />
+                          </View>
+                        )}
+                        <View
+                          style={[
+                            postStyles.categoryIconBox,
+                            isSelected && postStyles.categoryIconBoxSelected,
+                          ]}
+                        >
+                          <MaterialIcons
+                            name={cat.icon as any}
+                            size={24}
+                            color={isSelected ? "#FFFFFF" : "#0A45B5"}
+                          />
+                        </View>
+                        <View style={postStyles.categoryTextWrapper}>
+                          <Text
+                            style={[
+                              postStyles.categoryCardTitle,
+                              isSelected && postStyles.categoryCardTitleSelected,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {cat.title}
+                          </Text>
+                          <Text
+                            style={[
+                              postStyles.categoryCardSub,
+                              isSelected && postStyles.categoryCardSubSelected,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {cat.sub}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <View style={{ gap: 16, marginTop: 4 }}>
+                  <View style={{ gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>
+                      Property Title <Text style={{ color: "#EF4444" }}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={postStyles.customInput}
+                      placeholder="e.g. 2,400 sq ft Commercial Corner Plot on 40ft Main Road, Bailey Road"
+                      placeholderTextColor="#94A3B8"
+                      value={form.title}
+                      onChangeText={set("title")}
+                    />
+                    <Text style={postStyles.inputHelperText}>
+                      A clear, specific title gets up to 3x more views from verified buyers.
+                    </Text>
+                  </View>
+
+                  <View style={{ gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>Property Description</Text>
+                    <TextInput
+                      style={[postStyles.customInput, { minHeight: 110, textAlignVertical: "top" }]}
+                      placeholder="Provide details about road access, boundary walls, plot frontage, distance from main road, utilities, and registry documents..."
+                      placeholderTextColor="#94A3B8"
+                      value={form.description}
+                      onChangeText={set("description")}
+                      multiline
+                    />
+                    <Text style={postStyles.inputHelperText}>
+                      Mention key details like connectivity, nearby hospitals/schools, and water/electricity.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* STEP 2: Location & GPS Demarcation */}
+            {step === 2 && (
+              <View style={{ gap: 22 }}>
+                <View style={{ gap: 4 }}>
+                  <Text style={postStyles.cardHeaderTitle}>Where is your property located?</Text>
+                  <Text style={postStyles.cardHeaderSubtitle}>
+                    Select your district in Bihar and provide coordinates for on-ground surveyor demarcation.
+                  </Text>
+                </View>
+
+                {/* Popular Bihar Districts Quick Select */}
+                <View style={{ gap: 8 }}>
+                  <Text style={postStyles.inputLabel}>Popular Bihar Districts</Text>
+                  <View style={postStyles.districtChipsRow}>
+                    {BIHAR_DISTRICTS.map((d) => {
+                      const isSelected = form.district?.toLowerCase() === d.name.toLowerCase();
+                      return (
+                        <TouchableOpacity
+                          key={d.name}
+                          onPress={() => {
+                            setForm((f: any) => ({
+                              ...f,
+                              district: d.name,
+                              lat: d.lat,
+                              lng: d.lng,
+                              pincode: f.pincode || d.pincode,
+                            }));
+                          }}
+                          style={[
+                            postStyles.districtChip,
+                            isSelected && postStyles.districtChipSelected,
+                          ]}
+                          activeOpacity={0.8}
+                        >
+                          <Text
+                            style={[
+                              postStyles.districtChipText,
+                              isSelected && postStyles.districtChipTextSelected,
+                            ]}
+                          >
+                            {d.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                {/* Address inputs */}
+                <View style={postStyles.formRowTwoCol}>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>State</Text>
+                    <TextInput
+                      style={postStyles.customInput}
+                      value={form.state}
+                      onChangeText={set("state")}
+                    />
+                  </View>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>
+                      City / District <Text style={{ color: "#EF4444" }}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={postStyles.customInput}
+                      placeholder="e.g. Patna"
+                      placeholderTextColor="#94A3B8"
+                      value={form.district}
+                      onChangeText={set("district")}
+                    />
+                  </View>
+                </View>
+
+                <View style={postStyles.formRowTwoCol}>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>Locality / Block</Text>
+                    <TextInput
+                      style={postStyles.customInput}
+                      placeholder="e.g. Danapur / Saguna More"
+                      placeholderTextColor="#94A3B8"
+                      value={form.block}
+                      onChangeText={set("block")}
+                    />
+                  </View>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>Pincode</Text>
+                    <TextInput
+                      style={postStyles.customInput}
+                      placeholder="e.g. 801503"
+                      placeholderTextColor="#94A3B8"
+                      value={form.pincode}
+                      onChangeText={set("pincode")}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+
+                {/* Coordinates & GPS fetch */}
+                <View style={postStyles.gpsBox}>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                    <View style={{ gap: 2 }}>
+                      <Text style={{ fontWeight: "700", color: "#0B1B3F", fontSize: 15 }}>
+                        GPS Location Coordinates
+                      </Text>
+                      <Text style={{ fontSize: 13, color: "#64748B" }}>
+                        Required for assigned Verifier on-ground plot inspection.
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={postStyles.useGpsBtn}
+                      onPress={() =>
+                        action.run(async () => {
+                          const permission = await Location.requestForegroundPermissionsAsync();
+                          if (permission.status !== "granted") {
+                            throw new Error("Location permission denied. Enter coordinates manually.");
+                          }
+                          const location = await Location.getCurrentPositionAsync({
+                            accuracy: Location.Accuracy.High,
+                          });
+                          set("lat")(String(location.coords.latitude));
+                          set("lng")(String(location.coords.longitude));
+                        })
+                      }
+                      activeOpacity={0.8}
+                    >
+                      <MaterialIcons name="my-location" size={16} color="#0A45B5" />
+                      <Text style={postStyles.useGpsBtnText}>Use Current Location</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={postStyles.formRowTwoCol}>
+                    <View style={{ flex: 1, gap: 6 }}>
+                      <Text style={postStyles.inputLabel}>Latitude *</Text>
+                      <TextInput
+                        style={postStyles.customInput}
+                        value={form.lat}
+                        onChangeText={set("lat")}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                    <View style={{ flex: 1, gap: 6 }}>
+                      <Text style={postStyles.inputLabel}>Longitude *</Text>
+                      <TextInput
+                        style={postStyles.customInput}
+                        value={form.lng}
+                        onChangeText={set("lng")}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                {/* Satellite Demarcation Map */}
+                <View style={{ gap: 10, marginTop: 8 }}>
+                  <Text style={postStyles.cardHeaderTitle}>Demarcate Property Boundary (Optional)</Text>
+                  <Text style={postStyles.cardHeaderSubtitle}>
+                    Draw the boundary outline on the satellite map. Tap points around the plot corners to mark the perimeter.
+                  </Text>
+                  <View style={postStyles.mapContainer}>
+                    <MapParcelPicker
+                      initialPoints={points}
+                      onParcelChange={onParcelChange}
+                      areaSqFt={form.totalArea || "2,400"}
+                    />
+                  </View>
+
+                  <View style={postStyles.formRowTwoCol}>
+                    <View style={{ flex: 2, gap: 6 }}>
+                      <Text style={postStyles.inputLabel}>Boundary Description</Text>
+                      <TextInput
+                        style={postStyles.customInput}
+                        placeholder="e.g. North: 30ft Road, South: Plot 42, East: Boundary wall, West: Green belt"
+                        placeholderTextColor="#94A3B8"
+                        value={form.boundary}
+                        onChangeText={set("boundary")}
+                      />
+                    </View>
+                    <View style={{ flex: 1, gap: 6 }}>
+                      <Text style={postStyles.inputLabel}>Road Width (ft)</Text>
+                      <TextInput
+                        style={postStyles.customInput}
+                        placeholder="e.g. 30"
+                        placeholderTextColor="#94A3B8"
+                        value={form.roadWidth}
+                        onChangeText={set("roadWidth")}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* STEP 3: Price, Area & Disclosures */}
+            {step === 3 && (
+              <View style={{ gap: 22 }}>
+                <View style={{ gap: 4 }}>
+                  <Text style={postStyles.cardHeaderTitle}>Expected Price & Plot Dimensions</Text>
+                  <Text style={postStyles.cardHeaderSubtitle}>
+                    Set fair pricing and area metrics. MalikSe charges 0% brokerage on your deal.
+                  </Text>
+                </View>
+
+                {/* Price input with live badge */}
+                <View style={{ gap: 8 }}>
+                  <Text style={postStyles.inputLabel}>
+                    Expected Price (₹) <Text style={{ color: "#EF4444" }}>*</Text>
+                  </Text>
+                  <View style={postStyles.priceInputWrapper}>
+                    <Text style={postStyles.currencySymbol}>₹</Text>
+                    <TextInput
+                      style={postStyles.priceInput}
+                      placeholder="e.g. 4500000"
+                      placeholderTextColor="#94A3B8"
+                      value={form.price}
+                      onChangeText={set("price")}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  {Number(form.price) > 0 && (
+                    <View style={postStyles.formattedPricePill}>
+                      <MaterialIcons name="payments" size={16} color="#0A45B5" />
+                      <Text style={postStyles.formattedPriceText}>
+                        Asking Price: {money(Number(form.price))}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Area fields */}
+                <View style={postStyles.formRowTwoCol}>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>
+                      Total Area (sq ft) <Text style={{ color: "#EF4444" }}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={postStyles.customInput}
+                      placeholder="e.g. 1800"
+                      placeholderTextColor="#94A3B8"
+                      value={form.totalArea}
+                      onChangeText={(v: string) => {
+                        setForm((f: any) => ({
+                          ...f,
+                          totalArea: v,
+                          sellableArea: (!f.sellableArea || f.sellableArea === f.totalArea) ? v : f.sellableArea,
+                        }));
+                      }}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>Sellable Area (sq ft)</Text>
+                    <TextInput
+                      style={postStyles.customInput}
+                      placeholder="e.g. 1800"
+                      placeholderTextColor="#94A3B8"
+                      value={form.sellableArea}
+                      onChangeText={set("sellableArea")}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+
+                {katthaApprox && (
+                  <View style={postStyles.katthaCalcBadge}>
+                    <MaterialIcons name="square-foot" size={16} color="#059669" />
+                    <Text style={postStyles.katthaCalcText}>
+                      Area Estimate: {form.totalArea} sq ft ≈ {katthaApprox} Kattha (Bihar Standard: ~1,361 sq ft / Kattha)
+                    </Text>
+                  </View>
+                )}
+
+                {/* Checkbox Disclosures */}
+                <View style={{ gap: 12, marginTop: 4 }}>
+                  {[
+                    ["negotiable", "Price is negotiable"],
+                    ["hasLoan", "Property has an existing bank loan / lien"],
+                    ["hasDispute", "Property has an ongoing legal dispute"],
+                  ].map(([key, labelText]) => (
+                    <TouchableOpacity
+                      key={key}
+                      style={postStyles.checkboxRow}
+                      onPress={() => set(key)(!form[key])}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialIcons
+                        name={form[key] ? "check-box" : "check-box-outline-blank"}
+                        size={22}
+                        color={form[key] ? "#0A45B5" : "#94A3B8"}
+                      />
+                      <Text style={postStyles.checkboxLabel}>{labelText}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Possession Status pills */}
+                <View style={{ gap: 8, marginTop: 4 }}>
+                  <Text style={postStyles.inputLabel}>Possession Status</Text>
+                  <View style={postStyles.possessionChipsRow}>
+                    {["Immediate", "Within 3 Months", "Under Construction", "With Owner"].map((pos) => {
+                      const isSelected = form.possessionStatus === pos;
+                      return (
+                        <TouchableOpacity
+                          key={pos}
+                          style={[
+                            postStyles.possessionChip,
+                            isSelected && postStyles.possessionChipSelected,
+                          ]}
+                          onPress={() => set("possessionStatus")(pos)}
+                          activeOpacity={0.8}
+                        >
+                          <Text
+                            style={[
+                              postStyles.possessionChipText,
+                              isSelected && postStyles.possessionChipTextSelected,
+                            ]}
+                          >
+                            {pos}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* STEP 4: Photos & Documents */}
+            {step === 4 && (
+              <View style={{ gap: 22 }}>
+                <View style={{ gap: 4 }}>
+                  <Text style={postStyles.cardHeaderTitle}>Property Photos & Ownership Documents</Text>
+                  <Text style={postStyles.cardHeaderSubtitle}>
+                    Upload at least one high-resolution photo. Ownership deeds remain private and reviewed only by assigned staff.
+                  </Text>
+                </View>
+
+                {/* Photo Action Buttons */}
+                <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
+                  <TouchableOpacity
+                    style={postStyles.uploadBtn}
+                    onPress={() => action.run(() => pick(false))}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="add-a-photo" size={18} color="#0A45B5" />
+                    <Text style={postStyles.uploadBtnText}>Upload Property Photos</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={postStyles.demoSamplePhotoBtn}
+                    onPress={addSamplePhoto}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="image" size={18} color="#059669" />
+                    <Text style={postStyles.demoSamplePhotoBtnText}>Add Demo Sample Photo</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Photos Thumbnail Grid */}
+                <View style={postStyles.photoThumbnailGrid}>
+                  {form.media?.photos?.map((uri: string, index: number) => (
+                    <View key={uri + index} style={postStyles.thumbnailWrapper}>
+                      <Image source={{ uri }} style={postStyles.thumbnailImg} />
+                      <TouchableOpacity
+                        onPress={() => removePhoto(index, false)}
+                        style={postStyles.deleteBadge}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialIcons name="close" size={13} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  {photos.map((p, index) => (
+                    <View key={p.uri + index} style={postStyles.thumbnailWrapper}>
+                      <Image source={{ uri: p.uri }} style={postStyles.thumbnailImg} />
+                      <TouchableOpacity
+                        onPress={() => removePhoto(index, true)}
+                        style={postStyles.deleteBadge}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialIcons name="close" size={13} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Ownership Documents section */}
+                <View style={{ gap: 12, marginTop: 12, paddingTop: 18, borderTopWidth: 1, borderTopColor: "#E2E8F0" }}>
+                  <View style={{ gap: 4 }}>
+                    <Text style={postStyles.cardHeaderTitle}>Ownership Documents (Optional)</Text>
+                    <Text style={postStyles.cardHeaderSubtitle}>
+                      Attach Registry Deed, Mutation Receipt, or Khatiyan LPC to fast-track verification.
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[postStyles.uploadBtn, { alignSelf: "flex-start" }]}
+                    onPress={() => action.run(() => pick(true))}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="upload-file" size={18} color="#0A45B5" />
+                    <Text style={postStyles.uploadBtnText}>Add Ownership Documents (PDF, JPG)</Text>
+                  </TouchableOpacity>
+
+                  {documents.map((d, index) => (
+                    <View key={d.uri + index} style={postStyles.docListItem}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                        <MaterialIcons name="description" size={20} color="#0A45B5" />
+                        <Text style={postStyles.docFileName} numberOfLines={1}>
+                          {d.name}
+                        </Text>
+                      </View>
+                      <TouchableOpacity onPress={() => removeDocument(index)} activeOpacity={0.7}>
+                        <MaterialIcons name="delete" size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* STEP 5: Review, Advisor Assignment & Submit */}
+            {step === 5 && (
+              <View style={{ gap: 22 }}>
+                <View style={{ gap: 4 }}>
+                  <Text style={postStyles.cardHeaderTitle}>Review Details & Final Submission</Text>
+                  <Text style={postStyles.cardHeaderSubtitle}>
+                    Review your property parameters before submitting for verification and team assignment.
+                  </Text>
+                </View>
+
+                {/* Comprehensive Summary Preview Card */}
+                <View style={postStyles.reviewSummaryCard}>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                    <View style={postStyles.categoryReviewPill}>
+                      <Text style={postStyles.categoryReviewPillText}>
+                        {form.type?.toUpperCase()}
+                      </Text>
+                    </View>
+                    <Text style={postStyles.reviewPriceText}>{money(Number(form.price))}</Text>
+                  </View>
+
+                  <Text style={postStyles.reviewTitleText}>
+                    {form.title || `${form.type} in ${form.district}`}
+                  </Text>
+
+                  <View style={postStyles.reviewLocationRow}>
+                    <MaterialIcons name="place" size={16} color="#0A45B5" />
+                    <Text style={postStyles.reviewLocationText}>
+                      {form.block ? `${form.block}, ` : ""}{form.district}, {form.state} {form.pincode}
+                    </Text>
+                  </View>
+
+                  <View style={postStyles.reviewSpecsGrid}>
+                    <View style={postStyles.reviewSpecItem}>
+                      <Text style={postStyles.reviewSpecLabel}>Total Area</Text>
+                      <Text style={postStyles.reviewSpecValue}>{form.totalArea} sq ft</Text>
+                    </View>
+                    <View style={postStyles.reviewSpecItem}>
+                      <Text style={postStyles.reviewSpecLabel}>Sellable Area</Text>
+                      <Text style={postStyles.reviewSpecValue}>{form.sellableArea || form.totalArea} sq ft</Text>
+                    </View>
+                    {katthaApprox && (
+                      <View style={postStyles.reviewSpecItem}>
+                        <Text style={postStyles.reviewSpecLabel}>Bihar Kattha</Text>
+                        <Text style={postStyles.reviewSpecValue}>~{katthaApprox} Kattha</Text>
+                      </View>
+                    )}
+                    <View style={postStyles.reviewSpecItem}>
+                      <Text style={postStyles.reviewSpecLabel}>Possession</Text>
+                      <Text style={postStyles.reviewSpecValue}>{form.possessionStatus}</Text>
+                    </View>
+                  </View>
+
+                  {points.length >= 3 && (
+                    <View style={postStyles.demarcationDoneBadge}>
+                      <MaterialIcons name="check-circle" size={15} color="#059669" />
+                      <Text style={postStyles.demarcationDoneText}>
+                        Boundary Demarcated: {points.length} GPS Cadastral Points
+                      </Text>
+                    </View>
+                  )}
+
+                  <Text style={postStyles.photoCountText}>
+                    📷 {photos.length + (form.media?.photos?.length || 0)} Property Photo(s) Attached
+                  </Text>
+                </View>
+
+                {/* Advisor ID */}
+                <View style={{ gap: 6 }}>
+                  <Text style={postStyles.inputLabel}>Advisor ID (Optional)</Text>
+                  <TextInput
+                    style={postStyles.customInput}
+                    placeholder="Leave blank to automatically assign the next available staff"
+                    placeholderTextColor="#94A3B8"
+                    value={form.requestedAdvisorId}
+                    onChangeText={set("requestedAdvisorId")}
+                  />
+                  <Text style={postStyles.inputHelperText}>
+                    If an Advisor helped you prepare this listing, enter their ID here. Otherwise an eligible staff member will be assigned automatically.
+                  </Text>
+                </View>
+
+                {/* Identity Verification Status */}
+                <View
+                  style={[
+                    postStyles.idVerifyBox,
+                    approved(user) ? postStyles.idVerifyBoxApproved : postStyles.idVerifyBoxPending,
+                  ]}
+                >
+                  <MaterialIcons
+                    name={approved(user) ? "verified" : "info"}
+                    size={26}
+                    color={approved(user) ? "#059669" : "#0A45B5"}
+                  />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={[
+                        postStyles.idVerifyTitle,
+                        approved(user) ? { color: "#065F46" } : { color: "#1E40AF" },
+                      ]}
+                    >
+                      {approved(user)
+                        ? "Identity Verified Seller"
+                        : "Demo Mode: Verification Auto-Completes on Submit"}
+                    </Text>
+                    <Text
+                      style={[
+                        postStyles.idVerifyDesc,
+                        approved(user) ? { color: "#047857" } : { color: "#3B82F6" },
+                      ]}
+                    >
+                      {approved(user)
+                        ? "Your account has full verified seller privileges."
+                        : "You can click Submit directly, or click Verify Now beforehand."}
+                    </Text>
+                  </View>
+                  {!approved(user) && (
+                    <TouchableOpacity
+                      onPress={() =>
+                        action.run(async () => {
+                          await authService.completeDemoKyc();
+                        })
+                      }
+                      style={postStyles.verifyNowPill}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={postStyles.verifyNowPillText}>Verify Now</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Consent Checkbox */}
+                <TouchableOpacity
+                  style={postStyles.checkboxRow}
+                  onPress={() => setConsent(!consent)}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons
+                    name={consent ? "check-box" : "check-box-outline-blank"}
+                    size={24}
+                    color={consent ? "#0A45B5" : "#94A3B8"}
+                  />
+                  <Text style={[postStyles.checkboxLabel, { flex: 1, lineHeight: 20 }]}>
+                    I confirm that I am authorized to list this property and that all details, coordinates, and disclosures provided are accurate and truthful.
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Integrated Card Action Footer */}
+            <View style={postStyles.cardActionFooter}>
+              <TouchableOpacity
+                style={postStyles.footerBackBtn}
+                onPress={handleBack}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="arrow-back" size={16} color="#0A45B5" />
+                <Text style={postStyles.footerBackBtnText}>
+                  {step > 1 ? "Previous Step" : "Cancel & Return to Home"}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                <Text style={postStyles.stepIndicatorBadge}>Step {step} of 5</Text>
+                <TouchableOpacity
+                  style={[
+                    postStyles.footerContinueBtn,
+                    (action.busy || (step === 5 && !consent)) && postStyles.footerContinueBtnDisabled,
+                  ]}
+                  onPress={() => (step === 5 ? submit() : goToNextStep())}
+                  activeOpacity={0.85}
+                  disabled={action.busy || (step === 5 && !consent)}
+                >
+                  <Text style={postStyles.footerContinueBtnText}>
+                    {action.busy
+                      ? "Submitting Listing..."
+                      : step === 5
+                        ? "Submit for Verification →"
+                        : step === 1
+                          ? "Continue to Location →"
+                          : step === 2
+                            ? "Continue to Pricing →"
+                            : step === 3
+                              ? "Continue to Photos →"
+                              : "Review Listing →"}
+                  </Text>
+                  {!action.busy && (
+                    <MaterialIcons name="arrow-forward" size={17} color="#FFFFFF" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          {/* Bottom Trust Assurance Ribbon matching website design */}
+          <View style={postStyles.trustAssuranceRow}>
+            <View style={postStyles.trustAssuranceTile}>
+              <View style={[postStyles.trustTileIconBox, { backgroundColor: "#EFF6FF" }]}>
+                <MaterialIcons name="gavel" size={20} color="#0A45B5" />
+              </View>
+              <View style={{ gap: 2, flex: 1 }}>
+                <Text style={postStyles.trustTileTitle}>Revenue Record Verification</Text>
+                <Text style={postStyles.trustTileDesc}>
+                  Jamabandi, Khatiyan & Circle Office LPC audit
+                </Text>
+              </View>
+            </View>
+
+            <View style={postStyles.trustAssuranceTile}>
+              <View style={[postStyles.trustTileIconBox, { backgroundColor: "#ECFDF5" }]}>
+                <MaterialIcons name="place" size={20} color="#059669" />
+              </View>
+              <View style={{ gap: 2, flex: 1 }}>
+                <Text style={postStyles.trustTileTitle}>Physical GPS Demarcation</Text>
+                <Text style={postStyles.trustTileDesc}>
+                  Surveyor coordinates with boundary corner pegs
+                </Text>
+              </View>
+            </View>
+
+            <View style={postStyles.trustAssuranceTile}>
+              <View style={[postStyles.trustTileIconBox, { backgroundColor: "#FEF3C7" }]}>
+                <MaterialIcons name="support-agent" size={20} color="#D97706" />
+              </View>
+              <View style={{ gap: 2, flex: 1 }}>
+                <Text style={postStyles.trustTileTitle}>Assigned Property Team</Text>
+                <Text style={postStyles.trustTileDesc}>
+                  Dedicated Advisor and Verifier to assist offers & closure
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
       )}
     </MarketplaceShell>
   );
 }
+
+const postStyles = StyleSheet.create({
+  pageContainer: {
+    width: "100%",
+    maxWidth: 1040,
+    alignSelf: "center",
+    gap: 20,
+    paddingVertical: 10,
+  },
+  topNavRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  backButtonPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#DBEAFE",
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 22,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  backButtonPillText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0A45B5",
+  },
+  verifiedBadgePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  verifiedBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0A45B5",
+    letterSpacing: 0.2,
+  },
+  heroHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  heroTitle: {
+    fontSize: 30,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    letterSpacing: -0.6,
+  },
+  heroSubtitle: {
+    fontSize: 15,
+    color: "#475A82",
+    lineHeight: 22,
+  },
+  zeroBrokerageBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  zeroBrokerageText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  stepperContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  stepItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  stepCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepCircleActive: {
+    backgroundColor: "#0A45B5",
+    borderColor: "#0A45B5",
+  },
+  stepCircleCompleted: {
+    backgroundColor: "#059669",
+    borderColor: "#059669",
+  },
+  stepCircleText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  stepCircleTextActive: {
+    color: "#FFFFFF",
+  },
+  stepTextCol: {
+    gap: 1,
+  },
+  stepLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  stepLabelActive: {
+    fontWeight: "800",
+    color: "#0B1B3F",
+  },
+  stepLabelCompleted: {
+    fontWeight: "700",
+    color: "#059669",
+  },
+  stepSubLabel: {
+    fontSize: 11,
+    color: "#94A3B8",
+  },
+  stepConnectorLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: "#E2E8F0",
+    marginHorizontal: 12,
+  },
+  stepConnectorLineCompleted: {
+    backgroundColor: "#059669",
+  },
+  cardContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 30,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 2,
+    gap: 20,
+  },
+  cardHeaderTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    letterSpacing: -0.3,
+  },
+  cardHeaderSubtitle: {
+    fontSize: 14,
+    color: "#64748B",
+    lineHeight: 20,
+  },
+  categoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  categoryCard: {
+    flex: 1,
+    minWidth: 160,
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 10,
+    position: "relative",
+    minHeight: 136,
+  },
+  categoryCardSelected: {
+    borderColor: "#0A45B5",
+    backgroundColor: "#F4F8FF",
+    borderWidth: 2,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  categoryIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  categoryIconBoxSelected: {
+    backgroundColor: "#0A45B5",
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  categoryTextWrapper: {
+    alignItems: "center",
+    gap: 3,
+    width: "100%",
+  },
+  categoryCardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0B1B3F",
+    textAlign: "center",
+    letterSpacing: -0.2,
+  },
+  categoryCardTitleSelected: {
+    color: "#0A45B5",
+    fontWeight: "800",
+  },
+  categoryCardSub: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  categoryCardSubSelected: {
+    color: "#2563EB",
+    fontWeight: "500",
+  },
+  categoryCheckBadge: {
+    position: "absolute",
+    top: 9,
+    right: 9,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#0A45B5",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0B1B3F",
+  },
+  customInput: {
+    minHeight: 46,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#FFFFFF",
+    fontSize: 14,
+    color: "#0B1B3F",
+  },
+  inputHelperText: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+  districtChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  districtChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  districtChipSelected: {
+    backgroundColor: "#0A45B5",
+    borderColor: "#0A45B5",
+  },
+  districtChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#475A82",
+  },
+  districtChipTextSelected: {
+    color: "#FFFFFF",
+  },
+  formRowTwoCol: {
+    flexDirection: "row",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  gpsBox: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 16,
+    padding: 16,
+    gap: 14,
+  },
+  useGpsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#DBEAFE",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  useGpsBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0A45B5",
+  },
+  mapContainer: {
+    minHeight: Platform.OS === "web" ? 440 : 380,
+    borderRadius: 18,
+    overflow: "hidden",
+    marginVertical: 4,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+  },
+  priceInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 14,
+  },
+  currencySymbol: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0A45B5",
+    marginRight: 6,
+  },
+  priceInput: {
+    flex: 1,
+    minHeight: 48,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0B1B3F",
+  },
+  formattedPricePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16,
+  },
+  formattedPriceText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A45B5",
+  },
+  katthaCalcBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  katthaCalcText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    color: "#0B1B3F",
+    fontWeight: "500",
+  },
+  possessionChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  possessionChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  possessionChipSelected: {
+    backgroundColor: "#0A45B5",
+    borderColor: "#0A45B5",
+  },
+  possessionChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475A82",
+  },
+  possessionChipTextSelected: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  uploadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1.5,
+    borderColor: "#DBEAFE",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  uploadBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A45B5",
+  },
+  demoSamplePhotoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1.5,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  demoSamplePhotoBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  photoThumbnailGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  thumbnailWrapper: {
+    position: "relative",
+    width: 130,
+    height: 95,
+  },
+  thumbnailImg: {
+    width: 130,
+    height: 95,
+    borderRadius: 14,
+    backgroundColor: "#E2E8F0",
+  },
+  deleteBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  docListItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 12,
+    borderRadius: 10,
+  },
+  docFileName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#0B1B3F",
+  },
+  reviewSummaryCard: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 18,
+    padding: 20,
+    gap: 12,
+  },
+  categoryReviewPill: {
+    backgroundColor: "#0A45B5",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  categoryReviewPillText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  reviewPriceText: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#0B1B3F",
+  },
+  reviewTitleText: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#0B1B3F",
+  },
+  reviewLocationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  reviewLocationText: {
+    fontSize: 13,
+    color: "#475A82",
+    fontWeight: "600",
+  },
+  reviewSpecsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+  },
+  reviewSpecItem: {
+    flex: 1,
+    minWidth: 120,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    gap: 2,
+  },
+  reviewSpecLabel: {
+    fontSize: 11,
+    color: "#64748B",
+    textTransform: "uppercase",
+    fontWeight: "600",
+  },
+  reviewSpecValue: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0B1B3F",
+  },
+  demarcationDoneBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#ECFDF5",
+    padding: 8,
+    borderRadius: 8,
+  },
+  demarcationDoneText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  photoCountText: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  idVerifyBox: {
+    borderWidth: 1.5,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  idVerifyBoxApproved: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  idVerifyBoxPending: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+  },
+  idVerifyTitle: {
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  idVerifyDesc: {
+    fontSize: 12,
+  },
+  verifyNowPill: {
+    backgroundColor: "#0A45B5",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  verifyNowPillText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  cardActionFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 14,
+    paddingTop: 20,
+    borderTopWidth: 1.5,
+    borderTopColor: "#EDF2F7",
+    marginTop: 8,
+  },
+  footerBackBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+  },
+  footerBackBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A45B5",
+  },
+  stepIndicatorBadge: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  footerContinueBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#0A45B5",
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 14,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  footerContinueBtnDisabled: {
+    opacity: 0.5,
+  },
+  footerContinueBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  primaryBtnLg: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#0A45B5",
+    paddingHorizontal: 22,
+    paddingVertical: 13,
+    borderRadius: 14,
+  },
+  primaryBtnLgText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  secondaryBtnLg: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1.5,
+    borderColor: "#DBEAFE",
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+    borderRadius: 14,
+  },
+  secondaryBtnLgText: {
+    color: "#0A45B5",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  trustMiniBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#EBF2FF",
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  trustMiniBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0A45B5",
+  },
+  trustAssuranceRow: {
+    flexDirection: "row",
+    gap: 14,
+    flexWrap: "wrap",
+    marginTop: 10,
+  },
+  trustAssuranceTile: {
+    flex: 1,
+    minWidth: 260,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 18,
+    padding: 16,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  trustTileIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  trustTileTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0B1B3F",
+  },
+  trustTileDesc: {
+    fontSize: 12,
+    color: "#64748B",
+    lineHeight: 16,
+  },
+});
 const font =
   Platform.OS === "web" ? "Manrope, Inter, system-ui" : "PoppinsRegular";
 const s = StyleSheet.create({
