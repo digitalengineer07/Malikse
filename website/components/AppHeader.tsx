@@ -30,9 +30,9 @@ export default function AppHeader(props: AppHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 800;
+  const isDesktop = width >= 880;
   const showNavLinks = props.showNavLinks ?? isDesktop;
-  const showPostProperty = props.showPostPropertyBtn ?? isDesktop;
+  const showPostProperty = props.showPostPropertyBtn ?? (width >= 640);
 
   const showBack = props.showBack ?? (!["/home", "/", "/search"].includes(pathname));
 
@@ -53,9 +53,9 @@ export default function AppHeader(props: AppHeaderProps) {
   }, [authState, user?.id, user?.role, checkUserListings]);
 
   return (
-    <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top, 16) }]}>
+    <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top, 14) }]}>
       <View style={styles.headerInner}>
-        {/* Left: Back button + MalikSe Logo */}
+        {/* Left: Back button + MalikSe Brand Lockup */}
         <View style={styles.leftContainer}>
           {showBack && (
             <TouchableOpacity
@@ -68,90 +68,85 @@ export default function AppHeader(props: AppHeaderProps) {
                 else router.replace((props.fallbackRoute || "/home") as any);
               }}
             >
-              <MaterialIcons name="arrow-back" size={20} color="#0A192F" />
+              <MaterialIcons name="arrow-back" size={20} color="#0B1B3F" />
             </TouchableOpacity>
           )}
 
-          {/* Logo with House Roof & Window Squares */}
+          {/* MalikSe Luxury Brand Lockup with Roof Icon + Dot + Tagline */}
           <TouchableOpacity
             accessibilityRole="button"
             onPress={() => router.replace("/home")}
-            activeOpacity={0.8}
-            style={styles.logoRow}
+            activeOpacity={0.85}
+            style={styles.brandLockup}
           >
-            {Platform.OS === "web" ? (
-              <svg width="32" height="32" viewBox="0 0 32 32" style={{ display: "block" }}>
-                <path d="M3,16 L16,5 L29,16 L25.5,16 L16,8.2 L6.5,16 Z" fill="#03456C" />
-                <rect x="22" y="7" width="3" height="6" fill="#03456C" rx="0.5" />
-                <rect x="8" y="18" width="6.5" height="5.5" fill="#0284C7" rx="0.8" />
-                <rect x="16.5" y="18" width="6.5" height="5.5" fill="#0284C7" rx="0.8" />
-                <rect x="8" y="24.8" width="6.5" height="5" fill="#38BDF8" rx="0.8" />
-                <rect x="16.5" y="24.8" width="6.5" height="5" fill="#38BDF8" rx="0.8" />
-              </svg>
-            ) : (
-              <MaterialIcons name="home" size={28} color="#03456C" />
-            )}
-            <Text style={styles.brandTitle}>MalikSe</Text>
+            <View style={styles.logoIcon}>
+              <MaterialIcons name="roofing" size={20} color="#FFFFFF" />
+            </View>
+            <View style={styles.brandTextCol}>
+              <Text style={styles.brandTitle}>
+                MalikSe<Text style={{ color: "#10B981" }}>.</Text>
+              </Text>
+              {width >= 640 && (
+                <Text style={styles.brandTagline} numberOfLines={1}>
+                  {language === "hi" ? "सत्यापित ज़मीन · विश्वसनीय रिश्ते" : "Verified spaces · Trusted connections"}
+                </Text>
+              )}
+            </View>
           </TouchableOpacity>
         </View>
 
-        {/* Center: Desktop Website Navigation Links */}
+        {/* Center: Desktop Website Navigation Links (Curved Segmented Pill) */}
         {showNavLinks && (
           <View style={styles.navLinksRow}>
             <TouchableOpacity
               style={[styles.navLink, isHomeActive && styles.navLinkActive]}
               onPress={() => router.replace("/home")}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
             >
               <Text style={[styles.navLinkText, isHomeActive && styles.navLinkTextActive]}>
                 {language === "hi" ? "होम" : "Home"}
               </Text>
-              {isHomeActive && <View style={styles.navActiveDot} />}
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.navLink, isSearchActive && styles.navLinkActive]}
               onPress={() => router.replace("/search")}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
             >
               <Text style={[styles.navLinkText, isSearchActive && styles.navLinkTextActive]}>
                 {language === "hi" ? "एक्सप्लोर" : "Explore"}
               </Text>
-              {isSearchActive && <View style={styles.navActiveDot} />}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.navLink, isSavedActive && styles.navLinkActive]}
-              onPress={() => router.push("/saved")}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.navLinkText, isSavedActive && styles.navLinkTextActive]}>
-                {language === "hi" ? "सहेजे गए" : "Saved"}
-              </Text>
-              {isSavedActive && <View style={styles.navActiveDot} />}
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.navLink, isMessagesActive && styles.navLinkActive]}
               onPress={() => router.push(authState === "AUTHENTICATED" ? "/messages" : "/login")}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
             >
               <Text style={[styles.navLinkText, isMessagesActive && styles.navLinkTextActive]}>
-                {language === "hi" ? "संदेश" : "Messages"}
+                {language === "hi" ? "संदेश" : "Chats"}
               </Text>
-              {isMessagesActive && <View style={styles.navActiveDot} />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.navLink, isSavedActive && styles.navLinkActive]}
+              onPress={() => router.push("/saved")}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.navLinkText, isSavedActive && styles.navLinkTextActive]}>
+                {language === "hi" ? "सहेजे गए" : "Saved"}
+              </Text>
             </TouchableOpacity>
 
             {authState === "AUTHENTICATED" && user?.role === "user" && hasListings && (
               <TouchableOpacity
                 style={[styles.navLink, isMyListingsActive && styles.navLinkActive]}
                 onPress={() => router.push("/my-properties")}
-                activeOpacity={0.7}
+                activeOpacity={0.75}
               >
                 <Text style={[styles.navLinkText, isMyListingsActive && styles.navLinkTextActive]}>
                   {language === "hi" ? "मेरी लिस्टिंग" : "My Listings"}
                 </Text>
-                {isMyListingsActive && <View style={styles.navActiveDot} />}
               </TouchableOpacity>
             )}
 
@@ -159,18 +154,17 @@ export default function AppHeader(props: AppHeaderProps) {
               <TouchableOpacity
                 style={[styles.navLink, isDashboardActive && styles.navLinkActive]}
                 onPress={() => router.push(user?.role ? (dashboardRoutes[user.role] as any) : "/dashboard")}
-                activeOpacity={0.7}
+                activeOpacity={0.75}
               >
                 <Text style={[styles.navLinkText, isDashboardActive && styles.navLinkTextActive]}>
                   {language === "hi" ? "डैशबोर्ड" : "Dashboard"}
                 </Text>
-                {isDashboardActive && <View style={styles.navActiveDot} />}
               </TouchableOpacity>
             )}
           </View>
         )}
 
-        {/* Right Element: Post Button, Profile, Language Toggle */}
+        {/* Right Element: Post Property Pill, Profile / Sign In Pill, Language Toggle */}
         <View style={styles.rightContainer}>
           {showPostProperty && (
             <TouchableOpacity
@@ -178,29 +172,38 @@ export default function AppHeader(props: AppHeaderProps) {
               onPress={() => router.push(authState === "AUTHENTICATED" ? "/listing/create" : "/login")}
               activeOpacity={0.85}
             >
-              <MaterialIcons name="add" size={18} color="#FFFFFF" />
+              <MaterialIcons name="add" size={16} color="#FFFFFF" />
               <Text style={styles.postBtnText}>
                 {language === "hi" ? "प्रॉपर्टी पोस्ट करें" : "Post Property"}
               </Text>
             </TouchableOpacity>
           )}
 
-          {isDesktop && (
-            <TouchableOpacity
-              style={[styles.profileBtn, isProfileActive && styles.profileBtnActive]}
-              onPress={() => router.push(authState === "AUTHENTICATED" ? "/profile" : "/login")}
-              activeOpacity={0.8}
-            >
-              <MaterialIcons
-                name="account-circle"
-                size={22}
-                color={isProfileActive ? "#FFFFFF" : "#03456C"}
-              />
-              <Text style={[styles.profileBtnText, isProfileActive && styles.profileBtnTextActive]}>
-                {authState === "AUTHENTICATED" ? (user?.name?.split(" ")[0] || "Account") : (language === "hi" ? "लॉग इन" : "Sign In")}
+          <TouchableOpacity
+            style={[styles.profileBtn, isProfileActive && styles.profileBtnActive]}
+            onPress={() => router.push(authState === "AUTHENTICATED" ? "/profile" : "/login")}
+            activeOpacity={0.85}
+          >
+            <View style={styles.avatarSmall}>
+              <Text style={styles.avatarSmallText}>
+                {user?.name?.[0]?.toUpperCase() || (authState === "AUTHENTICATED" ? "U" : "M")}
               </Text>
-            </TouchableOpacity>
-          )}
+            </View>
+            {width >= 560 && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Text style={[styles.profileBtnText, isProfileActive && styles.profileBtnTextActive]} numberOfLines={1}>
+                  {authState === "AUTHENTICATED"
+                    ? (user?.name?.split(" ")[0] || "Account")
+                    : (language === "hi" ? "लॉग इन" : "Sign In")}
+                </Text>
+                <MaterialIcons
+                  name="keyboard-arrow-down"
+                  size={16}
+                  color={isProfileActive ? "#FFFFFF" : "#64748B"}
+                />
+              </View>
+            )}
+          </TouchableOpacity>
 
           {props.rightElement ||
             (props.showLanguageToggle !== false && (
@@ -211,7 +214,7 @@ export default function AppHeader(props: AppHeaderProps) {
                 style={styles.langBtn}
                 activeOpacity={0.75}
               >
-                <MaterialIcons name="translate" size={16} color="#03456C" style={{ marginRight: 4 }} />
+                <MaterialIcons name="translate" size={15} color="#03456C" style={{ marginRight: 4 }} />
                 <Text style={styles.langText}>
                   {language === "en" ? "हिन्दी" : "English"}
                 </Text>
@@ -227,17 +230,38 @@ const styles = StyleSheet.create({
   headerContainer: {
     width: "100%",
     backgroundColor: "transparent",
-    paddingBottom: 10,
-    paddingHorizontal: 28,
-    zIndex: 20,
+    paddingTop: 14,
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+    zIndex: 100,
   },
   headerInner: {
-    maxWidth: 1340,
     width: "100%",
+    maxWidth: 1240,
     alignSelf: "center",
+    minHeight: 66,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 12,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 20px rgba(11, 27, 63, 0.06)",
+      },
+      default: {
+        shadowColor: "#0B1B3F",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 14,
+        elevation: 3,
+      },
+    }),
   },
   leftContainer: {
     flexDirection: "row",
@@ -250,56 +274,86 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 19,
-    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  logoRow: {
+  brandLockup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
+  },
+  logoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#03456C",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 10px rgba(3, 69, 108, 0.25)",
+      },
+      default: {
+        elevation: 2,
+      },
+    }),
+  },
+  brandTextCol: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   brandTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "800",
-    color: "#0A192F",
+    color: "#03456C",
     letterSpacing: -0.5,
+  },
+  brandTagline: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "500",
+    paddingLeft: 10,
+    borderLeftWidth: 1,
+    borderLeftColor: "#CBD5E1",
   },
   navLinksRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 28,
-    backgroundColor: "rgba(255, 255, 255, 0.65)",
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 24,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 999,
+    padding: 4,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.9)",
+    borderColor: "#E2E8F0",
+    gap: 2,
   },
   navLink: {
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    position: "relative",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
     alignItems: "center",
+    justifyContent: "center",
   },
-  navLinkActive: {},
+  navLinkActive: {
+    backgroundColor: "#FFFFFF",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 8px rgba(11, 27, 63, 0.08)",
+      },
+      default: {
+        elevation: 2,
+      },
+    }),
+  },
   navLinkText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
-    color: "#475569",
-    letterSpacing: -0.2,
+    color: "#64748B",
   },
   navLinkTextActive: {
     color: "#03456C",
-    fontWeight: "800",
-  },
-  navActiveDot: {
-    position: "absolute",
-    bottom: -4,
-    width: 16,
-    height: 2.5,
-    borderRadius: 2,
-    backgroundColor: "#03456C",
+    fontWeight: "700",
   },
   rightContainer: {
     flexDirection: "row",
@@ -313,43 +367,55 @@ const styles = StyleSheet.create({
     backgroundColor: "#03456C",
     paddingHorizontal: 16,
     paddingVertical: 9,
-    borderRadius: 20,
-    shadowColor: "#03456C",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 3,
+    borderRadius: 999,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 12px rgba(3, 69, 108, 0.2)",
+      },
+      default: {
+        elevation: 3,
+      },
+    }),
   },
   postBtnText: {
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "700",
-    letterSpacing: 0.2,
   },
   profileBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    gap: 8,
+    backgroundColor: "#F8FAFC",
+    paddingVertical: 5,
+    paddingLeft: 5,
+    paddingRight: 12,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 18,
   },
   profileBtnActive: {
     backgroundColor: "#102B52",
     borderColor: "#102B52",
-    shadowColor: "#0873B9",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 2,
+  },
+  avatarSmall: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#03456C",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarSmallText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
   profileBtnText: {
     fontSize: 13,
-    fontWeight: "700",
-    color: "#0A192F",
+    fontWeight: "600",
+    color: "#0B1B3F",
+    maxWidth: 90,
   },
   profileBtnTextActive: {
     color: "#FFFFFF",
@@ -359,14 +425,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderRadius: 18,
-    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    borderRadius: 999,
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
   langText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0A192F",
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
   },
 });

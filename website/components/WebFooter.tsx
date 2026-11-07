@@ -9,15 +9,15 @@ export default function WebFooter() {
   const isDesktop = width >= 800;
 
   return (
-    <View style={styles.footerContainer}>
-      <View style={styles.footerInner}>
+    <View style={styles.footerWrapper}>
+      <View style={styles.footerCard}>
         {/* Top Institutional Trust Ribbon */}
         <View style={[styles.trustRibbon, { flexDirection: isDesktop ? "row" : "column" }]}>
           <View style={styles.trustRibbonLeft}>
             <View style={styles.trustIconPill}>
-              <MaterialIcons name="verified-user" size={22} color="#0284C7" />
+              <MaterialIcons name="verified-user" size={22} color="#0A45B5" />
             </View>
-            <View>
+            <View style={{ gap: 2 }}>
               <Text style={styles.trustEyebrow}>BIHAR REVENUE & PROPERTY INTEGRITY ASSURANCE</Text>
               <Text style={styles.trustTitle}>Building Trust in Every Square Foot</Text>
             </View>
@@ -26,63 +26,63 @@ export default function WebFooter() {
           <View style={styles.trustBadgesRow}>
             <View style={styles.ribbonBadgeItem}>
               <MaterialIcons name="gavel" size={14} color="#059669" />
-              <Text style={styles.ribbonBadgeText}>Property details reviewed</Text>
+              <Text style={styles.ribbonBadgeText}>Title & Deed Reviewed</Text>
             </View>
             <View style={styles.ribbonBadgeItem}>
-              <MaterialIcons name="gps-fixed" size={14} color="#0284C7" />
-              <Text style={styles.ribbonBadgeText}>Location information</Text>
+              <MaterialIcons name="gps-fixed" size={14} color="#0A45B5" />
+              <Text style={styles.ribbonBadgeText}>Cadastral GPS Boundaries</Text>
             </View>
             <View style={styles.ribbonBadgeItem}>
               <MaterialIcons name="handshake" size={14} color="#D97706" />
-              <Text style={styles.ribbonBadgeText}>Verified listings · Assigned support</Text>
+              <Text style={styles.ribbonBadgeText}>Verified Listings · Assigned Support</Text>
             </View>
           </View>
         </View>
-
-        <View style={styles.dividerLine} />
 
         {/* Main Footer Links Columns */}
         <View style={[styles.columnsGrid, { flexDirection: isDesktop ? "row" : "column" }]}>
           {/* Col 1: Brand Info */}
           <View style={[styles.brandCol, { width: isDesktop ? "32%" : "100%" }]}>
-            <View style={styles.logoRow}>
-              {Platform.OS === "web" ? (
-                <svg width="28" height="28" viewBox="0 0 32 32" style={{ display: "block" }}>
-                  <path d="M3,16 L16,5 L29,16 L25.5,16 L16,8.2 L6.5,16 Z" fill="#03456C" />
-                  <rect x="22" y="7" width="3" height="6" fill="#03456C" rx="0.5" />
-                  <rect x="8" y="18" width="6.5" height="5.5" fill="#0284C7" rx="0.8" />
-                  <rect x="16.5" y="18" width="6.5" height="5.5" fill="#0284C7" rx="0.8" />
-                  <rect x="8" y="24.8" width="6.5" height="5" fill="#38BDF8" rx="0.8" />
-                  <rect x="16.5" y="24.8" width="6.5" height="5" fill="#38BDF8" rx="0.8" />
-                </svg>
-              ) : (
-                <MaterialIcons name="home" size={26} color="#03456C" />
-              )}
-              <Text style={styles.brandName}>MalikSe</Text>
-            </View>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => router.push("/home")}
+              style={styles.brandLockup}
+            >
+              <View style={styles.logoIcon}>
+                <MaterialIcons name="roofing" size={20} color="white" />
+              </View>
+              <View style={styles.brandTextCol}>
+                <Text style={styles.brandName}>
+                  MalikSe<Text style={{ color: "#10B981" }}>.</Text>
+                </Text>
+                <Text style={styles.brandTagline}>
+                  Verified spaces · Trusted connections
+                </Text>
+              </View>
+            </TouchableOpacity>
 
             <Text style={styles.brandDesc}>
-              Browse verified properties in Bihar, with an assigned Advisor or Verifier to help you with questions, offers and deal closure.
+              Bihar's premier verified real estate network. Connecting buyers, sellers, and investors through cadastral accuracy, title verification, and dedicated local property advisors.
             </Text>
 
             <View style={styles.badgesRow}>
               <View style={styles.trustBadge}>
-                <MaterialIcons name="verified-user" size={14} color="#03456C" />
+                <MaterialIcons name="verified" size={14} color="#0A45B5" />
                 <Text style={styles.trustBadgeText}>100% Verified</Text>
               </View>
               <View style={styles.trustBadge}>
-                <MaterialIcons name="gavel" size={14} color="#03456C" />
-                <Text style={styles.trustBadgeText}>Legal Checks</Text>
+                <MaterialIcons name="gavel" size={14} color="#059669" />
+                <Text style={[styles.trustBadgeText, { color: "#059669" }]}>Legal Checks</Text>
               </View>
               <View style={styles.trustBadge}>
-                <MaterialIcons name="place" size={14} color="#03456C" />
-                <Text style={styles.trustBadgeText}>GPS Demarcated</Text>
+                <MaterialIcons name="place" size={14} color="#D97706" />
+                <Text style={[styles.trustBadgeText, { color: "#D97706" }]}>GPS Demarcated</Text>
               </View>
             </View>
           </View>
 
           {/* Col 2: Properties */}
-          <View style={[styles.linkCol, { width: isDesktop ? "22%" : "100%" }]}>
+          <View style={[styles.linkCol, { width: isDesktop ? "21%" : "100%" }]}>
             <Text style={styles.colHeader}>Properties</Text>
             <TouchableOpacity onPress={() => router.push({ pathname: "/home", params: { type: "land" } })}>
               <Text style={styles.linkText}>Residential Land & Plots</Text>
@@ -102,12 +102,12 @@ export default function WebFooter() {
           </View>
 
           {/* Col 3: Quick Navigation */}
-          <View style={[styles.linkCol, { width: isDesktop ? "22%" : "100%" }]}>
+          <View style={[styles.linkCol, { width: isDesktop ? "21%" : "100%" }]}>
             <Text style={styles.colHeader}>Quick Links</Text>
             <TouchableOpacity onPress={() => router.push("/search")}>
               <Text style={styles.linkText}>Explore All Listings</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push("/listing/create")}>
+            <TouchableOpacity onPress={() => router.push("/post")}>
               <Text style={styles.linkText}>Post Your Property</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push("/saved")}>
@@ -124,18 +124,25 @@ export default function WebFooter() {
           {/* Col 4: Regional & Help */}
           <View style={[styles.linkCol, { width: isDesktop ? "24%" : "100%" }]}>
             <Text style={styles.colHeader}>Headquarters</Text>
-            <Text style={styles.contactText}>Patna Sadar, Patna, Bihar — 800001</Text>
-            <Text style={styles.contactText}>Direct Support: support@malikse.in</Text>
-            <Text style={styles.contactText}>Mon – Sat, 9:00 AM – 7:00 PM IST</Text>
+            <View style={styles.contactItem}>
+              <MaterialIcons name="place" size={16} color="#64748B" style={{ marginTop: 2 }} />
+              <Text style={styles.contactText}>Patna Sadar, Patna, Bihar — 800001</Text>
+            </View>
+            <View style={styles.contactItem}>
+              <MaterialIcons name="email" size={16} color="#64748B" style={{ marginTop: 2 }} />
+              <Text style={styles.contactText}>Direct Support: support@malikse.in</Text>
+            </View>
+            <View style={styles.contactItem}>
+              <MaterialIcons name="schedule" size={16} color="#64748B" style={{ marginTop: 2 }} />
+              <Text style={styles.contactText}>Mon – Sat, 9:00 AM – 7:00 PM IST</Text>
+            </View>
 
             <View style={styles.patnaPill}>
-              <MaterialIcons name="location-on" size={14} color="#0284C7" />
+              <MaterialIcons name="location-city" size={14} color="#15803D" />
               <Text style={styles.patnaPillText}>Serving All 38 Districts of Bihar</Text>
             </View>
           </View>
         </View>
-
-        <View style={styles.bottomDivider} />
 
         {/* Bottom Copyright and Meta */}
         <View style={styles.bottomBar}>
@@ -148,6 +155,8 @@ export default function WebFooter() {
             <Text style={styles.legalLink}>Terms of Service</Text>
             <Text style={styles.legalDot}>•</Text>
             <Text style={styles.legalLink}>Land Law Advisory</Text>
+            <Text style={styles.legalDot}>•</Text>
+            <Text style={styles.legalLink}>Security</Text>
           </View>
         </View>
       </View>
@@ -156,64 +165,65 @@ export default function WebFooter() {
 }
 
 const styles = StyleSheet.create({
-  footerContainer: {
+  footerWrapper: {
     width: "100%",
-    backgroundColor: "rgba(255, 255, 255, 0.85)",
-    borderTopWidth: 1,
-    borderTopColor: "rgba(3, 69, 108, 0.1)",
-    paddingTop: 28,
-    paddingBottom: 32,
-    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 36,
+    backgroundColor: "transparent",
   },
-  footerInner: {
-    maxWidth: 1340,
+  footerCard: {
     width: "100%",
+    maxWidth: 1240,
     alignSelf: "center",
-    paddingHorizontal: 28,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 32,
+    gap: 26,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 24px rgba(11, 27, 63, 0.04)",
+      },
+    }),
   },
   trustRibbon: {
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
-    borderColor: "rgba(226, 232, 240, 0.85)",
-    borderRadius: 16,
+    borderColor: "#E2E8F0",
+    borderRadius: 18,
     paddingVertical: 14,
-    paddingHorizontal: 20,
-    marginBottom: 24,
+    paddingHorizontal: 18,
     gap: 16,
-    ...Platform.select({
-      web: {
-        boxShadow: "0 2px 10px rgba(10, 25, 47, 0.03)",
-      },
-    }),
   },
   trustRibbonLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: 12,
   },
   trustIconPill: {
-    width: 42,
-    height: 42,
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    backgroundColor: "#E0F2FE",
+    backgroundColor: "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#BAE6FD",
+    borderColor: "#DBEAFE",
   },
   trustEyebrow: {
     fontSize: 9.5,
     fontWeight: "800",
-    color: "#0284C7",
+    color: "#0A45B5",
     letterSpacing: 0.8,
-    marginBottom: 2,
   },
   trustTitle: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#0A192F",
+    color: "#0B1B3F",
     letterSpacing: -0.3,
   },
   trustBadgesRow: {
@@ -230,106 +240,127 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E2E8F0",
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 6,
     borderRadius: 20,
   },
   ribbonBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 11.5,
+    fontWeight: "600",
     color: "#334155",
-  },
-  dividerLine: {
-    height: 1,
-    backgroundColor: "rgba(3, 69, 108, 0.08)",
-    marginBottom: 28,
   },
   columnsGrid: {
     justifyContent: "space-between",
     gap: 28,
   },
   brandCol: {
-    marginBottom: 10,
+    gap: 12,
   },
-  logoRow: {
+  brandLockup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
+    gap: 10,
+    marginBottom: 4,
+  },
+  logoIcon: {
+    backgroundColor: "#0A45B5",
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 8px rgba(10, 69, 181, 0.22)",
+      },
+    }),
+  },
+  brandTextCol: {
+    justifyContent: "center",
   },
   brandName: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#0A192F",
+    color: "#0B1B3F",
     letterSpacing: -0.5,
+    lineHeight: 25,
+  },
+  brandTagline: {
+    fontSize: 10.5,
+    fontWeight: "600",
+    color: "#64748B",
+    letterSpacing: 0.1,
+    lineHeight: 14,
   },
   brandDesc: {
     fontSize: 13,
     color: "#64748B",
     lineHeight: 20,
-    marginBottom: 16,
   },
   badgesRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+    marginTop: 4,
   },
   trustBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "#EBF3F8",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    gap: 5,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
   },
   trustBadgeText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#03456C",
+    color: "#0A45B5",
   },
   linkCol: {
-    marginBottom: 12,
+    gap: 10,
   },
   colHeader: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "800",
-    color: "#0A192F",
-    marginBottom: 14,
-    letterSpacing: -0.2,
+    color: "#0B1B3F",
+    letterSpacing: 0.2,
+    marginBottom: 4,
   },
   linkText: {
-    fontSize: 13,
+    fontSize: 13.5,
     color: "#475569",
-    marginBottom: 10,
     fontWeight: "500",
+  },
+  contactItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
   },
   contactText: {
     fontSize: 13,
     color: "#64748B",
-    marginBottom: 8,
-    lineHeight: 18,
+    lineHeight: 19,
+    flex: 1,
   },
   patnaPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#E0F2FE",
-    paddingHorizontal: 10,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 12,
-    marginTop: 10,
+    borderRadius: 20,
+    marginTop: 6,
     alignSelf: "flex-start",
   },
   patnaPillText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: "700",
-    color: "#0284C7",
-  },
-  bottomDivider: {
-    height: 1,
-    backgroundColor: "rgba(3, 69, 108, 0.08)",
-    marginTop: 26,
-    marginBottom: 20,
+    color: "#15803D",
   },
   bottomBar: {
     flexDirection: "row",
@@ -337,10 +368,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     flexWrap: "wrap",
     gap: 12,
+    paddingTop: 18,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
   },
   copyrightText: {
     fontSize: 12,
-    color: "#64748B",
+    color: "#94A3B8",
   },
   legalLinks: {
     flexDirection: "row",
@@ -353,6 +387,6 @@ const styles = StyleSheet.create({
   },
   legalDot: {
     fontSize: 12,
-    color: "#94A3B8",
+    color: "#CBD5E1",
   },
 });

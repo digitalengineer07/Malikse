@@ -254,38 +254,39 @@ export function MarketplaceShell({
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View
-        style={[s.header, { minHeight: 74 + insets.top, paddingTop: insets.top }]}
+        style={[s.headerWrapper, { paddingTop: Math.max(insets.top, 14) }]}
       >
-        <View style={s.headerInner}>
+        <View style={s.header}>
           <View style={s.row}>
-            {back ? (
+            {back && (
               <Pressable
                 accessibilityLabel="Back"
                 onPress={() =>
                   router.canGoBack() ? router.back() : router.replace("/home")
                 }
-                style={{ padding: 6, marginRight: 2 }}
+                style={s.backBtn}
               >
-                <Icon name="arrow-back" size={22} color={C.ink} />
+                <Icon name="arrow-back" size={20} color={C.ink} />
               </Pressable>
-            ) : (
-              <View style={s.logoIcon}>
-                <Icon name="roofing" color="white" size={20} />
-              </View>
             )}
             <Pressable
               onPress={() => router.push("/home")}
-              style={{ flexDirection: "row", alignItems: "center" }}
+              style={s.brandLockup}
             >
-              <Text style={s.logo}>
-                MalikSe<Text style={{ color: "#18a06b" }}>.</Text>
-              </Text>
+              <View style={s.logoIcon}>
+                <Icon name="roofing" color="white" size={19} />
+              </View>
+              <View style={s.brandTextCol}>
+                <Text style={s.logo}>
+                  MalikSe<Text style={{ color: "#10b981" }}>.</Text>
+                </Text>
+                {width >= 640 && (
+                  <Text style={s.brandTagline} numberOfLines={1}>
+                    Verified spaces · Trusted connections
+                  </Text>
+                )}
+              </View>
             </Pressable>
-            {width >= 1080 && (
-              <Text style={[s.muted, { fontSize: 13, marginLeft: 8 }]}>
-                Verified spaces. Trusted connections.
-              </Text>
-            )}
           </View>
 
           {isDesktop && (
@@ -301,11 +302,6 @@ export function MarketplaceShell({
                     onPress={() => router.push(url as any)}
                     style={[s.topNavItem, isActive && s.topNavItemActive]}
                   >
-                    <Icon
-                      name={icon}
-                      size={18}
-                      color={isActive ? C.blue : C.muted}
-                    />
                     <Text
                       style={[
                         s.topNavText,
@@ -314,14 +310,13 @@ export function MarketplaceShell({
                     >
                       {label}
                     </Text>
-                    {isActive && <View style={s.topNavIndicator} />}
                   </Pressable>
                 );
               })}
             </View>
           )}
 
-          <View style={[s.row, { gap: 10 }]}>
+          <View style={[s.row, { gap: 12 }]}>
             {isDesktop && (
               <Pressable
                 accessibilityRole="button"
@@ -329,41 +324,26 @@ export function MarketplaceShell({
                 onPress={() => router.push("/post")}
                 style={s.topPostBtn}
               >
-                <Icon name="add" size={18} color="white" />
+                <Icon name="add" size={16} color="white" />
                 <Text style={s.topPostBtnText}>Post Property</Text>
               </Pressable>
             )}
-
-            <Pressable
-              accessibilityLabel="Wishlist"
-              onPress={() => router.push("/saved")}
-              style={[
-                s.iconBtn,
-                path === "/saved" && {
-                  backgroundColor: "#eaf1ff",
-                  borderColor: C.blue,
-                },
-              ]}
-            >
-              <Icon
-                name={path === "/saved" ? "favorite" : "favorite-border"}
-                size={20}
-                color={path === "/saved" ? "#e11d48" : C.ink}
-              />
-            </Pressable>
 
             <Pressable
               accessibilityLabel="Profile"
               onPress={() => router.push(user ? "/profile" : "/login")}
               style={isDesktop ? s.topProfileBtn : s.avatar}
             >
-              <View style={s.avatar}>
-                <Text style={s.avatarText}>{user?.name?.[0] || "M"}</Text>
+              <View style={s.avatarSmall}>
+                <Text style={s.avatarSmallText}>{user?.name?.[0] || "M"}</Text>
               </View>
               {isDesktop && (
-                <Text style={s.topProfileName} numberOfLines={1}>
-                  {user?.name?.split(" ")[0] || "Account"}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <Text style={s.topProfileName} numberOfLines={1}>
+                    {user?.name?.split(" ")[0] || "Account"}
+                  </Text>
+                  <Icon name="keyboard-arrow-down" size={16} color="#64748b" />
+                </View>
               )}
             </Pressable>
           </View>
@@ -545,48 +525,60 @@ export function HomeScreen() {
     { width } = useWindowDimensions();
   return (
     <MarketplaceShell>
-      <View style={s.webHeroCard}>
-        <View style={{ gap: 6, marginBottom: 4 }}>
-          <Text style={s.h1}>
-            {`Hello${user ? ", " + user.name.split(" ")[0] : ", welcome"} 👋`}
+      <View style={s.heroContainer}>
+        {/* Top Trust Eyebrow */}
+        <View style={s.heroBadgeRow}>
+          <View style={s.heroBadge}>
+            <Icon name="verified" size={14} color={C.blue} />
+            <Text style={s.heroBadgeText}>
+              100% ON-GROUND & DOCUMENT-VERIFIED SPACES
+            </Text>
+          </View>
+        </View>
+
+        {/* Heading & Subtitle */}
+        <View style={{ gap: 6 }}>
+          <Text style={s.heroHeading}>
+            {`Hello, ${user ? user.name.split(" ")[0] : "welcome"} 👋`}
           </Text>
-          <Text style={s.muted}>
-            Find your next place, verified by people you can trust.
+          <Text style={s.heroSubheading}>
+            Find verified plots, homes & commercial spaces in Bihar with transparent pricing and legal clarity.
           </Text>
         </View>
 
-        <View style={{ gap: 12 }}>
-          <View style={s.row}>
-            <Icon name="location-on" color={C.blue} size={20} />
-            <Text style={s.cardTitle}>
-              {prefs.district || "Explore your preferred location"}
-            </Text>
+        {/* Segmented Luxury Search Console */}
+        <View style={[s.searchConsole, width < 768 && { flexDirection: "column", alignItems: "stretch", padding: 10 }]}>
+          <View style={s.searchSegmentLocation}>
+            <View style={s.searchSegmentIconWrap}>
+              <Icon name="location-on" size={18} color={C.blue} />
+            </View>
+            <View style={{ flex: 1, gap: 1 }}>
+              <Text style={s.searchSegmentLabel}>LOCATION</Text>
+              <Text style={s.searchSegmentValue} numberOfLines={1}>
+                {prefs.district ? `${prefs.district}, Bihar` : "Explore All Bihar"}
+              </Text>
+            </View>
           </View>
-          <View
-            style={[
-              s.row,
-              { flexWrap: width < 600 ? "wrap" : "nowrap", gap: 12 },
-            ]}
-          >
-            <View
-              style={[
-                s.input,
-                s.row,
-                {
-                  flex: 1,
-                  minWidth: 260,
-                  backgroundColor: "#f8faff",
-                  borderColor: C.line,
-                },
-              ]}
-            >
-              <Icon name="search" color={C.blue} size={20} />
+
+          {width >= 768 ? (
+            <View style={s.searchDivider} />
+          ) : (
+            <View style={{ height: 1, backgroundColor: "#e2e8f0", marginVertical: 6 }} />
+          )}
+
+          <View style={[s.searchSegmentInput, width < 768 && { paddingHorizontal: 4 }]}>
+            <View style={s.searchSegmentIconWrap}>
+              <Icon name="search" size={18} color="#94a3b8" />
+            </View>
+            <View style={{ flex: 1, gap: 1 }}>
+              <Text style={s.searchSegmentLabel}>SEARCH PROPERTY</Text>
               <TextInput
                 accessibilityLabel="Search location"
-                placeholder="Search city, locality or property"
+                placeholder="City, locality, road corridor or ID..."
+                placeholderTextColor="#94a3b8"
                 value={query}
                 onChangeText={setQuery}
-                style={{ flex: 1, color: C.ink, fontSize: 15 }}
+                style={s.searchTextInput}
                 onSubmitEditing={() =>
                   router.push({
                     pathname: "/search",
@@ -595,47 +587,71 @@ export function HomeScreen() {
                 }
               />
             </View>
-            <Button
-              title="Search"
-              onPress={() =>
-                router.push({
-                  pathname: "/search",
-                  params: { q: query, type },
-                } as any)
-              }
-            />
           </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Search"
+            onPress={() =>
+              router.push({
+                pathname: "/search",
+                params: { q: query, type },
+              } as any)
+            }
+            style={[s.searchSubmitBtn, width < 768 && { marginTop: 8, justifyContent: "center" }]}
+          >
+            <Icon name="search" size={18} color="white" />
+            <Text style={s.searchSubmitBtnText}>Search</Text>
+          </Pressable>
         </View>
 
-        <View style={[s.wrap, { marginTop: 4 }]}>
-          {types.map(([id, text, icon]) => (
-            <Pressable
-              key={id}
-              onPress={() => setType(id)}
-              style={[
-                s.typeChip,
-                type === id && {
-                  backgroundColor: C.blue,
-                  borderColor: C.blue,
-                },
-              ]}
-            >
-              <Icon
-                name={icon}
-                color={type === id ? "white" : C.blue}
-                size={18}
-              />
-              <Text
-                style={{
-                  color: type === id ? "white" : C.ink,
-                  fontWeight: type === id ? "700" : "500",
-                  fontSize: 14,
-                }}
+        {/* Category Filter Pills */}
+        <View style={s.categoryPillsRow}>
+          {types.map(([id, text, icon]) => {
+            const isSelected = type === id;
+            return (
+              <Pressable
+                key={id}
+                onPress={() => setType(id)}
+                style={[
+                  s.categoryPill,
+                  isSelected && s.categoryPillActive,
+                ]}
               >
-                {text}
-              </Text>
-            </Pressable>
-          ))}
+                <Icon
+                  name={icon}
+                  color={isSelected ? "white" : "#475569"}
+                  size={15}
+                />
+                <Text
+                  style={[
+                    s.categoryPillText,
+                    isSelected && s.categoryPillTextActive,
+                  ]}
+                >
+                  {text}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Trust Points Strip */}
+        <View style={s.heroTrustStrip}>
+          <View style={s.trustItem}>
+            <Icon name="check-circle" size={15} color="#10b981" />
+            <Text style={s.trustItemText}>Title & Deed Verified</Text>
+          </View>
+          <View style={s.trustDot} />
+          <View style={s.trustItem}>
+            <Icon name="my-location" size={15} color={C.blue} />
+            <Text style={s.trustItemText}>Cadastral Map Boundary</Text>
+          </View>
+          <View style={s.trustDot} />
+          <View style={s.trustItem}>
+            <Icon name="support-agent" size={15} color="#f59e0b" />
+            <Text style={s.trustItemText}>Dedicated Property Verifier</Text>
+          </View>
         </View>
       </View>
       {[
@@ -2194,68 +2210,108 @@ const font =
   Platform.OS === "web" ? "Manrope, Inter, system-ui" : "PoppinsRegular";
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
-  header: {
-    minHeight: 74,
-    paddingHorizontal: 24,
-    backgroundColor: "white",
-    borderBottomWidth: 1,
-    borderColor: C.line,
-    justifyContent: "center",
+  headerWrapper: {
+    width: "100%",
+    paddingTop: 14,
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+    backgroundColor: "transparent",
     zIndex: 100,
   },
-  headerInner: {
+  header: {
     width: "100%",
-    maxWidth: 1200,
+    maxWidth: 1240,
     alignSelf: "center",
+    minHeight: 66,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: "white",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    boxShadow: "0 4px 20px rgba(11, 27, 63, 0.05)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 16,
   },
+  backBtn: {
+    padding: 6,
+    marginRight: 4,
+    borderRadius: 8,
+  },
+  brandLockup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  brandTextCol: {
+    justifyContent: "center",
+  },
+  logo: {
+    fontFamily: font,
+    fontSize: 22,
+    fontWeight: "800",
+    color: C.ink,
+    letterSpacing: -0.5,
+    lineHeight: 25,
+  },
+  brandTagline: {
+    fontFamily: font,
+    fontSize: 10.5,
+    fontWeight: "600",
+    color: "#64748b",
+    letterSpacing: 0.1,
+    lineHeight: 14,
+  },
+  logoIcon: {
+    backgroundColor: C.blue,
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 2px 8px rgba(10, 69, 181, 0.22)",
+  },
   topNavRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 4,
+    backgroundColor: "#f8fafc",
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
   },
   topNavItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    position: "relative",
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    borderRadius: 20,
   },
   topNavItemActive: {
-    backgroundColor: "#edf4ff",
+    backgroundColor: "white",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
   },
   topNavText: {
     fontFamily: font,
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: "600",
-    color: C.muted,
+    color: "#64748b",
   },
   topNavTextActive: {
     color: C.blue,
     fontWeight: "700",
-  },
-  topNavIndicator: {
-    position: "absolute",
-    bottom: -6,
-    left: 14,
-    right: 14,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: C.blue,
   },
   topPostBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     backgroundColor: C.blue,
-    paddingVertical: 9,
-    paddingHorizontal: 16,
-    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    boxShadow: "0 2px 8px rgba(10, 69, 181, 0.22)",
   },
   topPostBtnText: {
     fontFamily: font,
@@ -2268,41 +2324,208 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 24,
+    paddingLeft: 4,
+    paddingRight: 10,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: C.line,
+    borderColor: "#e2e8f0",
     backgroundColor: "white",
+  },
+  avatarSmall: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: C.blue,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarSmallText: {
+    fontWeight: "800",
+    color: "white",
+    fontSize: 13,
   },
   topProfileName: {
     fontFamily: font,
     fontSize: 13,
-    fontWeight: "700",
-    color: C.ink,
-    paddingRight: 4,
+    fontWeight: "600",
+    color: "#0f172a",
   },
-  iconBtn: {
-    width: 40,
-    height: 40,
+  heroContainer: {
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 24,
+    padding: 34,
+    gap: 20,
+    boxShadow: "0 4px 20px rgba(11,27,63,0.04)",
+  },
+  heroBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  heroBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "#dbeafe",
     borderRadius: 20,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+  },
+  heroBadgeText: {
+    fontFamily: font,
+    fontSize: 11,
+    fontWeight: "700",
+    color: C.blue,
+    letterSpacing: 0.5,
+  },
+  heroHeading: {
+    fontFamily: font,
+    fontSize: 32,
+    fontWeight: "800",
+    color: C.ink,
+    letterSpacing: -0.6,
+  },
+  heroSubheading: {
+    fontFamily: font,
+    fontSize: 15,
+    lineHeight: 23,
+    color: "#64748b",
+  },
+  searchConsole: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "white",
+    borderWidth: 1.5,
+    borderColor: "#cbd5e1",
+    borderRadius: 18,
+    padding: 6,
+    boxShadow: "0 4px 16px rgba(11,27,63,0.05)",
+  },
+  searchSegmentLocation: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    minWidth: 180,
+  },
+  searchSegmentIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: "#f0f6ff",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: "white",
   },
-  webHeroCard: {
-    backgroundColor: "white",
-    borderWidth: 1,
-    borderColor: C.line,
+  searchSegmentLabel: {
+    fontFamily: font,
+    fontSize: 9.5,
+    fontWeight: "800",
+    color: "#94a3b8",
+    letterSpacing: 0.6,
+  },
+  searchSegmentValue: {
+    fontFamily: font,
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: C.ink,
+  },
+  searchDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: "#e2e8f0",
+    marginHorizontal: 4,
+  },
+  searchSegmentInput: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+  },
+  searchTextInput: {
+    fontFamily: font,
+    fontSize: 14,
+    color: C.ink,
+    padding: 0,
+    outlineStyle: "none" as any,
+  },
+  searchSubmitBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: C.blue,
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    borderRadius: 13,
+  },
+  searchSubmitBtnText: {
+    fontFamily: font,
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "white",
+  },
+  categoryPillsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    alignItems: "center",
+  },
+  categoryPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 20,
-    padding: 26,
-    gap: 18,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
-  logo: { fontSize: 26, fontWeight: "800", color: C.blue, letterSpacing: -1 },
-  logoIcon: { backgroundColor: C.blue, padding: 7, borderRadius: 12 },
-  scroll: { padding: 24, paddingBottom: 40 },
-  content: { width: "100%", maxWidth: 1200, alignSelf: "center", gap: 26 },
+  categoryPillActive: {
+    backgroundColor: C.blue,
+    borderColor: C.blue,
+  },
+  categoryPillText: {
+    fontFamily: font,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  categoryPillTextActive: {
+    color: "white",
+    fontWeight: "700",
+  },
+  heroTrustStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 14,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+  },
+  trustItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  trustItemText: {
+    fontFamily: font,
+    fontSize: 12.5,
+    fontWeight: "500",
+    color: "#64748b",
+  },
+  trustDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#cbd5e1",
+  },
+  scroll: { padding: 20, paddingBottom: 40 },
+  content: { width: "100%", maxWidth: 1240, alignSelf: "center", gap: 26 },
   row: { flexDirection: "row", alignItems: "center", gap: 12 },
   between: {
     flexDirection: "row",

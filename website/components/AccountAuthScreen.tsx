@@ -1566,39 +1566,40 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 
-  /* Matching Content Grid to VerifiedHomeScreen (maxWidth: 1340, paddingHorizontal: 28) */
+  /* Matching Content Grid to Modern Website (maxWidth: 1240, paddingHorizontal: 20) */
   content: {
     width: "100%",
-    maxWidth: 1340,
+    maxWidth: 1240,
     alignSelf: "center",
-    paddingHorizontal: 28,
-    paddingTop: 32,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 24,
   },
 
   /* Main Dual-Pane Auth Card */
   authCardWrapper: {
     width: "100%",
     alignItems: "center",
-    marginBottom: 18,
+    marginBottom: 20,
   },
   authCard: {
     width: "100%",
-    maxWidth: 1040,
+    maxWidth: 1060,
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(226, 232, 240, 0.9)",
+    borderColor: "#E2E8F0",
     ...Platform.select({
       web: {
-        boxShadow: "0 18px 42px -12px rgba(10, 25, 47, 0.12), 0 1px 3px 0 rgba(0, 0, 0, 0.04)",
+        boxShadow: "0 12px 36px -4px rgba(11, 27, 63, 0.08), 0 2px 8px rgba(11, 27, 63, 0.04)",
       },
       default: {
-        shadowColor: "#0A192F",
-        shadowOffset: { width: 0, height: 14 },
-        shadowOpacity: 0.1,
-        shadowRadius: 24,
-        elevation: 8,
+        shadowColor: "#0B1B3F",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.08,
+        shadowRadius: 20,
+        elevation: 6,
       },
     }),
   },
@@ -1796,7 +1797,7 @@ const styles = StyleSheet.create({
   formTitle: {
     fontSize: 24,
     fontWeight: "800",
-    color: "#0A192F",
+    color: "#0B1B3F",
     letterSpacing: -0.5,
     marginBottom: 4,
   },
@@ -2083,23 +2084,30 @@ const styles = StyleSheet.create({
   /* Under-Card Trust Assurance Bar */
   authTrustBar: {
     width: "100%",
-    maxWidth: 1040,
+    maxWidth: 1060,
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(226, 232, 240, 0.9)",
-    paddingVertical: 16,
-    paddingHorizontal: 22,
-    marginBottom: 20,
+    borderColor: "#E2E8F0",
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    marginBottom: 24,
     flexWrap: "wrap",
     gap: 16,
     ...Platform.select({
       web: {
-        boxShadow: "0 6px 20px -4px rgba(10, 25, 47, 0.04)",
+        boxShadow: "0 4px 18px rgba(11, 27, 63, 0.04)",
+      },
+      default: {
+        shadowColor: "#0B1B3F",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.04,
+        shadowRadius: 10,
+        elevation: 2,
       },
     }),
   },
@@ -2111,9 +2119,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   authTrustIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2123,7 +2131,7 @@ const styles = StyleSheet.create({
   authTrustTitle: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#0A192F",
+    color: "#0B1B3F",
     marginBottom: 2,
   },
   authTrustSub: {
@@ -2133,7 +2141,7 @@ const styles = StyleSheet.create({
   },
   authTrustDivider: {
     width: 1,
-    height: 32,
+    height: 34,
     backgroundColor: "#E2E8F0",
   },
 });
