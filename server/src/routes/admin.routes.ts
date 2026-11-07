@@ -10,8 +10,14 @@ import { Property } from "../models/Property.model";
 import { User } from "../models/User.model";
 import { activeStaffFilter, historyEvent, transition } from "../services/propertyWorkflow";
 import { performanceMetrics } from "../services/performanceMetrics";
+import { AccountDeletion } from "../models/AccountDeletion.model";
 
 const router = Router();
+router.get("/account-deletions", authGuard, roleGuard("admin"), async (_req, res) => {
+  try {
+    res.json(await AccountDeletion.find({ status: { $ne: "completed" } }).select("_id userId status requestedAt attempts").sort({ requestedAt: 1 }).limit(100).lean());
+  } catch { res.status(503).json({ message: "Deletion requests unavailable" }); }
+});
 router.get("/performance", authGuard, roleGuard("admin"), (_req, res) => {
   res.json({ counters: { ...performanceMetrics }, memory: process.memoryUsage(), uptimeSeconds: process.uptime() });
 });
@@ -136,7 +142,7 @@ router.get("/properties", authGuard, roleGuard("admin"), async (req, res) => {
 router.get("/users", authGuard, roleGuard("admin"), async (req, res) => {
   try {
     const users = await readPage(User.find({ role: "user" })
-      .select("name mobile email role createdAt isVerifiedIdentity demoKycComplete isSuspended kycStatus kycDocuments identityReview")
+      .select("name mobile email role createdAt isVerifiedIdentity demoKycComplete isSuspended kycStatus kycDocuments identityReview deletionRequestedAt")
       .sort({ createdAt: -1 }), req, res);
     res.json(users);
   } catch (error: any) {

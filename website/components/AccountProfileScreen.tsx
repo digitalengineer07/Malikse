@@ -507,6 +507,10 @@ export default function AccountProfileScreen() {
               style={styles.dashboardBtnArrow}
             />
           </TouchableOpacity>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 24, paddingVertical: 20 }}>
+            <TouchableOpacity accessibilityRole="link" onPress={() => router.push("/privacy-policy")}><Text style={{ color: "#075f83" }}>Privacy policy</Text></TouchableOpacity>
+            {user.role === "user" && <TouchableOpacity accessibilityRole="button" onPress={() => router.push("/delete-account")}><Text style={{ color: "#a52d3b" }}>Delete account</Text></TouchableOpacity>}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 

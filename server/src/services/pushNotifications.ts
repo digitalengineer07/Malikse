@@ -1,10 +1,12 @@
 import { PushDevice } from "../models/PushDevice.model";
 import { PushReceipt } from "../models/PushReceipt.model";
+import { User } from "../models/User.model";
 
 type PushData = { kind: "inquiry" | "deal"; id: string };
 type PushTicket = { status: "ok" | "error"; id?: string; details?: { error?: string }; message?: string };
 
 export async function notifyUser(userId: string, title: string, body: string, data: PushData) {
+  if (!await User.exists({ _id: userId, deletionRequestedAt: { $exists: false } })) return;
   const devices = await PushDevice.find({ userId }).select("token").lean();
   if (!devices.length) return;
   for (let start = 0; start < devices.length; start += 100) {

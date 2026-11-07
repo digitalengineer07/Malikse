@@ -125,7 +125,7 @@ export default function WebFooter() {
           <View style={[styles.linkCol, { width: isDesktop ? "24%" : "100%" }]}>
             <Text style={styles.colHeader}>Headquarters</Text>
             <Text style={styles.contactText}>Patna Sadar, Patna, Bihar — 800001</Text>
-            <Text style={styles.contactText}>Direct Support: support@malikse.in</Text>
+            <Text style={styles.contactText}>Support: support@malikse.example (placeholder)</Text>
             <Text style={styles.contactText}>Mon – Sat, 9:00 AM – 7:00 PM IST</Text>
 
             <View style={styles.patnaPill}>
@@ -140,10 +140,12 @@ export default function WebFooter() {
         {/* Bottom Copyright and Meta */}
         <View style={styles.bottomBar}>
           <Text style={styles.copyrightText}>
-            © {new Date().getFullYear()} MalikSe Technologies Pvt. Ltd. All rights reserved.
+            © {new Date().getFullYear()} Malikse powered by AgHomesIndia. All rights reserved.
           </Text>
           <View style={styles.legalLinks}>
-            <Text style={styles.legalLink}>Privacy Policy</Text>
+            <TouchableOpacity accessibilityRole="link" onPress={() => router.push("/privacy-policy")}><Text style={styles.legalLink}>Privacy Policy</Text></TouchableOpacity>
+            <Text style={styles.legalDot}>•</Text>
+            <TouchableOpacity accessibilityRole="link" onPress={() => router.push("/delete-account")}><Text style={styles.legalLink}>Delete account</Text></TouchableOpacity>
             <Text style={styles.legalDot}>•</Text>
             <Text style={styles.legalLink}>Terms of Service</Text>
             <Text style={styles.legalDot}>•</Text>

@@ -1,4 +1,6 @@
 import "dotenv/config";
+import { AccountDeletion } from "./models/AccountDeletion.model";
+import { startAccountDeletionWorker } from "./services/accountDeletion";
 import { deliverNotifications } from "./services/notificationQueue";
 import mongoose from "mongoose";
 import { createFastifyApp } from "./fastifyApp";
@@ -55,8 +57,10 @@ app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
   }
   startupStage = "region count initialization";
   await startRegionCounts();
+  await AccountDeletion.createIndexes();
   initialized = true;
   const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => {} : startSubmissionWorker();
+  const stopDeletionWorker = startAccountDeletionWorker();
   const notificationTimer = setInterval(() => { void deliverNotifications().catch(() => console.warn("Notification retry deferred")); }, 10000);
   notificationTimer.unref();
   const receiptTimer = setInterval(() => {
@@ -72,7 +76,7 @@ app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
     clearInterval(notificationTimer);
     const deadline = setTimeout(() => { server.closeAllConnections(); process.exit(1); }, 15_000);
     deadline.unref();
-    await Promise.all([app.close(), stopWorker()]);
+    await Promise.all([app.close(), stopWorker(), stopDeletionWorker()]);
     await stopRegionCounts();
     await mongoose.disconnect();
     closeRedis();

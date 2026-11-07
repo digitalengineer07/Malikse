@@ -22,6 +22,7 @@ export interface IUser extends Document {
   isSuspended: boolean;
   isActive: boolean;
   createdAt: Date;
+  deletionRequestedAt?: Date;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -49,6 +50,7 @@ const UserSchema = new Schema<IUser>(
     wishlist: { type: [Schema.Types.ObjectId], ref: "Property", default: [] },
     isSuspended: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
+    deletionRequestedAt: Date,
   },
   { timestamps: true }
 );
