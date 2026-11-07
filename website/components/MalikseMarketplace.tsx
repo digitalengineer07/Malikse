@@ -1680,10 +1680,10 @@ const defaultPostForm = {
   title: "",
   description: "",
   type: "land",
-  state: "Bihar",
-  district: "Patna",
-  block: "Danapur",
-  pincode: "801503",
+  state: "",
+  district: "",
+  block: "",
+  pincode: "",
   lat: "25.5941",
   lng: "85.1376",
   price: "",
@@ -1754,10 +1754,120 @@ export function PostScreen() {
     [photos, setPhotos] = useState<DocumentPicker.DocumentPickerAsset[]>([]),
     [documents, setDocuments] = useState<DocumentPicker.DocumentPickerAsset[]>([]),
     [form, setForm] = useState<any>(defaultPostForm),
+    [pincodeLoading, setPincodeLoading] = useState(false),
+    [pincodeStatus, setPincodeStatus] = useState<{ message: string; isError?: boolean } | null>(null),
     action = useAction();
 
   const set = (key: string) => (value: any) =>
     setForm((f: any) => ({ ...f, [key]: value }));
+
+  const lookupPincode = useCallback(async (code: string) => {
+    if (code.length !== 6) {
+      setPincodeStatus(null);
+      return;
+    }
+
+    setPincodeLoading(true);
+    setPincodeStatus({ message: "Auto-detecting City & State across India..." });
+
+    try {
+      // 1. Fast local cache check for instant feedback
+      const localMatch = BIHAR_DISTRICTS.find((d) => d.pincode === code);
+      if (localMatch) {
+        setForm((f: any) => ({
+          ...f,
+          district: localMatch.name,
+          state: "Bihar",
+          lat: (!f.lat || f.lat === "25.5941") ? localMatch.lat : f.lat,
+          lng: (!f.lng || f.lng === "85.1376") ? localMatch.lng : f.lng,
+        }));
+      }
+
+      // 2. Authoritative India Post PIN Code API lookup
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4500);
+
+      const res = await fetch(`https://api.postalpincode.in/pincode/${code}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) throw new Error("Network request failed");
+      const data = await res.json();
+
+      if (
+        data &&
+        Array.isArray(data) &&
+        data[0]?.Status === "Success" &&
+        Array.isArray(data[0]?.PostOffice) &&
+        data[0].PostOffice.length > 0
+      ) {
+        const po = data[0].PostOffice[0];
+        const districtName = po.District || "";
+        const stateName = po.State || "";
+        const blockName =
+          po.Block && po.Block !== "NA"
+            ? po.Block
+            : po.Name && po.Name !== districtName
+            ? po.Name
+            : "";
+
+        setForm((f: any) => ({
+          ...f,
+          district: districtName || f.district,
+          state: stateName || f.state,
+          block: f.block || blockName,
+        }));
+
+        setPincodeStatus({
+          message: `✓ Auto-filled: ${districtName ? districtName + ", " : ""}${stateName}`,
+          isError: false,
+        });
+      } else {
+        if (localMatch) {
+          setPincodeStatus({
+            message: `✓ Auto-filled: ${localMatch.name}, Bihar`,
+            isError: false,
+          });
+        } else {
+          setPincodeStatus({
+            message: "Pincode not found. Please enter City & State manually.",
+            isError: true,
+          });
+        }
+      }
+    } catch {
+      const localMatch = BIHAR_DISTRICTS.find((d) => d.pincode === code);
+      if (localMatch) {
+        setForm((f: any) => ({
+          ...f,
+          district: localMatch.name,
+          state: "Bihar",
+        }));
+        setPincodeStatus({
+          message: `✓ Auto-filled: ${localMatch.name}, Bihar`,
+          isError: false,
+        });
+      } else {
+        setPincodeStatus({
+          message: "Could not auto-fetch. Please enter City and State manually.",
+          isError: true,
+        });
+      }
+    } finally {
+      setPincodeLoading(false);
+    }
+  }, []);
+
+  const handlePincodeChange = (text: string) => {
+    const clean = text.replace(/[^0-9]/g, "").slice(0, 6);
+    setForm((f: any) => ({ ...f, pincode: clean }));
+    if (clean.length === 6) {
+      void lookupPincode(clean);
+    } else {
+      setPincodeStatus(null);
+    }
+  };
 
   const onParcelChange = useCallback((next: LatLngPoint[]) => {
     setPoints(next);
@@ -1867,7 +1977,7 @@ export function PostScreen() {
     if (step === 2) {
       if (!form.district || !form.district.trim()) {
         action.run(async () => {
-          throw new Error("Please enter or choose a district in Bihar.");
+          throw new Error("Please enter your Pincode or City / District before continuing.");
         });
         return;
       }
@@ -1917,7 +2027,7 @@ export function PostScreen() {
       if (!form.title || !form.title.trim())
         throw new Error("Please enter a property title.");
       if (!form.district || !form.district.trim())
-        throw new Error("Please select or enter a district in Bihar.");
+        throw new Error("Please enter City / District.");
       if (!form.lat || !form.lng)
         throw new Error("Please set property location coordinates.");
       if (!form.price || Number(form.price) <= 0)
@@ -2369,96 +2479,116 @@ export function PostScreen() {
 
             {/* STEP 2: Location & GPS Demarcation */}
             {step === 2 && (
-              <View style={{ gap: 22 }}>
+              <View style={{ gap: 20 }}>
                 <View style={{ gap: 4 }}>
                   <Text style={postStyles.cardHeaderTitle}>Where is your property located?</Text>
                   <Text style={postStyles.cardHeaderSubtitle}>
-                    Select your district in Bihar and provide coordinates for on-ground surveyor demarcation.
+                    Enter your 6-digit Indian Pincode to auto-fill City and State, then confirm coordinates for on-ground surveyor demarcation.
                   </Text>
-                </View>
-
-                {/* Popular Bihar Districts Quick Select */}
-                <View style={{ gap: 8 }}>
-                  <Text style={postStyles.inputLabel}>Popular Bihar Districts</Text>
-                  <View style={postStyles.districtChipsRow}>
-                    {BIHAR_DISTRICTS.map((d) => {
-                      const isSelected = form.district?.toLowerCase() === d.name.toLowerCase();
-                      return (
-                        <TouchableOpacity
-                          key={d.name}
-                          onPress={() => {
-                            setForm((f: any) => ({
-                              ...f,
-                              district: d.name,
-                              lat: d.lat,
-                              lng: d.lng,
-                              pincode: f.pincode || d.pincode,
-                            }));
-                          }}
-                          style={[
-                            postStyles.districtChip,
-                            isSelected && postStyles.districtChipSelected,
-                          ]}
-                          activeOpacity={0.8}
-                        >
-                          <Text
-                            style={[
-                              postStyles.districtChipText,
-                              isSelected && postStyles.districtChipTextSelected,
-                            ]}
-                          >
-                            {d.name}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
                 </View>
 
                 {/* Address inputs */}
                 <View style={postStyles.formRowTwoCol}>
-                  <View style={{ flex: 1, gap: 6 }}>
-                    <Text style={postStyles.inputLabel}>State</Text>
-                    <TextInput
-                      style={postStyles.customInput}
-                      value={form.state}
-                      onChangeText={set("state")}
-                    />
+                  {/* Pincode with Auto-fill */}
+                  <View style={{ flex: 1, minWidth: 260, gap: 6 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                      <Text style={postStyles.inputLabel}>
+                        Pincode <Text style={{ color: "#EF4444" }}>*</Text>
+                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <MaterialIcons name="bolt" size={14} color="#0A45B5" />
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#0A45B5" }}>
+                          Auto-fills City & State
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={postStyles.pincodeInputWrapper}>
+                      <TextInput
+                        style={[postStyles.customInput, postStyles.pincodeInput]}
+                        placeholder="e.g. 800001 or 110001"
+                        placeholderTextColor="#94A3B8"
+                        value={form.pincode}
+                        onChangeText={handlePincodeChange}
+                        keyboardType="numeric"
+                        maxLength={6}
+                      />
+                      <View style={postStyles.pincodeIconBadge}>
+                        {pincodeLoading ? (
+                          <ActivityIndicator size="small" color="#0A45B5" />
+                        ) : pincodeStatus && !pincodeStatus.isError ? (
+                          <MaterialIcons name="check-circle" size={20} color="#10B981" />
+                        ) : pincodeStatus && pincodeStatus.isError ? (
+                          <MaterialIcons name="info-outline" size={20} color="#F59E0B" />
+                        ) : (
+                          <MaterialIcons name="pin-drop" size={20} color="#94A3B8" />
+                        )}
+                      </View>
+                    </View>
+                    <Text
+                      style={[
+                        postStyles.pincodeHelperText,
+                        {
+                          color: pincodeLoading
+                            ? "#0A45B5"
+                            : pincodeStatus
+                            ? pincodeStatus.isError
+                              ? "#D97706"
+                              : "#059669"
+                            : "#64748B",
+                          fontWeight: pincodeStatus && !pincodeStatus.isError ? "600" : "400",
+                        },
+                      ]}
+                    >
+                      {pincodeLoading
+                        ? "Checking Indian Postal Database..."
+                        : pincodeStatus
+                        ? pincodeStatus.message
+                        : "Enter 6-digit Indian PIN code to auto-detect City and State."}
+                    </Text>
                   </View>
-                  <View style={{ flex: 1, gap: 6 }}>
+
+                  {/* City / District */}
+                  <View style={{ flex: 1, minWidth: 260, gap: 6 }}>
                     <Text style={postStyles.inputLabel}>
                       City / District <Text style={{ color: "#EF4444" }}>*</Text>
                     </Text>
                     <TextInput
                       style={postStyles.customInput}
-                      placeholder="e.g. Patna"
+                      placeholder="Auto-filled from Pincode"
                       placeholderTextColor="#94A3B8"
                       value={form.district}
                       onChangeText={set("district")}
                     />
+                    <Text style={{ fontSize: 11, color: "#64748B" }}>
+                      Populated automatically or editable manually
+                    </Text>
                   </View>
                 </View>
 
                 <View style={postStyles.formRowTwoCol}>
-                  <View style={{ flex: 1, gap: 6 }}>
-                    <Text style={postStyles.inputLabel}>Locality / Block</Text>
+                  {/* State */}
+                  <View style={{ flex: 1, minWidth: 260, gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>
+                      State <Text style={{ color: "#EF4444" }}>*</Text>
+                    </Text>
                     <TextInput
                       style={postStyles.customInput}
-                      placeholder="e.g. Danapur / Saguna More"
+                      placeholder="Auto-filled from Pincode"
+                      placeholderTextColor="#94A3B8"
+                      value={form.state}
+                      onChangeText={set("state")}
+                    />
+                  </View>
+
+                  {/* Locality / Block */}
+                  <View style={{ flex: 1, minWidth: 260, gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>Locality / Area / Block</Text>
+                    <TextInput
+                      style={postStyles.customInput}
+                      placeholder="e.g. Saguna More, Bailey Road"
                       placeholderTextColor="#94A3B8"
                       value={form.block}
                       onChangeText={set("block")}
-                    />
-                  </View>
-                  <View style={{ flex: 1, gap: 6 }}>
-                    <Text style={postStyles.inputLabel}>Pincode</Text>
-                    <TextInput
-                      style={postStyles.customInput}
-                      placeholder="e.g. 801503"
-                      placeholderTextColor="#94A3B8"
-                      value={form.pincode}
-                      onChangeText={set("pincode")}
-                      keyboardType="numeric"
                     />
                   </View>
                 </View>
@@ -3319,30 +3449,23 @@ const postStyles = StyleSheet.create({
     fontSize: 12,
     color: "#64748B",
   },
-  districtChipsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+  pincodeInputWrapper: {
+    position: "relative",
+    justifyContent: "center",
   },
-  districtChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#F1F5F9",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+  pincodeInput: {
+    paddingRight: 42,
   },
-  districtChipSelected: {
-    backgroundColor: "#0A45B5",
-    borderColor: "#0A45B5",
+  pincodeIconBadge: {
+    position: "absolute",
+    right: 12,
+    top: 13,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  districtChipText: {
+  pincodeHelperText: {
     fontSize: 12,
-    fontWeight: "700",
-    color: "#475A82",
-  },
-  districtChipTextSelected: {
-    color: "#FFFFFF",
+    lineHeight: 16,
   },
   formRowTwoCol: {
     flexDirection: "row",
