@@ -8,18 +8,37 @@ import { publicBusy } from "./publicCacheGeneration";
 import { replicaReadPreference } from "./readReplica";
 
 function scalar(value: unknown, name: string): string | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== "string" || value.length > 200) throw new Error(`Invalid ${name}`);
-  return value.trim();
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string" && typeof value !== "number") throw new Error(`Invalid ${name}`);
+  const s = String(value).trim();
+  if (s.length > 200) throw new Error(`Invalid ${name}`);
+  return s || undefined;
 }
 export const addressPattern = (value: string) => new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
 export function addressFields(pattern: RegExp) {
-  return ["location.state", "location.district", "location.pincode", "location.block", "location.mauza", "location.policeStation", "title"].map(field => ({ [field]: pattern }));
+  return [
+    "location.state",
+    "location.district",
+    "location.pincode",
+    "location.block",
+    "location.mauza",
+    "location.policeStation",
+    "title",
+    "description"
+  ].map(field => ({ [field]: pattern }));
 }
 export function normalizeSearch(input: Record<string, unknown>) {
-  const location = scalar(input.location, "location");
-  const type = scalar(input.type, "property type");
-  if (type && !["land", "flat", "house", "shop", "office"].includes(type)) throw new Error("Invalid property type");
+  const rawQuery = scalar(input.q ?? input.query ?? input.keyword ?? input.address ?? input.location, "search query");
+  const rawType = scalar(input.type, "property type");
+  let type = rawType;
+  if (type === "all" || type === "") type = undefined;
+  if (type && !["land", "flat", "house", "shop", "office"].includes(type)) {
+    if (type === "plot") type = "land";
+    else if (type === "apartment") type = "flat";
+    else if (type === "villa") type = "house";
+    else if (type === "commercial") type = "shop";
+    else throw new Error("Invalid property type");
+  }
   const min = scalar(input.minPrice ?? input.budgetMin, "minimum price");
   const max = scalar(input.maxPrice ?? input.budgetMax, "maximum price");
   if ([min, max].some(v => v !== undefined && (!v || !Number.isFinite(Number(v)) || Number(v) < 0))) throw new Error("Invalid price filter");
@@ -29,28 +48,68 @@ export function normalizeSearch(input: Record<string, unknown>) {
   const view = scalar(input.view, "view") ?? "cards";
   if (!["cards", "full"].includes(view)) throw new Error("Invalid property view");
   if (!Number.isInteger(page) || page < 1 || page > 100 || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("Page must be 1–100 and limit 1–100");
+
   const filters: any = {
-    ...(location ? { $text: { $search: location } } : {}),
     ...(type ? { type } : {}),
     ...(min !== undefined || max !== undefined ? { price: { ...(min !== undefined ? { $gte: Number(min) } : {}), ...(max !== undefined ? { $lte: Number(max) } : {}) } } : {}),
   };
-  for (const field of ["district", "state"] as const) {
-    const value = scalar(input[field], field);
-    if (value) filters[`location.${field}`] = value;
+
+  const district = scalar(input.district, "district");
+  if (district && district.toLowerCase() !== "all bihar" && district.toLowerCase() !== "all") {
+    filters["location.district"] = addressPattern(district);
   }
+
+  const state = scalar(input.state, "state");
+  if (state && state.toLowerCase() !== "all") {
+    filters["location.state"] = addressPattern(state);
+  }
+
   const pincode = scalar(input.pincode, "pincode");
   if (pincode) {
     if (pincode !== "__missing__" && !/^[1-9]\d{5}$/.test(pincode)) throw new Error("Invalid pincode");
     filters["location.pincode"] = pincode === "__missing__" ? { $in: [null, ""] } : pincode;
   }
-  const address = scalar(input.address, "address");
-  if (address) {
-    if (address.length < 2) throw new Error("Enter at least two characters");
-    filters.$or = addressFields(addressPattern(address));
+
+  if (rawQuery) {
+    const pattern = addressPattern(rawQuery);
+    const orList: any[] = addressFields(pattern);
+
+    // If query looks like an ObjectId, search by _id
+    if (/^[0-9a-fA-F]{24}$/.test(rawQuery)) {
+      try {
+        const { Types } = require("mongoose");
+        orList.push({ _id: new Types.ObjectId(rawQuery) });
+      } catch {}
+    }
+
+    // Check if query is a property type synonym
+    const typeKeywordMap: Record<string, string> = {
+      plot: "land",
+      land: "land",
+      apartment: "flat",
+      flat: "flat",
+      house: "house",
+      villa: "house",
+      shop: "shop",
+      commercial: "shop",
+      office: "office",
+    };
+    const mapped = typeKeywordMap[rawQuery.toLowerCase()];
+    if (mapped) {
+      orList.push({ type: mapped });
+    }
+
+    if (filters.$or) {
+      filters.$and = (filters.$and || []).concat([{ $or: filters.$or }, { $or: orList }]);
+      delete filters.$or;
+    } else {
+      filters.$or = orList;
+    }
   }
+
   const cursor = pageInput(input).filter;
   if (input.cursor && page !== 1) throw new Error("Use a cursor or a page, not both");
-  return { filters, cursor, page, limit, view, address: address?.toLowerCase() || "" };
+  return { filters, cursor, page, limit, view, address: rawQuery?.toLowerCase() || "" };
 }
 export function getPublicSearchResponse(input: Record<string, unknown>): Promise<PublicResponse> {
   const parsed = normalizeSearch(input);

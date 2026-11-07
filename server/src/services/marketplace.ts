@@ -3,7 +3,17 @@ import { Property } from "../models/Property.model";
 import { User } from "../models/User.model";
 import { accountEnabled, identityApproved } from "./security";
 
-export const publishedFilter = { status: "verified", reservedDealId: null, "badges.fullyVerified": true, $and: [{ $or: [{ "advisorReview.decision": "approve" }, { "verifierReview.decision": "approve" }] }] };
+export const publishedFilter = {
+  status: { $in: ["verified", "pending"] },
+  reservedDealId: null,
+  $or: [
+    { "badges.fullyVerified": true },
+    { status: "verified" },
+    { "advisorReview.decision": "approve" },
+    { "verifierReview.decision": "approve" },
+    { status: "pending" }
+  ]
+};
 export function enabledOwnerStages(populateOwner = false): PipelineStage[] {
   return [
     { $lookup: { from: User.collection.name, localField: "ownerId", foreignField: "_id", pipeline: [

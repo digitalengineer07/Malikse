@@ -61,6 +61,17 @@ const types = [
   ["shop", "Commercial", "storefront"],
   ["office", "Office", "business"],
 ];
+const popularDistricts = [
+  "All Bihar",
+  "Patna",
+  "Gaya",
+  "Begusarai",
+  "Muzaffarpur",
+  "Bhagalpur",
+  "Darbhanga",
+  "Vaishali",
+  "Purnia",
+];
 function Icon({ name, color = C.blue, size = 22 }: any) {
   return <MaterialIcons name={name} size={size} color={color} />;
 }
