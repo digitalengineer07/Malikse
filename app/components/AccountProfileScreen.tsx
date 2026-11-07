@@ -1,3 +1,4 @@
+import EmailChangeForm from "./EmailChangeForm";
 import { AppTheme } from "../constants/theme";
 import TextInput from "./FormInput";
 import React, { useRef, useState } from "react";
@@ -37,7 +38,7 @@ export default function AccountProfileScreen() {
     if (editEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())) { setError("Enter a valid email address"); return; }
     setIsSaving(true);
     try {
-      const updatedUser = await userService.updateProfile({ name: editName, email: editEmail });
+      const updatedUser = await userService.updateProfile({ name: editName });
       setUser(updatedUser);
       setIsEditing(false);
     } catch (e: any) {
@@ -98,7 +99,8 @@ export default function AccountProfileScreen() {
               <Text style={styles.muted}>{label("Email", "ईमेल")}</Text>
               <TextInput accessibilityLabel={label("Email", "ईमेल")} autoComplete="email" style={styles.input} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
             </View>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 10 }}>
+            <EmailChangeForm email={editEmail} />
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 10 }}>
               <TouchableOpacity style={[styles.button, { flex: 1, backgroundColor: "#E3EEF6" }]} onPress={() => setIsEditing(false)}>
                 <Text style={[styles.buttonText, { color: "#111" }]}>{label("Cancel", "रद्द करें")}</Text>
               </TouchableOpacity>

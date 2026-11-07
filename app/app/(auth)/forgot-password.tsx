@@ -17,7 +17,7 @@ export default function ForgotPassword() {
   const [done, setDone] = useState(false);
   const [expiresAt, setExpiresAt] = useState(0);
   const [resendAt, setResendAt] = useState(0);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const submitting = useRef(false);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   const remaining = Math.max(0, Math.ceil((expiresAt - now) / 1000));

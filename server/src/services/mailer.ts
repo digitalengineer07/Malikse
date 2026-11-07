@@ -136,12 +136,12 @@ export async function sendEmailOtp(
       text,
       html,
     });
-    console.log(`[Mailer] OTP email dispatched to ${cleanEmail} (ID: ${info.messageId})`);
+    console.log("[Mailer] OTP dispatched");
     return { success: true, messageId: info.messageId };
   } catch (error: any) {
-    console.error(`[Mailer] Failed to send email to ${cleanEmail}:`, error?.message || error);
+    console.error("[Mailer] OTP delivery failed");
     throw Object.assign(
-      new Error(`Failed to send email OTP (${error?.message || "SMTP error"}). Please check your email address or server SMTP settings.`),
+      new Error("Email OTP unavailable. Retry or contact support."),
       { status: 503 }
     );
   }

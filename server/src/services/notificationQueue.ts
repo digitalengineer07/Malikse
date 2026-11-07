@@ -6,6 +6,7 @@ export async function deliverNotifications() {
     const job = await Notification.findOneAndUpdate(
       {
         deliveredAt: null,
+        failedAt: null,
         nextAttemptAt: { $lte: now },
         $or: [{ leaseUntil: null }, { leaseUntil: { $lte: now } }],
       },
@@ -22,12 +23,20 @@ export async function deliverNotifications() {
         job.title!,
         job.body!,
         job.data as any,
+        job,
       );
+      const updated = await Notification.findById(job._id).select("permanentTokens");
+      if (updated?.permanentTokens.length) throw new Error("Permanent device failure");
       await Notification.updateOne(
         { _id: job._id, leaseUntil: job.leaseUntil },
         { $set: { deliveredAt: new Date() }, $unset: { leaseUntil: 1 } },
       );
     } catch {
+      if (job.attempts >= 5) {
+        await Notification.updateOne({ _id: job._id, leaseUntil: job.leaseUntil }, { $set: { failedAt: new Date(), lastError: "Delivery failed after five attempts; check provider credentials and device outcomes" }, $unset: { leaseUntil: 1 } });
+        console.error("[Push] ACTION REQUIRED: notification retries exhausted", { notificationId: job._id });
+        continue;
+      }
       await Notification.updateOne(
         { _id: job._id, leaseUntil: job.leaseUntil },
         {

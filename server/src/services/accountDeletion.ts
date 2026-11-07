@@ -1,3 +1,4 @@
+import { ContactChange } from "../models/ContactChange.model";
 import { createHash, createHmac, randomUUID } from "crypto";
 import mongoose from "mongoose";
 import fs from "fs/promises";
@@ -87,7 +88,10 @@ export async function processAccountDeletion(): Promise<boolean> {
     for await (const property of Property.find({ ownerId: userId }).cursor()) {
       await renew();
       for await (const doc of PropertyDocument.find({ propertyId: property._id }).cursor()) {
-        await removeLocal(uploadDirectory, path.basename(doc.fileUrl));
+        if (doc.fileUrl.startsWith("gridfs:")) {
+          const fileId = new mongoose.Types.ObjectId(doc.fileUrl.slice(7));
+          await removeGridFile("documents", { _id: fileId });
+        } else await removeLocal(uploadDirectory, path.basename(doc.fileUrl));
         await DocumentDownload.deleteMany({ documentId: doc._id });
         await PropertyDocument.deleteOne({ _id: doc._id });
       }
@@ -122,7 +126,10 @@ export async function processAccountDeletion(): Promise<boolean> {
     await Property.updateMany({ jointOwnerIds: userId }, { $pull: { jointOwnerIds: userId } });
     for await (const doc of PropertyDocument.find({ uploadedBy: userId }).cursor()) {
       await renew();
-      await removeLocal(uploadDirectory, path.basename(doc.fileUrl));
+      if (doc.fileUrl.startsWith("gridfs:")) {
+          const fileId = new mongoose.Types.ObjectId(doc.fileUrl.slice(7));
+          await removeGridFile("documents", { _id: fileId });
+        } else await removeLocal(uploadDirectory, path.basename(doc.fileUrl));
       await DocumentDownload.deleteMany({ documentId: doc._id });
       await Property.updateMany({ documents: doc._id }, { $pull: { documents: doc._id } });
       await PropertyDocument.deleteOne({ _id: doc._id });
@@ -136,6 +143,7 @@ export async function processAccountDeletion(): Promise<boolean> {
     }
     await DocumentDownload.deleteMany({ actorId: userId });
     await PasswordReset.deleteMany({ userId });
+    await ContactChange.deleteOne({ _id: String(userId) });
     const contacts = [job.email, job.mobile].filter(Boolean);
     await Registration.deleteMany({ $or: [{ _id: { $in: contacts } }, ...(job.email ? [{ email: job.email }] : []), ...(job.mobile ? [{ mobile: job.mobile }] : [])] });
     await renew();

@@ -1,4 +1,4 @@
-import axios, { isAxiosError } from "axios";
+import axios, { isAxiosError, create as createAxios } from "axios";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { useAuthStore } from "../store/authStore";
@@ -10,7 +10,7 @@ const configuredApiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXP
 function resolveApiUrl() {
   // Local .env values must not send installed release APKs to the phone itself.
   if (!__DEV__ && Platform.OS !== "web" && /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?(?:\/|$)/.test(configuredApiUrl)) {
-    return "https://malikse.devoxa.in";
+    return "https://malikseserver.devoxa.in";
   }
   if (Platform.OS === "web" || !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(configuredApiUrl)) {
     return configuredApiUrl;
@@ -21,7 +21,7 @@ function resolveApiUrl() {
 }
 const API_URL = resolveApiUrl();
 
-const api = axios.create({ baseURL: API_URL, timeout: 15000 });
+const api = createAxios({ baseURL: API_URL, timeout: 15000, ...(Platform.OS === "web" ? { withCredentials: true, headers: { "X-Session-Mode": "cookie" } } : {}) });
 
 let isRefreshing = false;
 let failedQueue: any[] = [];
@@ -82,6 +82,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       const refreshToken = useAuthStore.getState().refreshToken;
+      const previousAccess = useAuthStore.getState().accessToken;
       if (!refreshToken) {
         useAuthStore.getState().clearSession();
         isRefreshing = false;
@@ -90,8 +91,8 @@ api.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken }, { timeout: 10000 });
-        if (useAuthStore.getState().refreshToken !== refreshToken) throw new Error("Session changed during refresh");
+        const { data } = await axios.post(`${API_URL}/auth/refresh`, Platform.OS === "web" ? {} : { refreshToken }, { timeout: 10000, ...(Platform.OS === "web" ? { withCredentials: true, headers: { "X-Session-Mode": "cookie" } } : {}) });
+        if (useAuthStore.getState().refreshToken !== refreshToken || useAuthStore.getState().accessToken !== previousAccess) throw new Error("Session changed during refresh");
         
         useAuthStore.getState().setTokens({ 
           accessToken: data.accessToken, 

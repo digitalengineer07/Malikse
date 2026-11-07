@@ -1,3 +1,4 @@
+import { Notification } from "../models/Notification.model";
 import { enabledOwnerStages } from "../services/marketplace";
 import { readPage, readAggregatePage, readNamedPage, listFields } from "../services/pagination";
 import bcrypt from "../services/passwords";
@@ -13,6 +14,10 @@ import { performanceMetrics } from "../services/performanceMetrics";
 import { AccountDeletion } from "../models/AccountDeletion.model";
 
 const router = Router();
+router.get("/notification-failures", authGuard, roleGuard("admin"), async (req, res) => {
+  try { res.json(await readPage(Notification.find({ failedAt: { $exists: true } }).select("recipient title attempts failedAt lastError"), req, res)); }
+  catch { res.status(503).json({ message: "Failure queue unavailable" }); }
+});
 router.get("/account-deletions", authGuard, roleGuard("admin"), async (_req, res) => {
   try {
     res.json(await AccountDeletion.find({ status: { $ne: "completed" } }).select("_id userId status requestedAt attempts").sort({ requestedAt: 1 }).limit(100).lean());
@@ -168,6 +173,7 @@ router.put("/users/:userId/identity", authGuard, roleGuard("admin"), async (req:
   }
   try {
     const user = await User.findOneAndUpdate({ _id: req.params.userId, role: "user", ...(approved ? { isSuspended: { $ne: true }, isActive: { $ne: false } } : {}) }, {
+      $push: { administrativeHistory: { actorId: req.user.id, action: "identity_review", reason: notes.trim(), at: new Date(), value: approved } },
       $set: { isVerifiedIdentity: approved, kycStatus: approved ? "approved" : req.body.correctionRequired === true ? "correction_required" : "rejected", identityReview: { reviewerId: req.user.id, reviewedAt: new Date(), notes: notes.trim() } },
     }, { new: true, runValidators: true });
     if (!user) return res.status(404).json({ message: "Active user not found" });
@@ -183,6 +189,7 @@ router.put("/users/:userId/suspend", authGuard, roleGuard("admin"), async (req, 
     if (req.body?.isSuspended !== undefined && typeof req.body.isSuspended !== "boolean") return res.status(400).json({ message: "isSuspended must be a boolean" });
     // Legacy callers may omit the field; current clients send the desired state.
     user.isSuspended = req.body?.isSuspended ?? !user.isSuspended;
+    user.administrativeHistory.push({ actorId: (req as any).user.id, action: "suspension", value: user.isSuspended, reason: typeof req.body.reason === "string" ? req.body.reason.slice(0, 2000) : "Administrator changed suspension", at: new Date() });
     await user.save();
     res.json({ id: user._id, isSuspended: user.isSuspended });
   } catch (error: any) {
@@ -197,6 +204,7 @@ router.put("/staff/:staffId/status", authGuard, roleGuard("admin"), async (req: 
     if (!staff || !["advisor", "verifier"].includes(staff.role)) return res.status(404).json({ message: "Staff not found" });
     if (req.body?.isActive !== undefined && typeof req.body.isActive !== "boolean") return res.status(400).json({ message: "isActive must be a boolean" });
     staff.isActive = req.body?.isActive ?? !staff.isActive;
+    staff.administrativeHistory.push({ actorId: req.user.id, action: "staff_status", value: staff.isActive, reason: typeof req.body.reason === "string" ? req.body.reason.slice(0, 2000) : "Administrator changed staff status", at: new Date() });
     await staff.save();
     // Retry assignment cleanup even if a previous request saved the state but
     // failed before releasing assignments. The assignment filter makes it safe.

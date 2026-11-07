@@ -19,7 +19,7 @@ export async function authenticateRequest(header: string | undefined) {
   }
   const token = header.slice(7);
 
-  let decoded: { id: string; role: string };
+  let decoded: { id: string; role: string; sessionVersion?: number };
   try {
     decoded = jwt.verify(token, ACCESS_SECRET, { algorithms: ["HS256"] }) as { id: string; role: string };
     if (typeof decoded.id !== "string" || !/^[a-f0-9]{24}$/i.test(decoded.id)) {
@@ -29,10 +29,11 @@ export async function authenticateRequest(header: string | undefined) {
     return { status: 401, message: "Session expired or invalid. Please sign in again." };
   }
   try {
-    const user = await User.findById(decoded.id).select("role passwordHash isSuspended isActive name mobile email isVerifiedIdentity demoKycComplete createdAt").lean();
+    const user = await User.findById(decoded.id).select("sessionVersion role passwordHash isSuspended isActive name mobile email isVerifiedIdentity demoKycComplete createdAt").lean();
     if (!user?.passwordHash) {
       return { status: 401, message: "Please sign in with your account credentials" };
     }
+    if (decoded.sessionVersion !== (user.sessionVersion ?? 0)) return { status: 401, message: "Session revoked. Please sign in again." };
     if (user.isSuspended) {
       return { status: 403, message: "Your account has been suspended by the administrator." };
     }

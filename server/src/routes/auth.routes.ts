@@ -1,3 +1,4 @@
+import { cookieSession, trustedCookieOrigin, sessionPayload, refreshFromRequest, clearCookieSession } from "../services/browserSession";
 import { randomUUID, randomInt, createHash, createHmac, timingSafeEqual } from "crypto";
 import { rateLimit } from "express-rate-limit";
 import { Registration } from "../models/Registration.model";
@@ -13,9 +14,16 @@ import { REFRESH_SECRET, accountEnabled, generateTokens, publicUser, tokenDigest
 import { sendEmailOtp } from "../services/mailer";
 
 const router = Router();
+router.use((req, res, next) => {
+  if (cookieSession(req) && !trustedCookieOrigin(req)) return res.status(403).json({ message: "Browser session origin denied" });
+  next();
+});
+const resetResponse = (challengeId = randomUUID(), stubCode?: string) => ({ challengeId, expiresInSeconds: 120, resendAfterSeconds: 60, destination: "your verified contact", message: "If this account has an eligible verified contact, a code will arrive. Otherwise contact support.", ...(process.env.NODE_ENV === "test" && stubCode ? { stubCode } : {}) });
+
 
 // Requests and resends share delivery rules; verification uses the saved provider.
-async function deliverResetOtp(user: { mobile?: string; email?: string }, channel: "email" | "mobile", code: string) {
+async function deliverResetOtp(user: { mobile?: string; email?: string; mobileVerifiedAt?: Date; emailVerifiedAt?: Date }, channel: "email" | "mobile", code: string) {
+  if (!(channel === "email" ? user.emailVerifiedAt : user.mobileVerifiedAt)) throw Object.assign(new Error("Contact support to recover an account without a verified contact."), { status: 503 });
   const destination = channel === "email" ? user.email : user.mobile;
   if (!destination) throw Object.assign(new Error("No registered destination for this reset method"), { status: 503 });
   if (process.env.NODE_ENV === "test" && process.env.OTP_STUB_CODE) {
@@ -375,9 +383,9 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
     // Check against Twilio Verify API if configured and channel was mobile
     if (pending.channel === "mobile" && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && !hasDedicatedTwilioPhone()) {
       try {
-        console.log(`[Twilio Verify] Checking OTP for ${registrationKey}...`);
+        console.log("[Twilio Verify] Checking OTP");
         codeValid = await checkTwilioVerification(registrationKey, cleanCode);
-        console.log(`[Twilio Verify] Result for ${registrationKey}: ${codeValid}`);
+        console.log("[Twilio Verify] Check completed");
       } catch (err: any) {
         console.error("[Twilio Verify] Check error:", err?.message);
       }
@@ -389,6 +397,8 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
     }
 
     if (!codeValid) {
+      await Registration.updateOne({ _id: registrationKey, challengeId: rawChallengeId }, { $set: { lockUntil: new Date(0) } });
+      locked = false;
       return res.status(400).json({ message: "Incorrect OTP. Please enter the latest 6-digit code received or click Resend." });
     }
 
@@ -421,7 +431,7 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
     user.refreshTokenExpiresAt = refreshExpiry(refreshToken);
     await user.save();
     await Registration.deleteOne({ _id: registrationKey, challengeId: rawChallengeId });
-    return res.status(201).json({ accessToken, refreshToken, user: publicUser(user) });
+    return res.status(201).json(sessionPayload(req, res, { accessToken, refreshToken }, user));
   } catch (error: any) {
     if (error.code === 11000) {
       if (error.keyPattern?.mobile) {
@@ -481,11 +491,7 @@ router.post("/login", async (req, res) => {
     user.refreshTokenExpiresAt = refreshExpiry(refreshToken);
     await user.save();
 
-    res.json({
-      accessToken,
-      refreshToken,
-      user: publicUser(user)
-    });
+    res.json(sessionPayload(req, res, { accessToken, refreshToken }, user));
   } catch (error: any) {
     res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
@@ -507,7 +513,7 @@ router.post("/kyc/demo", authGuard, async (req: any, res) => {
 // POST /auth/refresh
 router.post("/refresh", async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = refreshFromRequest(req);
     if (typeof refreshToken !== "string" || !refreshToken) {
       return res.status(401).json({ message: "Refresh token is required" });
     }
@@ -521,7 +527,7 @@ router.post("/refresh", async (req, res) => {
     // Compare and replace in one write: only one concurrent refresh may win.
     const rotated = await User.updateOne({ _id: user._id, refreshTokenHash: tokenDigest(refreshToken), $or: [{ refreshTokenExpiresAt: { $gt: new Date() } }, { refreshTokenExpiresAt: { $exists: false } }], isSuspended: { $ne: true }, isActive: { $ne: false } }, { $set: { refreshTokenHash: tokenDigest(tokens.refreshToken), refreshTokenExpiresAt: refreshExpiry(tokens.refreshToken) } });
     if (!rotated.modifiedCount) return res.status(401).json({ message: "Refresh token mismatch or expired. Please sign in again" });
-    res.json({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, user: publicUser(user) });
+    res.json(sessionPayload(req, res, tokens, user));
   } catch (error: any) {
     return res.status(401).json({ message: "Invalid or expired refresh token" });
   }
@@ -532,10 +538,9 @@ router.post("/logout", authGuard, async (req: any, res) => {
   try {
     const user = await User.findById(req.user.id);
     if (user) {
-      user.refreshTokenHash = undefined;
-      user.refreshTokenExpiresAt = undefined;
-      await user.save();
+      await User.updateOne({ _id: user._id }, { $inc: { sessionVersion: 1 }, $unset: { refreshTokenHash: 1, refreshTokenExpiresAt: 1 } });
     }
+    clearCookieSession(res);
     res.json({ message: "Logged out successfully" });
   } catch (error: any) {
     res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
@@ -577,13 +582,7 @@ router.post(
           : { email: input.toLowerCase() }
       );
 
-      if (!user) {
-        return res.status(404).json({ message: "No registered account found with this mobile number or email" });
-      }
-
-      if (!accountEnabled(user)) {
-        return res.status(403).json({ message: "This account is suspended or inactive. Please contact support." });
-      }
+      if (!user || !accountEnabled(user) || !(isEmail ? user.emailVerifiedAt : user.mobileVerifiedAt)) return res.json(resetResponse());
 
       const now = new Date();
       const resetKey = String(user._id);
@@ -620,7 +619,7 @@ router.post(
       );
 
       if (!pending) {
-        return res.status(429).json({ message: "Please wait before requesting another OTP", retryAfterSeconds: 60 });
+        return res.json(resetResponse());
       }
 
       const stubCode = process.env.NODE_ENV === "test" ? process.env.OTP_STUB_CODE?.trim() : undefined;
@@ -644,24 +643,11 @@ router.post(
         }
       );
 
-      const maskedMobileText = delivery.channel === "mobile" && user.mobile ? maskMobile(user.mobile) : undefined;
-      const maskedEmailText = delivery.channel === "email" && user.email ? maskEmail(user.email) : undefined;
-      const destination = delivery.destination;
-
-      const showStubCode = process.env.NODE_ENV === "test" && Boolean(stubCode);
-      return res.status(200).json({
-        challengeId,
-        expiresInSeconds: 120,
-        resendAfterSeconds: 60,
-        destination,
-        maskedMobile: maskedMobileText,
-        maskedEmail: maskedEmailText,
-        stubCode: showStubCode ? code : undefined,
-      });
-    } catch (error: any) {
-      res
-        .status(error?.status === 503 ? 503 : 500)
-        .json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
+      return res.json(resetResponse(challengeId, stubCode ? code : undefined));
+    } catch {
+      // Provider failure does not reveal account existence to an unauthenticated caller.
+      console.warn("[Recovery] Delivery unavailable");
+      res.json(resetResponse());
     }
   }
 );
@@ -680,19 +666,16 @@ router.post(
       const now = new Date();
       const existing = await PasswordReset.findOne({ challengeId: challengeId.trim() });
       if (!existing) {
-        return res.status(404).json({ message: "Password reset session not found or expired. Please start over." });
+        return res.json(resetResponse());
       }
 
       if (existing.resendAt && existing.resendAt > now) {
-        const waitSeconds = Math.ceil((existing.resendAt.getTime() - now.getTime()) / 1000);
-        return res
-          .status(429)
-          .json({ message: `Please wait ${waitSeconds}s before requesting another OTP`, retryAfterSeconds: waitSeconds });
+        return res.json(resetResponse());
       }
 
       const user = await User.findById(existing.userId);
       if (!user || !accountEnabled(user)) {
-        return res.status(403).json({ message: "Account is not active or suspended" });
+        return res.json(resetResponse());
       }
 
       const newChallengeId = randomUUID();
@@ -703,7 +686,7 @@ router.post(
         { $set: { challengeId: newChallengeId, expiresAt: now, lockUntil: new Date(Date.now() + 30000), resendAt: new Date(Date.now() + 60000) } },
         { new: true }
       );
-      if (!claimed) return res.status(429).json({ message: "Please wait before requesting another OTP", retryAfterSeconds: 60 });
+      if (!claimed) return res.json(resetResponse());
       const delivery = await deliverResetOtp(user, existing.identifier.includes("@") ? "email" : "mobile", code);
 
       const expiresAt = new Date(Date.now() + 120000);
@@ -724,16 +707,9 @@ router.post(
         }
       );
 
-      const showStubCode = process.env.NODE_ENV === "test" && Boolean(stubCode);
-      return res.status(200).json({
-        challengeId: newChallengeId,
-        destination: delivery.destination,
-        expiresInSeconds: 120,
-        resendAfterSeconds: 60,
-        stubCode: showStubCode ? code : undefined,
-      });
+      return res.json(resetResponse(newChallengeId, stubCode ? code : undefined));
     } catch (error: any) {
-      res.status(500).json({ message: "Failed to resend verification OTP" });
+      res.json(resetResponse());
     }
   }
 );
@@ -823,9 +799,12 @@ router.post(
         return res.status(403).json({ message: "This account is suspended or inactive." });
       }
 
+      if ((pending.identifier.includes("@") ? user.email !== pending.email || !user.emailVerifiedAt : user.mobile !== pending.mobile || !user.mobileVerifiedAt)) return res.status(400).json({ message: "Recovery contact changed. Start again or contact support." });
+
       // Hash new password and save
       const passwordHash = await bcrypt.hash(newPassword, 10);
       user.passwordHash = passwordHash;
+      user.sessionVersion = (user.sessionVersion ?? 0) + 1;
 
       // Invalidate old refresh tokens and issue fresh login tokens
       const { accessToken, refreshToken } = generateTokens(user);
@@ -838,9 +817,7 @@ router.post(
 
       return res.status(200).json({
         message: "Password reset successfully.",
-        accessToken,
-        refreshToken,
-        user: publicUser(user),
+        ...sessionPayload(req, res, { accessToken, refreshToken }, user),
       });
     } catch (error: any) {
       return res.status(500).json({ message: "Password reset service temporarily unavailable. Please try again." });

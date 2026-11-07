@@ -1,3 +1,4 @@
+import NotificationFailures from "./NotificationFailures";
 import { AppTheme } from "../constants/theme";
 import { premiumStyles } from "../constants/typography";
 import React from "react";
@@ -103,6 +104,7 @@ export default function RoleDashboard({
           </View>
         </View>
         <Text style={styles.subtitle}>{subtitle}</Text>
+      {role === "admin" && <NotificationFailures />}
 
         {/* Enhanced Hero Banner */}
         <View style={[styles.hero, compact && styles.heroCompact]}>

@@ -1,7 +1,6 @@
 import { renderAppScreen } from "../../components/AppScreen";
 import { Tabs } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import BottomNav from "../../components/BottomNav";
 
 
 export default function TabLayout() {

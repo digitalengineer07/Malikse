@@ -27,7 +27,7 @@ function resolveApiUrl(): string {
 
 const API_URL = resolveApiUrl();
 
-const api = axios.create({ baseURL: API_URL, timeout: 15000 });
+const api = axios.create({ baseURL: API_URL, timeout: 15000, withCredentials: true, headers: { "X-Session-Mode": "cookie" } });
 
 let isRefreshing = false;
 let failedQueue: any[] = [];
@@ -79,6 +79,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       const refreshToken = useAuthStore.getState().refreshToken;
+      const previousAccess = useAuthStore.getState().accessToken;
       if (!refreshToken) {
         useAuthStore.getState().clearSession();
         isRefreshing = false;
@@ -87,8 +88,8 @@ api.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken }, { timeout: 10000 });
-        if (useAuthStore.getState().refreshToken !== refreshToken) throw new Error("Session changed during refresh");
+        const { data } = await axios.post(`${API_URL}/auth/refresh`, {}, { timeout: 10000, withCredentials: true, headers: { "X-Session-Mode": "cookie" } });
+        if (useAuthStore.getState().refreshToken !== refreshToken || useAuthStore.getState().accessToken !== previousAccess) throw new Error("Session changed during refresh");
         
         useAuthStore.getState().setTokens({ 
           accessToken: data.accessToken, 

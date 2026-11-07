@@ -144,12 +144,16 @@ function useData(path: string | null, deps: any[] = []) {
     [error, setError] = useState(""),
     [loading, setLoading] = useState(false),
     [nextCursor, setNextCursor] = useState<string | null>(null);
+  const requestKey = JSON.stringify([path, deps]);
+  const [resultKey, setResultKey] = useState(requestKey);
   const refresh = useCallback(async () => {
+    const [path] = JSON.parse(requestKey);
     if (!path) return;
     setLoading(true);
     setError("");
     try {
       const response = await api.get(path);
+      setResultKey(requestKey);
       setData(response.data);
       setNextCursor(response.headers["x-next-cursor"] || null);
     } catch (e) {
@@ -157,15 +161,13 @@ function useData(path: string | null, deps: any[] = []) {
     } finally {
       setLoading(false);
     }
-  }, [path, ...deps]);
+  }, [requestKey]);
   useFocusEffect(
     useCallback(() => {
       void refresh();
     }, [refresh]),
   );
-  useEffect(() => {
-    setData(null);
-  }, [path, ...deps]);
+
   const loadMore = async () => {
     if (!path || !nextCursor || loading) return;
     setLoading(true);
@@ -189,27 +191,19 @@ function useData(path: string | null, deps: any[] = []) {
       setLoading(false);
     }
   };
-  return { data, error, loading, refresh, setData, nextCursor, loadMore };
+  return { data: resultKey === requestKey ? data : null, error, loading, refresh, setData, nextCursor, loadMore };
 }
 function useAction() {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  return {
-    busy,
-    error,
-    run: async (fn: () => Promise<any>) => {
-      setBusy(true);
-      setError("");
-      try {
-        await fn();
-      } catch (e) {
-        setError(errorText(e));
-      } finally {
-        setBusy(false);
-      }
-    },
-  };
+  const run = useCallback(async (fn: () => Promise<any>) => {
+    setBusy(true); setError("");
+    try { await fn(); } catch (e) { setError(errorText(e)); }
+    finally { setBusy(false); }
+  }, []);
+  return { busy, error, run };
 }
+
 function ErrorBox({ text }: any) {
   return text ? (
     <Text accessibilityRole="alert" style={s.error}>
@@ -1272,17 +1266,18 @@ export function ChatsScreen() {
       [user?.id],
     ),
     action = useAction();
+  const [previousInquiry, setPreviousInquiry] = useState(params.inquiryId);
+  if (params.inquiryId !== previousInquiry) { setPreviousInquiry(params.inquiryId); if (params.inquiryId) setSelected(String(params.inquiryId)); }
+  const refreshMessages = messages.refresh, refreshChat = chat.refresh;
+  const userId = user?.id;
   useEffect(() => {
-    if (params.inquiryId) setSelected(String(params.inquiryId));
-  }, [params.inquiryId]);
-  useEffect(() => {
-    if (!selected || !user) return;
+    if (!selected || !userId) return;
     const timer = setInterval(() => {
-      void messages.refresh();
-      void chat.refresh();
+      void refreshMessages();
+      void refreshChat();
     }, 7000);
     return () => clearInterval(timer);
-  }, [selected, user?.id, messages.refresh, chat.refresh]);
+  }, [selected, userId, refreshMessages, refreshChat]);
   useEffect(() => {
     if (chat.data && messages.data) {
       const latest =
@@ -1292,7 +1287,7 @@ export function ChatsScreen() {
           .post(`/inquiries/${selected}/read`, { through: latest })
           .catch(() => {});
     }
-  }, [messages.data, chat.data?.createdAt]);
+  }, [messages.data, chat.data, selected]);
   const c = chat.data,
     other = c && (identity(c.buyerId) === user?.id ? c.staffId : c.buyerId);
   return (
@@ -1662,9 +1657,11 @@ export function PostScreen() {
     }
   }, []);
 
+  const runAction = action.run;
+  const editorUserId = user?.id;
   useEffect(() => {
-    if (params.id && user)
-      void action.run(async () => {
+    if (params.id && editorUserId)
+      void runAction(async () => {
         const p = (await api.get(`/properties/${params.id}/workspace`)).data;
         if (p.parcelPoints && Array.isArray(p.parcelPoints)) {
           setPoints(p.parcelPoints);
@@ -1683,7 +1680,7 @@ export function PostScreen() {
           requestedAdvisorId: p.requestedAdvisorId || "",
         });
       });
-  }, [params.id, user?.id]);
+  }, [params.id, editorUserId, runAction]);
   const pick = async (doc = false) => {
     const result = await DocumentPicker.getDocumentAsync({
       type: doc
@@ -1692,8 +1689,7 @@ export function PostScreen() {
       multiple: true,
       copyToCacheDirectory: true,
     });
-    if (!result.canceled)
-      doc ? setDocuments(result.assets) : setPhotos(result.assets);
+    if (!result.canceled) { if (doc) setDocuments(result.assets); else setPhotos(result.assets); }
   };
   const uploadKeys = useRef(new Map<string, string>());
   const uploadKey = (uri: string) => {
@@ -1892,7 +1888,7 @@ export function PostScreen() {
                   />
                 </View>
                 <Text style={s.small}>
-                  Enter the property's coordinates if you are not currently at
+                  Enter the property&apos;s coordinates if you are not currently at
                   the site.
                 </Text>
 

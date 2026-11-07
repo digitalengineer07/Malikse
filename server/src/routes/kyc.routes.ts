@@ -1,3 +1,7 @@
+import { scanDocumentBytes } from "../services/documentScanner";
+import { FileCleanup } from "../models/FileCleanup.model";
+import { uploadCapacity } from "../middleware/uploadCapacity";
+import { rateLimit } from "express-rate-limit";
 import { Router } from "express";
 import multer from "multer";
 import mongoose from "mongoose";
@@ -34,7 +38,7 @@ router.post("/:fileId/download", async (req: any, res) => {
 });
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024, files: 3 },
+  limits: { fileSize: 5 * 1024 * 1024, files: 3, fields: 0, parts: 3 },
 });
 router.get("/", async (req: any, res) => {
   try {
@@ -47,7 +51,10 @@ router.get("/", async (req: any, res) => {
     res.status(503).json({ message: "KYC status unavailable" });
   }
 });
-router.post("/", roleGuard("user"), (req: any, res) => {
+router.post("/", roleGuard("user"), rateLimit({ windowMs: 60000, limit: 3 }), uploadCapacity, async (req: any, res) => {
+  if (process.env.NODE_ENV === "production" && process.env.KYC_UPLOADS_ENABLED !== "true") return res.status(403).json({ message: "KYC uploads are not enabled. Contact support." });
+  const current = await User.findById(req.user.id).select("isVerifiedIdentity kycStatus").catch(() => null);
+  if (!current || current.isVerifiedIdentity || current.kycStatus === "pending") return res.status(409).json({ message: "KYC is unavailable or already under review" });
   upload.array("files", 3)(req, res, async (error) => {
     if (error)
       return res
@@ -81,16 +88,19 @@ router.post("/", roleGuard("user"), (req: any, res) => {
                 ? "image/png"
                 : null;
         if (!mime) throw new Error("Use a valid PDF, JPG or PNG document");
+        await scanDocumentBytes(new Uint8Array(b));
         const stream = bucket.openUploadStream("identity-document", {
           metadata: { ownerId: req.user.id, mime },
         });
         ids.push(String(stream.id));
+        await FileCleanup.create({ _id: `kyc:${stream.id}`, bucket: "kyc", fileId: stream.id, nextAttemptAt: new Date(Date.now() + 3600000) });
         await new Promise<void>((resolve, reject) => {
           stream.on("finish", resolve);
           stream.on("error", reject);
           stream.end(b);
         });
       }
+      for (const oldId of user.kycDocuments) await FileCleanup.updateOne({ _id: `kyc:${oldId}` }, { $set: { bucket: "kyc", fileId: new mongoose.Types.ObjectId(oldId), nextAttemptAt: new Date(Date.now() + 300000) } }, { upsert: true });
       const saved = await User.findOneAndUpdate(
         {
           _id: req.user.id,

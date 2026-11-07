@@ -35,7 +35,6 @@ import {
 import { cachedPropertySearch, propertyService } from "../src/services/propertyService";
 import type { Property, PropertyType } from "../src/types/property.types";
 import type { MapFocus } from "../src/utils/nativeMapHtml";
-import type { IndiaStateInfo } from "../src/data/indiaStatesData";
 import { currentMapLocation } from "../src/services/currentMapLocation";
 import { geocodePlaceId, geocodeAddress } from "../src/utils/googleMaps";
 import { useResumeStore } from "../src/store/resumeStore";
@@ -203,12 +202,16 @@ export default function MarketplaceScreen() {
   const [allStateProperties, setAllStateProperties] = useState<Property[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(!initialProperties);
 
-  const level = district ? "pincode" : state ? "district" : "state";
+  const filterKey = JSON.stringify([state?.name, district?.name, type, revision]);
+  const [previousFilterKey, setPreviousFilterKey] = useState(filterKey);
+  if (filterKey !== previousFilterKey) {
+    setPreviousFilterKey(filterKey);
+    const cached = cachedPropertySearch({ state: state?.name || "Bihar", ...(district?.name ? { district: district.name } : {}), ...(type ? { type } : {}) });
+    setVerifiedProperties(cached ?? []); setPropertiesLoading(!cached);
+    setDistrictGroups(cachedRegionCounts({ state: state?.key || "Bihar", type })?.groups ?? []);
+  }
 
-  // Total properties count aggregated from region groups
-  const totalVerifiedCount = useMemo(() => {
-    return groups.reduce((acc, curr) => acc + (curr.count || 0), 0);
-  }, [groups]);
+  const level = district ? "pincode" : state ? "district" : "state";
 
   // Map of Bihar district names to counts for the Bihar District Explorer Panel
   const districtCounts = useMemo(() => {
@@ -223,7 +226,7 @@ export default function MarketplaceScreen() {
   useEffect(() => {
     const controller = new AbortController();
     const filters = { state: state?.key || "Bihar", type };
-    setDistrictGroups(cachedRegionCounts(filters)?.groups ?? []);
+
     fetchRegionCounts(filters, controller.signal)
       .then(data => { if (!controller.signal.aborted) setDistrictGroups(data.groups); })
       .catch(() => {});
@@ -233,6 +236,7 @@ export default function MarketplaceScreen() {
   // Fetch region counts based on current state / district / type
   useFocusEffect(
     useCallback(() => {
+      void revision;
       const controller = new AbortController();
       let active = true;
       const filters = { state: state?.key, district: district?.key, type };
@@ -259,20 +263,17 @@ export default function MarketplaceScreen() {
     }, [state?.key, district?.key, type, revision])
   );
 
+  const suggestionKey = JSON.stringify([query, type]);
+  const [previousSuggestionKey, setPreviousSuggestionKey] = useState(suggestionKey);
+  if (suggestionKey !== previousSuggestionKey) {
+    setPreviousSuggestionKey(suggestionKey); setSuggestions([]); setSuggesting(query.trim().length >= 2); setSuggestionError(false);
+  }
   // Autocomplete suggestions debounce
   useEffect(() => {
     const term = query.trim();
-    if (term.length < 2) {
-      setSuggestions([]);
-      setSuggesting(false);
-      setSuggestionError(false);
-      return;
-    }
+    if (term.length < 2) return;
     const controller = new AbortController();
     let active = true;
-    setSuggesting(true);
-    setSuggestionError(false);
-    setSuggestions([]);
 
     const timer = setTimeout(() => {
       fetchLocationSuggestions(term, type, controller.signal)
@@ -578,8 +579,7 @@ export default function MarketplaceScreen() {
     if (district?.name) filters.district = district.name;
     if (type) filters.type = type;
     const cached = cachedPropertySearch(filters);
-    setVerifiedProperties(cached ?? []);
-    setPropertiesLoading(!cached);
+
 
     propertyService
       .searchProperties(filters)
@@ -656,42 +656,15 @@ export default function MarketplaceScreen() {
     }
 
     return list;
-  }, [allStateProperties, verifiedProperties, district?.name, type]);
+  }, [allStateProperties, verifiedProperties, district, type]);
 
-  // When user toggles property type buttons (Land, Flat, House, Shop, Office), focus the map to show the listed items
-  useEffect(() => {
-    if (!type) {
-      if (!district) {
-        setCustomFocus({ lat: 25.65, lng: 85.35, zoom: 7.5 });
-      }
-      return;
-    }
-
-    const matching = allStateProperties.filter((p) => {
-      const pType = (p.type || "").toLowerCase();
-      if (type === "flat") return pType === "flat" || pType === "apartment";
-      if (type === "house") return pType === "house" || pType === "villa";
-      if (type === "land") return pType === "land" || pType === "plot";
-      return pType === type.toLowerCase();
-    });
-
-    if (matching.length === 1 && matching[0].location?.lat && matching[0].location?.lng) {
-      setCustomFocus({
-        lat: matching[0].location.lat,
-        lng: matching[0].location.lng,
-        zoom: 14.5,
-      });
-      scrollViewRef.current?.scrollTo({ y: 220, animated: true });
-    } else if (matching.length > 1) {
-      setCustomFocus({
-        lat: 25.61,
-        lng: 85.12,
-        zoom: 11,
-      });
-      scrollViewRef.current?.scrollTo({ y: 220, animated: true });
-    }
-  }, [type, allStateProperties, district]);
-
+  const propertyFocus = useMemo<MapFocus | undefined>(() => {
+    if (!type) return undefined;
+    const matching = filteredMapProperties;
+    if (matching.length === 1 && matching[0].location) return { lat: matching[0].location.lat, lng: matching[0].location.lng, zoom: 14.5 };
+    if (matching.length > 1) return { lat: 25.61, lng: 85.12, zoom: 11 };
+    return undefined;
+  }, [type, filteredMapProperties]);
   // Corridor focus handler
   const handleSelectCorridor = useCallback((corridor: typeof dynamicCorridors[0]) => {
     setSelectedCorridorId(corridor.id);
@@ -823,7 +796,7 @@ export default function MarketplaceScreen() {
                 groups={loading || error ? [] : groups}
                 level={level}
                 state={state?.key}
-                focus={mapFocus}
+                focus={customFocus || propertyFocus || mapFocus}
                 properties={filteredMapProperties}
                 onSelectGroup={handleSelectGroup}
                 onSelectStateInfo={handleSelectDistrictInfo as any}
@@ -867,7 +840,7 @@ export default function MarketplaceScreen() {
                   groups={loading || error ? [] : groups}
                   level={level}
                   state={state?.key}
-                  focus={mapFocus}
+                  focus={customFocus || propertyFocus || mapFocus}
                   properties={filteredMapProperties}
                   onSelectGroup={handleSelectGroup}
                   onSelectStateInfo={handleSelectDistrictInfo as any}

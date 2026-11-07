@@ -1,3 +1,4 @@
+import EmailChangeForm from "./EmailChangeForm";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -101,7 +102,7 @@ export default function AccountProfileScreen() {
     }
     setIsSaving(true);
     try {
-      const updatedUser = await userService.updateProfile({ name: editName.trim(), email: editEmail.trim() });
+      const updatedUser = await userService.updateProfile({ name: editName.trim() });
       setUser(updatedUser);
       setIsEditing(false);
     } catch (e: any) {
@@ -345,6 +346,7 @@ export default function AccountProfileScreen() {
                     placeholder={label("Enter your email address", "अपना ईमेल दर्ज करें")}
                   />
                 </View>
+                <EmailChangeForm email={editEmail} />
                 <View style={styles.editBtnRow}>
                   <TouchableOpacity
                     style={styles.cancelBtn}

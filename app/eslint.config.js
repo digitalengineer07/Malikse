@@ -4,7 +4,8 @@ const expoConfig = require('eslint-config-expo/flat');
 
 module.exports = defineConfig([
   expoConfig,
+  { files: ["scripts/**/*.cjs"], languageOptions: { globals: { __dirname: "readonly" } } },
   {
-    ignores: ['dist/**', 'dist-*/**'],
+    ignores: ['dist/**', 'dist-*/**', '.expo/**'],
   },
 ]);

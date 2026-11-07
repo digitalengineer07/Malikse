@@ -1,24 +1,9 @@
-import { Registration } from "../models/Registration.model";
-import { AccountDeletion } from "../models/AccountDeletion.model";
 import "dotenv/config";
 import mongoose from "mongoose";
-import { User } from "../models/User.model";
-import { Property } from "../models/Property.model";
-import { Inquiry } from "../models/Inquiry.model";
-import { Deal } from "../models/Deal.model";
-import { PropertyDocument } from "../models/Document.model";
-import { DocumentDownload } from "../models/DocumentDownload.model";
-import { PushDevice } from "../models/PushDevice.model";
-import { PushReceipt } from "../models/PushReceipt.model";
-
+import { createRequiredIndexes, verifyRequiredIndexes } from "../services/requiredIndexes";
 async function main() {
   await mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/malikse", { autoIndex: false });
-  try {
-    // Additive only: never drop existing indexes automatically during a deployment.
-    for (const model of [AccountDeletion, Registration, User, Property, Inquiry, Deal, PropertyDocument, DocumentDownload, PushDevice, PushReceipt]) {
-      await model.createIndexes();
-      console.log(`Indexes ready: ${model.modelName}`);
-    }
-  } finally { await mongoose.disconnect(); }
+  try { await createRequiredIndexes(); await verifyRequiredIndexes(); console.log("Required indexes verified"); }
+  finally { await mongoose.disconnect(); }
 }
-main().catch(() => { console.error("Index migration failed"); process.exitCode = 1; });
+main().catch(error => { console.error("Index migration failed", error.message); process.exitCode = 1; });

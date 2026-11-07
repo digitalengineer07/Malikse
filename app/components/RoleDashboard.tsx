@@ -1,3 +1,4 @@
+import NotificationFailures from "./NotificationFailures";
 import { AppTheme } from "../constants/theme";
 import { premiumStyles } from "../constants/typography";
 import React from "react";
@@ -37,6 +38,7 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
       <View style={styles.topline}><Text style={styles.eyebrow}>MALIKSE / YOUR WORKSPACE</Text><View style={styles.rolePill}><View style={styles.roleDot} /><Text style={styles.roleText}>{role}</Text></View></View>
       <Text accessibilityRole="header" style={[styles.title, compact && styles.titleCompact]}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
+      {role === "admin" && <NotificationFailures />}
       <View style={[styles.hero, compact && styles.heroCompact]}>
         <Image source={require("../assets/saved_villa_house.jpg")} style={styles.heroBackground} resizeMode="cover" />
         <View style={styles.heroShade} />

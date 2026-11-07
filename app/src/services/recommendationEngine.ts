@@ -368,7 +368,7 @@ export function getPropertyRecommendationBadge(
   const cached = badgeCache.get(cacheKey);
   if (cached) return cached;
 
-  const { isResidential, isCommercial, isInvestment } = classifyProperty(property);
+  const { isCommercial, isInvestment } = classifyProperty(property);
 
   let badge: RecommendationBadge;
 

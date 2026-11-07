@@ -4,6 +4,16 @@ const fs = require("fs");
 const { execSync } = require("child_process");
 
 const app = express();
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
+  res.setHeader("Strict-Transport-Security", "max-age=31536000");
+  res.setHeader("Content-Security-Policy", "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://malikseserver.devoxa.in https://maps.googleapis.com https://maps.gstatic.com https://indianopenmaps.com https://nominatim.openstreetmap.org; worker-src 'self' blob:; frame-src https://www.google.com");
+  next();
+});
 const PORT = process.env.PORT || 8082;
 const distDir = path.join(__dirname, "dist");
 const indexPath = path.join(distDir, "index.html");

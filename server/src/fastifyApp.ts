@@ -88,6 +88,7 @@ export function createFastifyApp(isReady?: () => boolean) {
     });
     await native.register(helmet);
     await native.register(cors, {
+      credentials: true,
       origin: (origin, callback) => callback(null, !origin || origins.includes(origin) || (!production && !origins.length)),
       exposedHeaders: ["X-Request-Id", "X-Search-Cache", "X-Next-Cursor", "RateLimit", "Retry-After"],
       preflight: false, // OPTIONS is handled by the existing Express CORS middleware.
