@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -32,6 +33,7 @@ import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 import WebFooter from "./WebFooter";
+import AppHeader from "./AppHeader";
 const C = {
   bg: "#f3f7ff",
   ink: "#0b1b3f",
@@ -111,6 +113,7 @@ function Field({
   onChangeText,
   numeric = false,
   multiline = false,
+  placeholder,
 }: any) {
   return (
     <View style={{ flex: 1, minWidth: 140, gap: 7 }}>
@@ -125,7 +128,7 @@ function Field({
         onChangeText={onChangeText}
         keyboardType={numeric ? "decimal-pad" : "default"}
         multiline={multiline}
-        placeholder={title}
+        placeholder={placeholder || title}
         placeholderTextColor="#8291ac"
       />
     </View>
@@ -241,114 +244,12 @@ export function MarketplaceShell({
     user = useAuthStore((x) => x.user);
   const isDesktop = width >= 768;
 
-  const navLinks = [
-    ["/home", "home", "Home"],
-    ["/search", "search", "Explore"],
-    ["/messages", "chat-bubble-outline", "Chats"],
-    ["/saved", "favorite-border", "Saved"],
-  ];
-
   return (
     <KeyboardAvoidingView
       style={s.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View
-        style={[s.headerWrapper, { paddingTop: Math.max(insets.top, 14) }]}
-      >
-        <View style={s.header}>
-          <View style={s.row}>
-            {back && (
-              <Pressable
-                accessibilityLabel="Back"
-                onPress={() =>
-                  router.canGoBack() ? router.back() : router.replace("/home")
-                }
-                style={s.backBtn}
-              >
-                <Icon name="arrow-back" size={20} color={C.ink} />
-              </Pressable>
-            )}
-            <Pressable
-              onPress={() => router.push("/home")}
-              style={s.brandLockup}
-            >
-              <View style={s.logoIcon}>
-                <Icon name="roofing" color="white" size={19} />
-              </View>
-              <View style={s.brandTextCol}>
-                <Text style={s.logo}>
-                  MalikSe<Text style={{ color: "#10b981" }}>.</Text>
-                </Text>
-                {width >= 640 && (
-                  <Text style={s.brandTagline} numberOfLines={1}>
-                    Verified spaces · Trusted connections
-                  </Text>
-                )}
-              </View>
-            </Pressable>
-          </View>
-
-          {isDesktop && (
-            <View style={s.topNavRow}>
-              {navLinks.map(([url, icon, label]) => {
-                const isActive =
-                  path === url ||
-                  (url === "/home" && (path === "/" || path === "/home"));
-                return (
-                  <Pressable
-                    key={url}
-                    accessibilityRole="button"
-                    onPress={() => router.push(url as any)}
-                    style={[s.topNavItem, isActive && s.topNavItemActive]}
-                  >
-                    <Text
-                      style={[
-                        s.topNavText,
-                        isActive && s.topNavTextActive,
-                      ]}
-                    >
-                      {label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-
-          <View style={[s.row, { gap: 12 }]}>
-            {isDesktop && (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Post Property"
-                onPress={() => router.push("/post")}
-                style={s.topPostBtn}
-              >
-                <Icon name="add" size={16} color="white" />
-                <Text style={s.topPostBtnText}>Post Property</Text>
-              </Pressable>
-            )}
-
-            <Pressable
-              accessibilityLabel="Profile"
-              onPress={() => router.push(user ? "/profile" : "/login")}
-              style={isDesktop ? s.topProfileBtn : s.avatar}
-            >
-              <View style={s.avatarSmall}>
-                <Text style={s.avatarSmallText}>{user?.name?.[0] || "M"}</Text>
-              </View>
-              {isDesktop && (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                  <Text style={s.topProfileName} numberOfLines={1}>
-                    {user?.name?.split(" ")[0] || "Account"}
-                  </Text>
-                  <Icon name="keyboard-arrow-down" size={16} color="#64748b" />
-                </View>
-              )}
-            </Pressable>
-          </View>
-        </View>
-      </View>
+      <AppHeader showBack={back} />
 
       <ScrollView
         style={{ flex: 1 }}
@@ -1148,6 +1049,32 @@ export function KycScreen() {
           )}
         </View>
         <ErrorBox text={feed.error || action.error} />
+        {!approved(user) && (
+          <View style={[s.panel, { backgroundColor: "#F0F7FF", borderColor: "#C6DBFC" }]}>
+            <View style={s.row}>
+              <Icon name="bolt" size={28} color={C.blue} />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.h2, { fontSize: 16 }]}>Quick Demo Verification</Text>
+                <Text style={s.muted}>
+                  In demo mode, you can instantly verify your seller account without waiting for manual document review.
+                </Text>
+              </View>
+            </View>
+            <Button
+              title="Activate Instant Demo Verification"
+              icon="verified"
+              onPress={() =>
+                action.run(async () => {
+                  await authService.completeDemoKyc();
+                  await feed.refresh();
+                  if (params.returnTo) {
+                    router.replace(params.returnTo as any);
+                  }
+                })
+              }
+            />
+          </View>
+        )}
         {!feed.data?.isVerifiedIdentity &&
           feed.data?.kycStatus !== "pending" && (
             <View style={s.panel}>
@@ -1199,7 +1126,7 @@ export function KycScreen() {
               />
             </View>
           )}
-        {feed.data?.isVerifiedIdentity && (
+        {(feed.data?.isVerifiedIdentity || approved(user)) && (
           <Button
             title="Continue"
             onPress={() => {
@@ -1736,6 +1663,42 @@ export function DealScreen() {
     </MarketplaceShell>
   );
 }
+const BIHAR_DISTRICTS = [
+  { name: "Patna", lat: "25.5941", lng: "85.1376", pincode: "800001" },
+  { name: "Gaya", lat: "24.7914", lng: "85.0002", pincode: "823001" },
+  { name: "Muzaffarpur", lat: "26.1209", lng: "85.3647", pincode: "842001" },
+  { name: "Bhagalpur", lat: "25.2425", lng: "86.9842", pincode: "812001" },
+  { name: "Darbhanga", lat: "26.1542", lng: "85.8918", pincode: "846004" },
+  { name: "Purnia", lat: "25.7771", lng: "87.4753", pincode: "854301" },
+  { name: "Begusarai", lat: "25.4182", lng: "86.1272", pincode: "851101" },
+  { name: "Vaishali", lat: "25.6833", lng: "85.2167", pincode: "844101" },
+];
+
+const SAMPLE_PROPERTY_PHOTO = "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1200";
+
+const defaultPostForm = {
+  title: "",
+  description: "",
+  type: "land",
+  state: "Bihar",
+  district: "Patna",
+  block: "Danapur",
+  pincode: "801503",
+  lat: "25.5941",
+  lng: "85.1376",
+  price: "",
+  totalArea: "",
+  sellableArea: "",
+  boundary: "",
+  roadWidth: "",
+  requestedAdvisorId: "",
+  negotiable: true,
+  hasLoan: false,
+  hasDispute: false,
+  possessionStatus: "Immediate",
+  media: { photos: [], videos: [] },
+};
+
 export function PostScreen() {
   const router = useRouter(),
     params = useLocalSearchParams(),
@@ -1746,32 +1709,10 @@ export function PostScreen() {
     [consent, setConsent] = useState(false),
     [points, setPoints] = useState<LatLngPoint[]>([]),
     [photos, setPhotos] = useState<DocumentPicker.DocumentPickerAsset[]>([]),
-    [documents, setDocuments] = useState<DocumentPicker.DocumentPickerAsset[]>(
-      [],
-    ),
-    [form, setForm] = useState<any>({
-      title: "",
-      description: "",
-      type: "flat",
-      state: "",
-      district: "",
-      block: "",
-      pincode: "",
-      lat: "",
-      lng: "",
-      price: "",
-      totalArea: "",
-      sellableArea: "",
-      boundary: "",
-      roadWidth: "",
-      requestedAdvisorId: "",
-      negotiable: true,
-      hasLoan: false,
-      hasDispute: false,
-      possessionStatus: "With Owner",
-      media: { photos: [], videos: [] },
-    }),
+    [documents, setDocuments] = useState<DocumentPicker.DocumentPickerAsset[]>([]),
+    [form, setForm] = useState<any>(defaultPostForm),
     action = useAction();
+
   const set = (key: string) => (value: any) =>
     setForm((f: any) => ({ ...f, [key]: value }));
 
@@ -1797,17 +1738,19 @@ export function PostScreen() {
           ...p,
           ...p.location,
           ...p.disclosures,
-          price: String(p.price),
-          totalArea: String(p.totalArea),
-          sellableArea: String(p.sellableArea),
-          lat: String(p.location.lat),
-          lng: String(p.location.lng),
+          price: String(p.price || ""),
+          totalArea: String(p.totalArea || ""),
+          sellableArea: String(p.sellableArea || p.totalArea || ""),
+          lat: String(p.location?.lat || "25.5941"),
+          lng: String(p.location?.lng || "85.1376"),
           boundary: p.boundary || "",
           roadWidth: p.roadWidth ? String(p.roadWidth) : "",
           requestedAdvisorId: p.requestedAdvisorId || "",
+          media: p.media || { photos: [], videos: [] },
         });
       });
   }, [params.id, user?.id]);
+
   const pick = async (doc = false) => {
     const result = await DocumentPicker.getDocumentAsync({
       type: doc
@@ -1816,90 +1759,209 @@ export function PostScreen() {
       multiple: true,
       copyToCacheDirectory: true,
     });
-    if (!result.canceled)
-      doc ? setDocuments(result.assets) : setPhotos(result.assets);
+    if (!result.canceled && result.assets) {
+      if (doc) {
+        setDocuments((current) => [...current, ...result.assets]);
+      } else {
+        setPhotos((current) => [...current, ...result.assets]);
+      }
+    }
   };
+
+  const addSamplePhoto = () => {
+    setForm((f: any) => ({
+      ...f,
+      media: {
+        ...f.media,
+        photos: [...(f.media?.photos || []), SAMPLE_PROPERTY_PHOTO],
+      },
+    }));
+  };
+
+  const removePhoto = (index: number, isLocal: boolean) => {
+    if (isLocal) {
+      setPhotos((current) => current.filter((_, i) => i !== index));
+    } else {
+      setForm((f: any) => ({
+        ...f,
+        media: {
+          ...f.media,
+          photos: f.media.photos.filter((_: any, i: number) => i !== index),
+        },
+      }));
+    }
+  };
+
+  const removeDocument = (index: number) => {
+    setDocuments((current) => current.filter((_, i) => i !== index));
+  };
+
   const uploadKeys = useRef(new Map<string, string>());
   const uploadKey = (uri: string) => {
     if (!uploadKeys.current.has(uri)) uploadKeys.current.set(uri, randomUUID());
     return uploadKeys.current.get(uri)!;
   };
+
+  const goToNextStep = () => {
+    if (step === 1) {
+      if (!form.title || !form.title.trim()) {
+        action.run(async () => {
+          throw new Error("Please enter a property title before continuing.");
+        });
+        return;
+      }
+    }
+    if (step === 2) {
+      if (!form.district || !form.district.trim()) {
+        action.run(async () => {
+          throw new Error("Please enter or choose a district in Bihar.");
+        });
+        return;
+      }
+      if (!form.lat || !form.lng) {
+        setForm((f: any) => ({ ...f, lat: "25.5941", lng: "85.1376" }));
+      }
+    }
+    if (step === 3) {
+      if (!form.price || Number(form.price) <= 0) {
+        action.run(async () => {
+          throw new Error("Please enter a valid price greater than ₹0.");
+        });
+        return;
+      }
+      if (!form.totalArea || Number(form.totalArea) <= 0) {
+        action.run(async () => {
+          throw new Error("Please enter total area in sq ft.");
+        });
+        return;
+      }
+      if (!form.sellableArea) {
+        setForm((f: any) => ({ ...f, sellableArea: f.totalArea }));
+      } else if (Number(form.sellableArea) > Number(form.totalArea)) {
+        action.run(async () => {
+          throw new Error("Sellable area cannot exceed total area.");
+        });
+        return;
+      }
+    }
+    if (step === 4) {
+      if (!photos.length && (!form.media?.photos || !form.media.photos.length)) {
+        action.run(async () => {
+          throw new Error("Please add at least one property photo before continuing.");
+        });
+        return;
+      }
+    }
+    setStep(step + 1);
+  };
+
   const submit = () =>
     action.run(async () => {
       if (!consent)
-        throw new Error("Accept the declaration before submitting.");
+        throw new Error("Please accept the seller declaration before submitting.");
       if (points.length > 0 && points.length < 3)
         throw new Error("Complete the boundary with at least 3 points, or clear it.");
+      if (!form.title || !form.title.trim())
+        throw new Error("Please enter a property title.");
+      if (!form.district || !form.district.trim())
+        throw new Error("Please select or enter a district in Bihar.");
+      if (!form.lat || !form.lng)
+        throw new Error("Please set property location coordinates.");
+      if (!form.price || Number(form.price) <= 0)
+        throw new Error("Please enter a valid price.");
+      if (!form.totalArea || Number(form.totalArea) <= 0)
+        throw new Error("Please enter total area.");
+      if (!photos.length && (!form.media?.photos || !form.media.photos.length))
+        throw new Error("Please add at least one property photo before submitting.");
+
+      // Ensure demo KYC is completed in non-production if not already verified
+      if (!approved(user)) {
+        try {
+          await authService.completeDemoKyc();
+        } catch {
+          // Continue and let server validate
+        }
+      }
+
       const payload = {
-        title: form.title,
-        description: form.description,
+        title: form.title.trim(),
+        description: form.description ? form.description.trim() : undefined,
         type: form.type,
         location: {
-          state: form.state,
-          district: form.district,
-          block: form.block,
-          pincode: form.pincode,
-          lat: Number(form.lat),
-          lng: Number(form.lng),
+          state: form.state?.trim() || "Bihar",
+          district: form.district?.trim() || "Patna",
+          block: form.block ? form.block.trim() : undefined,
+          pincode: form.pincode ? form.pincode.trim() : undefined,
+          lat: Number(form.lat || 25.5941),
+          lng: Number(form.lng || 85.1376),
         },
         price: Number(form.price),
         totalArea: Number(form.totalArea),
-        sellableArea: Number(form.sellableArea),
-        boundary: form.boundary || undefined,
+        sellableArea: Number(form.sellableArea || form.totalArea),
+        boundary: form.boundary ? form.boundary.trim() : undefined,
         roadWidth: form.roadWidth ? Number(form.roadWidth) : undefined,
         parcelPoints: points.length ? points : undefined,
-        requestedAdvisorId: form.requestedAdvisorId.trim(),
-        negotiable: form.negotiable,
+        requestedAdvisorId: form.requestedAdvisorId ? form.requestedAdvisorId.trim() : undefined,
+        negotiable: Boolean(form.negotiable),
         disclosures: {
-          hasLoan: form.hasLoan,
-          hasDispute: form.hasDispute,
-          possessionStatus: form.possessionStatus,
+          hasLoan: Boolean(form.hasLoan),
+          hasDispute: Boolean(form.hasDispute),
+          possessionStatus: form.possessionStatus || "Immediate",
         },
-        media: form.media,
+        media: form.media || { photos: [], videos: [] },
       };
-      if (!form.lat || !form.lng)
-        throw new Error("Set the property location before submitting.");
+
       let id = draftId;
-      if (id) await api.patch(`/properties/${id}`, payload);
-      else {
-        id = (await api.post("/properties", payload)).data._id;
+      if (id) {
+        await api.patch(`/properties/${id}`, payload);
+      } else {
+        const createRes = await api.post("/properties", payload);
+        id = createRes.data._id;
         setDraftId(id);
       }
+
       for (const asset of photos) {
-        const prepared = await prepareUpload(asset, false),
-          body = new FormData();
+        const prepared = await prepareUpload(asset, false);
+        const body = new FormData();
         body.append("uploadId", uploadKey(asset.uri));
-        if (Platform.OS === "web")
+        if (Platform.OS === "web") {
           body.append("file", prepared.file, prepared.name);
-        else body.append("file", prepared.file as any);
+        } else {
+          body.append("file", prepared.file as any);
+        }
         const result = await api.post(`/properties/${id}/photos`, body, {
           headers: { "Content-Type": "multipart/form-data" },
           timeout: 120000,
         });
         setForm((f: any) => ({
           ...f,
-          media: { ...f.media, photos: [...f.media.photos, result.data.url] },
+          media: { ...f.media, photos: [...(f.media?.photos || []), result.data.url] },
         }));
         setPhotos((current) => current.filter((a) => a.uri !== asset.uri));
       }
+
       for (const asset of documents) {
-        const prepared = await prepareUpload(asset, true),
-          body = new FormData();
+        const prepared = await prepareUpload(asset, true);
+        const body = new FormData();
         body.append("uploadId", uploadKey(asset.uri));
         body.append("propertyId", id);
         body.append("type", "Registry");
-        if (Platform.OS === "web")
+        if (Platform.OS === "web") {
           body.append("file", prepared.file, prepared.name);
-        else body.append("file", prepared.file as any);
+        } else {
+          body.append("file", prepared.file as any);
+        }
         await api.post("/documents", body, {
           headers: { "Content-Type": "multipart/form-data" },
           timeout: 120000,
         });
         setDocuments((current) => current.filter((a) => a.uri !== asset.uri));
       }
+
       await api.post(`/properties/${id}/submit`, { consent: true });
       setDone(true);
     });
+
   return (
     <MarketplaceShell
       title="Post Property"
@@ -1910,299 +1972,627 @@ export function PostScreen() {
       }
       back
     >
-      <Protected kyc>
-        {done ? (
-          <Empty
-            title="Submitted for review"
-            text="Your assigned Advisor or Verifier will review your property. Track updates in My Listings."
-            action={
+      {!user ? (
+        <View style={s.panel}>
+          <View style={{ alignItems: "center", paddingVertical: 24, gap: 16 }}>
+            <View
+              style={{
+                width: 68,
+                height: 68,
+                borderRadius: 34,
+                backgroundColor: "#EBF2FF",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Icon name="add-business" size={34} color={C.blue} />
+            </View>
+            <Text style={[s.h1, { textAlign: "center", fontSize: 26, color: C.ink }]}>
+              List Your Property on MalikSe
+            </Text>
+            <Text
+              style={[
+                s.body,
+                { textAlign: "center", color: C.muted, maxWidth: 540, lineHeight: 22 },
+              ]}
+            >
+              Connect directly with verified buyers across Bihar. Enjoy 0% brokerage, legal deed audit, and on-ground GPS boundary demarcation with your assigned property team.
+            </Text>
+
+            <View style={{ flexDirection: "row", gap: 16, marginVertical: 8, flexWrap: "wrap", justifyContent: "center" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#EBF2FF", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
+                <Icon name="verified" size={16} color={C.blue} />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: C.blue }}>Verified Title Checks</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#ECFDF5", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
+                <Icon name="check-circle" size={16} color={C.green} />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: C.green }}>0% Brokerage</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEF3C7", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
+                <Icon name="place" size={16} color="#B45309" />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#B45309" }}>GPS Demarcated</Text>
+              </View>
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 14,
+                flexWrap: "wrap",
+                justifyContent: "center",
+                marginTop: 12,
+              }}
+            >
               <Button
-                title="View my listings"
-                onPress={() => router.replace("/my-properties")}
+                title="Sign In to Post Property"
+                icon="login"
+                onPress={() =>
+                  router.push({
+                    pathname: "/login",
+                    params: { returnTo: "/post" },
+                  } as any)
+                }
               />
+              <Button
+                title="Create Free Account"
+                secondary
+                icon="person-add"
+                onPress={() =>
+                  router.push({
+                    pathname: "/register",
+                    params: { returnTo: "/post" },
+                  } as any)
+                }
+              />
+            </View>
+          </View>
+        </View>
+      ) : user.role !== "user" ? (
+        <View style={s.panel}>
+          <Text style={s.h2}>Staff Account Notice</Text>
+          <Text style={s.muted}>
+            Property posting is available for User accounts (buyers & sellers). You are currently logged in with a staff account ({user.role}).
+          </Text>
+          <Button
+            title="Go to Staff Dashboard"
+            onPress={() =>
+              router.push((dashboardRoutes[user.role] || "/dashboard") as any)
             }
           />
-        ) : (
-          <>
-            <View style={s.progress}>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <View
-                  key={i}
-                  style={[
-                    s.progressPart,
-                    i <= step && { backgroundColor: C.blue },
-                  ]}
-                />
-              ))}
+        </View>
+      ) : done ? (
+        <View style={s.panel}>
+          <View style={{ alignItems: "center", paddingVertical: 24, gap: 14 }}>
+            <View
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 32,
+                backgroundColor: "#DCFCE7",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Icon name="check" size={36} color="#15803D" />
             </View>
-            <ErrorBox text={action.error} />
-            {step === 1 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>What kind of property are you listing?</Text>
-                <View style={s.wrap}>
-                  {types
-                    .filter(([id]) => id)
-                    .map(([id, title, icon]) => (
-                      <Button
-                        key={id}
-                        title={title}
-                        icon={icon}
-                        secondary={form.type !== id}
-                        onPress={() => set("type")(id)}
-                      />
-                    ))}
+            <Text style={[s.h1, { fontSize: 24, textAlign: "center" }]}>
+              Property Submitted Successfully!
+            </Text>
+            <Text style={[s.muted, { textAlign: "center", maxWidth: 500, lineHeight: 22 }]}>
+              Your listing has been submitted for verification. An assigned Advisor or Verifier will review legal details and coordinate on-ground demarcation.
+            </Text>
+            <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap", justifyContent: "center", marginTop: 12 }}>
+              <Button
+                title="View My Listings"
+                icon="list-alt"
+                onPress={() => router.replace("/my-properties")}
+              />
+              <Button
+                title="Post Another Property"
+                secondary
+                icon="add"
+                onPress={() => {
+                  setDone(false);
+                  setStep(1);
+                  setForm(defaultPostForm);
+                  setPoints([]);
+                  setPhotos([]);
+                  setDocuments([]);
+                  setConsent(false);
+                  setDraftId("");
+                }}
+              />
+            </View>
+          </View>
+        </View>
+      ) : (
+        <>
+          <View style={s.progress}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <View
+                key={i}
+                style={[
+                  s.progressPart,
+                  i <= step && { backgroundColor: C.blue },
+                ]}
+              />
+            ))}
+          </View>
+          <ErrorBox text={action.error} />
+
+          {step === 1 && (
+            <View style={s.panel}>
+              <Text style={s.h2}>What kind of property are you listing?</Text>
+              <View style={s.wrap}>
+                {types
+                  .filter(([id]) => id)
+                  .map(([id, title, icon]) => (
+                    <Button
+                      key={id}
+                      title={title}
+                      icon={icon}
+                      secondary={form.type !== id}
+                      onPress={() => set("type")(id)}
+                    />
+                  ))}
+              </View>
+              <Field
+                title="Property title *"
+                placeholder="e.g. 2,400 sq ft Commercial Plot near Bailey Road"
+                value={form.title}
+                onChangeText={set("title")}
+              />
+              <Field
+                title="Description"
+                placeholder="Provide details about access, boundary, surroundings, road width and documents..."
+                value={form.description}
+                onChangeText={set("description")}
+                multiline
+              />
+            </View>
+          )}
+
+          {step === 2 && (
+            <View style={s.panel}>
+              <Text style={s.h2}>Where is the property located?</Text>
+              
+              <Text style={[s.fieldLabel, { marginTop: 4 }]}>Quick Select Popular Bihar Districts</Text>
+              <View style={[s.wrap, { marginVertical: 4 }]}>
+                {BIHAR_DISTRICTS.map((d) => (
+                  <TouchableOpacity
+                    key={d.name}
+                    onPress={() => {
+                      setForm((f: any) => ({
+                        ...f,
+                        district: d.name,
+                        lat: d.lat,
+                        lng: d.lng,
+                        pincode: f.pincode || d.pincode,
+                      }));
+                    }}
+                    style={[
+                      s.tag,
+                      form.district?.toLowerCase() === d.name.toLowerCase()
+                        ? { backgroundColor: C.blue }
+                        : { backgroundColor: "#EBF2FF" },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        s.tagText,
+                        form.district?.toLowerCase() === d.name.toLowerCase()
+                          ? { color: "#FFFFFF" }
+                          : { color: C.blue },
+                      ]}
+                    >
+                      {d.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={s.row}>
+                <Field
+                  title="State"
+                  value={form.state}
+                  onChangeText={set("state")}
+                />
+                <Field
+                  title="City / District *"
+                  value={form.district}
+                  onChangeText={set("district")}
+                  placeholder="e.g. Patna"
+                />
+              </View>
+
+              <View style={s.row}>
+                <Field
+                  title="Locality / Block"
+                  value={form.block}
+                  onChangeText={set("block")}
+                  placeholder="e.g. Danapur"
+                />
+                <Field
+                  title="Pincode"
+                  value={form.pincode}
+                  onChangeText={set("pincode")}
+                  numeric
+                  placeholder="e.g. 801503"
+                />
+              </View>
+
+              <Button
+                secondary
+                title="Use Current GPS Location"
+                icon="my-location"
+                onPress={() =>
+                  action.run(async () => {
+                    const permission =
+                      await Location.requestForegroundPermissionsAsync();
+                    if (permission.status !== "granted")
+                      throw new Error(
+                        "Location permission denied. Enter coordinates manually.",
+                      );
+                    const location = await Location.getCurrentPositionAsync({
+                      accuracy: Location.Accuracy.High,
+                    });
+                    set("lat")(String(location.coords.latitude));
+                    set("lng")(String(location.coords.longitude));
+                  })
+                }
+              />
+
+              <View style={s.row}>
+                <Field
+                  title="Latitude *"
+                  value={form.lat}
+                  onChangeText={set("lat")}
+                  numeric
+                />
+                <Field
+                  title="Longitude *"
+                  value={form.lng}
+                  onChangeText={set("lng")}
+                  numeric
+                />
+              </View>
+
+              <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.line }}>
+                <Text style={s.h2}>Demarcate Property Boundary (Optional)</Text>
+                <Text style={s.muted}>
+                  Draw the boundary outline on the satellite map. Tap points around the plot corners to mark the perimeter.
+                </Text>
+                <View
+                  style={{
+                    minHeight: Platform.OS === "web" ? 480 : 420,
+                    borderRadius: 16,
+                    overflow: "hidden",
+                    marginVertical: 12,
+                    borderWidth: 1,
+                    borderColor: C.line,
+                  }}
+                >
+                  <MapParcelPicker
+                    initialPoints={points}
+                    onParcelChange={onParcelChange}
+                    areaSqFt={form.totalArea || "2,400"}
+                  />
                 </View>
                 <Field
-                  title="Property title"
-                  value={form.title}
-                  onChangeText={set("title")}
-                />
-                <Field
-                  title="Description"
-                  value={form.description}
-                  onChangeText={set("description")}
+                  title="Boundary description (North / South / East / West)"
+                  placeholder="e.g. North: 30ft Road, South: Plot 42, East: Boundary wall, West: Green belt"
+                  value={form.boundary}
+                  onChangeText={set("boundary")}
                   multiline
                 />
-              </View>
-            )}
-            {step === 2 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Where is the property located?</Text>
-                {[
-                  ["state", "State"],
-                  ["district", "City / district"],
-                  ["block", "Locality"],
-                  ["pincode", "Pincode"],
-                ].map(([key, title]) => (
-                  <Field
-                    key={key}
-                    title={title}
-                    value={form[key]}
-                    onChangeText={set(key)}
-                  />
-                ))}
-                <Button
-                  secondary
-                  title="Use current location"
-                  icon="my-location"
-                  onPress={() =>
-                    action.run(async () => {
-                      const permission =
-                        await Location.requestForegroundPermissionsAsync();
-                      if (permission.status !== "granted")
-                        throw new Error(
-                          "Location permission denied. Enter coordinates manually.",
-                        );
-                      const location = await Location.getCurrentPositionAsync({
-                        accuracy: Location.Accuracy.High,
-                      });
-                      set("lat")(String(location.coords.latitude));
-                      set("lng")(String(location.coords.longitude));
-                    })
-                  }
-                />
-                <View style={s.row}>
-                  <Field
-                    title="Latitude"
-                    value={form.lat}
-                    onChangeText={set("lat")}
-                    numeric
-                  />
-                  <Field
-                    title="Longitude"
-                    value={form.lng}
-                    onChangeText={set("lng")}
-                    numeric
-                  />
-                </View>
-                <Text style={s.small}>
-                  Enter the property's coordinates if you are not currently at
-                  the site.
-                </Text>
-
-                <View style={{ marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.line }}>
-                  <Text style={s.h2}>Demarcate Property Boundary</Text>
-                  <Text style={s.muted}>
-                    Draw the boundary outline on the satellite map. Tap points around the plot corners to mark the perimeter.
-                  </Text>
-                  <View
-                    style={{
-                      minHeight: Platform.OS === "web" ? 520 : 440,
-                      borderRadius: 16,
-                      overflow: "hidden",
-                      marginVertical: 12,
-                      borderWidth: 1,
-                      borderColor: C.line,
-                    }}
-                  >
-                    <MapParcelPicker
-                      initialPoints={points}
-                      onParcelChange={onParcelChange}
-                      areaSqFt={form.totalArea || "2,400"}
-                    />
-                  </View>
-                  <Field
-                    title="Boundary description (North / South / East / West)"
-                    value={form.boundary}
-                    onChangeText={set("boundary")}
-                    multiline
-                  />
-                  <Field
-                    title="Road width in front of plot (feet)"
-                    value={form.roadWidth}
-                    onChangeText={set("roadWidth")}
-                    numeric
-                  />
-                </View>
-              </View>
-            )}
-            {step === 3 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Set your price & area</Text>
-                {[
-                  ["price", "Expected price (₹)"],
-                  ["totalArea", "Total area (sq ft)"],
-                  ["sellableArea", "Sellable area (sq ft)"],
-                ].map(([key, title]) => (
-                  <Field
-                    numeric
-                    key={key}
-                    title={title}
-                    value={form[key]}
-                    onChangeText={set(key)}
-                  />
-                ))}
-                {[
-                  ["negotiable", "Price is negotiable"],
-                  ["hasLoan", "Property has an existing loan"],
-                  ["hasDispute", "Property has a dispute"],
-                ].map(([key, title]) => (
-                  <Pressable
-                    key={key}
-                    style={s.row}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: form[key] }}
-                    onPress={() => set(key)(!form[key])}
-                  >
-                    <Icon
-                      name={form[key] ? "check-box" : "check-box-outline-blank"}
-                    />
-                    <Text style={s.body}>{title}</Text>
-                  </Pressable>
-                ))}
                 <Field
-                  title="Possession status"
-                  value={form.possessionStatus}
-                  onChangeText={set("possessionStatus")}
+                  title="Road width in front of plot (feet)"
+                  placeholder="e.g. 30"
+                  value={form.roadWidth}
+                  onChangeText={set("roadWidth")}
+                  numeric
                 />
               </View>
-            )}
-            {step === 4 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Photos & ownership documents</Text>
-                <Text style={s.muted}>
-                  At least one property photo is required. Ownership documents
-                  remain private.
+            </View>
+          )}
+
+          {step === 3 && (
+            <View style={s.panel}>
+              <Text style={s.h2}>Set your price & area</Text>
+              
+              <Field
+                numeric
+                title="Expected price (₹) *"
+                placeholder="e.g. 4500000"
+                value={form.price}
+                onChangeText={set("price")}
+              />
+              {Number(form.price) > 0 && (
+                <Text style={[s.small, { color: C.blue, fontWeight: "700", marginTop: -8 }]}>
+                  Formatted Price: {money(Number(form.price))}
                 </Text>
+              )}
+
+              <View style={s.row}>
+                <Field
+                  numeric
+                  title="Total area (sq ft) *"
+                  placeholder="e.g. 1800"
+                  value={form.totalArea}
+                  onChangeText={(v: string) => {
+                    setForm((f: any) => ({
+                      ...f,
+                      totalArea: v,
+                      sellableArea: (!f.sellableArea || f.sellableArea === f.totalArea) ? v : f.sellableArea,
+                    }));
+                  }}
+                />
+                <Field
+                  numeric
+                  title="Sellable area (sq ft)"
+                  placeholder="e.g. 1800"
+                  value={form.sellableArea}
+                  onChangeText={set("sellableArea")}
+                />
+              </View>
+
+              {[
+                ["negotiable", "Price is negotiable"],
+                ["hasLoan", "Property has an existing loan"],
+                ["hasDispute", "Property has a dispute"],
+              ].map(([key, title]) => (
+                <Pressable
+                  key={key}
+                  style={s.row}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: form[key] }}
+                  onPress={() => set(key)(!form[key])}
+                >
+                  <Icon
+                    name={form[key] ? "check-box" : "check-box-outline-blank"}
+                  />
+                  <Text style={s.body}>{title}</Text>
+                </Pressable>
+              ))}
+
+              <Text style={[s.fieldLabel, { marginTop: 8 }]}>Possession Status</Text>
+              <View style={s.wrap}>
+                {["Immediate", "Within 3 Months", "Under Construction", "With Owner"].map((pos) => (
+                  <Button
+                    key={pos}
+                    title={pos}
+                    secondary={form.possessionStatus !== pos}
+                    onPress={() => set("possessionStatus")(pos)}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+
+          {step === 4 && (
+            <View style={s.panel}>
+              <Text style={s.h2}>Photos & ownership documents</Text>
+              <Text style={s.muted}>
+                At least one property photo is required. Ownership documents remain confidential and private.
+              </Text>
+
+              <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
                 <Button
                   secondary
                   title="Add property photos"
                   icon="add-a-photo"
                   onPress={() => action.run(() => pick())}
                 />
-                <View style={s.wrap}>
-                  {[...form.media.photos, ...photos.map((p) => p.uri)].map(
-                    (uri: string) => (
-                      <Image
-                        key={uri}
-                        source={{ uri }}
-                        style={{ width: 120, height: 90, borderRadius: 12 }}
-                      />
-                    ),
-                  )}
-                </View>
                 <Button
                   secondary
-                  title="Add ownership documents (optional)"
+                  title="Add Demo Sample Photo"
+                  icon="image"
+                  onPress={addSamplePhoto}
+                />
+              </View>
+
+              <View style={s.wrap}>
+                {form.media?.photos?.map((uri: string, index: number) => (
+                  <View key={uri + index} style={{ position: "relative" }}>
+                    <Image
+                      source={{ uri }}
+                      style={{ width: 130, height: 95, borderRadius: 12, backgroundColor: "#E2E8F0" }}
+                    />
+                    <TouchableOpacity
+                      onPress={() => removePhoto(index, false)}
+                      style={{
+                        position: "absolute",
+                        top: -6,
+                        right: -6,
+                        width: 24,
+                        height: 24,
+                        borderRadius: 12,
+                        backgroundColor: "#EF4444",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <MaterialIcons name="close" size={14} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {photos.map((p, index) => (
+                  <View key={p.uri + index} style={{ position: "relative" }}>
+                    <Image
+                      source={{ uri: p.uri }}
+                      style={{ width: 130, height: 95, borderRadius: 12, backgroundColor: "#E2E8F0" }}
+                    />
+                    <TouchableOpacity
+                      onPress={() => removePhoto(index, true)}
+                      style={{
+                        position: "absolute",
+                        top: -6,
+                        right: -6,
+                        width: 24,
+                        height: 24,
+                        borderRadius: 12,
+                        backgroundColor: "#EF4444",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <MaterialIcons name="close" size={14} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+
+              <View style={{ marginTop: 12, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.line }}>
+                <Text style={s.h2}>Ownership documents (optional)</Text>
+                <Button
+                  secondary
+                  title="Add ownership documents (PDF, JPG)"
                   icon="upload-file"
                   onPress={() => action.run(() => pick(true))}
                 />
-                {documents.map((d) => (
-                  <Text key={d.uri} style={s.small}>
-                    {d.name}
-                  </Text>
+                {documents.map((d, index) => (
+                  <View key={d.uri + index} style={[s.row, { justifyContent: "space-between", backgroundColor: "#F8FAFC", padding: 10, borderRadius: 8, marginVertical: 4 }]}>
+                    <Text style={[s.small, { flex: 1 }]} numberOfLines={1}>
+                      📄 {d.name}
+                    </Text>
+                    <TouchableOpacity onPress={() => removeDocument(index)}>
+                      <MaterialIcons name="delete" size={18} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
                 ))}
               </View>
-            )}
-            {step === 5 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Assign your property team</Text>
-                <Field
-                  title="Advisor ID (optional)"
-                  value={form.requestedAdvisorId}
-                  onChangeText={set("requestedAdvisorId")}
-                />
-                <Text style={s.muted}>
-                  Enter the ID provided by your Advisor. Leave it blank to
-                  assign an eligible Verifier. This person handles verification,
-                  offers, chats and closure.
-                </Text>
+            </View>
+          )}
+
+          {step === 5 && (
+            <View style={s.panel}>
+              <Text style={s.h2}>Assign your property team</Text>
+              <Field
+                title="Advisor ID (optional)"
+                placeholder="Leave blank for automatic assignment"
+                value={form.requestedAdvisorId}
+                onChangeText={set("requestedAdvisorId")}
+              />
+              <Text style={s.muted}>
+                Enter the Advisor ID if an Advisor assisted you. Leave it blank to automatically assign the next available verified staff.
+              </Text>
+
+              <View style={[s.panel, { backgroundColor: "#F8FAFC", gap: 8, marginVertical: 8 }]}>
                 <Text style={s.cardTitle}>{form.title || `${form.type} in ${form.district || ""}`}</Text>
                 <Text style={s.price}>{money(Number(form.price))}</Text>
+                <Text style={s.body}>
+                  📍 {form.block ? `${form.block}, ` : ""}{form.district}, {form.state} {form.pincode}
+                </Text>
+                <Text style={s.small}>
+                  📐 Total Area: {form.totalArea} sq ft · Sellable: {form.sellableArea || form.totalArea} sq ft · Type: {form.type}
+                </Text>
                 {points.length >= 3 && (
-                  <Text style={[s.small, { color: C.green, fontWeight: "600", marginTop: 4 }]}>
-                    ✓ Boundary demarcated with {points.length} map points
+                  <Text style={[s.small, { color: C.green, fontWeight: "600" }]}>
+                    ✓ Boundary demarcated with {points.length} GPS points
                   </Text>
                 )}
                 {!!form.boundary && (
-                  <Text style={[s.small, { color: C.muted, marginTop: 2 }]}>
-                    Boundary: {form.boundary}
+                  <Text style={[s.small, { color: C.muted }]}>
+                    Boundary description: {form.boundary}
                   </Text>
                 )}
-                <Pressable
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: consent }}
-                  style={s.row}
-                  onPress={() => setConsent(!consent)}
-                >
-                  <Icon
-                    name={consent ? "check-box" : "check-box-outline-blank"}
-                  />
-                  <Text style={[s.body, { flex: 1 }]}>
-                    I am authorized to list this property and confirm that its
-                    details and disclosures are accurate.
-                  </Text>
-                </Pressable>
+                <Text style={[s.small, { color: C.muted }]}>
+                  📷 {photos.length + (form.media?.photos?.length || 0)} photo(s) attached
+                </Text>
               </View>
-            )}
-            <View style={s.between}>
-              <Button
-                title="Back"
-                secondary
-                disabled={step === 1 || action.busy}
-                onPress={() => setStep(step - 1)}
-              />
-              <Button
-                title={
-                  action.busy
-                    ? "Submitting…"
-                    : step === 5
-                      ? "Submit for verification"
-                      : "Continue →"
-                }
-                disabled={action.busy || (step === 5 && !consent)}
-                onPress={() => (step === 5 ? submit() : setStep(step + 1))}
-              />
+
+              <View
+                style={{
+                  backgroundColor: approved(user) ? "#ECFDF5" : "#EFF6FF",
+                  borderColor: approved(user) ? "#A7F3D0" : "#BFDBFE",
+                  borderWidth: 1,
+                  borderRadius: 14,
+                  padding: 14,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <Icon
+                  name={approved(user) ? "verified" : "info"}
+                  size={28}
+                  color={approved(user) ? "#059669" : C.blue}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontWeight: "700", color: approved(user) ? "#065F46" : "#1E40AF" }}>
+                    {approved(user)
+                      ? "Identity Verified Seller"
+                      : "Demo Mode: Verification Auto-Completes on Submit"}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: approved(user) ? "#047857" : "#3B82F6", marginTop: 2 }}>
+                    {approved(user)
+                      ? "Your account has full verified seller listing privileges."
+                      : "You can click Submit directly, or verify beforehand."}
+                  </Text>
+                </View>
+                {!approved(user) && (
+                  <TouchableOpacity
+                    onPress={() =>
+                      action.run(async () => {
+                        await authService.completeDemoKyc();
+                      })
+                    }
+                    style={{
+                      backgroundColor: C.blue,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 8,
+                    }}
+                  >
+                    <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>
+                      Verify Now
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: consent }}
+                style={[s.row, { marginTop: 8 }]}
+                onPress={() => setConsent(!consent)}
+              >
+                <Icon
+                  name={consent ? "check-box" : "check-box-outline-blank"}
+                />
+                <Text style={[s.body, { flex: 1 }]}>
+                  I am authorized to list this property and confirm that all its details, disclosures, and title representations are accurate.
+                </Text>
+              </Pressable>
             </View>
-            {!!draftId && (
-              <Text style={s.small}>
-                Draft saved: {draftId}. Uploads are retained if submission needs
-                to be retried.
-              </Text>
-            )}
-          </>
-        )}
-      </Protected>
+          )}
+
+          <View style={s.between}>
+            <Button
+              title="Back"
+              secondary
+              disabled={step === 1 || action.busy}
+              onPress={() => setStep(step - 1)}
+            />
+            <Button
+              title={
+                action.busy
+                  ? "Submitting…"
+                  : step === 5
+                    ? "Submit for verification"
+                    : "Continue →"
+              }
+              disabled={action.busy || (step === 5 && !consent)}
+              onPress={() => (step === 5 ? submit() : goToNextStep())}
+            />
+          </View>
+          {!!draftId && (
+            <Text style={s.small}>
+              Draft saved: {draftId}. Uploads are retained if submission needs to be retried.
+            </Text>
+          )}
+        </>
+      )}
     </MarketplaceShell>
   );
 }

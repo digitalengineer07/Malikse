@@ -585,7 +585,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   if (!hydrated) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#03456C" />
+        <ActivityIndicator size="large" color="#0A45B5" />
       </View>
     );
   }
@@ -959,7 +959,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                         <View style={styles.leftTrustFooter}>
                           <View style={styles.socialProofRow}>
                             <View style={styles.avatarStack}>
-                              <View style={[styles.avatarBubble, { backgroundColor: "#0284C7" }]}>
+                              <View style={[styles.avatarBubble, { backgroundColor: "#0A45B5" }]}>
                                 <Text style={styles.avatarBubbleText}>P</Text>
                               </View>
                               <View style={[styles.avatarBubble, { backgroundColor: "#059669", marginLeft: -8 }]}>
@@ -995,13 +995,13 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                         onPress={() => handleTabSwitch("login")}
                         activeOpacity={0.75}
                       >
-                        <MaterialIcons name="arrow-back" size={16} color="#03456C" />
+                        <MaterialIcons name="arrow-back" size={16} color="#0A45B5" />
                         <Text style={styles.backToSignInBtnText}>
                           {label("Back to Sign In", "साइन इन पर वापस जाएं")}
                         </Text>
                       </TouchableOpacity>
                       <View style={styles.forgotBadge}>
-                        <MaterialIcons name="lock-reset" size={14} color="#0284C7" />
+                        <MaterialIcons name="lock-reset" size={14} color="#0A45B5" />
                         <Text style={styles.forgotBadgeText}>
                           {label("Password Recovery", "पासवर्ड रिकवरी")}
                         </Text>
@@ -1118,7 +1118,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <MaterialIcons
                                 name="phone-iphone"
                                 size={14}
-                                color={forgotMethod === "mobile" ? "#03456C" : "#64748B"}
+                                color={forgotMethod === "mobile" ? "#0A45B5" : "#64748B"}
                               />
                               <Text style={[styles.methodPillText, forgotMethod === "mobile" && styles.methodPillTextActive]}>
                                 {label("Mobile Number", "मोबाइल नंबर")}
@@ -1136,7 +1136,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <MaterialIcons
                                 name="mail-outline"
                                 size={14}
-                                color={forgotMethod === "email" ? "#03456C" : "#64748B"}
+                                color={forgotMethod === "email" ? "#0A45B5" : "#64748B"}
                               />
                               <Text style={[styles.methodPillText, forgotMethod === "email" && styles.methodPillTextActive]}>
                                 {label("Email Address", "ईमेल पता")}
@@ -1340,7 +1340,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             disabled={loading}
                             activeOpacity={0.75}
                           >
-                            <MaterialIcons name="arrow-back" size={14} color="#03456C" />
+                            <MaterialIcons name="arrow-back" size={14} color="#0A45B5" />
                             <Text style={styles.changeDetailsText}>
                               {label("Change mobile number or email", "मोबाइल नंबर या ईमेल बदलें")}
                             </Text>
@@ -1410,7 +1410,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           disabled={loading}
                           activeOpacity={0.75}
                         >
-                          <MaterialIcons name="arrow-back" size={14} color="#03456C" />
+                          <MaterialIcons name="arrow-back" size={14} color="#0A45B5" />
                           <Text style={styles.changeDetailsText}>
                             {registerMethod === "email"
                               ? label("Change email address or details", "ईमेल पता या विवरण बदलें")
@@ -1434,7 +1434,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <MaterialIcons
                                 name="phone-iphone"
                                 size={14}
-                                color={registerMethod === "mobile" ? "#03456C" : "#64748B"}
+                                color={registerMethod === "mobile" ? "#0A45B5" : "#64748B"}
                               />
                               <Text style={[styles.methodPillText, registerMethod === "mobile" && styles.methodPillTextActive]}>
                                 {label("Mobile Number", "मोबाइल नंबर")}
@@ -1452,7 +1452,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <MaterialIcons
                                 name="mail-outline"
                                 size={14}
-                                color={registerMethod === "email" ? "#03456C" : "#64748B"}
+                                color={registerMethod === "email" ? "#0A45B5" : "#64748B"}
                               />
                               <Text style={[styles.methodPillText, registerMethod === "email" && styles.methodPillTextActive]}>
                                 {label("Email Address", "ईमेल पता")}
@@ -1475,7 +1475,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <MaterialIcons
                                 name="phone-iphone"
                                 size={14}
-                                color={loginMethod === "mobile" ? "#03456C" : "#64748B"}
+                                color={loginMethod === "mobile" ? "#0A45B5" : "#64748B"}
                               />
                               <Text style={[styles.methodPillText, loginMethod === "mobile" && styles.methodPillTextActive]}>
                                 {label("Mobile Number", "मोबाइल नंबर")}
@@ -1493,7 +1493,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <MaterialIcons
                                 name="mail-outline"
                                 size={14}
-                                color={loginMethod === "email" ? "#03456C" : "#64748B"}
+                                color={loginMethod === "email" ? "#0A45B5" : "#64748B"}
                               />
                               <Text style={[styles.methodPillText, loginMethod === "email" && styles.methodPillTextActive]}>
                                 {label("Email Address", "ईमेल पता")}
@@ -1770,7 +1770,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
             <View style={styles.authTrustBar}>
               <View style={styles.authTrustItem}>
                 <View style={[styles.authTrustIconWrap, { backgroundColor: "#E0F2FE" }]}>
-                  <MaterialIcons name="gavel" size={18} color="#0284C7" />
+                  <MaterialIcons name="gavel" size={18} color="#0A45B5" />
                 </View>
                 <View style={styles.authTrustTextBox}>
                   <Text style={styles.authTrustTitle}>
@@ -1827,7 +1827,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "transparent",
+    backgroundColor: "#F3F7FF",
   },
   loadingContainer: {
     flex: 1,
@@ -2249,7 +2249,7 @@ const styles = StyleSheet.create({
     color: "#64748B",
   },
   tabButtonTextActive: {
-    color: "#03456C",
+    color: "#0A45B5",
     fontWeight: "700",
   },
 
@@ -2272,7 +2272,7 @@ const styles = StyleSheet.create({
   backToSignInBtnText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#03456C",
+    color: "#0A45B5",
   },
   forgotBadge: {
     flexDirection: "row",
@@ -2288,7 +2288,7 @@ const styles = StyleSheet.create({
   forgotBadgeText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#0284C7",
+    color: "#0A45B5",
   },
 
   /* Form Header */
@@ -2368,7 +2368,7 @@ const styles = StyleSheet.create({
   forgotLink: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#0284C7",
+    color: "#0A45B5",
   },
   inputWrap: {
     flexDirection: "row",
@@ -2449,7 +2449,7 @@ const styles = StyleSheet.create({
     color: "#64748B",
   },
   methodPillTextActive: {
-    color: "#03456C",
+    color: "#0A45B5",
     fontWeight: "700",
   },
 
@@ -2493,7 +2493,7 @@ const styles = StyleSheet.create({
   resendLink: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#0284C7",
+    color: "#0A45B5",
   },
   resendLinkDisabled: {
     color: "#94A3B8",
@@ -2509,7 +2509,7 @@ const styles = StyleSheet.create({
   changeDetailsText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#03456C",
+    color: "#0A45B5",
     textDecorationLine: "underline",
   },
 
@@ -2519,15 +2519,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#03456C",
+    backgroundColor: "#0A45B5",
     borderRadius: 12,
     paddingVertical: 14,
     marginTop: 4,
     marginBottom: 16,
     ...Platform.select({
       web: {
-        backgroundImage: "linear-gradient(135deg, #03456C 0%, #0284C7 100%)",
-        boxShadow: "0 6px 20px -2px rgba(2, 132, 199, 0.38)",
+        backgroundImage: "linear-gradient(135deg, #0A45B5 0%, #0284C7 100%)",
+        boxShadow: "0 6px 20px -2px rgba(10, 69, 181, 0.28)",
         cursor: "pointer",
       },
       default: {
@@ -2559,7 +2559,7 @@ const styles = StyleSheet.create({
   switchActionText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#0284C7",
+    color: "#0A45B5",
   },
 
   /* Security Footnote */

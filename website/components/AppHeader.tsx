@@ -24,13 +24,13 @@ interface AppHeaderProps {
 }
 
 export default function AppHeader(props: AppHeaderProps) {
-  const { language, toggleLanguage } = useLanguageStore();
+  const { language } = useLanguageStore();
   const { authState, user } = useAuthStore();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 880;
+  const isDesktop = width >= 768;
   const showNavLinks = props.showNavLinks ?? isDesktop;
   const showPostProperty = props.showPostPropertyBtn ?? (width >= 640);
 
@@ -38,8 +38,8 @@ export default function AppHeader(props: AppHeaderProps) {
 
   const isHomeActive = pathname === "/home" || pathname === "/";
   const isSearchActive = pathname === "/search";
-  const isSavedActive = pathname === "/saved";
   const isMessagesActive = pathname === "/messages";
+  const isSavedActive = pathname === "/saved";
   const isMyListingsActive = pathname === "/my-properties" || pathname?.startsWith("/my-properties");
   const isDashboardActive = pathname === "/dashboard" || pathname?.startsWith("/dashboard");
   const isProfileActive = pathname === "/profile";
@@ -53,10 +53,10 @@ export default function AppHeader(props: AppHeaderProps) {
   }, [authState, user?.id, user?.role, checkUserListings]);
 
   return (
-    <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top, 14) }]}>
-      <View style={styles.headerInner}>
+    <View style={[styles.headerWrapper, { paddingTop: Math.max(insets.top, 14) }]}>
+      <View style={styles.header}>
         {/* Left: Back button + MalikSe Brand Lockup */}
-        <View style={styles.leftContainer}>
+        <View style={styles.leftGroup}>
           {showBack && (
             <TouchableOpacity
               accessibilityRole="button"
@@ -95,56 +95,56 @@ export default function AppHeader(props: AppHeaderProps) {
           </TouchableOpacity>
         </View>
 
-        {/* Center: Desktop Website Navigation Links (Curved Segmented Pill) */}
+        {/* Center: Desktop Website Navigation Links (Segmented Pill) */}
         {showNavLinks && (
-          <View style={styles.navLinksRow}>
+          <View style={styles.topNavRow}>
             <TouchableOpacity
-              style={[styles.navLink, isHomeActive && styles.navLinkActive]}
+              style={[styles.topNavItem, isHomeActive && styles.topNavItemActive]}
               onPress={() => router.replace("/home")}
               activeOpacity={0.75}
             >
-              <Text style={[styles.navLinkText, isHomeActive && styles.navLinkTextActive]}>
+              <Text style={[styles.topNavText, isHomeActive && styles.topNavTextActive]}>
                 {language === "hi" ? "होम" : "Home"}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.navLink, isSearchActive && styles.navLinkActive]}
+              style={[styles.topNavItem, isSearchActive && styles.topNavItemActive]}
               onPress={() => router.replace("/search")}
               activeOpacity={0.75}
             >
-              <Text style={[styles.navLinkText, isSearchActive && styles.navLinkTextActive]}>
+              <Text style={[styles.topNavText, isSearchActive && styles.topNavTextActive]}>
                 {language === "hi" ? "एक्सप्लोर" : "Explore"}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.navLink, isMessagesActive && styles.navLinkActive]}
+              style={[styles.topNavItem, isMessagesActive && styles.topNavItemActive]}
               onPress={() => router.push(authState === "AUTHENTICATED" ? "/messages" : "/login")}
               activeOpacity={0.75}
             >
-              <Text style={[styles.navLinkText, isMessagesActive && styles.navLinkTextActive]}>
+              <Text style={[styles.topNavText, isMessagesActive && styles.topNavTextActive]}>
                 {language === "hi" ? "संदेश" : "Chats"}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.navLink, isSavedActive && styles.navLinkActive]}
+              style={[styles.topNavItem, isSavedActive && styles.topNavItemActive]}
               onPress={() => router.push("/saved")}
               activeOpacity={0.75}
             >
-              <Text style={[styles.navLinkText, isSavedActive && styles.navLinkTextActive]}>
+              <Text style={[styles.topNavText, isSavedActive && styles.topNavTextActive]}>
                 {language === "hi" ? "सहेजे गए" : "Saved"}
               </Text>
             </TouchableOpacity>
 
             {authState === "AUTHENTICATED" && user?.role === "user" && hasListings && (
               <TouchableOpacity
-                style={[styles.navLink, isMyListingsActive && styles.navLinkActive]}
+                style={[styles.topNavItem, isMyListingsActive && styles.topNavItemActive]}
                 onPress={() => router.push("/my-properties")}
                 activeOpacity={0.75}
               >
-                <Text style={[styles.navLinkText, isMyListingsActive && styles.navLinkTextActive]}>
+                <Text style={[styles.topNavText, isMyListingsActive && styles.topNavTextActive]}>
                   {language === "hi" ? "मेरी लिस्टिंग" : "My Listings"}
                 </Text>
               </TouchableOpacity>
@@ -152,11 +152,11 @@ export default function AppHeader(props: AppHeaderProps) {
 
             {authState === "AUTHENTICATED" && (
               <TouchableOpacity
-                style={[styles.navLink, isDashboardActive && styles.navLinkActive]}
+                style={[styles.topNavItem, isDashboardActive && styles.topNavItemActive]}
                 onPress={() => router.push(user?.role ? (dashboardRoutes[user.role] as any) : "/dashboard")}
                 activeOpacity={0.75}
               >
-                <Text style={[styles.navLinkText, isDashboardActive && styles.navLinkTextActive]}>
+                <Text style={[styles.topNavText, isDashboardActive && styles.topNavTextActive]}>
                   {language === "hi" ? "डैशबोर्ड" : "Dashboard"}
                 </Text>
               </TouchableOpacity>
@@ -164,23 +164,29 @@ export default function AppHeader(props: AppHeaderProps) {
           </View>
         )}
 
-        {/* Right Element: Post Property Pill, Profile / Sign In Pill, Language Toggle */}
-        <View style={styles.rightContainer}>
+        {/* Right Element: Post Property Pill, Profile / Sign In Pill */}
+        <View style={styles.rightGroup}>
           {showPostProperty && (
             <TouchableOpacity
-              style={styles.postBtn}
-              onPress={() => router.push(authState === "AUTHENTICATED" ? "/listing/create" : "/login")}
+              style={styles.topPostBtn}
+              onPress={() =>
+                router.push(
+                  authState === "AUTHENTICATED"
+                    ? "/post"
+                    : ({ pathname: "/login", params: { returnTo: "/post" } } as any)
+                )
+              }
               activeOpacity={0.85}
             >
               <MaterialIcons name="add" size={16} color="#FFFFFF" />
-              <Text style={styles.postBtnText}>
+              <Text style={styles.topPostBtnText}>
                 {language === "hi" ? "प्रॉपर्टी पोस्ट करें" : "Post Property"}
               </Text>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity
-            style={[styles.profileBtn, isProfileActive && styles.profileBtnActive]}
+            style={[styles.topProfileBtn, isProfileActive && styles.topProfileBtnActive]}
             onPress={() => router.push(authState === "AUTHENTICATED" ? "/profile" : "/login")}
             activeOpacity={0.85}
           >
@@ -191,7 +197,7 @@ export default function AppHeader(props: AppHeaderProps) {
             </View>
             {width >= 560 && (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <Text style={[styles.profileBtnText, isProfileActive && styles.profileBtnTextActive]} numberOfLines={1}>
+                <Text style={[styles.topProfileName, isProfileActive && styles.topProfileNameActive]} numberOfLines={1}>
                   {authState === "AUTHENTICATED"
                     ? (user?.name?.split(" ")[0] || "Account")
                     : (language === "hi" ? "लॉग इन" : "Sign In")}
@@ -205,37 +211,25 @@ export default function AppHeader(props: AppHeaderProps) {
             )}
           </TouchableOpacity>
 
-          {props.rightElement ||
-            (props.showLanguageToggle !== false && (
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel={language === "en" ? "Switch to Hindi" : "Switch to English"}
-                onPress={toggleLanguage}
-                style={styles.langBtn}
-                activeOpacity={0.75}
-              >
-                <MaterialIcons name="translate" size={15} color="#03456C" style={{ marginRight: 4 }} />
-                <Text style={styles.langText}>
-                  {language === "en" ? "हिन्दी" : "English"}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          {props.rightElement}
         </View>
       </View>
     </View>
   );
 }
 
+const font = Platform.OS === "web" ? "Manrope, Inter, system-ui" : "PoppinsRegular";
+
 const styles = StyleSheet.create({
-  headerContainer: {
+  headerWrapper: {
     width: "100%",
-    backgroundColor: "transparent",
     paddingTop: 14,
     paddingHorizontal: 20,
     paddingBottom: 4,
+    backgroundColor: "transparent",
     zIndex: 100,
   },
-  headerInner: {
+  header: {
     width: "100%",
     maxWidth: 1240,
     alignSelf: "center",
@@ -249,10 +243,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 16,
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 20px rgba(11, 27, 63, 0.06)",
+        boxShadow: "0 4px 20px rgba(11, 27, 63, 0.05)",
       },
       default: {
         shadowColor: "#0B1B3F",
@@ -263,17 +257,17 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  leftContainer: {
+  leftGroup: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
   backBtn: {
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 19,
+    borderRadius: 10,
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -281,18 +275,18 @@ const styles = StyleSheet.create({
   brandLockup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
   logoIcon: {
     width: 36,
     height: 36,
-    borderRadius: 10,
-    backgroundColor: "#03456C",
+    borderRadius: 11,
+    backgroundColor: "#0A45B5",
     alignItems: "center",
     justifyContent: "center",
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 10px rgba(3, 69, 108, 0.25)",
+        boxShadow: "0 2px 8px rgba(10, 69, 181, 0.22)",
       },
       default: {
         elevation: 2,
@@ -300,139 +294,128 @@ const styles = StyleSheet.create({
     }),
   },
   brandTextCol: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    justifyContent: "center",
   },
   brandTitle: {
+    fontFamily: font,
     fontSize: 22,
     fontWeight: "800",
-    color: "#03456C",
+    color: "#0B1B3F",
     letterSpacing: -0.5,
+    lineHeight: 25,
   },
   brandTagline: {
-    fontSize: 12,
+    fontFamily: font,
+    fontSize: 10.5,
+    fontWeight: "600",
     color: "#64748B",
-    fontWeight: "500",
-    paddingLeft: 10,
-    borderLeftWidth: 1,
-    borderLeftColor: "#CBD5E1",
+    letterSpacing: 0.1,
+    lineHeight: 14,
   },
-  navLinksRow: {
+  topNavRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 4,
     backgroundColor: "#F8FAFC",
-    borderRadius: 999,
-    padding: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    gap: 2,
+    borderColor: "#F1F5F9",
   },
-  navLink: {
-    paddingHorizontal: 14,
+  topNavItem: {
     paddingVertical: 7,
-    borderRadius: 999,
+    paddingHorizontal: 16,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
   },
-  navLinkActive: {
+  topNavItemActive: {
     backgroundColor: "#FFFFFF",
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 8px rgba(11, 27, 63, 0.08)",
+        boxShadow: "0 1px 4px rgba(0, 0, 0, 0.06)",
       },
       default: {
         elevation: 2,
       },
     }),
   },
-  navLinkText: {
-    fontSize: 13,
+  topNavText: {
+    fontFamily: font,
+    fontSize: 13.5,
     fontWeight: "600",
     color: "#64748B",
   },
-  navLinkTextActive: {
-    color: "#03456C",
+  topNavTextActive: {
+    color: "#0A45B5",
     fontWeight: "700",
   },
-  rightContainer: {
+  rightGroup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
   },
-  postBtn: {
+  topPostBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#03456C",
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 999,
+    backgroundColor: "#0A45B5",
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 20,
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 12px rgba(3, 69, 108, 0.2)",
+        boxShadow: "0 2px 8px rgba(10, 69, 181, 0.22)",
       },
       default: {
         elevation: 3,
       },
     }),
   },
-  postBtnText: {
-    color: "#FFFFFF",
+  topPostBtnText: {
+    fontFamily: font,
     fontSize: 13,
     fontWeight: "700",
+    color: "#FFFFFF",
   },
-  profileBtn: {
+  topProfileBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#F8FAFC",
-    paddingVertical: 5,
-    paddingLeft: 5,
-    paddingRight: 12,
-    borderRadius: 999,
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 4,
+    paddingLeft: 4,
+    paddingRight: 10,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  profileBtnActive: {
-    backgroundColor: "#102B52",
-    borderColor: "#102B52",
+  topProfileBtnActive: {
+    backgroundColor: "#0A45B5",
+    borderColor: "#0A45B5",
   },
   avatarSmall: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#03456C",
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#0A45B5",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarSmallText: {
-    fontSize: 12,
     fontWeight: "800",
     color: "#FFFFFF",
+    fontSize: 13,
   },
-  profileBtnText: {
+  topProfileName: {
+    fontFamily: font,
     fontSize: 13,
     fontWeight: "600",
-    color: "#0B1B3F",
+    color: "#0F172A",
     maxWidth: 90,
   },
-  profileBtnTextActive: {
+  topProfileNameActive: {
     color: "#FFFFFF",
-  },
-  langBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  langText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#475569",
   },
 });

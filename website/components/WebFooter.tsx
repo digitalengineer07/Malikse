@@ -2,11 +2,13 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, Platform } from "react-native";
 import { useRouter } from "@/web/navigation";
 import { MaterialIcons } from "@/web/icons";
+import { useAuthStore } from "../src/store/authStore";
 
 export default function WebFooter() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 800;
+  const authState = useAuthStore((s) => s.authState);
 
   return (
     <View style={styles.footerWrapper}>
@@ -107,7 +109,15 @@ export default function WebFooter() {
             <TouchableOpacity onPress={() => router.push("/search")}>
               <Text style={styles.linkText}>Explore All Listings</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push("/post")}>
+            <TouchableOpacity
+              onPress={() =>
+                router.push(
+                  authState === "AUTHENTICATED"
+                    ? "/post"
+                    : ({ pathname: "/login", params: { returnTo: "/post" } } as any)
+                )
+              }
+            >
               <Text style={styles.linkText}>Post Your Property</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push("/saved")}>
