@@ -1089,6 +1089,154 @@ export function SearchScreen() {
     </MarketplaceShell>
   );
 }
+function SavedPropertyCard({
+  property: p,
+  onRemoved,
+}: {
+  property: any;
+  onRemoved?: () => void;
+}) {
+  const router = useRouter();
+  const action = useAction();
+  const [removed, setRemoved] = useState(false);
+  const { width } = useWindowDimensions();
+  const isMobile = width < 720;
+
+  const handleToggleWishlist = async () => {
+    action.run(async () => {
+      const result = await userService.toggleWishlist(p._id);
+      if (!result.isWishlisted) {
+        setRemoved(true);
+        if (onRemoved) onRemoved();
+      }
+    });
+  };
+
+  if (removed) return null;
+
+  const photoUrl = p.media?.photos?.[0];
+  const formattedPrice = money(p.price);
+  const district = p.location?.district || "Bihar";
+  const state = p.location?.state || "Bihar";
+  const area = p.totalArea || p.sellableArea;
+  const propType =
+    types.find((t) => t[0] === p.type)?.[1] ||
+    (p.type ? String(p.type).toUpperCase() : "PROPERTY");
+
+  return (
+    <View style={[savedCardStyles.cardContainer, isMobile && { flexDirection: "column" }]}>
+      {/* Left: Thumbnail & Badges */}
+      <Pressable
+        style={[savedCardStyles.thumbnailWrap, isMobile && { width: "100%", height: 180 }]}
+        onPress={() => router.push(`/property/${p._id}` as any)}
+        accessibilityRole="button"
+        accessibilityLabel={`View ${label(p)}`}
+      >
+        {photoUrl ? (
+          <Image
+            source={{ uri: photoUrl }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, savedCardStyles.placeholderWrap]}>
+            <MaterialIcons name="roofing" size={38} color="#94A3B8" />
+            <Text style={savedCardStyles.placeholderText}>Verified Space</Text>
+          </View>
+        )}
+        <View style={savedCardStyles.badgeOverlay}>
+          <View style={savedCardStyles.verifiedBadge}>
+            <MaterialIcons name="verified" size={13} color="#059669" />
+            <Text style={savedCardStyles.verifiedBadgeText}>Verified</Text>
+          </View>
+          <View style={savedCardStyles.typeBadge}>
+            <Text style={savedCardStyles.typeBadgeText}>{propType}</Text>
+          </View>
+        </View>
+      </Pressable>
+
+      {/* Middle & Right: Rich Content & Actions */}
+      <View style={savedCardStyles.contentWrap}>
+        <View style={{ gap: 5 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <Text style={savedCardStyles.priceText}>{formattedPrice}</Text>
+            {/* Heart bookmark button */}
+            <TouchableOpacity
+              onPress={handleToggleWishlist}
+              disabled={action.busy}
+              style={savedCardStyles.savedHeartBtn}
+              accessibilityLabel="Remove from saved"
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="favorite" size={20} color="#E11D48" />
+            </TouchableOpacity>
+          </View>
+
+          <Text
+            style={savedCardStyles.titleText}
+            numberOfLines={isMobile ? 2 : 1}
+            onPress={() => router.push(`/property/${p._id}` as any)}
+          >
+            {label(p)}
+          </Text>
+
+          <View style={savedCardStyles.locationRow}>
+            <MaterialIcons name="location-on" size={15} color="#64748B" />
+            <Text style={savedCardStyles.locationText}>
+              {p.location?.mauza ? `${p.location.mauza}, ` : ""}
+              {district}, {state}
+              {p.location?.pincode ? ` · ${p.location.pincode}` : ""}
+            </Text>
+          </View>
+        </View>
+
+        {/* Feature Specs Chips */}
+        <View style={savedCardStyles.specsRow}>
+          {!!area && (
+            <View style={savedCardStyles.specChip}>
+              <MaterialIcons name="square-foot" size={14} color="#0A45B5" />
+              <Text style={savedCardStyles.specChipText}>{Number(area).toLocaleString("en-IN")} sq ft</Text>
+            </View>
+          )}
+          {p.negotiable && (
+            <View style={[savedCardStyles.specChip, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
+              <MaterialIcons name="handshake" size={14} color="#059669" />
+              <Text style={[savedCardStyles.specChipText, { color: "#059669" }]}>Price Negotiable</Text>
+            </View>
+          )}
+          {p.badges?.siteVisited && (
+            <View style={[savedCardStyles.specChip, { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" }]}>
+              <MaterialIcons name="check" size={14} color="#16A34A" />
+              <Text style={[savedCardStyles.specChipText, { color: "#16A34A" }]}>Ground Surveyed</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Action Row */}
+        <View style={savedCardStyles.actionsRow}>
+          <TouchableOpacity
+            style={savedCardStyles.viewDetailsBtn}
+            onPress={() => router.push(`/property/${p._id}` as any)}
+            activeOpacity={0.85}
+          >
+            <Text style={savedCardStyles.viewDetailsText}>View Full Details</Text>
+            <MaterialIcons name="arrow-forward" size={15} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={savedCardStyles.removeBtn}
+            onPress={handleToggleWishlist}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name="delete-outline" size={16} color="#64748B" />
+            <Text style={savedCardStyles.removeBtnText}>Remove</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export function WishlistScreen() {
   const user = useAuthStore((x) => x.user),
     feed = useData(user ? "/users/wishlist" : null, [user?.id]),
@@ -1099,11 +1247,33 @@ export function WishlistScreen() {
     <MarketplaceShell
       title="Saved Properties"
       subtitle={`${rows.length} available properties bookmarked`}
-      back
     >
       <Protected>
         <View style={s.between}>
-          <Tag>Your wishlist</Tag>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Tag>Your wishlist</Tag>
+            <View
+              style={{
+                backgroundColor: "#EFF6FF",
+                paddingHorizontal: 10,
+                paddingVertical: 3,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "#DBEAFE",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "700",
+                  color: "#0A45B5",
+                  fontFamily: font,
+                }}
+              >
+                {rows.length} Saved
+              </Text>
+            </View>
+          </View>
           <Button
             secondary
             title={sort ? "Newest saved" : "Sort by price"}
@@ -1112,15 +1282,16 @@ export function WishlistScreen() {
           />
         </View>
         <ErrorBox text={feed.error} />
-        {feed.loading && <ActivityIndicator />}
-        {rows.map((p) => (
-          <PropertyCard
-            key={p._id}
-            property={p}
-            initiallySaved
-            onSaved={feed.refresh}
-          />
-        ))}
+        {feed.loading && <ActivityIndicator color={C.blue} style={{ padding: 24 }} />}
+        <View style={{ gap: 16 }}>
+          {rows.map((p) => (
+            <SavedPropertyCard
+              key={p._id}
+              property={p}
+              onRemoved={feed.refresh}
+            />
+          ))}
+        </View>
         {!!feed.nextCursor && (
           <Button
             title="Load more properties"
@@ -1129,7 +1300,7 @@ export function WishlistScreen() {
             onPress={feed.loadMore}
           />
         )}
-        {feed.data?.length === 0 && (
+        {!feed.loading && rows.length === 0 && (
           <Empty
             title="Keep your favourites close"
             text="Tap the heart on a property to save it here. Sold listings are no longer shown."
@@ -5042,6 +5213,195 @@ const profileStyles = StyleSheet.create({
     fontFamily: font,
   },
 });
+
+const savedCardStyles = StyleSheet.create({
+  cardContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    overflow: "hidden",
+    flexDirection: "row",
+    alignItems: "stretch",
+    shadowColor: "#0B1B3F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 16px rgba(11, 27, 63, 0.05)",
+      },
+    }),
+  },
+  thumbnailWrap: {
+    width: 250,
+    minHeight: 170,
+    backgroundColor: "#F1F5F9",
+    position: "relative",
+    overflow: "hidden",
+  },
+  placeholderWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+    gap: 6,
+  },
+  placeholderText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94A3B8",
+    fontFamily: font,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  badgeOverlay: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    right: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 6,
+  },
+  verifiedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  verifiedBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#059669",
+    fontFamily: font,
+  },
+  typeBadge: {
+    backgroundColor: "rgba(11, 27, 63, 0.82)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  typeBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    fontFamily: font,
+  },
+  contentWrap: {
+    flex: 1,
+    padding: 18,
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  priceText: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#0A45B5",
+    letterSpacing: -0.5,
+    fontFamily: font,
+  },
+  savedHeartBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFF1F2",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#FECDD3",
+  },
+  titleText: {
+    fontSize: 16.5,
+    fontWeight: "700",
+    color: "#0B1B3F",
+    letterSpacing: -0.2,
+    fontFamily: font,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  locationText: {
+    fontSize: 13,
+    color: "#64748B",
+    fontWeight: "500",
+    fontFamily: font,
+  },
+  specsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  specChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  specChipText: {
+    fontSize: 11.5,
+    fontWeight: "600",
+    color: "#475569",
+    fontFamily: font,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    paddingTop: 12,
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  viewDetailsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#0A45B5",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  viewDetailsText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    fontFamily: font,
+  },
+  removeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  removeBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+    fontFamily: font,
+  },
+});
+
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   headerWrapper: {
