@@ -817,120 +817,511 @@ export function ProfileScreen() {
   const user = useAuthStore((x) => x.user),
     router = useRouter(),
     action = useAction(),
-    [editing, setEditing] = useState(false),
+    [expandedSection, setExpandedSection] = useState<string | null>(null),
     [name, setName] = useState(user?.name || ""),
-    [email, setEmail] = useState(user?.email || "");
+    [email, setEmail] = useState(user?.email || ""),
+    [saveSuccess, setSaveSuccess] = useState(false),
+    myListings = useData(user ? "/properties/mine" : null, [user?.id]),
+    mySaved = useData(user ? "/users/wishlist" : null, [user?.id]);
+
+  useEffect(() => {
+    if (user) {
+      setName(user.name || "");
+      setEmail(user.email || "");
+    }
+  }, [user?.name, user?.email]);
+
+  const toggleSection = (section: string) => {
+    setSaveSuccess(false);
+    setExpandedSection((prev) => (prev === section ? null : section));
+  };
+
+  const handleSaveProfile = () => {
+    action.run(async () => {
+      await userService.updateProfile({ name, email });
+      await authService.getMe();
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setSaveSuccess(false);
+        setExpandedSection(null);
+      }, 1800);
+    });
+  };
+
+  const isApproved = approved(user);
+
   return (
     <MarketplaceShell title="Your account">
       <Protected>
         {user && (
-          <>
-            <View style={[s.panel, { alignItems: "center", padding: 30 }]}>
-              <View
-                style={[s.avatar, { width: 76, height: 76, borderRadius: 38 }]}
+          <View style={{ gap: 20 }}>
+            {/* Top Profile Header Card */}
+            <View style={profileStyles.profileHeaderCard}>
+              <View style={profileStyles.profileHeaderRow}>
+                <View style={profileStyles.profileUserGroup}>
+                  <View style={profileStyles.avatarCircle}>
+                    <Text style={profileStyles.avatarInitial}>
+                      {(user.name?.[0] || "M").toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={profileStyles.profileInfo}>
+                    <Text style={profileStyles.userName}>{user.name}</Text>
+                    <View style={profileStyles.contactRow}>
+                      <View style={profileStyles.contactItem}>
+                        <MaterialIcons name="phone" size={15} color="#64748B" />
+                        <Text style={profileStyles.contactText}>
+                          {user.mobile ? `+91 ${user.mobile}` : "No mobile"}
+                        </Text>
+                      </View>
+                      {!!user.email && (
+                        <View style={profileStyles.contactItem}>
+                          <MaterialIcons name="email" size={15} color="#64748B" />
+                          <Text style={profileStyles.contactText}>{user.email}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={profileStyles.badgeRow}>
+                      <View style={isApproved ? profileStyles.approvedBadge : profileStyles.pendingBadge}>
+                        <MaterialIcons
+                          name={isApproved ? "verified" : "schedule"}
+                          size={14}
+                          color={isApproved ? "#059669" : "#D97706"}
+                        />
+                        <Text style={isApproved ? profileStyles.approvedBadgeText : profileStyles.pendingBadgeText}>
+                          {isApproved ? "✓ Identity Approved" : "Identity Verification Pending"}
+                        </Text>
+                      </View>
+                      <View style={profileStyles.roleBadge}>
+                        <Text style={profileStyles.roleBadgeText}>
+                          {user.role === "user" ? "Property Owner / Buyer" : String(user.role).toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Right side stats & action */}
+                <View style={profileStyles.statsRow}>
+                  <TouchableOpacity
+                    style={profileStyles.statTile}
+                    onPress={() => toggleSection("my_properties")}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[profileStyles.statTileIconWrap, { backgroundColor: "#EFF6FF" }]}>
+                      <MaterialIcons name="apartment" size={20} color="#0A45B5" />
+                    </View>
+                    <View>
+                      <Text style={profileStyles.statTileVal}>{myListings.data?.length ?? 0}</Text>
+                      <Text style={profileStyles.statTileLabel}>Properties</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={profileStyles.statTile}
+                    onPress={() => router.push("/saved")}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[profileStyles.statTileIconWrap, { backgroundColor: "#FDF2F8" }]}>
+                      <MaterialIcons name="favorite" size={20} color="#DB2777" />
+                    </View>
+                    <View>
+                      <Text style={profileStyles.statTileVal}>{mySaved.data?.length ?? 0}</Text>
+                      <Text style={profileStyles.statTileLabel}>Wishlist</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={profileStyles.editProfileBtn}
+                    onPress={() => toggleSection("personal_info")}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="edit" size={16} color="#0A45B5" />
+                    <Text style={profileStyles.editProfileBtnText}>Edit Profile</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            <Text style={profileStyles.sectionTitle}>Account & preferences</Text>
+
+            {/* 1. Personal Information Option */}
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity
+                style={[
+                  profileStyles.optionCard,
+                  expandedSection === "personal_info" && profileStyles.optionCardActive,
+                ]}
+                onPress={() => toggleSection("personal_info")}
+                activeOpacity={0.8}
               >
-                <Text style={[s.avatarText, { fontSize: 30 }]}>
-                  {user.name[0]}
+                <View style={[profileStyles.optionIconBox, { backgroundColor: "#EFF6FF" }]}>
+                  <MaterialIcons name="manage-accounts" size={22} color="#0A45B5" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={profileStyles.optionTitle}>Personal information</Text>
+                  <Text style={profileStyles.optionSubtitle}>Update your name, email, and contact details</Text>
+                </View>
+                <MaterialIcons
+                  name={expandedSection === "personal_info" ? "keyboard-arrow-up" : "keyboard-arrow-down"}
+                  size={24}
+                  color={expandedSection === "personal_info" ? "#0A45B5" : "#94A3B8"}
+                />
+              </TouchableOpacity>
+
+              {expandedSection === "personal_info" && (
+                <View style={profileStyles.expandableBox}>
+                  <View style={profileStyles.expandableHeader}>
+                    <Text style={profileStyles.expandableTitle}>Update Personal Information</Text>
+                    <TouchableOpacity onPress={() => setExpandedSection(null)}>
+                      <MaterialIcons name="close" size={20} color="#64748B" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {saveSuccess && (
+                    <View style={profileStyles.successBanner}>
+                      <MaterialIcons name="check-circle" size={18} color="#059669" />
+                      <Text style={profileStyles.successBannerText}>Profile updated successfully!</Text>
+                    </View>
+                  )}
+
+                  {action.error ? <ErrorBox text={action.error} /> : null}
+
+                  <View style={profileStyles.formInputWrap}>
+                    <Text style={profileStyles.formInputLabel}>Full Name *</Text>
+                    <TextInput
+                      style={profileStyles.formTextInput}
+                      value={name}
+                      onChangeText={setName}
+                      placeholder="Enter your full name"
+                      placeholderTextColor="#94A3B8"
+                    />
+                  </View>
+
+                  <View style={profileStyles.formInputWrap}>
+                    <Text style={profileStyles.formInputLabel}>Email Address</Text>
+                    <TextInput
+                      style={profileStyles.formTextInput}
+                      value={email}
+                      onChangeText={setEmail}
+                      placeholder="e.g. name@example.com"
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+
+                  <View style={profileStyles.formInputWrap}>
+                    <Text style={profileStyles.formInputLabel}>Registered Mobile Number</Text>
+                    <View style={{ position: "relative", justifyContent: "center" }}>
+                      <TextInput
+                        style={[profileStyles.formTextInput, { backgroundColor: "#F8FAFC", color: "#64748B", paddingRight: 110 }]}
+                        value={user.mobile ? `+91 ${user.mobile}` : ""}
+                        editable={false}
+                      />
+                      <View style={{ position: "absolute", right: 10, flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <MaterialIcons name="verified" size={14} color="#059669" />
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#059669" }}>OTP Verified</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={profileStyles.formActionsRow}>
+                    <TouchableOpacity
+                      style={profileStyles.saveBtn}
+                      onPress={handleSaveProfile}
+                      disabled={action.busy}
+                      activeOpacity={0.8}
+                    >
+                      {action.busy ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <MaterialIcons name="check" size={18} color="#FFFFFF" />
+                      )}
+                      <Text style={profileStyles.saveBtnText}>
+                        {action.busy ? "Saving Changes..." : "Save Changes"}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={profileStyles.cancelBtn}
+                      onPress={() => setExpandedSection(null)}
+                      disabled={action.busy}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={profileStyles.cancelBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* 2. My Posted Properties Option */}
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity
+                style={[
+                  profileStyles.optionCard,
+                  expandedSection === "my_properties" && profileStyles.optionCardActive,
+                ]}
+                onPress={() => toggleSection("my_properties")}
+                activeOpacity={0.8}
+              >
+                <View style={[profileStyles.optionIconBox, { backgroundColor: "#ECFDF5" }]}>
+                  <MaterialIcons name="real-estate-agent" size={22} color="#059669" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={profileStyles.optionTitle}>My posted properties</Text>
+                  <Text style={profileStyles.optionSubtitle}>Manage listings, review status, and track verifications</Text>
+                </View>
+                <View style={profileStyles.countPill}>
+                  <Text style={profileStyles.countPillText}>{myListings.data?.length ?? 0} Listed</Text>
+                </View>
+                <MaterialIcons
+                  name={expandedSection === "my_properties" ? "keyboard-arrow-up" : "keyboard-arrow-down"}
+                  size={24}
+                  color={expandedSection === "my_properties" ? "#0A45B5" : "#94A3B8"}
+                />
+              </TouchableOpacity>
+
+              {expandedSection === "my_properties" && (
+                <View style={profileStyles.expandableBox}>
+                  <View style={profileStyles.expandableHeader}>
+                    <View style={{ gap: 2 }}>
+                      <Text style={profileStyles.expandableTitle}>Your Property Portfolio</Text>
+                      <Text style={{ fontSize: 13, color: "#64748B" }}>
+                        {myListings.data?.length || 0} active listing(s) associated with this account
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={profileStyles.postNewBtn}
+                      onPress={() => router.push("/post")}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialIcons name="add" size={16} color="#FFFFFF" />
+                      <Text style={profileStyles.postNewBtnText}>Post New</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {myListings.loading && (
+                    <View style={{ padding: 20, alignItems: "center" }}>
+                      <ActivityIndicator size="small" color="#0A45B5" />
+                    </View>
+                  )}
+
+                  {!myListings.loading && myListings.data?.length > 0 && (
+                    <View style={{ gap: 12 }}>
+                      {myListings.data.map((p: any) => (
+                        <View key={p._id} style={profileStyles.listingCardRow}>
+                          {p.media?.photos?.[0] ? (
+                            <Image
+                              source={{ uri: p.media.photos[0] }}
+                              style={profileStyles.listingThumbnail}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={[profileStyles.listingThumbnail, { alignItems: "center", justifyContent: "center" }]}>
+                              <MaterialIcons name="home-work" size={28} color="#94A3B8" />
+                            </View>
+                          )}
+                          <View style={{ flex: 1, minWidth: 200, gap: 3 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <Text style={{ fontSize: 15, fontWeight: "700", color: "#0B1B3F" }}>
+                                {label(p)}
+                              </Text>
+                              <View style={[
+                                profileStyles.approvedBadge,
+                                { backgroundColor: p.status === "verified" ? "#ECFDF5" : "#EFF6FF", borderColor: p.status === "verified" ? "#A7F3D0" : "#DBEAFE" }
+                              ]}>
+                                <Text style={{ fontSize: 11, fontWeight: "700", color: p.status === "verified" ? "#059669" : "#0A45B5" }}>
+                                  {p.status?.replaceAll("_", " ")?.toUpperCase()}
+                                </Text>
+                              </View>
+                            </View>
+                            <Text style={{ fontSize: 12, color: "#64748B" }}>
+                              {p.location?.district || "Bihar"} · {p.totalArea || "N/A"} sq ft
+                            </Text>
+                            <Text style={{ fontSize: 14, fontWeight: "800", color: "#0A45B5" }}>
+                              {money(p.price)}
+                            </Text>
+                          </View>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                            {["draft", "correction_required"].includes(p.status) && (
+                              <TouchableOpacity
+                                style={profileStyles.cancelBtn}
+                                onPress={() => router.push({ pathname: "/post", params: { id: p._id } } as any)}
+                              >
+                                <MaterialIcons name="edit" size={14} color="#64748B" />
+                                <Text style={profileStyles.cancelBtnText}>Edit</Text>
+                              </TouchableOpacity>
+                            )}
+                            <TouchableOpacity
+                              style={profileStyles.editProfileBtn}
+                              onPress={() => router.push(`/verification/${p._id}` as any)}
+                            >
+                              <MaterialIcons name="timeline" size={14} color="#0A45B5" />
+                              <Text style={profileStyles.editProfileBtnText}>Track</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {!myListings.loading && (!myListings.data || myListings.data.length === 0) && (
+                    <View style={{ alignItems: "center", padding: 24, gap: 10 }}>
+                      <MaterialIcons name="roofing" size={40} color="#94A3B8" />
+                      <Text style={{ fontSize: 15, fontWeight: "700", color: "#0B1B3F" }}>
+                        No properties listed yet
+                      </Text>
+                      <Text style={{ fontSize: 13, color: "#64748B", textAlign: "center", maxWidth: 360 }}>
+                        List your plot, apartment, or commercial space with surveyor demarcation and Bihar revenue audit.
+                      </Text>
+                      <TouchableOpacity
+                        style={[profileStyles.saveBtn, { marginTop: 6 }]}
+                        onPress={() => router.push("/post")}
+                      >
+                        <MaterialIcons name="add" size={18} color="#FFFFFF" />
+                        <Text style={profileStyles.saveBtnText}>Post Property Now</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* 3. Wishlist Option */}
+            <TouchableOpacity
+              style={profileStyles.optionCard}
+              onPress={() => router.push("/saved")}
+              activeOpacity={0.8}
+            >
+              <View style={[profileStyles.optionIconBox, { backgroundColor: "#FDF2F8" }]}>
+                <MaterialIcons name="favorite-border" size={22} color="#DB2777" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={profileStyles.optionTitle}>Wishlist</Text>
+                <Text style={profileStyles.optionSubtitle}>Your saved properties and inspection shortlist</Text>
+              </View>
+              <View style={[profileStyles.countPill, { backgroundColor: "#FDF2F8", borderColor: "#FCE7F3" }]}>
+                <Text style={[profileStyles.countPillText, { color: "#DB2777" }]}>
+                  {mySaved.data?.length ?? 0} Saved
                 </Text>
               </View>
-              <Text style={s.h2}>{user.name}</Text>
-              <Text style={s.muted}>{user.mobile || user.email}</Text>
-              <Tag green={approved(user)}>
-                {approved(user)
-                  ? "✓ Identity approved"
-                  : "Identity verification pending"}
-              </Tag>
-            </View>
-            <Text style={s.h2}>Account & preferences</Text>
-            {[
-              [
-                "Personal information",
-                "manage-accounts",
-                "Update your name and email",
-                "edit",
-              ],
-              [
-                "My posted properties",
-                "real-estate-agent",
-                "Manage listings and verification",
-                "/my-properties",
-              ],
-              [
-                "Wishlist",
-                "favorite-border",
-                "Your saved properties",
-                "/saved",
-              ],
-              [
-                "Identity verification",
-                "verified-user",
-                "Submit and track KYC",
-                "/kyc",
-              ],
-              [
-                "Conversations",
-                "chat-bubble-outline",
-                "Chat with assigned staff",
-                "/messages",
-              ],
-              ...(user.role !== "user"
-                ? [
-                    [
-                      "Staff dashboard",
-                      "dashboard",
-                      "Assigned work and reviews",
-                      dashboardRoutes[user.role],
-                    ],
-                  ]
-                : []),
-            ].map(([title, icon, sub, url]) => (
-              <Pressable
-                key={title}
-                style={[s.panel, s.row]}
-                onPress={() =>
-                  url === "edit"
-                    ? setEditing(!editing)
-                    : router.push(url as any)
-                }
+              <MaterialIcons name="chevron-right" size={22} color="#94A3B8" />
+            </TouchableOpacity>
+
+            {/* 4. Identity Verification (KYC) Option */}
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity
+                style={[
+                  profileStyles.optionCard,
+                  expandedSection === "kyc" && profileStyles.optionCardActive,
+                ]}
+                onPress={() => toggleSection("kyc")}
+                activeOpacity={0.8}
               >
-                <Icon name={icon} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.cardTitle}>{title}</Text>
-                  <Text style={s.small}>{sub}</Text>
+                <View style={[profileStyles.optionIconBox, { backgroundColor: "#F5F3FF" }]}>
+                  <MaterialIcons name="verified-user" size={22} color="#7C3AED" />
                 </View>
-                <Icon name="chevron-right" />
-              </Pressable>
-            ))}
-            {editing && (
-              <View style={s.panel}>
-                <Field title="Full name" value={name} onChangeText={setName} />
-                <Field title="Email" value={email} onChangeText={setEmail} />
-                <Button
-                  title="Save profile"
-                  disabled={action.busy}
-                  onPress={() =>
-                    action.run(async () => {
-                      await userService.updateProfile({ name, email });
-                      await authService.getMe();
-                      setEditing(false);
-                    })
-                  }
+                <View style={{ flex: 1 }}>
+                  <Text style={profileStyles.optionTitle}>Identity verification</Text>
+                  <Text style={profileStyles.optionSubtitle}>Submit and track government revenue KYC</Text>
+                </View>
+                <View style={isApproved ? profileStyles.approvedBadge : profileStyles.pendingBadge}>
+                  <Text style={isApproved ? profileStyles.approvedBadgeText : profileStyles.pendingBadgeText}>
+                    {isApproved ? "✓ Approved" : "Pending"}
+                  </Text>
+                </View>
+                <MaterialIcons
+                  name={expandedSection === "kyc" ? "keyboard-arrow-up" : "keyboard-arrow-down"}
+                  size={24}
+                  color={expandedSection === "kyc" ? "#0A45B5" : "#94A3B8"}
                 />
+              </TouchableOpacity>
+
+              {expandedSection === "kyc" && (
+                <View style={profileStyles.expandableBox}>
+                  <View style={profileStyles.expandableHeader}>
+                    <Text style={profileStyles.expandableTitle}>Bihar Land Law & Identity Verification</Text>
+                    <TouchableOpacity onPress={() => setExpandedSection(null)}>
+                      <MaterialIcons name="close" size={20} color="#64748B" />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={[profileStyles.successBanner, { backgroundColor: isApproved ? "#ECFDF5" : "#FFFBEB", borderColor: isApproved ? "#A7F3D0" : "#FDE68A" }]}>
+                    <MaterialIcons
+                      name={isApproved ? "verified" : "info"}
+                      size={20}
+                      color={isApproved ? "#059669" : "#D97706"}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: isApproved ? "#059669" : "#D97706" }}>
+                        {isApproved ? "100% Certified On-Ground & Document Verified" : "Verification in Progress"}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: isApproved ? "#047857" : "#B45309", marginTop: 2 }}>
+                        {isApproved
+                          ? "Your identity has been authenticated against government records. All properties posted from this account receive instant verified badges."
+                          : "Please submit your verification documents to unlock fast deal closure and verified badges."}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={profileStyles.editProfileBtn}
+                    onPress={() => router.push("/kyc")}
+                  >
+                    <MaterialIcons name="open-in-new" size={16} color="#0A45B5" />
+                    <Text style={profileStyles.editProfileBtnText}>Open KYC Document Center</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            {/* 5. Conversations Option */}
+            <TouchableOpacity
+              style={profileStyles.optionCard}
+              onPress={() => router.push("/messages")}
+              activeOpacity={0.8}
+            >
+              <View style={[profileStyles.optionIconBox, { backgroundColor: "#EFF6FF" }]}>
+                <MaterialIcons name="chat-bubble-outline" size={22} color="#0A45B5" />
               </View>
+              <View style={{ flex: 1 }}>
+                <Text style={profileStyles.optionTitle}>Conversations</Text>
+                <Text style={profileStyles.optionSubtitle}>Direct chat with assigned advisor and verifier</Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={22} color="#94A3B8" />
+            </TouchableOpacity>
+
+            {/* Staff Dashboard (if staff) */}
+            {user.role !== "user" && dashboardRoutes[user.role] && (
+              <TouchableOpacity
+                style={profileStyles.optionCard}
+                onPress={() => router.push(dashboardRoutes[user.role] as any)}
+                activeOpacity={0.8}
+              >
+                <View style={[profileStyles.optionIconBox, { backgroundColor: "#FFF7ED" }]}>
+                  <MaterialIcons name="dashboard" size={22} color="#EA580C" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={profileStyles.optionTitle}>Staff dashboard</Text>
+                  <Text style={profileStyles.optionSubtitle}>Assigned work, queue inspections, and reviews</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={22} color="#94A3B8" />
+              </TouchableOpacity>
             )}
-            <ErrorBox text={action.error} />
-            <Button
-              title="Log out of MalikSe"
-              secondary
-              icon="logout"
+
+            {/* Log out Button */}
+            <TouchableOpacity
+              style={profileStyles.logoutBtn}
               onPress={() =>
                 action.run(async () => {
                   await authService.logout();
                   router.replace("/home");
                 })
               }
-            />
-          </>
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="logout" size={18} color="#E11D48" />
+              <Text style={profileStyles.logoutBtnText}>Log out of MalikSe</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </Protected>
     </MarketplaceShell>
