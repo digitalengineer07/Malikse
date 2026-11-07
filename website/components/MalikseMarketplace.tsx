@@ -423,6 +423,7 @@ export function HomeScreen() {
     [query, setQuery] = useState(""),
     [locationInput, setLocationInput] = useState(""),
     [type, setType] = useState(""),
+    [focusedField, setFocusedField] = useState<"location" | "query" | null>(null),
     [prefs, setPrefs] = useState<any>({});
 
   useEffect(() => {
@@ -516,18 +517,38 @@ export function HomeScreen() {
             width < 768 && { flexDirection: "column", alignItems: "stretch", padding: 10 },
           ]}
         >
-          <View style={[s.searchSegmentLocation, { flex: 1 }]}>
-            <View style={s.searchSegmentIconWrap}>
-              <Icon name="location-on" size={18} color={C.blue} />
+          <View
+            style={[
+              s.searchSegmentLocation,
+              { flex: 1 },
+              focusedField === "location" && s.searchSegmentFocused,
+            ]}
+          >
+            <View
+              style={[
+                s.searchSegmentIconWrap,
+                focusedField === "location" && { backgroundColor: "#DBEAFE" },
+              ]}
+            >
+              <Icon name="location-on" size={19} color={C.blue} />
             </View>
             <View style={{ flex: 1, gap: 1 }}>
-              <Text style={s.searchSegmentLabel}>LOCATION</Text>
+              <Text
+                style={[
+                  s.searchSegmentLabel,
+                  focusedField === "location" && { color: "#0A45B5" },
+                ]}
+              >
+                LOCATION
+              </Text>
               <TextInput
                 accessibilityLabel="Location or District"
                 placeholder="District (e.g. Patna, Gaya...)"
                 placeholderTextColor="#94a3b8"
                 value={locationInput}
                 onChangeText={setLocationInput}
+                onFocus={() => setFocusedField("location")}
+                onBlur={() => setFocusedField(null)}
                 style={s.searchTextInput}
                 onSubmitEditing={handleSearch}
               />
@@ -535,10 +556,10 @@ export function HomeScreen() {
             {!!locationInput && (
               <TouchableOpacity
                 onPress={() => setLocationInput("")}
-                style={{ padding: 4 }}
+                style={s.searchClearBtn}
                 accessibilityLabel="Clear location"
               >
-                <Icon name="close" size={16} color="#94a3b8" />
+                <Icon name="close" size={14} color="#64748B" />
               </TouchableOpacity>
             )}
           </View>
@@ -549,18 +570,43 @@ export function HomeScreen() {
             <View style={{ height: 1, backgroundColor: "#e2e8f0", marginVertical: 6 }} />
           )}
 
-          <View style={[s.searchSegmentInput, { flex: 1.4 }, width < 768 && { paddingHorizontal: 4 }]}>
-            <View style={s.searchSegmentIconWrap}>
-              <Icon name="search" size={18} color="#94a3b8" />
+          <View
+            style={[
+              s.searchSegmentInput,
+              { flex: 1.4 },
+              focusedField === "query" && s.searchSegmentFocused,
+              width < 768 && { paddingHorizontal: 4 },
+            ]}
+          >
+            <View
+              style={[
+                s.searchSegmentIconWrap,
+                focusedField === "query" && { backgroundColor: "#DBEAFE" },
+              ]}
+            >
+              <Icon
+                name="search"
+                size={19}
+                color={focusedField === "query" ? C.blue : "#64748B"}
+              />
             </View>
             <View style={{ flex: 1, gap: 1 }}>
-              <Text style={s.searchSegmentLabel}>SEARCH PROPERTY</Text>
+              <Text
+                style={[
+                  s.searchSegmentLabel,
+                  focusedField === "query" && { color: "#0A45B5" },
+                ]}
+              >
+                SEARCH PROPERTY
+              </Text>
               <TextInput
                 accessibilityLabel="Search property"
                 placeholder="City, locality, road corridor or ID..."
                 placeholderTextColor="#94a3b8"
                 value={query}
                 onChangeText={setQuery}
+                onFocus={() => setFocusedField("query")}
+                onBlur={() => setFocusedField(null)}
                 style={s.searchTextInput}
                 onSubmitEditing={handleSearch}
               />
@@ -568,10 +614,10 @@ export function HomeScreen() {
             {!!query && (
               <TouchableOpacity
                 onPress={() => setQuery("")}
-                style={{ padding: 4 }}
+                style={s.searchClearBtn}
                 accessibilityLabel="Clear query"
               >
-                <Icon name="close" size={16} color="#94a3b8" />
+                <Icon name="close" size={14} color="#64748B" />
               </TouchableOpacity>
             )}
           </View>
@@ -5186,34 +5232,50 @@ const s = StyleSheet.create({
   searchConsole: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: "#FFFFFF",
     borderWidth: 1.5,
-    borderColor: "#cbd5e1",
-    borderRadius: 18,
-    padding: 6,
-    boxShadow: "0 4px 16px rgba(11,27,63,0.05)",
+    borderColor: "#E2E8F0",
+    borderRadius: 22,
+    padding: 7,
+    shadowColor: "#0B1B3F",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 18,
+    elevation: 3,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 10px 30px -4px rgba(11, 27, 63, 0.08), 0 2px 8px rgba(11, 27, 63, 0.03)",
+      },
+    }),
   },
   searchSegmentLocation: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 12,
-    minWidth: 180,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    minWidth: 190,
+    backgroundColor: "transparent",
+  },
+  searchSegmentFocused: {
+    backgroundColor: "#F8FAFC",
   },
   searchSegmentIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: "#f0f6ff",
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
   },
   searchSegmentLabel: {
     fontFamily: font,
-    fontSize: 9.5,
+    fontSize: 10,
     fontWeight: "800",
-    color: "#94a3b8",
-    letterSpacing: 0.6,
+    color: "#64748B",
+    letterSpacing: 0.7,
+    marginBottom: 2,
   },
   searchSegmentValue: {
     fontFamily: font,
@@ -5222,39 +5284,67 @@ const s = StyleSheet.create({
     color: C.ink,
   },
   searchDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: "#e2e8f0",
+    width: 1.5,
+    height: 36,
+    backgroundColor: "#E2E8F0",
     marginHorizontal: 4,
   },
   searchSegmentInput: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 12,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: "transparent",
   },
   searchTextInput: {
     fontFamily: font,
-    fontSize: 14,
-    color: C.ink,
+    fontSize: 14.5,
+    fontWeight: "600",
+    color: "#0B1B3F",
     padding: 0,
+    margin: 0,
+    height: 24,
+    borderWidth: 0,
+    outlineWidth: 0 as any,
     outlineStyle: "none" as any,
+    outlineColor: "transparent" as any,
+    backgroundColor: "transparent",
+  },
+  searchClearBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
   },
   searchSubmitBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: C.blue,
-    paddingVertical: 12,
-    paddingHorizontal: 22,
-    borderRadius: 13,
+    gap: 8,
+    backgroundColor: "#0A45B5",
+    paddingVertical: 13,
+    paddingHorizontal: 26,
+    borderRadius: 16,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 3,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 14px rgba(10, 69, 181, 0.28)",
+      },
+    }),
   },
   searchSubmitBtnText: {
     fontFamily: font,
-    fontSize: 13.5,
+    fontSize: 14,
     fontWeight: "700",
-    color: "white",
+    color: "#FFFFFF",
   },
   categoryPillsRow: {
     flexDirection: "row",
