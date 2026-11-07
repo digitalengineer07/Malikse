@@ -2067,7 +2067,6 @@ export function ChatsScreen() {
     <MarketplaceShell
       title={selected ? "Property conversation" : "Conversations"}
       subtitle="Private conversations with your assigned Advisor or Verifier."
-      back
     >
       <Protected>
         <ErrorBox
