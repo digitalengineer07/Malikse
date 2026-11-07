@@ -12,5 +12,14 @@
     "resolveJsonModule": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": [
+    "node_modules", "dist",
+    "src/scripts/seed*.ts",
+    "src/scripts/importProperty*.ts",
+    "src/scripts/uploadProperty*.ts",
+    "src/scripts/updatePropertyImages.ts",
+    "src/scripts/updateTypes.ts",
+    "src/scripts/setupStaffAndAssignments.ts",
+    "src/scripts/verifyStaff.ts"
+  ]
 }

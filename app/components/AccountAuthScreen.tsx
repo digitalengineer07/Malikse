@@ -228,6 +228,7 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
             {loading && <ActivityIndicator color="white" />}
             <Text style={styles.buttonText}>{loading ? label("Please wait…", "कृपया प्रतीक्षा करें…") : register ? (challenge ? label("Verify & create account", "सत्यापित करें और खाता बनाएं") : registerMethod === "email" ? label("Send email OTP", "ईमेल OTP भेजें") : label("Send OTP", "OTP भेजें")) : label("Sign in", "साइन इन करें")}</Text>
           </TouchableOpacity>
+          {!register && <TouchableOpacity accessibilityRole="button" disabled={loading} onPress={() => router.push("/(auth)/forgot-password" as any)}><Text style={styles.link}>Forgot password?</Text></TouchableOpacity>}
           <TouchableOpacity accessibilityRole="button" style={styles.secondary} disabled={loading} onPress={() => reveal(register ? "login" : "register")}>
             <Text style={styles.link}>{register ? label("Already have an account? Sign in", "पहले से खाता है? साइन इन करें") : label("New to MalikSe? Create an account", "MalikSe पर नए हैं? खाता बनाएं")}</Text>
           </TouchableOpacity>

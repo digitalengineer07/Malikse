@@ -4,11 +4,10 @@
   "description": "MalikSe backend \u2014 Node.js + Express + MongoDB",
   "main": "dist/index.js",
   "scripts": {
+    "test:password-reset": "npm run build && node load/test-password-reset.cjs",
     "test:fastify-property-reads": "npm run build && node load/test-fastify-property-reads.cjs",
     "db:region-counts": "npm run build && node dist/scripts/rebuildRegionCounts.js",
     "db:verify-replica": "node load/verify-read-replica.cjs",
-    "verify:demo-properties": "npm run build && node load/verify-demo-properties.cjs",
-    "seed:demo-properties": "npm run build && node dist/scripts/seedDemoProperties.js",
     "test:regions": "npm run build && node load/test-regions.cjs",
     "load:pm2": "npm run build && node load/run-pm2.cjs",
     "load:pm2-max": "npm run build && node --expose-gc load/run-pm2.cjs --sweep",
@@ -16,7 +15,6 @@
     "build": "tsc",
     "postinstall": "npm run build",
     "start": "node dist/index.js",
-    "seed:admin": "ts-node src/scripts/seedAdmin.ts",
     "test:workflow": "ts-node src/scripts/testWorkflow.ts",
     "test:security": "node ../audit/regression.cjs",
     "worker:submissions": "ts-node src/scripts/submissionWorker.ts",
@@ -32,8 +30,7 @@
     "test:performance": "npm run build && node load/test-performance.cjs",
     "test:otp": "npm run build && node load/test-registration-otp.cjs",
     "test:assigned-workflow": "npm run build && node load/test-assigned-workflow.cjs",
-    "db:migrate-assigned-workflow": "npm run build && node dist/scripts/migrateAssignedWorkflow.js",
-    "db:fix-urls": "ts-node fixUrls.ts"
+    "db:migrate-assigned-workflow": "npm run build && node dist/scripts/migrateAssignedWorkflow.js"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.1",
