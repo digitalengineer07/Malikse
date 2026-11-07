@@ -3499,10 +3499,7 @@ const postStyles = StyleSheet.create({
   mapContainer: {
     minHeight: Platform.OS === "web" ? 440 : 380,
     borderRadius: 18,
-    overflow: "hidden",
     marginVertical: 4,
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
   },
   priceInputWrapper: {
     flexDirection: "row",
