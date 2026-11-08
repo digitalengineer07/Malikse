@@ -1,4 +1,5 @@
 import { identityApproved } from "../services/security";
+import { workspaceResponse } from "../services/workspaceResponse";
 import { Router } from "express";
 import { isValidObjectId } from "mongoose";
 import multer from "multer";
@@ -69,7 +70,7 @@ router.get("/:id/workspace", authGuard, async (req: any, res) => {
     if (!property) return res.status(404).json({ message: "Property not found" });
     if (!canReadProperty(property, req.user)) return res.status(403).json({ message: "This property is not assigned to you" });
     await property.populate([{ path: "ownerId", select: "name mobile" }, { path: "assignedAdvisorId", select: "name" }, { path: "assignedVerifierId", select: "name" }]);
-    res.json(property);
+    res.json(workspaceResponse(property));
   } catch (error: any) { res.status(400).json({ message: error.message }); }
 });
 

@@ -150,7 +150,7 @@ export function createFastifyApp(isReady?: () => boolean) {
         if (!property) return reply.code(404).send({ message: "Property not found" });
         if (!canReadProperty(property, auth.user!)) return reply.code(403).send({ message: "This property is not assigned to you" });
         await property.populate([{ path: "ownerId", select: "name mobile" }, { path: "assignedAdvisorId", select: "name" }, { path: "assignedVerifierId", select: "name" }]);
-        return reply.send(property.toJSON());
+        return reply.send(workspaceResponse(property));
       } catch (error: any) { return reply.code(400).send({ message: error.message }); }
     });
     native.get<{ Params: { id: string } }>("/properties/:id", { config: { nativePropertyRead: true } }, async (request, reply) => {
@@ -169,3 +169,4 @@ export function createFastifyApp(isReady?: () => boolean) {
   });
   return app;
 }
+import { workspaceResponse } from "./services/workspaceResponse";
