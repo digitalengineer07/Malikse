@@ -8,6 +8,8 @@ export interface IUser extends Document {
   mobile?: string;
   email?: string;
   passwordHash?: string;
+  sessionVersion: number;
+  administrativeHistory: { actorId: string; action: string; reason: string; at: Date; value?: boolean }[];
   mobileVerifiedAt?: Date;
   emailVerifiedAt?: Date;
   kycDocuments: string[];
@@ -22,6 +24,7 @@ export interface IUser extends Document {
   isSuspended: boolean;
   isActive: boolean;
   createdAt: Date;
+  deletionRequestedAt?: Date;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -35,6 +38,8 @@ const UserSchema = new Schema<IUser>(
     mobile: { type: String, required: false, unique: true, sparse: true, trim: true },
     email: { type: String, trim: true, lowercase: true, unique: true, sparse: true },
     passwordHash: { type: String },
+    sessionVersion: { type: Number, default: 0 },
+    administrativeHistory: [{ actorId: String, action: String, reason: String, at: Date, value: Boolean }],
     mobileVerifiedAt: { type: Date },
     emailVerifiedAt: { type: Date },
     kycStatus: { type: String, enum: ["not_submitted", "pending", "approved", "correction_required", "rejected"], default: "not_submitted" },
@@ -49,6 +54,7 @@ const UserSchema = new Schema<IUser>(
     wishlist: { type: [Schema.Types.ObjectId], ref: "Property", default: [] },
     isSuspended: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
+    deletionRequestedAt: Date,
   },
   { timestamps: true }
 );

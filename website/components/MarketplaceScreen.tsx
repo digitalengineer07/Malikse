@@ -777,7 +777,7 @@ export default function MarketplaceScreen() {
               />
 
               {/* Left-Side Bihar Land Intelligence Overlay */}
-              <View style={styles.leftOverlayWrap} pointerEvents="box-none">
+              <View style={[styles.leftOverlayWrap, { pointerEvents: "box-none" }]}>
                 <BiharLandIntelligenceCard
                   totalCount={filteredMapProperties.length}
                   activeDistrictName={district?.name}
@@ -787,7 +787,7 @@ export default function MarketplaceScreen() {
               </View>
 
               {/* Right-Side Floating Bihar Key Districts Panel */}
-              <View style={styles.rightPanelWrap} pointerEvents="box-none">
+              <View style={[styles.rightPanelWrap, { pointerEvents: "box-none" }]}>
                 <BiharDistrictExplorerPanel
                   selectedDistrict={district?.name}
                   onSelectDistrict={handleSelectDistrictInfo}

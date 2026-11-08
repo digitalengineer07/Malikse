@@ -52,6 +52,12 @@ const DEFAULT_PROFILE: UserAffinityProfile = {
 // In-Memory Profile Cache for O(1) synchronous reads without disk I/O
 let memoryProfile: UserAffinityProfile | null = null;
 let saveDebounceTimer: any = null;
+export function clearUserAffinity() {
+  if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+  saveDebounceTimer = null;
+  memoryProfile = { ...DEFAULT_PROFILE, viewedIds: [], savedIds: [], districtAffinity: {}, intentAffinity: { ...DEFAULT_PROFILE.intentAffinity }, lastUpdated: Date.now() };
+  try { window.localStorage.removeItem(AFFINITY_STORAGE_KEY); } catch { /* Storage may be unavailable. */ }
+}
 
 // WeakMap cache for property classification to avoid repetitive string searching
 const classifyCache = new WeakMap<

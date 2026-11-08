@@ -1,3 +1,4 @@
+import { cookieSession, trustedCookieOrigin, sessionPayload, refreshFromRequest, clearCookieSession } from "../services/browserSession";
 import { randomUUID, randomInt, createHash, createHmac, timingSafeEqual } from "crypto";
 import { rateLimit } from "express-rate-limit";
 import { Registration } from "../models/Registration.model";
@@ -13,6 +14,32 @@ import { REFRESH_SECRET, accountEnabled, generateTokens, publicUser, tokenDigest
 import { sendEmailOtp } from "../services/mailer";
 
 const router = Router();
+router.use((req, res, next) => {
+  if (cookieSession(req) && !trustedCookieOrigin(req)) return res.status(403).json({ message: "Browser session origin denied" });
+  next();
+});
+const resetResponse = (challengeId = randomUUID(), stubCode?: string) => ({ challengeId, expiresInSeconds: 120, resendAfterSeconds: 60, destination: "your verified contact", message: "If this account has an eligible verified contact, a code will arrive. Otherwise contact support.", ...(process.env.NODE_ENV === "test" && stubCode ? { stubCode } : {}) });
+
+
+// Requests and resends share delivery rules; verification uses the saved provider.
+async function deliverResetOtp(user: { mobile?: string; email?: string; mobileVerifiedAt?: Date; emailVerifiedAt?: Date }, channel: "email" | "mobile", code: string) {
+  if (!(channel === "email" ? user.emailVerifiedAt : user.mobileVerifiedAt)) throw Object.assign(new Error("Contact support to recover an account without a verified contact."), { status: 503 });
+  const destination = channel === "email" ? user.email : user.mobile;
+  if (!destination) throw Object.assign(new Error("No registered destination for this reset method"), { status: 503 });
+  if (process.env.NODE_ENV === "test" && process.env.OTP_STUB_CODE) {
+    return { provider: "local", channel, destination: channel === "email" ? maskEmail(destination) : maskMobile(destination) };
+  }
+  let provider = "local";
+  if (channel === "email") {
+    await sendEmailOtp(destination, code, "forgot");
+  } else if (hasDedicatedTwilioPhone()) {
+    await sendSMS(destination, `Your MalikSe password reset OTP is ${code}. It expires in 2 minutes. Do not share this code.`);
+  } else {
+    await sendTwilioVerification(destination);
+    provider = "twilio-verify";
+  }
+  return { provider, channel, destination: channel === "email" ? maskEmail(destination) : maskMobile(destination) };
+}
 
 function timingSafeMatch(a: string, b: string): boolean {
   if (typeof a !== "string" || typeof b !== "string") return false;
@@ -48,22 +75,9 @@ function verifyRegistrationOtp(challengeId: string, inputCode: string, storedHas
 }
 
 function verifyPasswordResetOtp(challengeId: string, inputCode: string, storedHash: string): boolean {
-  const clean = String(inputCode || "").replace(/\D/g, "").slice(0, 6);
-  if (!clean || !storedHash) return false;
-
-  // Legacy in-flight challenges expire after two minutes.
-  const sha = createHash("sha256").update("password-reset-otp:" + challengeId + ":" + clean).digest("hex");
-  if (timingSafeMatch(sha, storedHash)) return true;
-
-  // 2. Legacy HMAC with REFRESH_SECRET
-  try {
-    const hmac = createHmac("sha256", REFRESH_SECRET).update("password-reset-otp:" + challengeId + ":" + clean).digest("hex");
-    if (timingSafeMatch(hmac, storedHash)) return true;
-  } catch {}
-
-
-  return false;
+  return /^\d{6}$/.test(inputCode) && timingSafeMatch(resetOtpDigest(challengeId, inputCode), storedHash);
 }
+
 
 const mobilePattern = /^[0-9]{10}$/;
 
@@ -369,9 +383,9 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
     // Check against Twilio Verify API if configured and channel was mobile
     if (pending.channel === "mobile" && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && !hasDedicatedTwilioPhone()) {
       try {
-        console.log(`[Twilio Verify] Checking OTP for ${registrationKey}...`);
+        console.log("[Twilio Verify] Checking OTP");
         codeValid = await checkTwilioVerification(registrationKey, cleanCode);
-        console.log(`[Twilio Verify] Result for ${registrationKey}: ${codeValid}`);
+        console.log("[Twilio Verify] Check completed");
       } catch (err: any) {
         console.error("[Twilio Verify] Check error:", err?.message);
       }
@@ -383,6 +397,8 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
     }
 
     if (!codeValid) {
+      await Registration.updateOne({ _id: registrationKey, challengeId: rawChallengeId }, { $set: { lockUntil: new Date(0) } });
+      locked = false;
       return res.status(400).json({ message: "Incorrect OTP. Please enter the latest 6-digit code received or click Resend." });
     }
 
@@ -415,7 +431,7 @@ router.post("/register/verify", rateLimit({ windowMs: 60000, limit: 20, standard
     user.refreshTokenExpiresAt = refreshExpiry(refreshToken);
     await user.save();
     await Registration.deleteOne({ _id: registrationKey, challengeId: rawChallengeId });
-    return res.status(201).json({ accessToken, refreshToken, user: publicUser(user) });
+    return res.status(201).json(sessionPayload(req, res, { accessToken, refreshToken }, user));
   } catch (error: any) {
     if (error.code === 11000) {
       if (error.keyPattern?.mobile) {
@@ -475,11 +491,7 @@ router.post("/login", async (req, res) => {
     user.refreshTokenExpiresAt = refreshExpiry(refreshToken);
     await user.save();
 
-    res.json({
-      accessToken,
-      refreshToken,
-      user: publicUser(user)
-    });
+    res.json(sessionPayload(req, res, { accessToken, refreshToken }, user));
   } catch (error: any) {
     res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
@@ -501,7 +513,7 @@ router.post("/kyc/demo", authGuard, async (req: any, res) => {
 // POST /auth/refresh
 router.post("/refresh", async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = refreshFromRequest(req);
     if (typeof refreshToken !== "string" || !refreshToken) {
       return res.status(401).json({ message: "Refresh token is required" });
     }
@@ -515,7 +527,7 @@ router.post("/refresh", async (req, res) => {
     // Compare and replace in one write: only one concurrent refresh may win.
     const rotated = await User.updateOne({ _id: user._id, refreshTokenHash: tokenDigest(refreshToken), $or: [{ refreshTokenExpiresAt: { $gt: new Date() } }, { refreshTokenExpiresAt: { $exists: false } }], isSuspended: { $ne: true }, isActive: { $ne: false } }, { $set: { refreshTokenHash: tokenDigest(tokens.refreshToken), refreshTokenExpiresAt: refreshExpiry(tokens.refreshToken) } });
     if (!rotated.modifiedCount) return res.status(401).json({ message: "Refresh token mismatch or expired. Please sign in again" });
-    res.json({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, user: publicUser(user) });
+    res.json(sessionPayload(req, res, tokens, user));
   } catch (error: any) {
     return res.status(401).json({ message: "Invalid or expired refresh token" });
   }
@@ -526,10 +538,9 @@ router.post("/logout", authGuard, async (req: any, res) => {
   try {
     const user = await User.findById(req.user.id);
     if (user) {
-      user.refreshTokenHash = undefined;
-      user.refreshTokenExpiresAt = undefined;
-      await user.save();
+      await User.updateOne({ _id: user._id }, { $inc: { sessionVersion: 1 }, $unset: { refreshTokenHash: 1, refreshTokenExpiresAt: 1 } });
     }
+    clearCookieSession(res);
     res.json({ message: "Logged out successfully" });
   } catch (error: any) {
     res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
@@ -571,13 +582,7 @@ router.post(
           : { email: input.toLowerCase() }
       );
 
-      if (!user) {
-        return res.status(404).json({ message: "No registered account found with this mobile number or email" });
-      }
-
-      if (!accountEnabled(user)) {
-        return res.status(403).json({ message: "This account is suspended or inactive. Please contact support." });
-      }
+      if (!user || !accountEnabled(user) || !(isEmail ? user.emailVerifiedAt : user.mobileVerifiedAt)) return res.json(resetResponse());
 
       const now = new Date();
       const resetKey = String(user._id);
@@ -614,72 +619,12 @@ router.post(
       );
 
       if (!pending) {
-        return res.status(429).json({ message: "Please wait before requesting another OTP", retryAfterSeconds: 60 });
+        return res.json(resetResponse());
       }
 
       const stubCode = process.env.NODE_ENV === "test" ? process.env.OTP_STUB_CODE?.trim() : undefined;
       const code = stubCode || randomInt(0, 1000000).toString().padStart(6, "0");
-      let smsDelivered = false;
-      let emailDelivered = false;
-
-      // 1. Send via Hostinger SMTP email if user has email and entered email or has no mobile
-      if (user.email && (isEmail || !user.mobile)) {
-        try {
-          await sendEmailOtp(user.email, code, "forgot");
-          emailDelivered = true;
-        } catch (mailErr: any) {
-          console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
-          const allowDevOtp = process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true";
-          if (!allowDevOtp && !user.mobile) {
-            throw mailErr;
-          }
-        }
-      }
-
-      // 2. Send via Twilio SMS if user has mobile and requested mobile (or email delivery was not chosen)
-      if (user.mobile && (isMobile || !user.email || !emailDelivered)) {
-        try {
-          if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-            if (hasDedicatedTwilioPhone()) {
-              await sendSMS(
-                user.mobile,
-                `Your MalikSe password reset OTP is ${code}. It expires in 2 minutes. Do not share this code.`
-              );
-            } else {
-              await sendTwilioVerification(user.mobile);
-            }
-            smsDelivered = true;
-          } else {
-            console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
-          }
-        } catch (smsErr: any) {
-          console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
-          const allowDevOtp = process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true";
-          if (stubCode || allowDevOtp) {
-            // Explicit non-production test mode only.
-          } else if (!emailDelivered) {
-            throw Object.assign(
-              new Error(smsErr.message || "Failed to send SMS OTP. Please try again or use email."),
-              { status: 503 }
-            );
-          }
-        }
-      }
-
-      // 3. Fallback: if SMS was attempted but failed, and user has an email
-      if (!smsDelivered && !emailDelivered && user.email) {
-        try {
-          await sendEmailOtp(user.email, code, "forgot");
-          emailDelivered = true;
-        } catch (mailErr: any) {
-          console.error(`[AUTH] Fallback email OTP error:`, mailErr?.message);
-        }
-      }
-
-      if (!smsDelivered && !emailDelivered) {
-        if (!stubCode && !(process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true")) throw Object.assign(new Error("OTP delivery is unavailable"), { status: 503 });
-        console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
-      }
+      const delivery = await deliverResetOtp(user, isEmail ? "email" : "mobile", code);
 
       const expiresAt = new Date(Date.now() + 120000);
       const resendAt = new Date(Date.now() + 60000);
@@ -689,6 +634,7 @@ router.post(
         {
           $set: {
             otpHash: resetOtpDigest(challengeId, code),
+            provider: delivery.provider,
             expiresAt,
             resendAt,
             lockUntil: new Date(0),
@@ -697,27 +643,11 @@ router.post(
         }
       );
 
-      const maskedMobileText = user.mobile ? maskMobile(user.mobile) : undefined;
-      const maskedEmailText = user.email ? maskEmail(user.email) : undefined;
-      const destination =
-        maskedMobileText && maskedEmailText
-          ? `${maskedMobileText} & ${maskedEmailText}`
-          : maskedEmailText || maskedMobileText || "your registered account";
-
-      const showStubCode = process.env.NODE_ENV === "test" && Boolean(stubCode);
-      return res.status(200).json({
-        challengeId,
-        expiresInSeconds: 120,
-        resendAfterSeconds: 60,
-        destination,
-        maskedMobile: maskedMobileText,
-        maskedEmail: maskedEmailText,
-        stubCode: showStubCode ? code : undefined,
-      });
-    } catch (error: any) {
-      res
-        .status(error?.status === 503 ? 503 : 500)
-        .json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
+      return res.json(resetResponse(challengeId, stubCode ? code : undefined));
+    } catch {
+      // Provider failure does not reveal account existence to an unauthenticated caller.
+      console.warn("[Recovery] Delivery unavailable");
+      res.json(resetResponse());
     }
   }
 );
@@ -736,93 +666,39 @@ router.post(
       const now = new Date();
       const existing = await PasswordReset.findOne({ challengeId: challengeId.trim() });
       if (!existing) {
-        return res.status(404).json({ message: "Password reset session not found or expired. Please start over." });
+        return res.json(resetResponse());
       }
 
       if (existing.resendAt && existing.resendAt > now) {
-        const waitSeconds = Math.ceil((existing.resendAt.getTime() - now.getTime()) / 1000);
-        return res
-          .status(429)
-          .json({ message: `Please wait ${waitSeconds}s before requesting another OTP`, retryAfterSeconds: waitSeconds });
+        return res.json(resetResponse());
       }
 
       const user = await User.findById(existing.userId);
       if (!user || !accountEnabled(user)) {
-        return res.status(403).json({ message: "Account is not active or suspended" });
+        return res.json(resetResponse());
       }
 
       const newChallengeId = randomUUID();
       const stubCode = process.env.NODE_ENV === "test" ? process.env.OTP_STUB_CODE?.trim() : undefined;
       const code = stubCode || randomInt(0, 1000000).toString().padStart(6, "0");
-      let smsDelivered = false;
-      let emailDelivered = false;
-      const isExistingEmail = existing.identifier && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(existing.identifier.toLowerCase());
-
-      if (user.email && (isExistingEmail || !user.mobile)) {
-        try {
-          await sendEmailOtp(user.email, code, "forgot");
-          emailDelivered = true;
-        } catch (mailErr: any) {
-          console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
-          const allowDevOtp = process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true";
-          if (!allowDevOtp && !user.mobile) {
-            throw mailErr;
-          }
-        }
-      }
-
-      if (user.mobile && (!isExistingEmail || !user.email || !emailDelivered)) {
-        try {
-          if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-            if (hasDedicatedTwilioPhone()) {
-              await sendSMS(
-                user.mobile,
-                `Your MalikSe password reset OTP is ${code}. It expires in 2 minutes. Do not share this code.`
-              );
-            } else {
-              await sendTwilioVerification(user.mobile);
-            }
-            smsDelivered = true;
-          } else {
-            console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
-          }
-        } catch (smsErr: any) {
-          console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
-          const allowDevOtp = process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true";
-          if (stubCode || allowDevOtp) {
-            // Explicit non-production test mode only.
-          } else if (!emailDelivered) {
-            throw Object.assign(
-              new Error(smsErr.message || "Failed to resend SMS OTP. Please try again or use email."),
-              { status: 503 }
-            );
-          }
-        }
-      }
-
-      if (!smsDelivered && !emailDelivered && user.email) {
-        try {
-          await sendEmailOtp(user.email, code, "forgot");
-          emailDelivered = true;
-        } catch (mailErr: any) {
-          console.error(`[AUTH] Resend fallback email OTP error:`, mailErr?.message);
-        }
-      }
-
-      if (!smsDelivered && !emailDelivered) {
-        if (!stubCode && !(process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_OTP === "true")) throw Object.assign(new Error("OTP delivery is unavailable"), { status: 503 });
-        console.warn("[AUTH] OTP delivery unavailable; code withheld from logs");
-      }
+      const claimed = await PasswordReset.findOneAndUpdate(
+        { _id: existing._id, challengeId: existing.challengeId, resendAt: { $lte: now }, lockUntil: { $lte: now } },
+        { $set: { challengeId: newChallengeId, expiresAt: now, lockUntil: new Date(Date.now() + 30000), resendAt: new Date(Date.now() + 60000) } },
+        { new: true }
+      );
+      if (!claimed) return res.json(resetResponse());
+      const delivery = await deliverResetOtp(user, existing.identifier.includes("@") ? "email" : "mobile", code);
 
       const expiresAt = new Date(Date.now() + 120000);
       const resendAt = new Date(Date.now() + 60000);
 
       await PasswordReset.updateOne(
-        { _id: existing._id },
+        { _id: existing._id, challengeId: newChallengeId },
         {
           $set: {
             challengeId: newChallengeId,
             otpHash: resetOtpDigest(newChallengeId, code),
+            provider: delivery.provider,
             expiresAt,
             resendAt,
             lockUntil: new Date(0),
@@ -831,15 +707,9 @@ router.post(
         }
       );
 
-      const showStubCode = process.env.NODE_ENV === "test" && Boolean(stubCode);
-      return res.status(200).json({
-        challengeId: newChallengeId,
-        expiresInSeconds: 120,
-        resendAfterSeconds: 60,
-        stubCode: showStubCode ? code : undefined,
-      });
+      return res.json(resetResponse(newChallengeId, stubCode ? code : undefined));
     } catch (error: any) {
-      res.status(500).json({ message: "Failed to resend verification OTP" });
+      res.json(resetResponse());
     }
   }
 );
@@ -850,10 +720,10 @@ router.post(
   rateLimit({ windowMs: 60000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false, validate: { xForwardedForHeader: false, default: true } }),
   async (req, res) => {
     const rawChallengeId = String(req.body.challengeId || "").trim();
-    const cleanCode = String(req.body.code ?? "").replace(/\D/g, "").slice(0, 6);
+    const cleanCode = String(req.body.code ?? "").trim();
     const { newPassword } = req.body;
 
-    if (!rawChallengeId || cleanCode.length !== 6) {
+    if (!rawChallengeId || !/^\d{6}$/.test(cleanCode)) {
       return res.status(400).json({ message: "Enter the 6-digit verification code sent to your registered mobile/email" });
     }
 
@@ -881,7 +751,7 @@ router.post(
         },
         {
           $inc: { attempts: 1 },
-          $set: { lockUntil: new Date(Date.now() + 5000) },
+          $set: { lockUntil: new Date(Date.now() + 30000) },
         },
         { new: true }
       );
@@ -892,7 +762,7 @@ router.post(
           .json({ message: "OTP expired, invalid session, or maximum attempts exceeded. Please request a new OTP." });
       }
 
-      const mobileWeak = isWeakPassword(newPassword, { mobile: pending.mobile });
+      const mobileWeak = isWeakPassword(newPassword, { mobile: pending.mobile || undefined });
       if (mobileWeak) {
         return res.status(400).json({ message: mobileWeak });
       }
@@ -901,15 +771,9 @@ router.post(
       locked = true;
       let codeValid = false;
 
-      // Check against Twilio Verify API if configured without phone number
-      if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && !hasDedicatedTwilioPhone()) {
-        try {
-          codeValid = await checkTwilioVerification(pending.mobile, cleanCode);
-        } catch {}
-      }
-
-      // Fallback to local cryptographic digest verification
-      if (!codeValid) {
+      if (pending.provider === "twilio-verify" && pending.mobile) {
+        codeValid = await checkTwilioVerification(pending.mobile, cleanCode);
+      } else if (pending.provider === "local") {
         codeValid = verifyPasswordResetOtp(rawChallengeId, cleanCode, pending.otpHash);
       }
 
@@ -935,9 +799,12 @@ router.post(
         return res.status(403).json({ message: "This account is suspended or inactive." });
       }
 
+      if ((pending.identifier.includes("@") ? user.email !== pending.email || !user.emailVerifiedAt : user.mobile !== pending.mobile || !user.mobileVerifiedAt)) return res.status(400).json({ message: "Recovery contact changed. Start again or contact support." });
+
       // Hash new password and save
       const passwordHash = await bcrypt.hash(newPassword, 10);
       user.passwordHash = passwordHash;
+      user.sessionVersion = (user.sessionVersion ?? 0) + 1;
 
       // Invalidate old refresh tokens and issue fresh login tokens
       const { accessToken, refreshToken } = generateTokens(user);
@@ -950,9 +817,7 @@ router.post(
 
       return res.status(200).json({
         message: "Password reset successfully.",
-        accessToken,
-        refreshToken,
-        user: publicUser(user),
+        ...sessionPayload(req, res, { accessToken, refreshToken }, user),
       });
     } catch (error: any) {
       return res.status(500).json({ message: "Password reset service temporarily unavailable. Please try again." });

@@ -155,15 +155,15 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
             resizeMode="cover"
             accessibilityLabel={label("A home surrounded by greenery", "हरियाली से घिरा एक घर")}
           />}
-          {!register && <View pointerEvents="none" style={styles.photoShade} />}
-          {!register && <Animated.View pointerEvents="none" style={[styles.photoBrand, { opacity: progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }) }]}>
+          {!register && <View style={[styles.photoShade, { pointerEvents: "none" }]} />}
+          {!register && <Animated.View style={[styles.photoBrand, { opacity: progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }), pointerEvents: "none" }]}>
             <View style={styles.brandSeal}><MaterialIcons name="wb-sunny" size={26} color="#20251F" /><Text style={styles.sealText}>MALIKSE</Text></View>
             <Text style={styles.brand}>MalikSe</Text>
             <Text style={styles.brandTagline}>{label("Your land. A safer future.", "आपकी ज़मीन। सुरक्षित भविष्य।")}</Text>
           </Animated.View>}
           <Animated.View style={register ? styles.registerPanel : [styles.panel, { top: progress.interpolate({ inputRange: [0, 1], outputRange: [cardHeight * 0.61, cardHeight * 0.16] }) }]}>
-            {!register && <View pointerEvents="none" style={styles.panelCurve} />}
-            <Animated.View pointerEvents={stage === "welcome" ? "auto" : "none"} accessibilityElementsHidden={stage !== "welcome"} importantForAccessibility={stage === "welcome" ? "auto" : "no-hide-descendants"} aria-hidden={stage !== "welcome"} style={[styles.welcome, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [1, 0, 0] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -24] }) }] }]}>
+            {!register && <View style={[styles.panelCurve, { pointerEvents: "none" }]} />}
+            <Animated.View accessibilityElementsHidden={stage !== "welcome"} importantForAccessibility={stage === "welcome" ? "auto" : "no-hide-descendants"} aria-hidden={stage !== "welcome"} style={[styles.welcome, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [1, 0, 0] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -24] }) }], pointerEvents: stage === "welcome" ? "auto" : "none" }]}>
               <Text accessibilityRole="header" style={styles.welcomeTitle}>{label("WELCOME", "स्वागत है")}</Text>
               <Text style={styles.welcomeDescription}>{label("Find your next space, feel at home.\nWhere comfort meets confidence.", "अपना नया ठिकाना खोजें, घर जैसा महसूस करें।\nजहाँ सुकून और भरोसा साथ मिलें।")}</Text>
               <TouchableOpacity accessibilityRole="button" style={[styles.button, styles.welcomeButton]} onPress={() => reveal("login")}><Text style={styles.buttonText}>{label("Login", "लॉगिन")}</Text></TouchableOpacity>
@@ -228,6 +228,7 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
             {loading && <ActivityIndicator color="white" />}
             <Text style={styles.buttonText}>{loading ? label("Please wait…", "कृपया प्रतीक्षा करें…") : register ? (challenge ? label("Verify & create account", "सत्यापित करें और खाता बनाएं") : registerMethod === "email" ? label("Send email OTP", "ईमेल OTP भेजें") : label("Send OTP", "OTP भेजें")) : label("Sign in", "साइन इन करें")}</Text>
           </TouchableOpacity>
+          {!register && <TouchableOpacity accessibilityRole="button" disabled={loading} onPress={() => router.push("/(auth)/forgot-password" as any)}><Text style={styles.link}>Forgot password?</Text></TouchableOpacity>}
           <TouchableOpacity accessibilityRole="button" style={styles.secondary} disabled={loading} onPress={() => reveal(register ? "login" : "register")}>
             <Text style={styles.link}>{register ? label("Already have an account? Sign in", "पहले से खाता है? साइन इन करें") : label("New to MalikSe? Create an account", "MalikSe पर नए हैं? खाता बनाएं")}</Text>
           </TouchableOpacity>

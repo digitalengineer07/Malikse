@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, Image, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { AccessibilityInfo, Animated, Easing, Image, Platform, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLanguageStore } from "../src/store/languageStore";
@@ -31,8 +31,8 @@ export default function AppOpeningScreen({ onFinish, ready = true }: { onFinish?
   useEffect(() => {
     if (reducedMotion !== false) return;
     const animation = Animated.loop(Animated.sequence([
-      Animated.timing(sweep, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(sweep, { toValue: 0, duration: 0, useNativeDriver: true }),
+      Animated.timing(sweep, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.cubic), useNativeDriver: Platform.OS !== "web" }),
+      Animated.timing(sweep, { toValue: 0, duration: 0, useNativeDriver: Platform.OS !== "web" }),
     ]));
     animation.start();
     return () => animation.stop();
@@ -40,7 +40,7 @@ export default function AppOpeningScreen({ onFinish, ready = true }: { onFinish?
 
   useEffect(() => {
     if (!minimumElapsed || !ready) return;
-    const animation = Animated.timing(opacity, { toValue: 0, duration: reducedMotion ? 0 : 350, useNativeDriver: true });
+    const animation = Animated.timing(opacity, { toValue: 0, duration: reducedMotion ? 0 : 350, useNativeDriver: Platform.OS !== "web" });
     animation.start(({ finished }) => { if (finished) finishRef.current?.(); });
     return () => animation.stop();
   }, [minimumElapsed, ready, reducedMotion, opacity]);
@@ -50,7 +50,7 @@ export default function AppOpeningScreen({ onFinish, ready = true }: { onFinish?
       <AppBackground />
       <View style={[styles.card, { height: Math.min(780, height - insets.top - insets.bottom - 32) }]}>
         <Image source={villaPhoto} resizeMode="cover" style={styles.photo} accessible={false} />
-        <View pointerEvents="none" style={styles.tint} />
+        <View style={[styles.tint, { pointerEvents: "none" }]} />
         <View style={styles.brandRow}>
           <View style={styles.brandMark}><MaterialIcons name="wb-sunny" size={22} color="#26382F" /></View>
           <Text style={styles.brand}>MalikSe</Text>
@@ -77,7 +77,7 @@ export default function AppOpeningScreen({ onFinish, ready = true }: { onFinish?
 
 const styles = StyleSheet.create({
   overlay: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000, elevation: 100, backgroundColor: "#DCE8EF", alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },
-  card: { width: "100%", maxWidth: 460, borderRadius: 40, overflow: "hidden", backgroundColor: "#718E83", shadowColor: "#203A30", shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.16, shadowRadius: 28, elevation: 8 },
+  card: { width: "100%", maxWidth: 460, borderRadius: 40, overflow: "hidden", backgroundColor: "#718E83", ...(Platform.OS === "web" ? { boxShadow: "0 16px 28px rgba(32, 58, 48, 0.16)" } : { shadowColor: "#203A30", shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.16, shadowRadius: 28 }), elevation: 8 },
   photo: { position: "absolute", top: 0, left: 0, width: "100%", height: "76%" },
   tint: { position: "absolute", top: 0, left: 0, right: 0, height: "76%", backgroundColor: "rgba(13,32,27,0.27)" },
   brandRow: { position: "absolute", top: 26, left: 25, flexDirection: "row", alignItems: "center", gap: 10 },
@@ -85,7 +85,17 @@ const styles = StyleSheet.create({
   brand: { color: "white", fontFamily: "PoppinsSemiBold", fontSize: 22, letterSpacing: -0.7 },
   photoCaption: { position: "absolute", bottom: "41%", left: 27, right: 20 },
   eyebrow: { color: "#F2F6EC", fontFamily: "PoppinsMedium", fontSize: 9, letterSpacing: 2, marginBottom: 12 },
-  photoTitle: { color: "white", fontFamily: "PoppinsSemiBold", fontSize: 34, lineHeight: 43, letterSpacing: -1.1, textShadowColor: "rgba(0,0,0,0.25)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 12 },
+  photoTitle: {
+    color: "white",
+    fontFamily: "PoppinsSemiBold",
+    fontSize: 34,
+    lineHeight: 43,
+    letterSpacing: -1.1,
+    ...(Platform.OS === "web"
+      ? { textShadow: "0 2px 12px rgba(0,0,0,0.25)" }
+      : { textShadowColor: "rgba(0,0,0,0.25)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 12 }
+    ),
+  },
   photoTitleCompact: { fontSize: 28, lineHeight: 35 },
   panel: { position: "absolute", bottom: 0, left: 0, right: 0, height: "35%", backgroundColor: "#FEFFFC", alignItems: "center", paddingTop: 14, paddingHorizontal: 22 },
   panelCompact: { height: "37%", paddingTop: 4 },

@@ -1,7 +1,8 @@
+import EmailChangeForm from "./EmailChangeForm";
 import { AppTheme } from "../constants/theme";
 import TextInput from "./FormInput";
 import React, { useRef, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform, Linking } from "react-native";
 import { Redirect, useRouter } from "expo-router";
 import AppHeader from "./AppHeader";
 import { useAuthStore } from "../src/store/authStore";
@@ -37,7 +38,7 @@ export default function AccountProfileScreen() {
     if (editEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())) { setError("Enter a valid email address"); return; }
     setIsSaving(true);
     try {
-      const updatedUser = await userService.updateProfile({ name: editName, email: editEmail });
+      const updatedUser = await userService.updateProfile({ name: editName });
       setUser(updatedUser);
       setIsEditing(false);
     } catch (e: any) {
@@ -98,7 +99,8 @@ export default function AccountProfileScreen() {
               <Text style={styles.muted}>{label("Email", "ईमेल")}</Text>
               <TextInput accessibilityLabel={label("Email", "ईमेल")} autoComplete="email" style={styles.input} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
             </View>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 10 }}>
+            <EmailChangeForm email={editEmail} />
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 10 }}>
               <TouchableOpacity style={[styles.button, { flex: 1, backgroundColor: "#E3EEF6" }]} onPress={() => setIsEditing(false)}>
                 <Text style={[styles.buttonText, { color: "#111" }]}>{label("Cancel", "रद्द करें")}</Text>
               </TouchableOpacity>
@@ -132,6 +134,8 @@ export default function AccountProfileScreen() {
       <TouchableOpacity accessibilityRole="button" style={styles.button} onPress={() => router.push(dashboardRoutes[user.role])}>
         <Text style={styles.buttonText}>{label("Open my dashboard", "मेरा डैशबोर्ड खोलें")}</Text>
       </TouchableOpacity>
+      <TouchableOpacity accessibilityRole="link" onPress={() => { void Linking.openURL(`${process.env.EXPO_PUBLIC_WEBSITE_URL || "https://malikse.devoxa.in"}/privacy-policy`).catch(() => setError("Could not open the privacy policy.")); }}><Text style={styles.link}>Privacy policy</Text></TouchableOpacity>
+      {user.role === "user" && <TouchableOpacity accessibilityRole="button" style={styles.logout} onPress={() => router.push("/delete-account" as never)}><Text style={styles.logoutText}>{label("Delete account", "खाता हटाएं")}</Text></TouchableOpacity>}
     </ScrollView></KeyboardAvoidingView>
   </View>;
 }

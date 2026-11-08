@@ -1,4 +1,5 @@
 import { identityApproved } from "../services/security";
+import { workspaceResponse } from "../services/workspaceResponse";
 import { Router } from "express";
 import { isValidObjectId } from "mongoose";
 import multer from "multer";
@@ -8,7 +9,7 @@ import { Property } from "../models/Property.model";
 import { User } from "../models/User.model";
 import { listFields, readPage } from "../services/pagination";
 import { discardPropertyPhoto, storePropertyPhoto } from "../services/propertyPhotos";
-import { activeStaffFilter, canReadProperty, historyEvent, listingFields, publicFields, transition, validateListing } from "../services/propertyWorkflow";
+import { activeStaffFilter, canReadProperty, historyEvent, listingFields, mediaInputError, publicFields, transition, validateListing } from "../services/propertyWorkflow";
 
 import { publishedFilter } from "../services/marketplace";
 import { apiOrigin } from "../services/security";
@@ -69,7 +70,7 @@ router.get("/:id/workspace", authGuard, async (req: any, res) => {
     if (!property) return res.status(404).json({ message: "Property not found" });
     if (!canReadProperty(property, req.user)) return res.status(403).json({ message: "This property is not assigned to you" });
     await property.populate([{ path: "ownerId", select: "name mobile" }, { path: "assignedAdvisorId", select: "name" }, { path: "assignedVerifierId", select: "name" }]);
-    res.json(property);
+    res.json(workspaceResponse(property));
   } catch (error: any) { res.status(400).json({ message: error.message }); }
 });
 
@@ -90,6 +91,8 @@ router.post("/", authGuard, roleGuard("user"), async (req: any, res) => {
   try {
     const seller = await User.findById(req.user.id);
     if ((!seller || !identityApproved(seller))) return res.status(403).json({ message: "Complete identity verification before listing" });
+    const mediaError = mediaInputError(req.body.media);
+    if (mediaError) return res.status(400).json({ message: mediaError });
     const data = listingFields(req.body);
     const error = validateListing(data);
     if (error) return res.status(400).json({ message: error });
@@ -103,6 +106,8 @@ router.patch("/:id", authGuard, roleGuard("user"), async (req: any, res) => {
     const property = await Property.findOne({ _id: req.params.id, ownerId: req.user.id });
     if (!property) return res.status(404).json({ message: "Property not found" });
     if (!["draft", "correction_required"].includes(property.status)) return res.status(409).json({ message: "Only drafts or properties awaiting corrections can be edited" });
+    const mediaError = mediaInputError(req.body.media, property.media);
+    if (mediaError) return res.status(400).json({ message: mediaError });
     const changes = listingFields(req.body);
     const error = validateListing({ ...property.toObject(), ...changes });
     if (error) return res.status(400).json({ message: error });

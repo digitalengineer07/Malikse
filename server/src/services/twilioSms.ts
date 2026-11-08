@@ -129,6 +129,9 @@ export async function sendSMS(to: string, message: string): Promise<void> {
     const result = await response.json() as { sid?: string; code?: number; status?: string; message?: string };
     if (!response.ok || !result.sid || ["failed", "undelivered"].includes(result.status || "")) {
       console.error("[Twilio SMS] Request rejected", { status: response.status, code: result.code, msg: result.message });
+      if (result.code === 21660 || result.code === 21606) {
+        throw new Error("Twilio sender number is not available for this account. Configure an SMS-capable number owned by this account, or clear TWILIO_PHONE_NUMBER and configure TWILIO_VERIFY_SERVICE_SID to use Verify.");
+      }
       if (result.code === 21608) {
         throw new Error("Twilio Trial account can send SMS only to numbers verified in Twilio Console. Please use Email Registration.");
       }

@@ -19,7 +19,7 @@ async function main() {
   const users = await User.create(['user', 'user', 'advisor', 'admin', 'verifier'].map((role, i) => ({
     name: 'Read test ' + i, mobile: '930000000' + i, role, passwordHash: 'fixture-only',
   })));
-  const tokens = users.map(user => jwt.sign({ id: String(user._id), role: user.role }, process.env.JWT_ACCESS_SECRET));
+  const tokens = users.map(user => jwt.sign({ id: String(user._id), role: user.role, sessionVersion: user.sessionVersion ?? 0 }, process.env.JWT_ACCESS_SECRET));
   const base = { ownerId: users[0]._id, type: 'land', title: 'Read test', price: 1000, totalArea: 100, sellableArea: 90,
     location: { state: 'Bihar', district: 'Patna', lat: 25, lng: 85 },
     assignedAdvisorId: users[2]._id, assignedVerifierId: users[4]._id };

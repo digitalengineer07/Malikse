@@ -1,4 +1,6 @@
+import contactChangeRouter from "./routes/contactChange.routes";
 import kycRoutes from "./routes/kyc.routes";
+import accountDeletionRoutes from "./routes/accountDeletion.routes";
 import recommendationRoutes from "./routes/recommendation.routes";
 import express from "express";
 import mongoose from "mongoose";
@@ -28,6 +30,8 @@ export function createApp(isReady = () => mongoose.connection.readyState === 1) 
   });
   app.use("/property-photos", photoRoutes);
   app.use("/auth", authRoutes);
+  app.use("/users/contact-change", contactChangeRouter);
+  app.use("/account-deletion", accountDeletionRoutes);
   app.use("/recommendations", recommendationRoutes);
   app.use("/properties", propertyRoutes);
   app.use("/documents", documentRoutes);

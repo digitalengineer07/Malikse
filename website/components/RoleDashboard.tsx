@@ -1,3 +1,4 @@
+import NotificationFailures from "./NotificationFailures";
 import { premiumStyles } from "../constants/typography";
 import React, { useEffect, useState } from "react";
 import {
@@ -236,6 +237,7 @@ export default function RoleDashboard({
             </TouchableOpacity>
           </View>
         </View>
+        {role === "admin" && <NotificationFailures />}
 
         {/* KPI Performance & Portfolio Metrics Bar */}
         <View style={styles.metricsGrid}>

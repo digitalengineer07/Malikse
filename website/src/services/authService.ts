@@ -3,9 +3,38 @@ import { useAuthStore } from "../store/authStore";
 import type { UserProfile } from "../types/auth.types";
 import { invalidatePropertySearch } from "./searchCache";
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:5000";
+const configuredApiUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
 
-const api = axios.create({ baseURL: API_URL, timeout: 15000 });
+function resolveApiUrl(): string {
+  let cleanUrl = (configuredApiUrl || "").trim().replace(/^["']|["']$/g, "").replace(/\/+$/, "");
+
+  // Upgrade http:// to https:// for production API to prevent browser mixed-content errors
+  if (/^http:\/\/malikseserver\.devoxa\.in$/i.test(cleanUrl)) {
+    cleanUrl = "https://malikseserver.devoxa.in";
+  }
+
+  // If explicitly configured with a non-localhost remote URL (and not accidentally pointed at the website frontend itself)
+  if (cleanUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(?:\/|$)/i.test(cleanUrl) && !/^(https?:\/\/)?malikse\.devoxa\.in$/i.test(cleanUrl)) {
+    return cleanUrl;
+  }
+
+  // If running in browser and NOT on localhost (e.g. deployed on production domain or preview)
+  if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+    return "https://malikseserver.devoxa.in";
+  }
+
+  // If built for production
+  if (import.meta.env.PROD) {
+    return "https://malikseserver.devoxa.in";
+  }
+
+  // Local development fallback
+  return cleanUrl || "http://localhost:5000";
+}
+
+const API_URL = resolveApiUrl();
+
+const api = axios.create({ baseURL: API_URL, timeout: 15000, withCredentials: true, headers: { "X-Session-Mode": "cookie" } });
 
 let isRefreshing = false;
 let failedQueue: any[] = [];
@@ -37,13 +66,13 @@ api.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
-    
+
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !["/auth/login", "/auth/register", "/auth/register/verify", "/auth/refresh", "/auth/forgot-password", "/auth/forgot-password/resend", "/auth/reset-password"].includes(originalRequest.url)) {
-      
+
       originalRequest._retry = true;
       if (isRefreshing) {
         if (failedQueue.length >= 100) return Promise.reject(error);
-        return new Promise(function(resolve, reject) {
+        return new Promise(function (resolve, reject) {
           failedQueue.push({ resolve, reject });
         }).then(token => {
           originalRequest.headers.Authorization = 'Bearer ' + token;
@@ -57,6 +86,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       const refreshToken = useAuthStore.getState().refreshToken;
+      const previousAccess = useAuthStore.getState().accessToken;
       if (!refreshToken) {
         useAuthStore.getState().clearSession();
         isRefreshing = false;
@@ -65,17 +95,17 @@ api.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken }, { timeout: 10000 });
-        if (useAuthStore.getState().refreshToken !== refreshToken) throw new Error("Session changed during refresh");
-        
-        useAuthStore.getState().setTokens({ 
-          accessToken: data.accessToken, 
-          refreshToken: data.refreshToken 
+        const { data } = await axios.post(`${API_URL}/auth/refresh`, {}, { timeout: 10000, withCredentials: true, headers: { "X-Session-Mode": "cookie" } });
+        if (useAuthStore.getState().refreshToken !== refreshToken || useAuthStore.getState().accessToken !== previousAccess) throw new Error("Session changed during refresh");
+
+        useAuthStore.getState().setTokens({
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken
         });
         if (data.user) useAuthStore.getState().setUser(data.user);
 
         originalRequest.headers.Authorization = 'Bearer ' + data.accessToken;
-        
+
         processQueue(null, data.accessToken);
         return api(originalRequest);
       } catch (err) {
@@ -168,11 +198,11 @@ export const authService = {
 
     const res = await api.post("/auth/login", payload);
     const { accessToken, refreshToken, user } = res.data;
-    
+
     useAuthStore.getState().setTokens({ accessToken, refreshToken });
     useAuthStore.getState().setUser(user);
     useAuthStore.getState().setAuthState("AUTHENTICATED");
-    
+
     return user;
   },
 

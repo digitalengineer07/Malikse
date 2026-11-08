@@ -32,6 +32,8 @@ export interface IProperty extends Document {
   media: { photos: string[]; videos: string[] };
   documents: mongoose.Types.ObjectId[];
   uploadReceipts?: Map<string, string>;
+  documentUploadLease?: string;
+  documentUploadUntil?: Date;
   disclosures: { hasLoan: boolean; hasDispute: boolean; possessionStatus: string };
   status: "draft" | "queued" | "pending" | "advisor_verified" | "correction_required" | "rejected" | "verified" | "sold";
   submission?: { id: string; digest: string; attempts: number; nextAttemptAt: Date; leaseUntil?: Date; leaseToken?: string; error?: string; completedAt?: Date };
@@ -109,6 +111,8 @@ const PropertySchema = new Schema<IProperty>(
       videos: { type: [String], default: [] },
     },
     uploadReceipts: { type: Map, of: String, select: false },
+    documentUploadLease: String,
+    documentUploadUntil: Date,
     documents: { type: [Schema.Types.ObjectId], ref: "Document", default: [] },
     disclosures: {
       hasLoan: { type: Boolean, default: false },

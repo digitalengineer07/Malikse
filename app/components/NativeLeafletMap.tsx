@@ -45,6 +45,8 @@ function NativeMapContent({ html, options, focus, onSelect, onPoints, retry }: {
     return () => subscription.remove();
   }, [retry]);
   const regionsJson = JSON.stringify(options.regions);
+  const [previousRegions, setPreviousRegions] = useState(regionsJson);
+  if (previousRegions !== regionsJson) { setPreviousRegions(regionsJson); setBoundaryError(false); }
   const propertiesJson = JSON.stringify({ pins: options.pins?.filter(validMapPoint) ?? [], parcels: options.parcels ?? [] });
   useEffect(() => {
     if (status !== "ready" || !options.regions) return;
@@ -58,7 +60,6 @@ function NativeMapContent({ html, options, focus, onSelect, onPoints, retry }: {
   }, [status, options.marketplace]);
   useEffect(() => {
     if (status !== "ready" || !regionsJson) return;
-    setBoundaryError(false);
     webview.current?.injectJavaScript(`window.updateRegions && window.updateRegions(${regionsJson.replace(/</g, "\\u003c")}); true;`);
   }, [regionsJson, status]);
   useEffect(() => {

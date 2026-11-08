@@ -58,6 +58,7 @@ data
 !app/src/data/
 app/src/data/*
 !app/src/data/indiaStatesData.ts
+!app/src/data/biharDistrictsData.ts
 !website/src/data/
 website/src/data/*
 !website/src/data/indiaStatesData.ts
@@ -82,3 +83,30 @@ autocannon.md
 server/.workflow-test-db/
 
 app/dist-workflow-check/
+
+# Local-only database seeding and bulk property import/maintenance utilities.
+# Keep runtime upload services, workers, index migrations and regression tests tracked.
+/server/src/scripts/seed*.ts
+/server/src/scripts/importProperty*.ts
+/server/src/scripts/uploadProperty*.ts
+/server/src/scripts/updatePropertyImages.ts
+/server/src/scripts/updateTypes.ts
+/server/src/scripts/setupStaffAndAssignments.ts
+/server/src/scripts/verifyStaff.ts
+/server/fixUrls.ts
+/server/load/copy-demo-to-atlas.cjs
+/server/load/verify-atlas-demo.cjs
+/server/load/verify-demo-properties.cjs
+/audit/archive/fixUrls.ts.txt
+
+# Uploaded user/property files are runtime data, never source code.
+/server/uploads/
+
+# Local build checks, debug output and packaging artifacts.
+/app/dist-*/
+/app/*-build-check.log
+/app/metro_logs.txt
+/app/ts_errors.txt
+/app/tsc_error.txt
+/scratch/
+/MalikSe-Play-Store-Pack.zip

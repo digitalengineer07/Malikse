@@ -31,7 +31,8 @@ async function main() {
       body.append('uploadId', uploadId);
       if (!photo) { body.append('propertyId', String(p._id)); body.append('type', 'Registry'); }
       body.append('file', new Blob([Buffer.from([255,216,255,1,2,3])], { type: 'image/jpeg' }), 'test.jpg');
-      const response = await fetch(base + (photo ? `/properties/${p._id}/photos` : '/documents'), { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body });
+      const response = await fetch(base + (photo ? `/properties/${p._id}/photos` : `/documents?propertyId=${p._id}`), { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body });
+      if (response.status === 429) { await new Promise(resolve => setTimeout(resolve, 100)); return send(photo, uploadId); }
       const data = await response.json();
       assert.ok([200,201].includes(response.status), JSON.stringify(data));
       return data;
@@ -56,10 +57,20 @@ async function main() {
     await Property.updateOne({_id:p._id},{$pull:{documents:c._id}});
     await send(false,docId);
     assert.equal((await Property.findById(p._id)).documents.length,3);
+    const savedDoc = await PropertyDocument.findById(c._id);
+    assert.match(savedDoc.fileUrl, /^gridfs:/);
+    const download = await fetch(base + '/documents/' + c._id + '/file', { headers: { Authorization: 'Bearer ' + token } });
+    assert.equal(download.status, 200);
+    assert.deepEqual(Buffer.from(await download.arrayBuffer()), Buffer.from([255,216,255,1,2,3]));
+    assert.equal(await mongoose.connection.db.collection('documents.files').countDocuments(), 3);
+    const invalid = new FormData(); invalid.append('propertyId', String(p._id)); invalid.append('type', 'Registry'); invalid.append('file', new Blob(['<script>bad</script>']), 'fake.pdf');
+    const rejected = await fetch(base + '/documents?propertyId=' + p._id, { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: invalid });
+    assert.equal(rejected.status, 400);
+    assert.equal(await PropertyDocument.countDocuments(), 3);
     console.log('PASS: simultaneous duplicate photos/documents, lost-response replay, parallel document attachment and interrupted attachment recovery');
   } finally {
     for (const doc of await PropertyDocument.find().lean()) {
-      await fs.rm(path.resolve(__dirname,'../uploads',path.basename(doc.fileUrl)),{force:true});
+      if (!doc.fileUrl.startsWith("gridfs:")) await fs.rm(path.resolve(__dirname,'../uploads',path.basename(doc.fileUrl)),{force:true});
     }
     await new Promise(r => server.close(r));
     assert.equal(mongoose.connection.name, dbName);

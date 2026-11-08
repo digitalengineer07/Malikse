@@ -1,4 +1,7 @@
+import { processFileCleanup } from "./services/fileCleanup";
 import "dotenv/config";
+import { createRequiredIndexes, verifyRequiredIndexes } from "./services/requiredIndexes";
+import { startAccountDeletionWorker } from "./services/accountDeletion";
 import { deliverNotifications } from "./services/notificationQueue";
 import mongoose from "mongoose";
 import { createFastifyApp } from "./fastifyApp";
@@ -22,7 +25,7 @@ app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
   console.log(`[MalikSe] Fastify server running on http://localhost:${PORT}`);
   startupStage = "MongoDB connection";
   return mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/malikse", {
-  autoIndex: process.env.NODE_ENV !== "production",
+  autoIndex: false,
   ...mongoPoolOptions(),
   });
 }).then(async () => {
@@ -33,46 +36,32 @@ app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
     await mongoose.connection.db!.command({ ping: 1 }, { readPreference: "secondary" });
     console.log("[MalikSe] MongoDB secondary available for read traffic");
   }
-  try {
-    const usersCol = mongoose.connection.collection("users");
-    const indexes = await usersCol.indexes();
-    const mobileIdx = indexes.find((idx: any) => idx.name === "mobile_1" || (idx.key && idx.key.mobile === 1));
-    if (mobileIdx && (!mobileIdx.sparse || !mobileIdx.unique)) {
-      console.log("[MalikSe] Migrating mobile_1 index to { unique: true, sparse: true }...");
-      await usersCol.dropIndex(mobileIdx.name || "mobile_1");
-      await usersCol.createIndex({ mobile: 1 }, { unique: true, sparse: true, background: true });
-      console.log("[MalikSe] mobile_1 index successfully migrated.");
-    }
-    const emailIdx = indexes.find((idx: any) => idx.name === "email_1" || (idx.key && idx.key.email === 1));
-    if (emailIdx && (!emailIdx.sparse || !emailIdx.unique)) {
-      console.log("[MalikSe] Migrating email_1 index to { unique: true, sparse: true }...");
-      await usersCol.dropIndex(emailIdx.name || "email_1");
-      await usersCol.createIndex({ email: 1 }, { unique: true, sparse: true, background: true });
-      console.log("[MalikSe] email_1 index successfully migrated.");
-    }
-  } catch (idxErr: any) {
-    console.warn("[MalikSe] Index verification warning:", idxErr?.message);
-  }
+  startupStage = "required index verification";
+  if (process.env.NODE_ENV !== "production") await createRequiredIndexes();
+  await verifyRequiredIndexes();
   startupStage = "region count initialization";
   await startRegionCounts();
   initialized = true;
   const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => {} : startSubmissionWorker();
-  const notificationTimer = setInterval(() => { void deliverNotifications().catch(() => console.warn("Notification retry deferred")); }, 10000);
-  notificationTimer.unref();
-  const receiptTimer = setInterval(() => {
-    void checkPushReceipts().catch(error => console.warn("[Push] Receipt check failed", error));
-  }, 5 * 60_000);
-  receiptTimer.unref();
+  const stopDeletionWorker = startAccountDeletionWorker();
+  const startTask = (task: () => Promise<unknown>, interval: number) => {
+    let pending: Promise<unknown> | undefined;
+    const timer = setInterval(() => { if (!pending) pending = task().catch(() => console.error("Background delivery deferred")).finally(() => { pending = undefined; }); }, interval);
+    timer.unref();
+    return async () => { clearInterval(timer); await pending; };
+  };
+  const stopFileCleanup = startTask(processFileCleanup, 30000);
+  const stopNotifications = startTask(deliverNotifications, 10000);
+  const stopReceipts = startTask(checkPushReceipts, 5 * 60_000);
   console.log("[MalikSe] API ready");
   const server = app.server;
   const shutdown = async () => {
     if (stopping) return;
     stopping = true;
-    clearInterval(receiptTimer);
-    clearInterval(notificationTimer);
+
     const deadline = setTimeout(() => { server.closeAllConnections(); process.exit(1); }, 15_000);
     deadline.unref();
-    await Promise.all([app.close(), stopWorker()]);
+    await Promise.all([app.close(), stopWorker(), stopDeletionWorker(), stopNotifications(), stopReceipts(), stopFileCleanup()]);
     await stopRegionCounts();
     await mongoose.disconnect();
     closeRedis();

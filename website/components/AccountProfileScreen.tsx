@@ -1,3 +1,4 @@
+import EmailChangeForm from "./EmailChangeForm";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -101,7 +102,7 @@ export default function AccountProfileScreen() {
     }
     setIsSaving(true);
     try {
-      const updatedUser = await userService.updateProfile({ name: editName.trim(), email: editEmail.trim() });
+      const updatedUser = await userService.updateProfile({ name: editName.trim() });
       setUser(updatedUser);
       setIsEditing(false);
     } catch (e: any) {
@@ -345,6 +346,7 @@ export default function AccountProfileScreen() {
                     placeholder={label("Enter your email address", "अपना ईमेल दर्ज करें")}
                   />
                 </View>
+                <EmailChangeForm email={editEmail} />
                 <View style={styles.editBtnRow}>
                   <TouchableOpacity
                     style={styles.cancelBtn}
@@ -507,6 +509,10 @@ export default function AccountProfileScreen() {
               style={styles.dashboardBtnArrow}
             />
           </TouchableOpacity>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 24, paddingVertical: 20 }}>
+            <TouchableOpacity accessibilityRole="link" onPress={() => router.push("/privacy-policy")}><Text style={{ color: "#075f83" }}>Privacy policy</Text></TouchableOpacity>
+            {user.role === "user" && <TouchableOpacity accessibilityRole="button" onPress={() => router.push("/delete-account")}><Text style={{ color: "#a52d3b" }}>Delete account</Text></TouchableOpacity>}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -594,7 +600,7 @@ export default function AccountProfileScreen() {
           </div>
         </>
       ) : (
-        <View style={styles.nativeSkyline} pointerEvents="none">
+        <View style={[styles.nativeSkyline, { pointerEvents: "none" }]}>
           <View style={styles.nativeLeftContainer}>
             <Image source={leftWatermarkAsset} style={styles.nativeWatermarkImg} resizeMode="contain" />
           </View>

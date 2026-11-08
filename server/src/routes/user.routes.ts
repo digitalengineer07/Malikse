@@ -31,7 +31,8 @@ router.put("/profile", authGuard, async (req: AuthRequest, res) => {
     }
     if (email !== undefined) {
       if (typeof email !== "string" || (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))) return res.status(400).json({ message: "Enter a valid email address or leave it empty" });
-      changes.email = email.trim().toLowerCase();
+      const current = await User.findById(req.user!.id).select("email");
+      if (email.trim().toLowerCase() !== (current?.email || "")) return res.status(409).json({ message: "Verify your contact change with OTP, or contact support. Email cannot be changed or removed through profile editing." });
     }
     if (!Object.keys(changes).length) return res.status(400).json({ message: "Provide a name or email to update" });
     const user = await User.findByIdAndUpdate(

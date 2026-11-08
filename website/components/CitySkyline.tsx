@@ -69,10 +69,10 @@ export default function CitySkyline({
           maxWidth: maxWidth as any,
           height: height as any,
           opacity,
+          pointerEvents: "none",
         },
         style,
       ]}
-      pointerEvents="none"
     >
       <Image source={skylineAsset} style={styles.image} resizeMode="contain" />
     </View>

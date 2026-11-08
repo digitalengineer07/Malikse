@@ -4,7 +4,7 @@ import type { Request } from "express";
 
 function requiredSecret(name: string) {
   const value = process.env[name]?.trim();
-  if (!value || ["dev_access_secret", "dev_refresh_secret", "your_access_secret", "your_refresh_secret", "your_access_secret_here", "your_refresh_secret_here"].includes(value)) {
+  if (!value || Buffer.byteLength(value) < 32 || ["dev_access_secret", "dev_refresh_secret", "your_access_secret", "your_refresh_secret", "your_access_secret_here", "your_refresh_secret_here"].includes(value)) {
     throw new Error(`Configure ${name} with a private signing secret before starting the server`);
   }
   return value;
@@ -15,8 +15,9 @@ export const REFRESH_SECRET = requiredSecret("JWT_REFRESH_SECRET");
 if (ACCESS_SECRET === REFRESH_SECRET) throw new Error("Access and refresh signing secrets must be different");
 export const tokenDigest = (token: string) => createHash("sha256").update(token).digest("hex");
 export const accountEnabled = (user: { isSuspended?: boolean; isActive?: boolean }) => !user.isSuspended && user.isActive !== false;
+export const kycDemoMode = () => process.env.KYC_DEMO_MODE === "true";
 export const identityApproved = (user: { isVerifiedIdentity?: boolean; demoKycComplete?: boolean }) =>
-  user.isVerifiedIdentity === true || (process.env.NODE_ENV !== "production" && user.demoKycComplete === true);
+  user.isVerifiedIdentity === true || ((process.env.NODE_ENV !== "production" || kycDemoMode()) && user.demoKycComplete === true);
 export const refreshExpiry = (token: string) => {
   const payload = jwt.decode(token) as jwt.JwtPayload;
   if (!payload || typeof payload.exp !== "number") throw new Error("Refresh token expiry is required");
@@ -24,12 +25,12 @@ export const refreshExpiry = (token: string) => {
 };
 export const publicUser = (user: any) => ({
   id: user._id.toString(), role: user.role, name: user.name, mobile: user.mobile,
-  email: user.email, isVerifiedIdentity: user.isVerifiedIdentity,
-  demoKycComplete: process.env.NODE_ENV !== "production" && user.demoKycComplete,
-  identityVerificationMode: process.env.NODE_ENV === "production" ? "staff" : "demo", createdAt: user.createdAt,
+  email: user.email, isVerifiedIdentity: user.isVerifiedIdentity || (kycDemoMode() && user.demoKycComplete === true),
+  demoKycComplete: (process.env.NODE_ENV !== "production" || kycDemoMode()) && user.demoKycComplete,
+  identityVerificationMode: kycDemoMode() || process.env.NODE_ENV !== "production" ? "demo" : "staff", createdAt: user.createdAt,
 });
 export function generateTokens(user: any) {
-  const payload = { id: user._id.toString(), role: user.role };
+  const payload = { id: user._id.toString(), role: user.role, sessionVersion: user.sessionVersion ?? 0 };
   return {
     accessToken: jwt.sign(payload, ACCESS_SECRET, { expiresIn: (process.env.JWT_ACCESS_EXPIRES_IN || "15m") as any }),
     refreshToken: jwt.sign(payload, REFRESH_SECRET, { jwtid: randomUUID(), expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || "30d") as any }),

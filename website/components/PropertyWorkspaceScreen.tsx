@@ -138,7 +138,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
       {!publicView && <>
         <View style={ui.card}>
           <Text style={ui.heading}>Seller and property records</Text>
-          {typeof property.ownerId === "object" && <Text style={ui.text}>{property.ownerId.name} · {property.ownerId.mobile}</Text>}
+          {property.ownerId && typeof property.ownerId === "object" ? <Text style={ui.text}>{property.ownerId.name} · {property.ownerId.mobile}</Text>}
           <Text style={ui.text}>Block: {property.location.block || "—"} · Mauza: {property.location.mauza || "—"} · Police station: {property.location.policeStation || "—"}</Text>
           <Text style={ui.text}>Khata: {property.khata || "—"} · Khesra: {property.khesra || "—"} · Holding: {property.holdingNumber || "—"}</Text>
           <Text style={ui.text}>Advisor: {property.assignedAdvisorId && typeof property.assignedAdvisorId === "object" ? property.assignedAdvisorId.name : property.assignedAdvisorId || "Awaiting assignment"}</Text>
@@ -155,7 +155,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
           <Text style={ui.heading}>{report!.role === "advisor" ? "Advisor" : "Verifier"} report · {report!.decision}</Text>
           <Text style={ui.text}>{report!.notes}</Text>
           <Text style={ui.muted}>Signed: {report!.signature} · {new Date(report!.submittedAt).toLocaleString()}</Text>
-          {Object.entries(report!.checklist).map(([key, value]) => <Text key={key} style={ui.text}>{value ? "✓" : "—"} {checks[key] || key}</Text>)}
+          {Object.entries(report!.checklist || {}).map(([key, value]) => <Text key={key} style={ui.text}>{value ? "✓" : "—"} {checks[key] || key}</Text>)}
           {report!.gpsCheckIn && <Text style={ui.text}>Site check-in: {report!.gpsCheckIn.lat}, {report!.gpsCheckIn.lng} · {new Date(report!.gpsCheckIn.timestamp).toLocaleString()}</Text>}
         </View>)}
         {canReview && <View style={ui.card}>

@@ -1,0 +1,75 @@
+name: Production checks
+on:
+  push:
+    branches: [production]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  clients:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project: [app, website]
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+          cache: npm
+          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=low
+      - run: npx tsc --noEmit
+      - if: matrix.project == 'app'
+        run: |
+          node scripts/verify-production-config.cjs
+          npm run lint
+          node scripts/check-recommendations.cjs
+          node scripts/check-startup-cache.cjs
+          node scripts/test-resume.cjs
+          node scripts/test-region-boundaries.cjs
+          npx expo export --platform android --output-dir dist-ci
+        env:
+          EXPO_PUBLIC_API_BASE_URL: https://malikseserver.devoxa.in
+      - if: matrix.project == 'website'
+        run: |
+          npm test
+          npm run build
+  server:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=low
+      - run: npm run build
+      - name: Start disposable standalone and replica-set databases
+        run: |
+          docker run -d --name mongo-standalone -p 27017:27017 mongo:7
+          docker run -d --name mongo-workflow -p 27028:27028 mongo:7 mongod --replSet workflow-test --port 27028 --bind_ip_all
+          for i in $(seq 1 30); do docker exec mongo-standalone mongosh --quiet --eval 'db.adminCommand({ping:1})' && break || sleep 1; done
+          for i in $(seq 1 30); do docker exec mongo-workflow mongosh --port 27028 --quiet --eval 'db.adminCommand({ping:1})' && break || sleep 1; done
+          node load/init-workflow-test.cjs
+      - name: Production-index and behavior regressions
+        run: |
+          node load/test-audit-remediation.cjs
+          node load/test-kyc-demo.cjs
+          node load/test-password-reset.cjs
+          node load/test-registration-otp.cjs
+          node load/test-hosting-startup.cjs
+          node load/test-uploads.cjs
+          node load/test-account-deletion.cjs --replica
+          node load/test-assigned-workflow.cjs
+          node load/test-fastify-property-reads.cjs
+          node load/test-public-cache.cjs

@@ -1,3 +1,4 @@
+import { removeLeafletMap } from "../src/utils/removeLeafletMap";
 import React, { useEffect, useRef, useState } from "react";
 import { Platform, View, Text, StyleSheet } from "react-native";
 import type { Property } from "../src/types/property.types";
@@ -49,7 +50,7 @@ export default function VerifiedPropertyMap({ properties, onSelect, focus }: { p
       resize = new ResizeObserver(() => map?.invalidateSize());
       resize.observe(container.current);
     }).catch(() => { if (active) setFailed(true); });
-    return () => { active = false; resize?.disconnect(); map?.remove(); };
+    return () => { active = false; resize?.disconnect(); removeLeafletMap(map); };
   }, [properties, onSelect, focus]);
   return <View style={styles.map}>
     {Platform.OS === "web" && <div ref={container} aria-label="Map of verified properties" style={{ width: "100%", height: "100%" }} />}

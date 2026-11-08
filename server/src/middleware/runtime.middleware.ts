@@ -58,6 +58,7 @@ export function installRuntimeMiddleware(app: Express) {
   });
   app.use(helmet());
   app.use(cors({
+    credentials: true,
     origin: (origin, callback) => callback(null, !origin || origins.includes(origin) || (!production && !origins.length)),
     exposedHeaders: ["X-Request-Id", "X-Search-Cache", "X-Next-Cursor", "RateLimit", "Retry-After"],
   }));

@@ -49,8 +49,8 @@ InquirySchema.index({ propertyId: 1 });
 InquirySchema.index({ buyerId: 1 });
 InquirySchema.index({ staffId: 1 });
 InquirySchema.index({ buyerId: 1, createdAt: -1 }, { name: "inquiry_buyer_newest" });
-InquirySchema.index({ staffId: 1, createdAt: -1 }, { name: "inquiry_seller_newest" });
+InquirySchema.index({ staffId: 1, createdAt: -1 }, { name: "inquiry_staff_newest" });
 
 InquirySchema.index({ buyerId: 1, createdAt: -1, _id: -1 }, { name: "inquiry_buyer_cursor" });
-InquirySchema.index({ staffId: 1, createdAt: -1, _id: -1 }, { name: "inquiry_seller_cursor" });
+InquirySchema.index({ staffId: 1, createdAt: -1, _id: -1 }, { name: "inquiry_staff_cursor" });
 export const Inquiry = mongoose.model<IInquiry>("Inquiry", InquirySchema);

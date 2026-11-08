@@ -44,7 +44,7 @@ async function main() {
   app=createFastifyApp();await app.listen({port:0,host:'127.0.0.1'});server=app.server;base='http://127.0.0.1:'+server.address().port;
   const admin=await User.create({name:'Admin',mobile:'9200090003',role:'admin',passwordHash:'test-fixture-only'});
   const staff=await User.create({name:'Staff',mobile:'9200090004',role:'advisor',passwordHash:'test-fixture-only'});
-  const token=require('jsonwebtoken').sign({id:String(admin._id),role:'admin'},process.env.JWT_ACCESS_SECRET);
+  const token=require('jsonwebtoken').sign({id:String(admin._id),role:'admin',sessionVersion:0},process.env.JWT_ACCESS_SECRET);
   async function setState(path, body) {
     const response=await fetch(base+path,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});
     assert.equal(response.status,200);return response.json();

@@ -21,23 +21,25 @@ interface AuthStore {
 }
 
 function readWebSession(): Partial<AuthStore> | null {
-  if (Platform.OS !== "web" || typeof localStorage === "undefined") return null;
+  // Retire persistent bearer credentials; browser sessions now end with the tab.
+  try { for (const key of [sessionKey, "malikse_access", "malikse_refresh", "malikse_user"]) localStorage.removeItem(key); } catch {}
+  if (Platform.OS !== "web" || typeof sessionStorage === "undefined") return null;
   try {
-    const saved = localStorage.getItem(sessionKey);
+    const saved = sessionStorage.getItem(sessionKey);
     if (saved) {
       const session = JSON.parse(saved);
       if (session?.accessToken?.startsWith("dummy_") || session?.user?.id === "demo_id") {
-        localStorage.removeItem(sessionKey);
-        localStorage.removeItem("malikse_access");
-        localStorage.removeItem("malikse_refresh");
-        localStorage.removeItem("malikse_user");
+        sessionStorage.removeItem(sessionKey);
+        sessionStorage.removeItem("malikse_access");
+        sessionStorage.removeItem("malikse_refresh");
+        sessionStorage.removeItem("malikse_user");
         return null;
       }
       return session;
     }
-    const accessToken = JSON.parse(localStorage.getItem("malikse_access") || "null");
-    const refreshToken = JSON.parse(localStorage.getItem("malikse_refresh") || "null");
-    const user = JSON.parse(localStorage.getItem("malikse_user") || "null");
+    const accessToken = JSON.parse(sessionStorage.getItem("malikse_access") || "null");
+    const refreshToken = JSON.parse(sessionStorage.getItem("malikse_refresh") || "null");
+    const user = JSON.parse(sessionStorage.getItem("malikse_user") || "null");
     return accessToken && !accessToken.startsWith("dummy_") && user && user.id !== "demo_id" ? { accessToken, refreshToken, user } : null;
   } catch { return null; }
 }
@@ -50,11 +52,11 @@ function saveSession(state: AuthStore) {
   });
   if (Platform.OS === "web") {
     try {
-      if (state.user && state.accessToken) localStorage.setItem(sessionKey, value);
-      else localStorage.removeItem(sessionKey);
-      localStorage.removeItem("malikse_access");
-      localStorage.removeItem("malikse_refresh");
-      localStorage.removeItem("malikse_user");
+      if (state.user && state.accessToken) sessionStorage.setItem(sessionKey, value);
+      else sessionStorage.removeItem(sessionKey);
+      sessionStorage.removeItem("malikse_access");
+      sessionStorage.removeItem("malikse_refresh");
+      sessionStorage.removeItem("malikse_user");
     } catch { /* Storage can be unavailable in private browsing. */ }
   } else {
     nativeWrite = nativeWrite.catch(() => {}).then(() => state.user && state.accessToken
