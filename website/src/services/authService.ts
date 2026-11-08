@@ -6,7 +6,12 @@ import { invalidatePropertySearch } from "./searchCache";
 const configuredApiUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
 
 function resolveApiUrl(): string {
-    const cleanUrl = (configuredApiUrl || "").trim().replace(/^["']|["']$/g, "").replace(/\/+$/, "");
+    let cleanUrl = (configuredApiUrl || "").trim().replace(/^["']|["']$/g, "").replace(/\/+$/, "");
+
+    // Upgrade http:// to https:// for production API to prevent browser mixed-content errors
+    if (/^http:\/\/malikseserver\.devoxa\.in$/i.test(cleanUrl)) {
+      cleanUrl = "https://malikseserver.devoxa.in";
+    }
 
     // If explicitly configured with a non-localhost remote URL (and not accidentally pointed at the website frontend itself)
     if (cleanUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(?:\/|$)/i.test(cleanUrl) && !/^(https?:\/\/)?malikse\.devoxa\.in$/i.test(cleanUrl)) {
