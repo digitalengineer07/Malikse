@@ -6,9 +6,11 @@ import { invalidatePropertySearch } from "./searchCache";
 const configuredApiUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
 
 function resolveApiUrl(): string {
-  // If explicitly configured with a non-localhost remote URL, use it directly
-  if (configuredApiUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(?:\/|$)/i.test(configuredApiUrl)) {
-    return configuredApiUrl.replace(/\/$/, "");
+  const cleanUrl = (configuredApiUrl || "").trim().replace(/^["']|["']$/g, "").replace(/\/+$/, "");
+
+  // If explicitly configured with a non-localhost remote URL (and not accidentally pointed at the website frontend itself)
+  if (cleanUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(?:\/|$)/i.test(cleanUrl) && !/^(https?:\/\/)?malikse\.devoxa\.in$/i.test(cleanUrl)) {
+    return cleanUrl;
   }
 
   // If running in browser and NOT on localhost (e.g. deployed on production domain or preview)
@@ -22,7 +24,7 @@ function resolveApiUrl(): string {
   }
 
   // Local development fallback
-  return configuredApiUrl ? configuredApiUrl.replace(/\/$/, "") : "http://localhost:5000";
+  return cleanUrl || "http://localhost:5000";
 }
 
 const API_URL = resolveApiUrl();
