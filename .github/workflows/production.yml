@@ -64,6 +64,7 @@ jobs:
       - name: Production-index and behavior regressions
         run: |
           node load/test-audit-remediation.cjs
+          node load/test-kyc-demo.cjs
           node load/test-password-reset.cjs
           node load/test-registration-otp.cjs
           node load/test-hosting-startup.cjs
