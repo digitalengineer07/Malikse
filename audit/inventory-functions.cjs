@@ -4,7 +4,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const ts = require('../server/node_modules/typescript');
 const root = path.resolve(__dirname, '..');
-const out = path.join(__dirname, 'production-2026-11-07');
+const out = path.resolve(__dirname, process.argv[2] || 'production-2026-11-07');
 fs.mkdirSync(out, { recursive: true });
 const files = [...new Set(execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' }).trim().split(/\r?\n/))]
   .filter(f => /\.(?:[cm]?js|tsx?)$/.test(f) && !/\.d\.ts$/.test(f) && !/\/dist[^/]*\//.test(f));

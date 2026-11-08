@@ -4,11 +4,19 @@ import mongoose from "mongoose";
 import { FileCleanup } from "../models/FileCleanup.model";
 import { User } from "../models/User.model";
 import { PropertyDocument } from "../models/Document.model";
+import { Property } from "../models/Property.model";
 export async function processFileCleanup() {
   const db = mongoose.connection.db!;
   for (const job of await FileCleanup.find({ nextAttemptAt: { $lte: new Date() } }).limit(20)) {
     try {
-      const referenced = job.bucket === "kyc" ? await User.exists({ kycDocuments: String(job.fileId) }) : await PropertyDocument.exists({ fileUrl: `gridfs:${job.fileId}` });
+      let referenced;
+      if (job.bucket === "kyc") referenced = await User.exists({ kycDocuments: String(job.fileId) });
+      else {
+        const doc = await PropertyDocument.findOne({ fileUrl: `gridfs:${job.fileId}` });
+        referenced = doc && await Property.exists({ _id: doc.propertyId }) && await User.exists({ _id: doc.uploadedBy });
+        // An upload may finish after account cleanup has removed its owner/property.
+        if (doc && !referenced) await PropertyDocument.deleteOne({ _id: doc._id, fileUrl: doc.fileUrl });
+      }
       if (referenced) { await FileCleanup.deleteOne({ _id: job._id }); continue; }
       await db.collection(`${job.bucket}.chunks`).deleteMany({ files_id: job.fileId });
       await db.collection(`${job.bucket}.files`).deleteOne({ _id: job.fileId });

@@ -59,7 +59,8 @@ export async function checkPushReceipts() {
   const result = await response.json() as { data?: Record<string, PushTicket> };
   const completed: string[] = [];
   for (const item of pending) {
-    const receipt = result.data?.[item.ticketId];
+    const receipt = result.data?.[item.ticketId] || (item.createdAt.getTime() < Date.now() - 24 * 60 * 60_000
+      ? { status: "error", details: { error: "ReceiptTimeout" } } : undefined);
     if (!receipt) continue;
     completed.push(item.ticketId);
     if (receipt.status === "error") {

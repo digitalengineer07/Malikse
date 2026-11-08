@@ -21,7 +21,7 @@ The worker cannot erase provider logs, exports, backups or independent copies. T
 
 ## Deployment
 
-Deploy server and clients together. Startup creates the AccountDeletion unique/queue/TTL indexes before starting the worker. MongoDB replica-set support is required by the existing transactional deal workflow. Every worker must see the same persistent local upload volume if legacy/local files are used; GridFS is shared through MongoDB. Run one server instance for local-file storage unless shared storage is configured.
+Deploy server and clients together. Run `npm run db:indexes:prod` before deployment; production startup verifies all required indexes and refuses readiness when they are missing. MongoDB replica-set support is required by the existing transactional deal workflow. Every worker must see the same persistent local upload volume if legacy/local files are used; GridFS is shared through MongoDB. New documents use MongoDB GridFS. Run `npm run db:migrate-documents` on the host holding the legacy files before removing that volume or adding independent upload hosts. Originals are retained for rollback and require a separate retention/deletion procedure.
 
 Configure `VITE_PRIVACY_CONTACT_EMAIL` with a monitored mailbox. The user-requested default `support@malikse.example` is deliberately nonfunctional and labeled as a placeholder. Set app `EXPO_PUBLIC_WEBSITE_URL=https://malikse.devoxa.in`. Configure the website host to serve SPA deep links `/privacy-policy` and `/delete-account`; verify both externally after deployment. This implementation has not been deployed by this task.
 

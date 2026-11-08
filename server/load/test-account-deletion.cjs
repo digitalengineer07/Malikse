@@ -61,6 +61,8 @@ async function main() {
   const fileName = randomUUID() + '.pdf';
   const local = path.join(__dirname, '../uploads', fileName); localFiles.push(local);
   await fs.mkdir(path.dirname(local), { recursive: true }); await fs.writeFile(local, '%PDF-private');
+  const gridDocumentId = await upload('documents', 'private-gridfs.pdf', { ownerId: String(owner._id), propertyId: String(prop._id) });
+  await PropertyDocument.create({ propertyId: prop._id, uploadedBy: owner._id, fileName: 'private-gridfs.pdf', fileUrl: `gridfs:${gridDocumentId}`, fileSize: 21, type: 'Registry' });
   const doc = await PropertyDocument.create({ propertyId: prop._id, uploadedBy: owner._id, fileName: 'private.pdf', fileUrl: fileName, fileSize: 12, type: 'Registry' });
   await DocumentDownload.create({ _id: 'test-ticket', documentId: doc._id, actorId: owner._id, expiresAt: new Date(Date.now() + 60000) });
   const deal = await Deal.create({ propertyId: prop._id, buyerId: buyer._id, ownerId: owner._id, offerAmount: 1000, commissionAmount: 10, status: 'offered', history: [{ terms: 'private owner data' }] });
@@ -122,7 +124,9 @@ async function main() {
   assert.equal((await authenticateRequest('Bearer ' + access)).status, 401);
   assert.equal(await Property.findById(prop._id), null); assert.ok(await Property.findById(other._id));
   assert.equal((await Property.findById(other._id)).jointOwnerIds.length, 0);
-  assert.equal(await mongoose.connection.db.collection('kyc.files').countDocuments(), 0);
+  assert.equal(await mongoose.connection.db.collection('documents.files').countDocuments(), 0);
+    assert.equal(await mongoose.connection.db.collection('documents.chunks').countDocuments(), 0);
+    assert.equal(await mongoose.connection.db.collection('kyc.files').countDocuments(), 0);
   assert.equal(await mongoose.connection.db.collection('kyc.chunks').countDocuments(), 0);
   assert.equal(await bucket('photos').find({ filename: ownPhoto }).next(), null);
   assert.ok(await bucket('photos').find({ filename: sharedPhoto }).next());

@@ -58,6 +58,7 @@ data
 !app/src/data/
 app/src/data/*
 !app/src/data/indiaStatesData.ts
+!app/src/data/biharDistrictsData.ts
 !website/src/data/
 website/src/data/*
 !website/src/data/indiaStatesData.ts

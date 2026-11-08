@@ -95,6 +95,44 @@ const { stopRegionCounts } = require('../dist/services/regionCountStore');
   await deliverNotifications(); assert.equal(sends, 5);
   await PushReceipt.updateMany({}, { $set: { createdAt: new Date(Date.now() - 16 * 60000) } });
   await checkPushReceipts(); assert.equal(await PushReceipt.countDocuments(), 0);
+  await PushReceipt.create({ ticketId: 'missing-receipt', token: 'ExpoPushToken[good]', notificationId: job._id, createdAt: new Date(Date.now() - 25 * 3600000) });
+  global.fetch = async () => Response.json({ data: {} });
+  await checkPushReceipts();
+  assert.equal(await PushReceipt.countDocuments(), 0);
+  assert.equal((await Notification.findById(job._id)).lastError, 'ReceiptTimeout');
+  const { scanDocumentBytes } = require('../dist/services/documentScanner');
+  const previousScanner = process.env.DOCUMENT_SCAN_URL;
+  try {
+   delete process.env.DOCUMENT_SCAN_URL;
+   process.env.NODE_ENV = 'production';
+   await assert.rejects(scanDocumentBytes(new Uint8Array([1])), e => e.status === 503);
+   process.env.DOCUMENT_SCAN_URL = 'https://scanner.example.test/scan';
+   global.fetch = async () => Response.json({ clean: true });
+   await scanDocumentBytes(new Uint8Array([1]));
+   global.fetch = async () => Response.json({ clean: false });
+   await assert.rejects(scanDocumentBytes(new Uint8Array([1])), /did not approve/);
+   global.fetch = async () => new Response('', { status: 503 });
+   await assert.rejects(scanDocumentBytes(new Uint8Array([1])), e => e.status === 503);
+   global.fetch = async () => { throw new Error('offline'); };
+   await assert.rejects(scanDocumentBytes(new Uint8Array([1])), e => e.status === 503);
+  } finally {
+   process.env.NODE_ENV = 'test';
+   if (previousScanner === undefined) delete process.env.DOCUMENT_SCAN_URL;
+   else process.env.DOCUMENT_SCAN_URL = previousScanner;
+  }
+  const { PropertyDocument } = require('../dist/models/Document.model');
+  const { FileCleanup } = require('../dist/models/FileCleanup.model');
+  const { processFileCleanup } = require('../dist/services/fileCleanup');
+  const orphanFile = new mongoose.Types.ObjectId();
+  const orphanDoc = await PropertyDocument.create({ propertyId: new mongoose.Types.ObjectId(), uploadedBy: owner._id, fileName: 'orphan.pdf', fileUrl: `gridfs:${orphanFile}`, fileSize: 1, type: 'Registry' });
+  await mongoose.connection.db.collection('documents.files').insertOne({ _id: orphanFile });
+  await mongoose.connection.db.collection('documents.chunks').insertOne({ files_id: orphanFile, n: 0, data: Buffer.from('x') });
+  await FileCleanup.create({ _id: `documents:${orphanFile}`, bucket: 'documents', fileId: orphanFile, nextAttemptAt: new Date(0) });
+  await processFileCleanup();
+  assert.equal(await PropertyDocument.findById(orphanDoc._id), null);
+  assert.equal(await mongoose.connection.db.collection('documents.files').countDocuments({ _id: orphanFile }), 0);
+  assert.equal(await mongoose.connection.db.collection('documents.chunks').countDocuments({ files_id: orphanFile }), 0);
+  console.log('PASS: scanner fails closed, accepts clean verdict, rejects unsafe/unavailable scans; missing receipt retries after 24 hours');
   console.log('PASS: fresh production indexes/fail-closed constraints; OTP contact change and replay; verified-only recovery; logout/reset access+refresh revocation; direct nested/media validation; partial push retries/dead-letter/receipt handling');
  } finally {
   global.fetch = realFetch;

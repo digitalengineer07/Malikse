@@ -28,6 +28,7 @@ import api, { authService } from "../src/services/authService";
 import { useAuthStore } from "../src/store/authStore";
 import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
+import EmailChangeForm from "./EmailChangeForm";
 import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
@@ -879,13 +880,14 @@ export function ProfileScreen() {
             {editing && (
               <View style={s.panel}>
                 <Field title="Full name" value={name} onChangeText={setName} />
-                <Field title="Email" value={email} onChangeText={setEmail} />
+                <Field title="New email" value={email} onChangeText={setEmail} />
+                <EmailChangeForm email={email} />
                 <Button
                   title="Save profile"
                   disabled={action.busy}
                   onPress={() =>
                     action.run(async () => {
-                      await userService.updateProfile({ name, email });
+                      await userService.updateProfile({ name });
                       await authService.getMe();
                       setEditing(false);
                     })
@@ -893,6 +895,8 @@ export function ProfileScreen() {
                 />
               </View>
             )}
+            <Button title="Privacy policy" secondary onPress={() => router.push("/privacy-policy" as any)} />
+            {user.role === "user" && <Button title="Delete account" secondary onPress={() => router.push("/delete-account" as any)} />}
             <ErrorBox text={action.error} />
             <Button
               title="Log out of MalikSe"
