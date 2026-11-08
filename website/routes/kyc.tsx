@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import AppHeader from "../components/AppHeader";
 import BottomNav from "../components/BottomNav";
+import WebFooter from "../components/WebFooter";
 import { MaterialIcons } from "@/web/icons";
 import { useRouter, useLocalSearchParams } from "@/web/navigation";
 import { useAuthStore } from "../src/store/authStore";
@@ -58,7 +59,6 @@ export default function KycScreen() {
     }
   }, [authState, user, fetchStatus]);
 
-  // Status computation
   const isVerified = Boolean(
     user?.isVerifiedIdentity ||
       user?.demoKycComplete ||
@@ -77,22 +77,6 @@ export default function KycScreen() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return "";
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString("en-IN", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
   const handlePickFiles = async () => {
     setError("");
     setSuccessMsg("");
@@ -107,7 +91,7 @@ export default function KycScreen() {
         setFiles((prev) => {
           const combined = [...prev, ...result.assets];
           if (combined.length > 3) {
-            setError("You can select up to 3 documents in total.");
+            setError("Maximum 3 files allowed.");
             return combined.slice(0, 3);
           }
           return combined;
@@ -124,7 +108,7 @@ export default function KycScreen() {
 
   const handleSubmitKyc = async () => {
     if (!files.length) {
-      setError("Please select at least 1 identity document to upload.");
+      setError("Please choose at least 1 document to upload.");
       return;
     }
 
@@ -149,14 +133,14 @@ export default function KycScreen() {
       });
 
       setFiles([]);
-      setSuccessMsg("Documents submitted successfully! Your verification is now under review.");
+      setSuccessMsg("Documents submitted! Verification is now in review.");
       await fetchStatus();
       await authService.getMe();
     } catch (err: any) {
       setError(
         err?.response?.data?.message ||
           err?.message ||
-          "Upload failed. Please ensure files are under 5 MB and try again.",
+          "Upload failed. Ensure files are under 5 MB.",
       );
     } finally {
       setSubmitting(false);
@@ -172,31 +156,30 @@ export default function KycScreen() {
       await authService.completeDemoKyc();
       await authService.getMe();
       await fetchStatus();
-      setSuccessMsg("Instant verification completed! Your account is now verified.");
+      setSuccessMsg("Account verified successfully!");
       if (params.returnTo) {
         setTimeout(() => {
           router.replace(params.returnTo as any);
-        }, 1200);
+        }, 1000);
       }
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || "Demo verification failed");
+      setError(err?.response?.data?.message || err?.message || "Verification failed");
     } finally {
       setDemoSubmitting(false);
     }
   };
 
-  // Not authenticated screen
   if (authState !== "AUTHENTICATED" || !user) {
     return (
       <View style={styles.screen}>
         <AppHeader showNavLinks={false} showPostPropertyBtn={false} showHomeButton showBack={false} />
         <View style={styles.accessPanel}>
           <View style={styles.accessIcon}>
-            <MaterialIcons name="lock-outline" size={28} color="#0A45B5" />
+            <MaterialIcons name="lock" size={26} color="#0A45B5" />
           </View>
           <Text style={styles.accessTitle}>Sign in to verify identity</Text>
           <Text style={styles.accessSubtitle}>
-            Identity verification requires you to be logged into your MalikSe account.
+            Please sign in to access identity verification and manage your listings.
           </Text>
           <TouchableOpacity
             style={styles.primaryBtn}
@@ -207,6 +190,7 @@ export default function KycScreen() {
             <MaterialIcons name="arrow-forward" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
+        <WebFooter />
       </View>
     );
   }
@@ -215,238 +199,196 @@ export default function KycScreen() {
     <View style={styles.screen}>
       <AppHeader showBack={false} showNavLinks={true} showPostPropertyBtn={true} />
 
-      <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]}>
-        {/* Top Breadcrumb & Back Link */}
-        <View style={styles.topNavRow}>
-          <TouchableOpacity
-            style={styles.backLink}
-            onPress={() => router.push("/dashboard")}
-            activeOpacity={0.75}
-          >
-            <MaterialIcons name="arrow-back" size={16} color="#0A45B5" />
-            <Text style={styles.backLinkText}>Dashboard</Text>
-          </TouchableOpacity>
-          <View style={styles.breadcrumbBadge}>
-            <Text style={styles.breadcrumbText}>IDENTITY VERIFICATION</Text>
-          </View>
-        </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={[styles.mainWrapper, compact && styles.mainWrapperCompact]}>
+          {/* Top Breadcrumb & Back Link */}
+          <View style={styles.topRow}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.push("/dashboard")}
+              activeOpacity={0.75}
+            >
+              <MaterialIcons name="arrow-back" size={16} color="#0A45B5" />
+              <Text style={styles.backButtonText}>Dashboard</Text>
+            </TouchableOpacity>
 
-        {/* Page Title & Subtitle */}
-        <View style={styles.headerBlock}>
-          <Text accessibilityRole="header" style={styles.pageTitle}>
-            Identity Verification (KYC)
-          </Text>
-          <Text style={styles.pageSubtitle}>
-            Verify your identity to list properties, contact owners directly, and make certified offers in Bihar.
-          </Text>
-        </View>
-
-        {/* Alerts / Error Messages */}
-        {error ? (
-          <View style={styles.errorBox}>
-            <MaterialIcons name="error-outline" size={18} color="#DC2626" />
-            <Text style={styles.errorText}>{error}</Text>
+            <View style={styles.badgeTop}>
+              <MaterialIcons name="verified-user" size={14} color="#0A45B5" />
+              <Text style={styles.badgeTopText}>MALIKSE VERIFY</Text>
+            </View>
           </View>
-        ) : null}
 
-        {successMsg ? (
-          <View style={styles.successBox}>
-            <MaterialIcons name="check-circle" size={18} color="#059669" />
-            <Text style={styles.successText}>{successMsg}</Text>
+          {/* Attractive Hero Header */}
+          <View style={styles.heroBlock}>
+            <Text accessibilityRole="header" style={styles.heroTitle}>
+              Identity Verification
+            </Text>
+            <Text style={styles.heroSubtitle}>
+              Verify your identity to list properties, contact owners, and make certified offers.
+            </Text>
           </View>
-        ) : null}
 
-        {/* Loading Spinner */}
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#0A45B5" />
-            <Text style={styles.loadingText}>Checking verification status...</Text>
-          </View>
-        ) : isVerified ? (
-          /* STATE 1: ALREADY VERIFIED */
-          <View style={styles.card}>
-            <View style={styles.verifiedHeaderRow}>
-              <View style={styles.verifiedIconCircle}>
-                <MaterialIcons name="verified" size={32} color="#059669" />
+          {/* Feedback Alerts */}
+          {error ? (
+            <View style={styles.errorAlert}>
+              <MaterialIcons name="error-outline" size={18} color="#DC2626" />
+              <Text style={styles.errorAlertText}>{error}</Text>
+            </View>
+          ) : null}
+
+          {successMsg ? (
+            <View style={styles.successAlert}>
+              <MaterialIcons name="check-circle" size={18} color="#059669" />
+              <Text style={styles.successAlertText}>{successMsg}</Text>
+            </View>
+          ) : null}
+
+          {/* Central Card */}
+          {loading ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator size="large" color="#0A45B5" />
+              <Text style={styles.loadingText}>Loading status...</Text>
+            </View>
+          ) : isVerified ? (
+            /* STATE 1: VERIFIED */
+            <View style={styles.glassCard}>
+              <View style={styles.verifiedHero}>
+                <View style={styles.verifiedIconBadge}>
+                  <MaterialIcons name="verified" size={36} color="#059669" />
+                </View>
+                <Text style={styles.verifiedMainTitle}>Identity Verified</Text>
+                <Text style={styles.verifiedMainSubtitle}>
+                  Your account is fully verified. You have full access to buy and sell.
+                </Text>
               </View>
-              <View style={styles.verifiedHeaderText}>
-                <View style={styles.verifiedBadgeRow}>
-                  <Text style={styles.verifiedTitle}>Identity Verified</Text>
-                  <View style={styles.certifiedTag}>
-                    <Text style={styles.certifiedTagText}>✓ Certified</Text>
+
+              <View style={styles.verifiedInfoStrip}>
+                <View style={styles.verifiedInfoCol}>
+                  <Text style={styles.verifiedInfoLabel}>Member</Text>
+                  <Text style={styles.verifiedInfoValue}>{user.name || "Nikhil"}</Text>
+                </View>
+                <View style={styles.verifiedInfoDivider} />
+                <View style={styles.verifiedInfoCol}>
+                  <Text style={styles.verifiedInfoLabel}>Status</Text>
+                  <Text style={[styles.verifiedInfoValue, { color: "#059669" }]}>Certified ✓</Text>
+                </View>
+              </View>
+
+              <View style={styles.ctaRow}>
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { flex: 1 }]}
+                  onPress={() => router.push("/dashboard")}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.primaryBtnText}>Dashboard</Text>
+                  <MaterialIcons name="arrow-forward" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.secondaryBtn, { flex: 1 }]}
+                  onPress={() => router.push("/post")}
+                  activeOpacity={0.85}
+                >
+                  <MaterialIcons name="add" size={16} color="#0A45B5" />
+                  <Text style={styles.secondaryBtnText}>Post Property</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : isPending ? (
+            /* STATE 2: PENDING REVIEW */
+            <View style={styles.glassCard}>
+              <View style={styles.pendingHero}>
+                <View style={styles.pendingIconBadge}>
+                  <MaterialIcons name="schedule" size={34} color="#D97706" />
+                </View>
+                <Text style={styles.pendingMainTitle}>Review in Progress</Text>
+                <Text style={styles.pendingMainSubtitle}>
+                  Your documents were received and are being verified. This typically takes 2–4 hours.
+                </Text>
+              </View>
+
+              <View style={styles.ctaRow}>
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { flex: 1 }]}
+                  onPress={fetchStatus}
+                  activeOpacity={0.85}
+                >
+                  <MaterialIcons name="refresh" size={16} color="#FFFFFF" />
+                  <Text style={styles.primaryBtnText}>Refresh</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.secondaryBtn, { flex: 1 }]}
+                  onPress={() => router.push("/dashboard")}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.secondaryBtnText}>Dashboard</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            /* STATE 3: UPLOAD DOCUMENTS */
+            <View style={styles.glassCard}>
+              {isCorrection && kycData?.identityReview?.notes ? (
+                <View style={styles.notesBox}>
+                  <MaterialIcons name="error-outline" size={16} color="#D97706" />
+                  <Text style={styles.notesText}>{kycData.identityReview.notes}</Text>
+                </View>
+              ) : null}
+
+              {/* Upload Card Header */}
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.headerLeft}>
+                  <View style={styles.idIconCircle}>
+                    <MaterialIcons name="badge" size={22} color="#0A45B5" />
+                  </View>
+                  <View>
+                    <Text style={styles.cardHeaderTitle}>Upload Government ID</Text>
+                    <Text style={styles.cardHeaderSub}>Aadhaar, PAN, Voter ID, or Passport</Text>
                   </View>
                 </View>
-                <Text style={styles.verifiedSubtitle}>
-                  Your account is verified. You have full access to buy, sell, and post properties.
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.detailsList}>
-              <View style={styles.detailItem}>
-                <Text style={styles.detailLabel}>Account Holder</Text>
-                <Text style={styles.detailValue}>{user.name || "Nikhil"}</Text>
-              </View>
-              <View style={styles.detailDivider} />
-              <View style={styles.detailItem}>
-                <Text style={styles.detailLabel}>Mobile</Text>
-                <Text style={styles.detailValue}>
-                  {user.mobile ? `+91 ${user.mobile}` : "Registered"}
-                </Text>
-              </View>
-              <View style={styles.detailDivider} />
-              <View style={styles.detailItem}>
-                <Text style={styles.detailLabel}>7-Point Bihar Land Check</Text>
-                <Text style={[styles.detailValue, { color: "#059669" }]}>Passed & Active</Text>
-              </View>
-            </View>
-
-            <View style={styles.actionButtonGroup}>
-              <TouchableOpacity
-                style={styles.primaryBtn}
-                onPress={() => router.push("/dashboard")}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.primaryBtnText}>Go to Dashboard</Text>
-                <MaterialIcons name="arrow-forward" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.secondaryBtn}
-                onPress={() => router.push("/post")}
-                activeOpacity={0.85}
-              >
-                <MaterialIcons name="add" size={16} color="#0A45B5" />
-                <Text style={styles.secondaryBtnText}>Post a Property</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : isPending ? (
-          /* STATE 2: UNDER REVIEW */
-          <View style={styles.card}>
-            <View style={styles.pendingHeaderRow}>
-              <View style={styles.pendingIconCircle}>
-                <MaterialIcons name="schedule" size={30} color="#D97706" />
-              </View>
-              <View style={styles.pendingHeaderText}>
-                <Text style={styles.pendingTitle}>Documents Under Review</Text>
-                <Text style={styles.pendingSubtitle}>
-                  Your identity documents have been submitted. Our verification team is reviewing them (usually within 2–4 hours).
-                </Text>
-              </View>
-            </View>
-
-            {kycData?.kycSubmittedAt ? (
-              <View style={styles.infoRow}>
-                <MaterialIcons name="access-time" size={16} color="#64748B" />
-                <Text style={styles.infoRowText}>
-                  Submitted on: {formatDate(kycData.kycSubmittedAt)}
-                </Text>
-              </View>
-            ) : null}
-
-            <View style={styles.actionButtonGroup}>
-              <TouchableOpacity
-                style={styles.primaryBtn}
-                onPress={fetchStatus}
-                activeOpacity={0.85}
-              >
-                <MaterialIcons name="refresh" size={16} color="#FFFFFF" />
-                <Text style={styles.primaryBtnText}>Refresh Status</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.secondaryBtn}
-                onPress={() => router.push("/dashboard")}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.secondaryBtnText}>Back to Dashboard</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          /* STATE 3: UPLOAD FORM */
-          <>
-            {isCorrection && kycData?.identityReview?.notes ? (
-              <View style={styles.correctionBox}>
-                <View style={styles.correctionHeader}>
-                  <MaterialIcons name="info-outline" size={18} color="#D97706" />
-                  <Text style={styles.correctionTitle}>Reviewer Feedback</Text>
-                </View>
-                <Text style={styles.correctionText}>{kycData.identityReview.notes}</Text>
-              </View>
-            ) : null}
-
-            <View style={styles.card}>
-              {/* Status Header */}
-              <View style={styles.statusRow}>
-                <View style={styles.statusIconWrap}>
-                  <MaterialIcons name="security" size={22} color="#0A45B5" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.statusTagRow}>
-                    <Text style={styles.statusTitle}>Government ID Upload</Text>
-                    <View style={styles.unverifiedTag}>
-                      <Text style={styles.unverifiedTagText}>Not Submitted</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.statusDescription}>
-                    Upload clear photos or PDFs of your identity proof.
-                  </Text>
+                <View style={styles.statusPillUnverified}>
+                  <Text style={styles.statusPillUnverifiedText}>Required</Text>
                 </View>
               </View>
 
-              {/* Accepted Documents Pills */}
-              <View style={styles.acceptedRow}>
-                <Text style={styles.acceptedLabel}>Accepted documents:</Text>
-                <View style={styles.pillsList}>
-                  <View style={styles.docPill}><Text style={styles.docPillText}>Aadhaar Card</Text></View>
-                  <View style={styles.docPill}><Text style={styles.docPillText}>PAN Card</Text></View>
-                  <View style={styles.docPill}><Text style={styles.docPillText}>Voter ID</Text></View>
-                  <View style={styles.docPill}><Text style={styles.docPillText}>Passport</Text></View>
-                </View>
-              </View>
-
-              {/* Upload Drop Area */}
+              {/* Upload Box */}
               <TouchableOpacity
-                style={styles.uploadDropzone}
+                style={styles.dropZone}
                 onPress={handlePickFiles}
                 activeOpacity={0.85}
               >
-                <View style={styles.uploadIconCircle}>
+                <View style={styles.dropZoneIconCircle}>
                   <MaterialIcons name="cloud-upload" size={26} color="#0A45B5" />
                 </View>
-                <Text style={styles.uploadMainText}>
-                  {files.length > 0 ? "Click to add more documents" : "Choose identity documents"}
+                <Text style={styles.dropZoneTitle}>
+                  {files.length > 0 ? "Add more documents" : "Choose identity documents"}
                 </Text>
-                <Text style={styles.uploadSubText}>
-                  JPG, PNG or PDF • Up to 5 MB each (maximum 3 files)
-                </Text>
+                <Text style={styles.dropZoneSub}>JPG, PNG or PDF (up to 5 MB each)</Text>
               </TouchableOpacity>
 
-              {/* Selected Files List */}
+              {/* Selected Files */}
               {files.length > 0 ? (
-                <View style={styles.filesContainer}>
-                  <Text style={styles.filesTitle}>Selected files ({files.length}/3):</Text>
+                <View style={styles.filesList}>
                   {files.map((file, idx) => {
                     const isPdf =
                       file.name?.toLowerCase().endsWith(".pdf") ||
                       file.mimeType?.includes("pdf");
                     return (
-                      <View key={file.uri + idx} style={styles.fileItem}>
-                        <View style={styles.fileIconWrap}>
-                          <MaterialIcons
-                            name={isPdf ? "picture-as-pdf" : "image"}
-                            size={18}
-                            color="#0A45B5"
-                          />
-                        </View>
-                        <View style={styles.fileMeta}>
-                          <Text style={styles.fileName} numberOfLines={1}>
+                      <View key={file.uri + idx} style={styles.fileRow}>
+                        <MaterialIcons
+                          name={isPdf ? "picture-as-pdf" : "image"}
+                          size={18}
+                          color="#0A45B5"
+                        />
+                        <View style={styles.fileNameCol}>
+                          <Text style={styles.fileNameText} numberOfLines={1}>
                             {file.name}
                           </Text>
-                          <Text style={styles.fileSize}>{formatFileSize(file.size)}</Text>
+                          <Text style={styles.fileSizeText}>{formatFileSize(file.size)}</Text>
                         </View>
                         <TouchableOpacity
-                          style={styles.fileDeleteBtn}
+                          style={styles.removeBtn}
                           onPress={() => removeFile(idx)}
                           activeOpacity={0.7}
                         >
@@ -462,7 +404,7 @@ export default function KycScreen() {
               <TouchableOpacity
                 style={[
                   styles.primaryBtn,
-                  styles.fullWidthBtn,
+                  styles.fullBtn,
                   (!files.length || submitting) && styles.disabledBtn,
                 ]}
                 disabled={!files.length || submitting}
@@ -472,57 +414,67 @@ export default function KycScreen() {
                 {submitting ? (
                   <>
                     <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={styles.primaryBtnText}>Submitting documents...</Text>
+                    <Text style={styles.primaryBtnText}>Submitting...</Text>
                   </>
                 ) : (
                   <>
-                    <MaterialIcons name="check" size={18} color="#FFFFFF" />
-                    <Text style={styles.primaryBtnText}>Submit KYC for Review</Text>
+                    <MaterialIcons name="check" size={17} color="#FFFFFF" />
+                    <Text style={styles.primaryBtnText}>Submit Documents</Text>
                   </>
                 )}
               </TouchableOpacity>
-            </View>
 
-            {/* Instant Demo Verification Card */}
-            <View style={styles.demoCard}>
-              <View style={styles.demoHeader}>
-                <View style={styles.demoIconCircle}>
-                  <MaterialIcons name="bolt" size={20} color="#D97706" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.demoTitle}>Testing in Demo Mode?</Text>
-                  <Text style={styles.demoSubtitle}>
-                    Activate instant verification with 1 click without waiting for manual document review.
-                  </Text>
-                </View>
+              {/* Demo Mode Instant Verification Shortcut */}
+              <View style={styles.demoShortcutRow}>
+                <TouchableOpacity
+                  style={styles.demoLinkBtn}
+                  onPress={handleDemoVerify}
+                  disabled={demoSubmitting}
+                  activeOpacity={0.8}
+                >
+                  {demoSubmitting ? (
+                    <ActivityIndicator size="small" color="#0A45B5" />
+                  ) : (
+                    <>
+                      <MaterialIcons name="bolt" size={16} color="#0A45B5" />
+                      <Text style={styles.demoLinkText}>Activate Instant Demo Verification</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
               </View>
-
-              <TouchableOpacity
-                style={styles.demoBtn}
-                onPress={handleDemoVerify}
-                disabled={demoSubmitting}
-                activeOpacity={0.85}
-              >
-                {demoSubmitting ? (
-                  <ActivityIndicator size="small" color="#B45309" />
-                ) : (
-                  <>
-                    <MaterialIcons name="verified" size={16} color="#B45309" />
-                    <Text style={styles.demoBtnText}>Activate Instant Demo Verification</Text>
-                  </>
-                )}
-              </TouchableOpacity>
             </View>
-          </>
-        )}
+          )}
 
-        {/* Security & Confidentiality Footer */}
-        <View style={styles.securityNote}>
-          <MaterialIcons name="lock-outline" size={14} color="#64748B" />
-          <Text style={styles.securityNoteText}>
-            256-bit encrypted. Your documents are reviewed strictly for Bihar property deal verification and never shared publicly.
-          </Text>
+          {/* Three Visual Benefit Icons */}
+          <View style={[styles.benefitsRow, compact && styles.benefitsRowCompact]}>
+            <View style={styles.benefitItem}>
+              <View style={styles.benefitIconWrap}>
+                <MaterialIcons name="verified" size={18} color="#0A45B5" />
+              </View>
+              <Text style={styles.benefitTitle}>Certified Badge</Text>
+              <Text style={styles.benefitDesc}>Builds instant buyer trust</Text>
+            </View>
+
+            <View style={styles.benefitItem}>
+              <View style={styles.benefitIconWrap}>
+                <MaterialIcons name="chat" size={18} color="#0A45B5" />
+              </View>
+              <Text style={styles.benefitTitle}>Direct Deals</Text>
+              <Text style={styles.benefitDesc}>Contact owners with 0% brokerage</Text>
+            </View>
+
+            <View style={styles.benefitItem}>
+              <View style={styles.benefitIconWrap}>
+                <MaterialIcons name="security" size={18} color="#0A45B5" />
+              </View>
+              <Text style={styles.benefitTitle}>Private & Safe</Text>
+              <Text style={styles.benefitDesc}>Encrypted document review</Text>
+            </View>
+          </View>
         </View>
+
+        {/* Real Institutional Web Footer */}
+        <WebFooter />
       </ScrollView>
 
       <BottomNav />
@@ -535,369 +487,291 @@ const styles = premiumStyles({
     flex: 1,
     backgroundColor: "#F8FAFC",
   },
-  content: {
-    width: "100%",
-    maxWidth: 680,
-    alignSelf: "center",
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 80,
+  scrollContent: {
+    flexGrow: 1,
   },
-  contentCompact: {
+  mainWrapper: {
+    width: "100%",
+    maxWidth: 760,
+    alignSelf: "center",
+    paddingHorizontal: 28,
+    paddingTop: 28,
+    paddingBottom: 48,
+  },
+  mainWrapperCompact: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 18,
+    paddingBottom: 36,
   },
 
   // Top Nav Row
-  topNavRow: {
+  topRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 16,
-    flexWrap: "wrap",
-    gap: 10,
   },
-  backLink: {
+  backButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     cursor: "pointer",
   },
-  backLinkText: {
+  backButtonText: {
     color: "#0A45B5",
     fontSize: 13,
     fontWeight: "700",
   },
-  breadcrumbBadge: {
+  badgeTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: "#EFF6FF",
+    borderRadius: 16,
   },
-  breadcrumbText: {
+  badgeTopText: {
     color: "#0A45B5",
     fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1,
+    fontWeight: "800",
+    letterSpacing: 0.8,
   },
 
-  // Page Header
-  headerBlock: {
-    marginBottom: 20,
+  // Hero Header
+  heroBlock: {
+    marginBottom: 24,
   },
-  pageTitle: {
+  heroTitle: {
     color: "#0B1B3F",
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "800",
-    letterSpacing: -0.5,
+    letterSpacing: -0.6,
   },
-  pageSubtitle: {
+  heroSubtitle: {
     color: "#64748B",
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 14.5,
+    lineHeight: 22,
     marginTop: 6,
   },
 
-  // Loading State
-  loadingContainer: {
-    padding: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
-  loadingText: {
-    color: "#64748B",
-    fontSize: 13.5,
-    fontWeight: "500",
-  },
-
   // Alerts
-  errorBox: {
+  errorAlert: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    padding: 14,
+    gap: 8,
     backgroundColor: "#FEF2F2",
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#FECDD3",
+    padding: 12,
     marginBottom: 16,
   },
-  errorText: {
+  errorAlertText: {
     flex: 1,
     color: "#DC2626",
     fontSize: 13,
     fontWeight: "500",
   },
-  successBox: {
+  successAlert: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    padding: 14,
+    gap: 8,
     backgroundColor: "#ECFDF5",
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#A7F3D0",
+    padding: 12,
     marginBottom: 16,
   },
-  successText: {
+  successAlertText: {
     flex: 1,
     color: "#059669",
     fontSize: 13,
     fontWeight: "600",
   },
 
-  // Main Card
-  card: {
+  // Loading
+  loadingBox: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 22,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    padding: 22,
-    shadowColor: "#0B1B3F",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 16,
-    elevation: 2,
-    marginBottom: 20,
+    padding: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    marginBottom: 28,
+  },
+  loadingText: {
+    color: "#64748B",
+    fontSize: 13.5,
   },
 
-  // State 1: Verified
-  verifiedHeaderRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 16,
-    marginBottom: 20,
+  // Glass Card
+  glassCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 26,
+    shadowColor: "#0B1B3F",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    elevation: 2,
+    marginBottom: 28,
   },
-  verifiedIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+
+  // Verified Hero
+  verifiedHero: {
+    alignItems: "center",
+    paddingVertical: 14,
+    marginBottom: 18,
+  },
+  verifiedIconBadge: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: "#ECFDF5",
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 14,
   },
-  verifiedHeaderText: {
-    flex: 1,
+  verifiedMainTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    letterSpacing: -0.4,
   },
-  verifiedBadgeRow: {
+  verifiedMainSubtitle: {
+    fontSize: 13.5,
+    color: "#64748B",
+    textAlign: "center",
+    marginTop: 6,
+    maxWidth: 420,
+    lineHeight: 20,
+  },
+  verifiedInfoStrip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  verifiedTitle: {
-    color: "#0B1B3F",
-    fontSize: 19,
-    fontWeight: "800",
-  },
-  certifiedTag: {
-    backgroundColor: "#ECFDF5",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-  },
-  certifiedTagText: {
-    color: "#059669",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  verifiedSubtitle: {
-    color: "#64748B",
-    fontSize: 13.5,
-    lineHeight: 20,
-    marginTop: 4,
-  },
-
-  // Details List
-  detailsList: {
     backgroundColor: "#F8FAFC",
     borderRadius: 14,
-    padding: 14,
-    marginBottom: 20,
     borderWidth: 1,
     borderColor: "#F1F5F9",
+    padding: 14,
+    marginBottom: 20,
   },
-  detailItem: {
+  verifiedInfoCol: {
+    flex: 1,
+    alignItems: "center",
+  },
+  verifiedInfoDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: "#E2E8F0",
+  },
+  verifiedInfoLabel: {
+    fontSize: 11.5,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  verifiedInfoValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0B1B3F",
+    marginTop: 2,
+  },
+
+  // Pending Hero
+  pendingHero: {
+    alignItems: "center",
+    paddingVertical: 14,
+    marginBottom: 20,
+  },
+  pendingIconBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#FFFBEB",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  pendingMainTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0B1B3F",
+  },
+  pendingMainSubtitle: {
+    fontSize: 13.5,
+    color: "#64748B",
+    textAlign: "center",
+    marginTop: 6,
+    maxWidth: 420,
+    lineHeight: 20,
+  },
+
+  // Card Header Row (Upload state)
+  cardHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 6,
-  },
-  detailDivider: {
-    height: 1,
-    backgroundColor: "#E2E8F0",
-    marginVertical: 4,
-  },
-  detailLabel: {
-    color: "#64748B",
-    fontSize: 13,
-  },
-  detailValue: {
-    color: "#0B1B3F",
-    fontSize: 13.5,
-    fontWeight: "700",
-  },
-
-  // State 2: Pending
-  pendingHeaderRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 16,
-    marginBottom: 16,
-  },
-  pendingIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#FFFBEB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pendingHeaderText: {
-    flex: 1,
-  },
-  pendingTitle: {
-    color: "#0B1B3F",
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  pendingSubtitle: {
-    color: "#64748B",
-    fontSize: 13.5,
-    lineHeight: 20,
-    marginTop: 4,
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    padding: 12,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 12,
     marginBottom: 20,
   },
-  infoRowText: {
-    color: "#64748B",
-    fontSize: 12.5,
-    fontWeight: "500",
-  },
-
-  // Correction Alert
-  correctionBox: {
-    backgroundColor: "#FFFBEB",
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#FDE68A",
-    marginBottom: 18,
-  },
-  correctionHeader: {
+  headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 6,
+    gap: 12,
   },
-  correctionTitle: {
-    color: "#92400E",
-    fontSize: 13.5,
-    fontWeight: "700",
-  },
-  correctionText: {
-    color: "#78350F",
-    fontSize: 13,
-    lineHeight: 19,
-  },
-
-  // Status Row in Upload form
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    marginBottom: 16,
-  },
-  statusIconWrap: {
+  idIconCircle: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 12,
     backgroundColor: "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
   },
-  statusTagRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  statusTitle: {
-    color: "#0B1B3F",
-    fontSize: 16,
+  cardHeaderTitle: {
+    fontSize: 16.5,
     fontWeight: "800",
+    color: "#0B1B3F",
   },
-  unverifiedTag: {
+  cardHeaderSub: {
+    fontSize: 12.5,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  statusPillUnverified: {
     backgroundColor: "#EFF6FF",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 12,
   },
-  unverifiedTagText: {
+  statusPillUnverifiedText: {
     color: "#0A45B5",
     fontSize: 11,
     fontWeight: "700",
   },
-  statusDescription: {
-    color: "#64748B",
-    fontSize: 13,
-    marginTop: 2,
-  },
 
-  // Accepted Pills
-  acceptedRow: {
-    marginBottom: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
-  },
-  acceptedLabel: {
-    color: "#64748B",
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  pillsList: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  docPill: {
-    backgroundColor: "#F1F5F9",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-  },
-  docPillText: {
-    color: "#334155",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-
-  // Upload Drop Area
-  uploadDropzone: {
+  // Dropzone
+  dropZone: {
     borderWidth: 2,
     borderColor: "#BFDBFE",
     borderStyle: "dashed",
     backgroundColor: "#F8FAFF",
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 18,
+    padding: 26,
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
     marginBottom: 18,
   },
-  uploadIconCircle: {
+  dropZoneIconCircle: {
     width: 48,
     height: 48,
     borderRadius: 24,
@@ -906,62 +780,67 @@ const styles = premiumStyles({
     justifyContent: "center",
     marginBottom: 10,
   },
-  uploadMainText: {
-    color: "#0A45B5",
+  dropZoneTitle: {
     fontSize: 14.5,
     fontWeight: "700",
+    color: "#0A45B5",
   },
-  uploadSubText: {
-    color: "#64748B",
+  dropZoneSub: {
     fontSize: 12,
+    color: "#64748B",
     marginTop: 4,
   },
 
-  // Selected Files
-  filesContainer: {
-    marginBottom: 18,
+  // Files List
+  filesList: {
     gap: 8,
+    marginBottom: 18,
   },
-  filesTitle: {
-    color: "#0B1B3F",
-    fontSize: 13,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  fileItem: {
+  fileRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 10,
     backgroundColor: "#F8FAFC",
-    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E2E8F0",
+    borderRadius: 12,
+    padding: 10,
     gap: 10,
   },
-  fileIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fileMeta: {
+  fileNameCol: {
     flex: 1,
   },
-  fileName: {
-    color: "#0B1B3F",
+  fileNameText: {
     fontSize: 13,
     fontWeight: "600",
+    color: "#0B1B3F",
   },
-  fileSize: {
-    color: "#64748B",
+  fileSizeText: {
     fontSize: 11,
-    marginTop: 2,
+    color: "#64748B",
+    marginTop: 1,
   },
-  fileDeleteBtn: {
-    padding: 6,
+  removeBtn: {
+    padding: 4,
     cursor: "pointer",
+  },
+
+  // Notes Box
+  notesBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  notesText: {
+    flex: 1,
+    fontSize: 12.5,
+    color: "#92400E",
+    lineHeight: 18,
   },
 
   // Buttons
@@ -976,12 +855,12 @@ const styles = premiumStyles({
     borderRadius: 14,
     shadowColor: "#0A45B5",
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.16,
     shadowRadius: 8,
     elevation: 2,
     cursor: "pointer",
   },
-  fullWidthBtn: {
+  fullBtn: {
     width: "100%",
   },
   disabledBtn: {
@@ -1011,77 +890,70 @@ const styles = premiumStyles({
     fontSize: 13.5,
     fontWeight: "700",
   },
-  actionButtonGroup: {
+  ctaRow: {
     flexDirection: "row",
     gap: 12,
-    flexWrap: "wrap",
   },
 
-  // Demo Card
-  demoCard: {
-    backgroundColor: "#FFFBEB",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#FDE68A",
-    padding: 18,
-    marginBottom: 20,
+  // Demo shortcut
+  demoShortcutRow: {
+    alignItems: "center",
+    marginTop: 16,
   },
-  demoHeader: {
+  demoLinkBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    marginBottom: 12,
-  },
-  demoIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#FEF3C7",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  demoTitle: {
-    color: "#92400E",
-    fontSize: 14.5,
-    fontWeight: "800",
-  },
-  demoSubtitle: {
-    color: "#78350F",
-    fontSize: 12.5,
-    lineHeight: 18,
-    marginTop: 2,
-  },
-  demoBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: "#FEF3C7",
-    borderWidth: 1,
-    borderColor: "#FCD34D",
-    borderRadius: 12,
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     cursor: "pointer",
   },
-  demoBtnText: {
-    color: "#92400E",
-    fontSize: 13,
-    fontWeight: "700",
+  demoLinkText: {
+    color: "#0A45B5",
+    fontSize: 12.5,
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
 
-  // Security Note
-  securityNote: {
+  // Benefits Row
+  benefitsRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 6,
+    justifyContent: "space-between",
+    gap: 14,
   },
-  securityNoteText: {
+  benefitsRowCompact: {
+    flexDirection: "column",
+    gap: 12,
+  },
+  benefitItem: {
     flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 16,
+    alignItems: "center",
+    textAlign: "center",
+  },
+  benefitIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  benefitTitle: {
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#0B1B3F",
+  },
+  benefitDesc: {
+    fontSize: 11.5,
     color: "#64748B",
-    fontSize: 12,
-    lineHeight: 17,
+    marginTop: 2,
+    textAlign: "center",
   },
 
   // Access Panel
@@ -1089,10 +961,11 @@ const styles = premiumStyles({
     maxWidth: 480,
     width: "100%",
     alignSelf: "center",
-    marginTop: 40,
+    marginTop: 48,
+    marginBottom: 48,
     padding: 28,
     backgroundColor: "#FFFFFF",
-    borderRadius: 22,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: "#E2E8F0",
     shadowColor: "#0B1B3F",
@@ -1103,9 +976,9 @@ const styles = premiumStyles({
     gap: 14,
   },
   accessIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
