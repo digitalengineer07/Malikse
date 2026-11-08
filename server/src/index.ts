@@ -25,7 +25,7 @@ app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
   console.log(`[MalikSe] Fastify server running on http://localhost:${PORT}`);
   startupStage = "MongoDB connection";
   return mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/malikse", {
-  autoIndex: process.env.NODE_ENV !== "production",
+  autoIndex: false,
   ...mongoPoolOptions(),
   });
 }).then(async () => {

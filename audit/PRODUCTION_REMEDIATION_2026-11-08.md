@@ -58,3 +58,7 @@ Live SMTP/Twilio delivery, scanner-provider integration, physical-device push be
 ## Repository cleanup
 
 Seeding and bulk property import/upload utilities remain local-only and ignored. Runtime upload services, cleanup workers, migrations and regression tests remain tracked because production depends on them. The mobile Bihar district module is runtime application data and is intentionally tracked. Removing files from the current tree does not purge previous Git history.
+
+## Follow-up: existing inquiry index compatibility
+
+A startup report exposed a legacy-schema migration case absent from the fresh-database test: `inquiry_seller_newest` (and its cursor counterpart) existed with `sellerId` keys, while the newer schema requested `staffId` under the same names. The staff indexes now use distinct `inquiry_staff_*` names. The additive migration retains seller indexes, and accepts old-name staff indexes only when keys and constraints match. Automatic Mongoose index creation is disabled so startup uses the controlled migration/verification path. Regression coverage includes legacy seller definitions, existing staff aliases and repeat migration. Production still requires `npm run db:indexes:prod` before restart; development creates required indexes at startup. No existing indexes or user data are deleted by this fix.

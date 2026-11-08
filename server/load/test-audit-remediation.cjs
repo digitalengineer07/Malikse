@@ -29,9 +29,23 @@ const { stopRegionCounts } = require('../dist/services/regionCountStore');
  const realFetch = global.fetch;
  try {
   await assert.rejects(verifyRequiredIndexes());
+  const { Inquiry } = require('../dist/models/Inquiry.model');
+  await Inquiry.createCollection();
+  await Inquiry.collection.createIndex({ sellerId: 1, createdAt: -1 }, { name: 'inquiry_seller_newest' });
+  await Inquiry.collection.createIndex({ sellerId: 1, createdAt: -1, _id: -1 }, { name: 'inquiry_seller_cursor' });
   await createRequiredIndexes(); await verifyRequiredIndexes();
   await User.collection.dropIndex('email_1'); await assert.rejects(verifyRequiredIndexes(), /Required index/);
   await createRequiredIndexes(); await verifyRequiredIndexes();
+  // Emulate another installation where old names already describe staff keys.
+  for (const suffix of ['newest', 'cursor']) {
+   await Inquiry.collection.dropIndex('inquiry_staff_' + suffix);
+   await Inquiry.collection.dropIndex('inquiry_seller_' + suffix);
+   const keys = suffix === 'newest' ? { staffId: 1, createdAt: -1 } : { staffId: 1, createdAt: -1, _id: -1 };
+   await Inquiry.collection.createIndex(keys, { name: 'inquiry_seller_' + suffix });
+  }
+  await createRequiredIndexes(); await verifyRequiredIndexes();
+  await createRequiredIndexes(); await verifyRequiredIndexes();
+  console.log('PASS: legacy seller indexes coexist with new staff indexes; existing staff aliases are reused; migration is repeatable');
   const password = 'Forest!Strong83';
   const owner = await User.create({ role: 'user', name: 'Audit fixture', email: 'owner@example.test', emailVerifiedAt: new Date(), passwordHash: await passwords.hash(password, 4), isVerifiedIdentity: true });
   const unverified = await User.create({ role: 'user', name: 'Unverified', email: 'unverified@example.test', passwordHash: owner.passwordHash });
