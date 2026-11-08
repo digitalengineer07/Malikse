@@ -146,7 +146,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
       {!publicView && <>
         <View style={ui.card}>
           <Text style={ui.heading}>Seller and property records</Text>
-          {property.ownerId && typeof property.ownerId === "object" ? <Text style={ui.text}>{property.ownerId.name} · {property.ownerId.mobile}</Text>}
+          {property.ownerId && typeof property.ownerId === "object" ? <Text style={ui.text}>{property.ownerId.name} · {property.ownerId.mobile}</Text> : null}
           <Text style={ui.text}>Block: {property.location.block || "—"} · Mauza: {property.location.mauza || "—"} · Police station: {property.location.policeStation || "—"}</Text>
           <Text style={ui.text}>Khata: {property.khata || "—"} · Khesra: {property.khesra || "—"} · Holding: {property.holdingNumber || "—"}</Text>
           <Text style={ui.text}>Advisor: {property.assignedAdvisorId && typeof property.assignedAdvisorId === "object" ? property.assignedAdvisorId.name : property.assignedAdvisorId || "Awaiting assignment"}</Text>
