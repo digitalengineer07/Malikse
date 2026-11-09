@@ -53,6 +53,13 @@ const errorText = (e: any) =>
   "Please retry.";
 const identity = (v: any) => (typeof v === "string" ? v : v?._id);
 const approved = (u: any) => u?.isVerifiedIdentity || u?.demoKycComplete;
+const getOptimizedPhotoUrl = (url?: string, width = 600) => {
+  if (!url) return "";
+  if (url.includes("/property-photos/") && !url.includes("w=")) {
+    return `${url}${url.includes("?") ? "&" : "?"}w=${width}`;
+  }
+  return url;
+};
 const types = [
   ["", "All", "domain"],
   ["flat", "Apartment", "apartment"],
@@ -363,7 +370,7 @@ function PropertyCard({
       >
         {p.media?.photos?.[0] ? (
           <Image
-            source={{ uri: p.media.photos[0] }}
+            source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], compact ? 400 : 600) }}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
           />
@@ -1609,7 +1616,7 @@ export function ProfileScreen() {
                         <View key={p._id} style={profileStyles.listingCardRow}>
                           {p.media?.photos?.[0] ? (
                             <Image
-                              source={{ uri: p.media.photos[0] }}
+                              source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], 400) }}
                               style={profileStyles.listingThumbnail}
                               resizeMode="cover"
                             />
@@ -2085,7 +2092,7 @@ export function PropertyDetailScreen() {
           >
             {p.media?.photos?.[0] ? (
               <Image
-                source={{ uri: p.media.photos[0] }}
+                source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], 1200) }}
                 style={StyleSheet.absoluteFill}
               />
             ) : (
@@ -2102,7 +2109,7 @@ export function PropertyDetailScreen() {
               {p.media.photos.slice(1).map((uri: string) => (
                 <Image
                   key={uri}
-                  source={{ uri }}
+                  source={{ uri: getOptimizedPhotoUrl(uri, 400) }}
                   style={{ width: 180, height: 120, borderRadius: 14 }}
                 />
               ))}

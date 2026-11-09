@@ -98,7 +98,7 @@ const RecommendationCard = React.memo(function RecommendationCard({
       <View style={s.cardTopImage}>
         {property.media?.photos?.[0] ? (
           <Image
-            source={{ uri: property.media.photos[0] }}
+            source={{ uri: property.media?.photos?.[0] ? `${property.media.photos[0]}${property.media.photos[0].includes('?') ? '&' : '?'}w=600` : undefined }}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
           />

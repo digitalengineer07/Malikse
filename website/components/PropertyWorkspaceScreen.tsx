@@ -121,7 +121,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
         <MiniMapPreview property={{ id: property._id, type: property.type, status: property.status, price: property.price, location: property.location, parcelPoints: property.parcelPoints }} />
         {!!property.parcelPoints?.length && <Text style={ui.muted}>Recorded boundary: {property.parcelPoints.map(point => `${point.lat}, ${point.lng}`).join(" → ")}</Text>}
         <Action title="Open location in maps" secondary onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${property.location.lat},${property.location.lng}`).catch(() => setError("Could not open maps"))} />
-        {property.media?.photos?.map((url, index) => <Image key={index} source={{ uri: url }} style={{ width: "100%", height: 220 }} />)}
+        {property.media?.photos?.map((url, index) => <Image key={index} source={{ uri: url }} style={{ width: "100%", height: 220 }} thumbnailWidth={900} />)}
         {property.media?.videos?.map((url, index) => <Action key={index} title={`View property video ${index + 1}`} secondary onPress={() => Linking.openURL(url).catch(() => setError("Could not open video"))} />)}
         {publicView && <Text style={ui.muted}>Approved by the assigned Advisor or Verifier. This is not a guarantee of legal title.</Text>}
         {publicView && (!user || user.role === "user") && <Action title="Make an offer" onPress={() => {

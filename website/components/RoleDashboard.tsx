@@ -1,5 +1,5 @@
-import NotificationFailures from "./NotificationFailures";
-import { premiumStyles } from "../constants/typography";
+import { MaterialIcons } from "@/web/icons";
+import { useRouter, type Href } from "@/web/navigation";
 import React, { useEffect, useState } from "react";
 import {
   Platform,
@@ -10,14 +10,14 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import Image from "./PropertyImage";
-import { MaterialIcons } from "@/web/icons";
-import { useRouter, type Href } from "@/web/navigation";
+import { premiumStyles } from "../constants/typography";
+import api, { authService } from "../src/services/authService";
 import { useAuthStore } from "../src/store/authStore";
 import type { UserRole } from "../src/types/auth.types";
-import api, { authService } from "../src/services/authService";
 import AppHeader from "./AppHeader";
 import BottomNav from "./BottomNav";
+import NotificationFailures from "./NotificationFailures";
+import Image from "./PropertyImage";
 
 export type DashboardSection = {
   title: string;
@@ -387,9 +387,9 @@ export default function RoleDashboard({
               styles.heroShade,
               Platform.OS === "web"
                 ? ({
-                    background:
-                      "linear-gradient(135deg, rgba(11, 27, 63, 0.95) 0%, rgba(10, 69, 181, 0.82) 50%, rgba(11, 27, 63, 0.90) 100%)",
-                  } as any)
+                  background:
+                    "linear-gradient(135deg, rgba(11, 27, 63, 0.95) 0%, rgba(10, 69, 181, 0.82) 50%, rgba(11, 27, 63, 0.90) 100%)",
+                } as any)
                 : undefined,
             ]}
           />
@@ -566,7 +566,7 @@ export default function RoleDashboard({
                   >
                     <View style={styles.portfolioImageWrap}>
                       {photo ? (
-                        <Image source={{ uri: photo }} style={styles.portfolioImage} resizeMode="cover" />
+                        <Image source={{ uri: photo }} style={styles.portfolioImage} resizeMode="cover" isPublic={item.status === "verified"} thumbnailWidth={600} />
                       ) : (
                         <View style={styles.portfolioImagePlaceholder}>
                           <MaterialIcons name="landscape" size={32} color="#94A3B8" />
