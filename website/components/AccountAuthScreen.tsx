@@ -616,13 +616,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                 {/* Left Showcase & Trust Pane (Desktop Only) */}
                 {isDesktop && (
                   <View style={styles.leftPane}>
-                    <Image
-                      source={{
-                        uri: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80",
-                      }}
-                      style={StyleSheet.absoluteFill}
-                      resizeMode="cover"
-                    />
                     <View style={styles.leftPaneOverlay} />
 
                     {isForgot ? (
@@ -633,7 +626,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                         <View>
                           <View style={styles.leftBadge}>
                             <View style={styles.livePulseDot} />
-                            <MaterialIcons name="security" size={13} color="#38BDF8" />
+                            <MaterialIcons name="security" size={13} color="#0A45B5" />
                             <Text style={styles.leftBadgeText}>
                               {label("ACCOUNT RECOVERY · SECURE ACCESS", "खाता पुनर्प्राप्ति · सुरक्षित पहुंच")}
                             </Text>
@@ -653,7 +646,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           {/* Quick Recovery Checkpoints Card */}
                           <View style={styles.loginMetricsCard}>
                             <View style={styles.recoveryMetricItem}>
-                              <MaterialIcons name="verified-user" size={20} color="#34D399" />
+                              <MaterialIcons name="verified-user" size={20} color="#059669" />
                               <View style={styles.loginMetricTextBox}>
                                 <Text style={styles.recoveryMetricValue}>
                                   {label("Encrypted OTP", "सुरक्षित OTP")}
@@ -667,7 +660,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             <View style={styles.loginMetricDivider} />
 
                             <View style={styles.recoveryMetricItem}>
-                              <MaterialIcons name="lock-reset" size={20} color="#38BDF8" />
+                              <MaterialIcons name="lock-reset" size={20} color="#0A45B5" />
                               <View style={styles.loginMetricTextBox}>
                                 <Text style={styles.recoveryMetricValue}>
                                   {label("Instant Reset", "तुरंत पासवर्ड बदलाव")}
@@ -682,8 +675,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           {/* 2 Focused Highlights */}
                           <View style={styles.pillarsList}>
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "rgba(56, 189, 248, 0.16)", borderColor: "rgba(56, 189, 248, 0.35)" }]}>
-                                <MaterialIcons name="shield" size={18} color="#38BDF8" />
+                              <View style={[styles.pillarIconBox, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
+                                <MaterialIcons name="shield" size={18} color="#0A45B5" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -696,8 +689,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             </View>
 
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "rgba(52, 211, 153, 0.16)", borderColor: "rgba(52, 211, 153, 0.35)" }]}>
-                                <MaterialIcons name="headset-mic" size={18} color="#34D399" />
+                              <View style={[styles.pillarIconBox, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
+                                <MaterialIcons name="headset-mic" size={18} color="#059669" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -713,7 +706,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                         <View style={styles.leftTrustFooter}>
                           <View style={styles.compactTrustRow}>
-                            <MaterialIcons name="verified" size={16} color="#38BDF8" />
+                            <MaterialIcons name="verified" size={16} color="#0A45B5" />
                             <Text style={styles.compactTrustText}>
                               {label("Bihar's #1 Verified Property Network · 256-Bit SSL", "बिहार का #1 सत्यापित नेटवर्क · 256-बिट SSL")}
                             </Text>
@@ -729,7 +722,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           {/* Live Returning Member Beacon */}
                           <View style={styles.leftBadge}>
                             <View style={styles.livePulseDot} />
-                            <MaterialIcons name="verified" size={13} color="#38BDF8" />
+                            <MaterialIcons name="verified" size={13} color="#0A45B5" />
                             <Text style={styles.leftBadgeText}>
                               {label("SECURE MEMBER ACCESS · BIHAR", "सुरक्षित सदस्य पोर्टल · बिहार")}
                             </Text>
@@ -778,8 +771,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           {/* 2 Focused Benefit Cards tailored to login height */}
                           <View style={styles.pillarsList}>
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "rgba(56, 189, 248, 0.16)", borderColor: "rgba(56, 189, 248, 0.35)" }]}>
-                                <MaterialIcons name="account-balance" size={18} color="#38BDF8" />
+                              <View style={[styles.pillarIconBox, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
+                                <MaterialIcons name="account-balance" size={18} color="#0A45B5" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -792,8 +785,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             </View>
 
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "rgba(52, 211, 153, 0.16)", borderColor: "rgba(52, 211, 153, 0.35)" }]}>
-                                <MaterialIcons name="handshake" size={18} color="#34D399" />
+                              <View style={[styles.pillarIconBox, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
+                                <MaterialIcons name="handshake" size={18} color="#059669" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -810,7 +803,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                         {/* Bottom Security Assurance Strip */}
                         <View style={styles.leftTrustFooter}>
                           <View style={styles.compactTrustRow}>
-                            <MaterialIcons name="lock" size={15} color="#38BDF8" />
+                            <MaterialIcons name="lock" size={15} color="#0A45B5" />
                             <Text style={styles.compactTrustText}>
                               {label(
                                 "Bank-grade 256-bit encrypted access · Private member session",
@@ -854,7 +847,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           <View style={styles.liveAuditCard}>
                             <View style={styles.auditCardHeader}>
                               <View style={styles.auditPropertyInfo}>
-                                <MaterialIcons name="place" size={15} color="#38BDF8" />
+                                <MaterialIcons name="place" size={15} color="#0A45B5" />
                                 <Text style={styles.auditPropertyTitle}>
                                   {label("Danapur - Khagaul, Patna", "दानापुर - खगौल, पटना")}
                                 </Text>
@@ -912,8 +905,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           {/* 3 Pillar Highlights as Glass Micro-Cards */}
                           <View style={styles.pillarsList}>
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "rgba(56, 189, 248, 0.16)", borderColor: "rgba(56, 189, 248, 0.35)" }]}>
-                                <MaterialIcons name="account-balance" size={18} color="#38BDF8" />
+                              <View style={[styles.pillarIconBox, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
+                                <MaterialIcons name="account-balance" size={18} color="#0A45B5" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -926,8 +919,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             </View>
 
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "rgba(52, 211, 153, 0.16)", borderColor: "rgba(52, 211, 153, 0.35)" }]}>
-                                <MaterialIcons name="gps-fixed" size={18} color="#34D399" />
+                              <View style={[styles.pillarIconBox, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
+                                <MaterialIcons name="gps-fixed" size={18} color="#059669" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -940,8 +933,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             </View>
 
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "rgba(251, 191, 36, 0.16)", borderColor: "rgba(251, 191, 36, 0.35)" }]}>
-                                <MaterialIcons name="handshake" size={18} color="#FBBF24" />
+                              <View style={[styles.pillarIconBox, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
+                                <MaterialIcons name="handshake" size={18} color="#D97706" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -1824,6 +1817,15 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   );
 }
 
+const font =
+  Platform.OS === "web"
+    ? "'Plus Jakarta Sans', Manrope, -apple-system, BlinkMacSystemFont, sans-serif"
+    : "PoppinsRegular";
+const fontDisplay =
+  Platform.OS === "web"
+    ? "'Plus Jakarta Sans', PoppinsBold, Manrope, sans-serif"
+    : "PoppinsBold";
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -1885,15 +1887,17 @@ const styles = StyleSheet.create({
     width: "46%",
     position: "relative",
     overflow: "hidden",
-    backgroundColor: "#071A34",
+    backgroundColor: "#F8FAFC",
+    borderRightWidth: 1,
+    borderRightColor: "#E2E8F0",
   },
   leftPaneOverlay: {
     ...StyleSheet.absoluteFill as any,
-    backgroundColor: "rgba(7, 26, 52, 0.88)",
+    backgroundColor: "#F8FAFC",
     ...Platform.select({
       web: {
         backgroundImage:
-          "radial-gradient(circle at 18% 18%, rgba(56, 189, 248, 0.22) 0%, transparent 45%), radial-gradient(circle at 82% 82%, rgba(16, 185, 129, 0.18) 0%, transparent 48%), linear-gradient(160deg, rgba(3, 69, 108, 0.94) 0%, rgba(7, 26, 52, 0.96) 60%, rgba(10, 25, 47, 0.99) 100%)",
+          "radial-gradient(circle at 10% 10%, rgba(219, 234, 254, 0.7) 0%, transparent 55%), radial-gradient(circle at 90% 90%, rgba(220, 252, 231, 0.5) 0%, transparent 55%), linear-gradient(155deg, #F0F6FF 0%, #F8FAFC 55%, #F1F5F9 100%)",
       },
     }),
   },
@@ -1910,9 +1914,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 7,
     alignSelf: "flex-start",
-    backgroundColor: "rgba(56, 189, 248, 0.14)",
+    backgroundColor: "#EFF6FF",
     borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.35)",
+    borderColor: "#BFDBFE",
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 999,
@@ -1930,23 +1934,26 @@ const styles = StyleSheet.create({
     }),
   },
   leftBadgeText: {
-    fontSize: 10.5,
+    fontFamily: font,
+    fontSize: 11,
     fontWeight: "800",
-    color: "#BAE6FD",
-    letterSpacing: 0.8,
+    color: "#0A45B5",
+    letterSpacing: 0.6,
   },
   leftHeading: {
-    fontSize: 26,
+    fontFamily: fontDisplay,
+    fontSize: 27,
     fontWeight: "800",
-    color: "#FFFFFF",
-    lineHeight: 34,
+    color: "#0B1B3F",
+    lineHeight: 35,
     letterSpacing: -0.6,
     marginBottom: 8,
   },
   leftSubtext: {
-    fontSize: 13,
-    color: "rgba(224, 242, 254, 0.82)",
-    lineHeight: 19,
+    fontFamily: font,
+    fontSize: 14,
+    color: "#334155",
+    lineHeight: 22,
     marginBottom: 16,
   },
 
@@ -1972,7 +1979,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    borderBottomColor: "#E2E8F0",
   },
   auditPropertyInfo: {
     flexDirection: "row",
@@ -1980,26 +1987,28 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   auditPropertyTitle: {
-    fontSize: 12.5,
+    fontFamily: fontDisplay,
+    fontSize: 13,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#0B1B3F",
     letterSpacing: -0.2,
   },
   auditStatusBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "rgba(52, 211, 153, 0.16)",
+    backgroundColor: "#ECFDF5",
     borderWidth: 1,
-    borderColor: "rgba(52, 211, 153, 0.35)",
+    borderColor: "#A7F3D0",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
   },
   auditStatusText: {
-    fontSize: 10.5,
+    fontFamily: font,
+    fontSize: 11,
     fontWeight: "700",
-    color: "#6EE7B7",
+    color: "#059669",
   },
   auditChecksList: {
     gap: 7,
@@ -2011,20 +2020,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   auditCheckIconWrap: {
-    width: 17,
-    height: 17,
+    width: 18,
+    height: 18,
     borderRadius: 9,
-    backgroundColor: "rgba(52, 211, 153, 0.2)",
+    backgroundColor: "#ECFDF5",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(52, 211, 153, 0.4)",
+    borderColor: "#A7F3D0",
   },
   auditCheckText: {
+    fontFamily: font,
     flex: 1,
-    fontSize: 11.5,
-    color: "rgba(241, 245, 249, 0.92)",
-    lineHeight: 16,
+    fontSize: 12,
+    color: "#334155",
+    lineHeight: 17,
     fontWeight: "500",
   },
   auditFooterPills: {
@@ -2033,18 +2043,19 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.08)",
+    borderTopColor: "#E2E8F0",
   },
   auditPill: {
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: "#F1F5F9",
     paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   auditPillText: {
-    fontSize: 10.5,
+    fontFamily: font,
+    fontSize: 11,
     fontWeight: "700",
-    color: "#BAE6FD",
+    color: "#0A45B5",
   },
 
   /* Login Compact Metrics Card */
@@ -2073,22 +2084,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   loginMetricValue: {
-    fontSize: 18,
+    fontFamily: fontDisplay,
+    fontSize: 19,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: "#0A45B5",
     letterSpacing: -0.5,
     marginBottom: 2,
   },
   loginMetricLabel: {
-    fontSize: 10.5,
-    color: "#BAE6FD",
+    fontFamily: font,
+    fontSize: 11.5,
+    color: "#475569",
     fontWeight: "600",
     textAlign: "center",
   },
   loginMetricDivider: {
     width: 1,
     height: 28,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    backgroundColor: "#E2E8F0",
   },
   recoveryMetricItem: {
     flex: 1,
@@ -2097,9 +2110,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   recoveryMetricValue: {
-    fontSize: 12.5,
+    fontFamily: fontDisplay,
+    fontSize: 13,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#0B1B3F",
     marginBottom: 1,
   },
   loginMetricTextBox: {
@@ -2111,9 +2125,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   compactTrustText: {
-    fontSize: 11,
-    color: "#BAE6FD",
-    fontWeight: "600",
+    fontFamily: font,
+    fontSize: 12,
+    color: "#0A45B5",
+    fontWeight: "700",
     letterSpacing: 0.2,
   },
 
@@ -2149,29 +2164,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pillarTitle: {
-    fontSize: 12,
+    fontFamily: fontDisplay,
+    fontSize: 13,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#0B1B3F",
     marginBottom: 1,
   },
   pillarDesc: {
-    fontSize: 11,
-    color: "rgba(203, 213, 225, 0.8)",
-    lineHeight: 14,
+    fontFamily: font,
+    fontSize: 12,
+    color: "#475569",
+    lineHeight: 17,
   },
 
   /* Left Trust Footer & Social Proof */
   leftTrustFooter: {
-    backgroundColor: "rgba(15, 30, 56, 0.65)",
-    borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.22)",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#BFDBFE",
     borderRadius: 14,
     paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingVertical: 12,
     marginTop: 4,
     ...Platform.select({
       web: {
-        backdropFilter: "blur(12px)",
+        boxShadow: "0 2px 8px rgba(10, 69, 181, 0.04)",
       },
     }),
   },
@@ -2202,14 +2219,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   socialProofTitle: {
-    fontSize: 11.5,
+    fontFamily: fontDisplay,
+    fontSize: 12,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#0B1B3F",
     marginBottom: 1,
   },
   socialProofSub: {
-    fontSize: 10.5,
-    color: "#94A3B8",
+    fontFamily: font,
+    fontSize: 11,
+    color: "#64748B",
     fontWeight: "500",
   },
 
@@ -2244,13 +2263,15 @@ const styles = StyleSheet.create({
     }),
   },
   tabButtonText: {
-    fontSize: 13,
+    fontFamily: font,
+    fontSize: 13.5,
     fontWeight: "600",
     color: "#64748B",
   },
   tabButtonTextActive: {
+    fontFamily: fontDisplay,
     color: "#0A45B5",
-    fontWeight: "700",
+    fontWeight: "800",
   },
 
   /* Forgot Password Navigation Header */
@@ -2296,16 +2317,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   formTitle: {
-    fontSize: 24,
+    fontFamily: fontDisplay,
+    fontSize: 26,
     fontWeight: "800",
     color: "#0B1B3F",
-    letterSpacing: -0.5,
+    letterSpacing: -0.6,
     marginBottom: 4,
   },
   formSubtitle: {
-    fontSize: 13,
+    fontFamily: font,
+    fontSize: 13.5,
     color: "#64748B",
-    lineHeight: 19,
+    lineHeight: 20,
   },
 
   /* Success & Error Banners */
@@ -2353,9 +2376,10 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   fieldLabel: {
+    fontFamily: font,
     fontSize: 13,
     fontWeight: "700",
-    color: "#1E293B",
+    color: "#0B1B3F",
   },
   requiredStar: {
     color: "#DC2626",
@@ -2392,16 +2416,18 @@ const styles = StyleSheet.create({
     borderRightColor: "#CBD5E1",
   },
   countryCodeText: {
-    fontSize: 13,
+    fontFamily: font,
+    fontSize: 13.5,
     fontWeight: "700",
-    color: "#334155",
+    color: "#0B1B3F",
   },
   textInput: {
+    fontFamily: font,
     flex: 1,
     paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingVertical: 12,
     fontSize: 14,
-    color: "#0F172A",
+    color: "#0B1B3F",
     outlineStyle: "none" as any,
   },
   phoneInput: {
@@ -2444,11 +2470,13 @@ const styles = StyleSheet.create({
     }),
   },
   methodPillText: {
-    fontSize: 12,
+    fontFamily: font,
+    fontSize: 12.5,
     fontWeight: "600",
     color: "#64748B",
   },
   methodPillTextActive: {
+    fontFamily: fontDisplay,
     color: "#0A45B5",
     fontWeight: "700",
   },
@@ -2539,6 +2567,7 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   submitBtnText: {
+    fontFamily: fontDisplay,
     fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
@@ -2553,10 +2582,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   switchPromptText: {
+    fontFamily: font,
     fontSize: 13,
     color: "#64748B",
   },
   switchActionText: {
+    fontFamily: fontDisplay,
     fontSize: 13,
     fontWeight: "700",
     color: "#0A45B5",
@@ -2577,8 +2608,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   securityText: {
-    fontSize: 11,
-    color: "#166534",
+    fontFamily: font,
+    fontSize: 11.5,
+    color: "#15803D",
     fontWeight: "600",
   },
 
@@ -2630,15 +2662,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   authTrustTitle: {
+    fontFamily: fontDisplay,
     fontSize: 13,
     fontWeight: "700",
     color: "#0B1B3F",
     marginBottom: 2,
   },
   authTrustSub: {
-    fontSize: 11,
+    fontFamily: font,
+    fontSize: 11.5,
     color: "#64748B",
-    lineHeight: 15,
+    lineHeight: 16,
   },
   authTrustDivider: {
     width: 1,
