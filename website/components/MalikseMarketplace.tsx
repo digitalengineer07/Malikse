@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
   KeyboardAvoidingView,
   ActivityIndicator,
+  Modal,
   Image,
   Platform,
   Pressable,
@@ -2040,6 +2041,770 @@ export function KycScreen() {
     </MarketplaceShell>
   );
 }
+const detailStyles = StyleSheet.create({
+  topNavRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 4,
+    width: "100%",
+  },
+  navLeftGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 2px 8px rgba(11, 27, 63, 0.04)",
+      },
+    }),
+  },
+  backBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A45B5",
+    fontFamily: "PoppinsSemiBold, Manrope, sans-serif",
+  },
+  navRightGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  actionPillBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 2px 6px rgba(11, 27, 63, 0.04)",
+      },
+    }),
+  },
+  actionPillBtnActive: {
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FEF2F2",
+  },
+  actionPillText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475A82",
+  },
+  titleCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 22,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    gap: 12,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 12px rgba(11, 27, 63, 0.04)",
+      },
+    }),
+  },
+  headerLocationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  headerLocationText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A45B5",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  propertyTitle: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    lineHeight: 34,
+    fontFamily: "PoppinsBold, Manrope, sans-serif",
+  },
+  headerBadgesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 2,
+  },
+  verifiedPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  verifiedPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  directOwnerPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  directOwnerPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1D4ED8",
+  },
+  typePill: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  typePillText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  galleryContainer: {
+    borderRadius: 22,
+    overflow: "hidden",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    padding: 8,
+    gap: 8,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 20px rgba(11, 27, 63, 0.06)",
+      },
+    }),
+  },
+  heroPhotoWrap: {
+    position: "relative",
+    width: "100%",
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "#0F172A",
+  },
+  floatingBackBtn: {
+    position: "absolute",
+    top: 14,
+    left: 14,
+    zIndex: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(255, 255, 255, 0.94)",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        backdropFilter: "blur(8px)",
+        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
+      },
+    }),
+  },
+  heroPhotoCounter: {
+    position: "absolute",
+    bottom: 14,
+    right: 14,
+    zIndex: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    ...Platform.select({
+      web: {
+        backdropFilter: "blur(6px)",
+      },
+    }),
+  },
+  heroPhotoCounterText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  thumbnailsRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  thumbItem: {
+    width: 86,
+    height: 60,
+    borderRadius: 10,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "transparent",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "all 0.15s ease",
+      },
+    }),
+  },
+  thumbItemActive: {
+    borderColor: "#0A45B5",
+  },
+  mainLayoutGrid: {
+    gap: 24,
+    width: "100%",
+  },
+  leftCol: {
+    flex: 1,
+    minWidth: 0,
+    gap: 20,
+  },
+  rightCol: {
+    gap: 20,
+    ...Platform.select({
+      web: {
+        position: "sticky" as any,
+        top: 24,
+      },
+    }),
+  },
+  metricsCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 12px rgba(11, 27, 63, 0.04)",
+      },
+    }),
+  },
+  metricBox: {
+    flex: 1,
+    minWidth: 130,
+    gap: 4,
+    paddingRight: 10,
+  },
+  metricLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  metricValue: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    fontFamily: "PoppinsBold, Manrope, sans-serif",
+  },
+  metricSub: {
+    fontSize: 12,
+    color: "#059669",
+    fontWeight: "600",
+  },
+  cardSection: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    gap: 16,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 12px rgba(11, 27, 63, 0.04)",
+      },
+    }),
+  },
+  trustRibbonCard: {
+    backgroundColor: "#F0FDF4",
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: "#BBF7D0",
+    gap: 14,
+  },
+  trustRibbonTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#166534",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  trustBadgesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 14,
+  },
+  trustBadgeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    width: "48%",
+    minWidth: 180,
+  },
+  trustBadgeBoxText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#14532D",
+  },
+  specsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  specBox: {
+    width: "48%",
+    minWidth: 140,
+    backgroundColor: "#F8FAFC",
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    gap: 4,
+  },
+  specLabel: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  specValue: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0B1B3F",
+  },
+  revenueCard: {
+    backgroundColor: "#EFF6FF",
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: "#BFDBFE",
+    gap: 14,
+  },
+  revenueGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 14,
+  },
+  revenueItem: {
+    width: "48%",
+    minWidth: 140,
+    gap: 3,
+  },
+  revenueLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#1D4ED8",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  revenueValue: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1E3A8A",
+  },
+  sectionHeading: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#0B1B3F",
+    fontFamily: "PoppinsBold, Manrope, sans-serif",
+  },
+  sectionSub: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: -4,
+  },
+  descriptionText: {
+    fontSize: 15,
+    color: "#334155",
+    lineHeight: 24,
+  },
+  mapCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    overflow: "hidden",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 12px rgba(11, 27, 63, 0.04)",
+      },
+    }),
+  },
+  mapHeader: {
+    padding: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+  },
+  mapHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  mapCoordTag: {
+    backgroundColor: "#F1F5F9",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  mapCoordTagText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  advisorCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  advisorAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#BFDBFE",
+  },
+  advisorRolePill: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#059669",
+    backgroundColor: "#ECFDF5",
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+    marginTop: 2,
+  },
+  stickyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    gap: 18,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 8px 30px rgba(11, 27, 63, 0.08)",
+      },
+    }),
+  },
+  mainPriceText: {
+    fontSize: 34,
+    fontWeight: "800",
+    color: "#0A45B5",
+    fontFamily: "PoppinsBold, Manrope, sans-serif",
+  },
+  rateText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  negotiableBadge: {
+    backgroundColor: "#ECFDF5",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    alignSelf: "flex-start",
+  },
+  negotiableBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  primaryChatBtn: {
+    backgroundColor: "#0A45B5",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 4px 14px rgba(10, 69, 181, 0.25)",
+      },
+    }),
+  },
+  primaryChatBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+    fontFamily: "PoppinsSemiBold, Manrope, sans-serif",
+  },
+  offerToggleBtn: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  offerToggleBtnText: {
+    color: "#0B1B3F",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  offerFormBox: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    gap: 12,
+  },
+  assuranceBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "#F8FAFC",
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  assuranceText: {
+    fontSize: 12,
+    color: "#64748B",
+    lineHeight: 18,
+    flex: 1,
+  },
+  // Modal & Sharing styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(11, 27, 63, 0.65)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    ...Platform.select({
+      web: {
+        backdropFilter: "blur(6px)",
+      },
+    }),
+  },
+  modalCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    width: "100%",
+    maxWidth: 480,
+    padding: 24,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    gap: 18,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 20px 40px rgba(11, 27, 63, 0.2)",
+      },
+    }),
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  modalHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  modalHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    fontFamily: "PoppinsBold, Manrope, sans-serif",
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  sharePropertyPreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#F8FAFC",
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  sharePropertyThumb: {
+    width: 58,
+    height: 58,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "#E2E8F0",
+  },
+  sharePreviewTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0B1B3F",
+  },
+  sharePreviewPrice: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0A45B5",
+    marginTop: 2,
+  },
+  sharePreviewLocation: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 1,
+  },
+  shareChannelsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  shareChannelBtn: {
+    flex: 1,
+    minWidth: 90,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1.5,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "all 0.15s ease",
+      },
+    }),
+  },
+  shareChannelWhatsapp: {
+    backgroundColor: "#F0FDF4",
+    borderColor: "#86EFAC",
+  },
+  shareChannelTelegram: {
+    backgroundColor: "#F0F9FF",
+    borderColor: "#BAE6FD",
+  },
+  shareChannelEmail: {
+    backgroundColor: "#EEF2FF",
+    borderColor: "#C7D2FE",
+  },
+  shareChannelText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0B1B3F",
+  },
+  copyLinkBox: {
+    gap: 8,
+  },
+  copyLinkLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  copyLinkInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  copyLinkInput: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: "#334155",
+  },
+  copyLinkBtn: {
+    backgroundColor: "#0A45B5",
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  copyLinkBtnCopied: {
+    backgroundColor: "#059669",
+  },
+  copyLinkBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+});
+
 export function PropertyDetailScreen() {
   const { id } = useLocalSearchParams(),
     router = useRouter(),
@@ -2047,14 +2812,145 @@ export function PropertyDetailScreen() {
     feed = useData(id ? `/properties/${id}` : null),
     [amount, setAmount] = useState(""),
     [message, setMessage] = useState("I am interested in this property."),
+    [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0),
+    [saved, setSaved] = useState(false),
+    [copied, setCopied] = useState(false),
+    [showShareModal, setShowShareModal] = useState(false),
+    [modalCopied, setModalCopied] = useState(false),
+    [showOfferForm, setShowOfferForm] = useState(false),
     action = useAction(),
     p = feed.data;
+
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 920;
+  const authState = useAuthStore((s) => s.authState);
+
   useEffect(() => {
     if (id)
       void api
         .post(`/recommendations/${id}/activity`, { kind: "view" })
         .catch(() => {});
   }, [id]);
+
+  useEffect(() => {
+    if (p?._id && authState === "AUTHENTICATED") {
+      void userService
+        .getWishlist()
+        .then((list: any) => {
+          const isSaved =
+            Array.isArray(list) &&
+            list.some((item: any) => (item._id || item.id) === p._id);
+          setSaved(isSaved);
+        })
+        .catch(() => {});
+    }
+  }, [p?._id, authState]);
+
+  const handleToggleSave = () => {
+    if (!gate(true)) return;
+    void action.run(async () => {
+      const result = await userService.toggleWishlist(p._id);
+      setSaved(result.isWishlisted);
+    });
+  };
+
+  const handleBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/search");
+    }
+  };
+
+  const photos: string[] = Array.isArray(p?.media?.photos) ? p.media.photos : [];
+  const heroPhotoUrl = photos[selectedPhotoIndex] || photos[0];
+  const area = Number(p?.sellableArea || p?.totalArea || 0);
+  const price = Number(p?.price || 0);
+  const pricePerSqFt = area > 0 ? Math.round(price / area) : 0;
+  const kattha = area > 0 ? (area / 1361.25).toFixed(2) : null;
+  const decimal = area > 0 ? (area / 435.6).toFixed(2) : null;
+
+  // Polished display title
+  const displayTitle = React.useMemo(() => {
+    if (!p) return "";
+    const raw = (p.title || "").trim();
+    const typeLabel = p.type ? p.type.charAt(0).toUpperCase() + p.type.slice(1) : "Property";
+    const district = p.location?.district || "Bihar";
+    if (!raw || raw.length <= 4) {
+      return `${raw ? raw.toUpperCase() + " · " : ""}${typeLabel} in ${district}`;
+    }
+    return raw;
+  }, [p]);
+
+  const getShareDetails = () => {
+    const url = typeof window !== "undefined" ? window.location.href : "";
+    const title = displayTitle || p?.title || "Property on MalikSe";
+    const priceStr = price > 0 ? money(price) : "";
+    const districtStr = p?.location?.district || "Bihar";
+    const text = `Take a look at this verified property on MalikSe: ${title}${priceStr ? " (" + priceStr + ")" : ""} in ${districtStr}.
+Zero Brokerage · Direct Owner Deal!
+
+Link: ${url}`;
+    return { url, title, text };
+  };
+
+  const handleShare = async () => {
+    const { url, title, text } = getShareDetails();
+
+    // Check if Web Share API is available (e.g. mobile Safari / Chrome)
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title,
+          text,
+          url,
+        });
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+        return;
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+      }
+    }
+
+    // Fallback: Open rich Share Modal
+    setShowShareModal(true);
+  };
+
+  const handleShareWhatsApp = () => {
+    const { text } = getShareDetails();
+    if (typeof window !== "undefined") {
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
+    }
+  };
+
+  const handleShareTelegram = () => {
+    const { url, title } = getShareDetails();
+    if (typeof window !== "undefined") {
+      window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`, "_blank");
+    }
+  };
+
+  const handleShareEmail = () => {
+    const { url, title, text } = getShareDetails();
+    if (typeof window !== "undefined") {
+      window.open(`mailto:?subject=${encodeURIComponent(title + " on MalikSe")}&body=${encodeURIComponent(text)}`, "_blank");
+    }
+  };
+
+  const handleCopyLink = () => {
+    const { url } = getShareDetails();
+    if (typeof window !== "undefined" && navigator.clipboard) {
+      void navigator.clipboard.writeText(url);
+      setCopied(true);
+      setModalCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+        setModalCopied(false);
+      }, 2500);
+    }
+  };
+
   const offerRequest = useRef<{ amount: string; key: string } | null>(null);
   const contact = (offer = false) =>
     action.run(async () => {
@@ -2078,127 +2974,725 @@ export function PropertyDetailScreen() {
         params: { inquiryId: conversation._id },
       } as any);
     });
+
   return (
-    <MarketplaceShell title="Property details" back>
+    <MarketplaceShell back={false}>
       <ErrorBox text={feed.error || action.error} />
-      {feed.loading && <ActivityIndicator />}
+      {feed.loading && (
+        <View style={{ paddingVertical: 48, alignItems: "center" }}>
+          <ActivityIndicator size="large" color={C.blue} />
+        </View>
+      )}
+
       {p && (
-        <>
-          <View
-            style={[
-              s.photo,
-              { height: 340, borderRadius: 24, overflow: "hidden" },
-            ]}
-          >
-            {p.media?.photos?.[0] ? (
-              <Image
-                source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], 1200) }}
-                style={StyleSheet.absoluteFill}
-              />
-            ) : (
-              <View style={[StyleSheet.absoluteFill, s.placeholder]}>
-                <Icon name="home-work" size={70} />
-              </View>
-            )}
-            <View style={s.imageTags}>
-              <Tag green>✓ Verified property</Tag>
+        <View style={{ gap: 20 }}>
+          {/* 1. Top Navigation Row: Back Button + Share & Save (Breadcrumbs Removed) */}
+          <View style={detailStyles.topNavRow}>
+            <View style={detailStyles.navLeftGroup}>
+              <TouchableOpacity
+                style={detailStyles.backBtn}
+                onPress={handleBack}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Back to properties"
+              >
+                <MaterialIcons name="arrow-back" size={18} color="#0A45B5" />
+                <Text style={detailStyles.backBtnText}>Back to properties</Text>
+              </TouchableOpacity>
             </View>
-          </View>
-          {p.media?.photos?.length > 1 && (
-            <ScrollView horizontal contentContainerStyle={{ gap: 8 }}>
-              {p.media.photos.slice(1).map((uri: string) => (
-                <Image
-                  key={uri}
-                  source={{ uri: getOptimizedPhotoUrl(uri, 400) }}
-                  style={{ width: 180, height: 120, borderRadius: 14 }}
+
+            <View style={detailStyles.navRightGroup}>
+              <TouchableOpacity
+                style={detailStyles.actionPillBtn}
+                onPress={handleShare}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Share property"
+              >
+                <MaterialIcons
+                  name={copied ? "check" : "share"}
+                  size={16}
+                  color={copied ? "#059669" : "#475A82"}
                 />
-              ))}
-            </ScrollView>
-          )}
-          <View style={s.panel}>
-            <Text style={[s.price, { fontSize: 32 }]}>{money(p.price)}</Text>
-            <Text style={s.h1}>{label(p)}</Text>
-            <Text style={s.muted}>
-              ⌖ {p.location?.district}, {p.location?.state}
-            </Text>
-            <View style={s.wrap}>
-              <Tag>{p.type}</Tag>
-              <Tag>{p.sellableArea} sq ft</Tag>
-              <Tag>{p.negotiable ? "Negotiable" : "Fixed price"}</Tag>
+                <Text
+                  style={[
+                    detailStyles.actionPillText,
+                    copied && { color: "#059669", fontWeight: "700" },
+                  ]}
+                >
+                  {copied ? "Link Copied!" : "Share"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  detailStyles.actionPillBtn,
+                  saved && detailStyles.actionPillBtnActive,
+                ]}
+                onPress={handleToggleSave}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={saved ? "Saved to wishlist" : "Save property"}
+              >
+                <MaterialIcons
+                  name={saved ? "favorite" : "favorite-border"}
+                  size={16}
+                  color={saved ? "#EF4444" : "#475A82"}
+                />
+                <Text
+                  style={[
+                    detailStyles.actionPillText,
+                    saved && { color: "#EF4444", fontWeight: "700" },
+                  ]}
+                >
+                  {saved ? "Saved" : "Save"}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
-          <View style={s.panel}>
-            <Text style={s.h2}>Overview & specifications</Text>
-            <View style={s.wrap}>
-              {[
-                ["Total area", `${p.totalArea} sq ft`],
-                ["Sellable area", `${p.sellableArea} sq ft`],
-                [
-                  "Possession",
-                  p.disclosures?.possessionStatus || "Not specified",
-                ],
-                [
-                  "Road width",
-                  p.roadWidth ? `${p.roadWidth} ft` : "Not specified",
-                ],
-              ].map(([key, value]) => (
-                <View key={key} style={s.spec}>
-                  <Text style={s.small}>{key}</Text>
-                  <Text style={s.cardTitle}>{value}</Text>
-                </View>
-              ))}
+
+          {/* 2. Top Property Header Block (Above Photos) */}
+          <View style={detailStyles.titleCard}>
+            <View style={detailStyles.headerLocationRow}>
+              <MaterialIcons name="place" size={17} color="#0A45B5" />
+              <Text style={detailStyles.headerLocationText}>
+                {p.location?.district || "Patna"},{" "}
+                {p.location?.state || "Bihar"}
+                {p.location?.block ? ` · ${p.location.block}` : ""}
+                {p.location?.pincode ? ` (${p.location.pincode})` : ""}
+              </Text>
             </View>
-            <Text style={s.muted}>
-              {p.description ||
-                "Contact the assigned team for more details about this property."}
-            </Text>
-          </View>
-          <View style={s.panel}>
-            <View style={s.row}>
-              <Icon name="support-agent" size={36} />
-              <View style={{ flex: 1 }}>
-                <Text style={s.h2}>Your assigned property team</Text>
-                <Text style={s.muted}>
-                  An Advisor or Verifier handles questions, site visits and
-                  negotiation.
+
+            <Text style={detailStyles.propertyTitle}>{displayTitle}</Text>
+
+            <View style={detailStyles.headerBadgesRow}>
+              <View style={detailStyles.verifiedPill}>
+                <MaterialIcons name="verified" size={14} color="#059669" />
+                <Text style={detailStyles.verifiedPillText}>
+                  100% Verified Property
                 </Text>
               </View>
+
+              <View style={detailStyles.directOwnerPill}>
+                <MaterialIcons name="handshake" size={14} color="#1D4ED8" />
+                <Text style={detailStyles.directOwnerPillText}>
+                  Direct Owner · Zero Brokerage
+                </Text>
+              </View>
+
+              <View style={detailStyles.typePill}>
+                <Text style={detailStyles.typePillText}>
+                  {String(p.type || "Land").toUpperCase()}
+                </Text>
+              </View>
+
+              {p.location?.mauza && (
+                <View style={detailStyles.typePill}>
+                  <Text style={detailStyles.typePillText}>
+                    Mauza: {p.location.mauza}
+                  </Text>
+                </View>
+              )}
             </View>
-            <Button
-              title="Chat with assigned staff"
-              icon="chat-bubble-outline"
-              disabled={action.busy}
-              onPress={() => contact()}
-            />
           </View>
-          <View style={s.map}>
-            <VerifiedPropertyMap properties={[p]} onSelect={() => {}} />
+
+          {/* 3. Hero Photo Showcase Gallery */}
+          <View style={detailStyles.galleryContainer}>
+            <View
+              style={[
+                detailStyles.heroPhotoWrap,
+                { height: isDesktop ? 450 : 280 },
+              ]}
+            >
+              {heroPhotoUrl ? (
+                <Image
+                  source={{ uri: getOptimizedPhotoUrl(heroPhotoUrl, 1200) }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View
+                  style={[
+                    StyleSheet.absoluteFill,
+                    s.placeholder,
+                    { backgroundColor: "#F1F5F9" },
+                  ]}
+                >
+                  <Icon name="home-work" size={72} color="#94A3B8" />
+                </View>
+              )}
+
+              {/* Floating Back Button for Touch / Mobile Screens */}
+              {!isDesktop && (
+                <TouchableOpacity
+                  style={detailStyles.floatingBackBtn}
+                  onPress={handleBack}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back"
+                >
+                  <MaterialIcons name="arrow-back" size={20} color="#0B1B3F" />
+                </TouchableOpacity>
+              )}
+
+              {/* Photo Counter */}
+              {photos.length > 0 && (
+                <View style={detailStyles.heroPhotoCounter}>
+                  <MaterialIcons name="photo-camera" size={14} color="#FFFFFF" />
+                  <Text style={detailStyles.heroPhotoCounterText}>
+                    {selectedPhotoIndex + 1} / {photos.length} Photos
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Clickable Thumbnail Gallery Strip */}
+            {photos.length > 1 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={detailStyles.thumbnailsRow}
+              >
+                {photos.map((uri: string, index: number) => {
+                  const isActive = index === selectedPhotoIndex;
+                  return (
+                    <TouchableOpacity
+                      key={uri + index}
+                      onPress={() => setSelectedPhotoIndex(index)}
+                      activeOpacity={0.8}
+                      style={[
+                        detailStyles.thumbItem,
+                        isActive && detailStyles.thumbItemActive,
+                      ]}
+                    >
+                      <Image
+                        source={{ uri: getOptimizedPhotoUrl(uri, 400) }}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
-          <View style={s.panel}>
-            <Text style={s.h2}>Make an offer</Text>
-            <Text style={s.muted}>
-              Your offer goes privately to the assigned Advisor or Verifier.
-              Approved KYC is required.
-            </Text>
-            <Field
-              title="Offer amount (₹)"
-              numeric
-              value={amount}
-              onChangeText={setAmount}
-            />
-            <Field
-              title="Message to assigned staff"
-              value={message}
-              onChangeText={setMessage}
-              multiline
-            />
-            <Button
-              title="Send offer"
-              disabled={action.busy || !Number(amount) || Number(amount) <= 0}
-              onPress={() => contact(true)}
-            />
+
+          {/* 4. Master Two-Column Content Grid */}
+          <View
+            style={[
+              detailStyles.mainLayoutGrid,
+              isDesktop
+                ? { flexDirection: "row", alignItems: "flex-start" }
+                : { flexDirection: "column" },
+            ]}
+          >
+            {/* Left Column: Comprehensive Property Information (NO Duplicate Price) */}
+            <View style={detailStyles.leftCol}>
+              {/* Key Metrics Quick Strip */}
+              <View style={detailStyles.metricsCard}>
+                <View style={detailStyles.metricBox}>
+                  <Text style={detailStyles.metricLabel}>Total Area</Text>
+                  <Text style={detailStyles.metricValue}>
+                    {area > 0 ? area.toLocaleString("en-IN") + " sq.ft" : "N/A"}
+                  </Text>
+                  {kattha && (
+                    <Text style={detailStyles.metricSub}>
+                      ~{kattha} Kattha ({decimal} Dec.)
+                    </Text>
+                  )}
+                </View>
+
+                {pricePerSqFt > 0 && (
+                  <View style={detailStyles.metricBox}>
+                    <Text style={detailStyles.metricLabel}>Rate</Text>
+                    <Text style={detailStyles.metricValue}>
+                      ₹{pricePerSqFt.toLocaleString("en-IN")}/sq.ft
+                    </Text>
+                    <Text style={detailStyles.metricSub}>
+                      {p.negotiable ? "Negotiable" : "Fixed Price"}
+                    </Text>
+                  </View>
+                )}
+
+                {p.roadWidth && (
+                  <View style={detailStyles.metricBox}>
+                    <Text style={detailStyles.metricLabel}>Front Road</Text>
+                    <Text style={detailStyles.metricValue}>
+                      {p.roadWidth} Feet
+                    </Text>
+                    <Text style={detailStyles.metricSub}>Paved Access</Text>
+                  </View>
+                )}
+
+                <View style={detailStyles.metricBox}>
+                  <Text style={detailStyles.metricLabel}>Possession</Text>
+                  <Text style={detailStyles.metricValue}>
+                    {p.disclosures?.possessionStatus || "Immediate"}
+                  </Text>
+                  <Text style={detailStyles.metricSub}>Ready for Registry</Text>
+                </View>
+              </View>
+
+              {/* Bihar Revenue & Verification Integrity Shield */}
+              <View style={detailStyles.trustRibbonCard}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <MaterialIcons name="verified-user" size={20} color="#15803D" />
+                  <Text style={detailStyles.trustRibbonTitle}>
+                    MALIKSE 4-POINT TITLE & REVENUE ASSURANCE
+                  </Text>
+                </View>
+
+                <View style={detailStyles.trustBadgesGrid}>
+                  <View style={detailStyles.trustBadgeBox}>
+                    <MaterialIcons name="check-circle" size={17} color="#16A34A" />
+                    <Text style={detailStyles.trustBadgeBoxText}>
+                      Title Deed & Registry Reviewed
+                    </Text>
+                  </View>
+
+                  <View style={detailStyles.trustBadgeBox}>
+                    <MaterialIcons name="check-circle" size={17} color="#16A34A" />
+                    <Text style={detailStyles.trustBadgeBoxText}>
+                      Cadastral GPS Boundary Surveyed
+                    </Text>
+                  </View>
+
+                  <View style={detailStyles.trustBadgeBox}>
+                    <MaterialIcons name="check-circle" size={17} color="#16A34A" />
+                    <Text style={detailStyles.trustBadgeBoxText}>
+                      Encumbrance & Dispute Free
+                    </Text>
+                  </View>
+
+                  <View style={detailStyles.trustBadgeBox}>
+                    <MaterialIcons name="check-circle" size={17} color="#16A34A" />
+                    <Text style={detailStyles.trustBadgeBoxText}>
+                      Dedicated Field Advisor Assigned
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Overview & Key Specifications Grid */}
+              <View style={detailStyles.cardSection}>
+                <Text style={detailStyles.sectionHeading}>
+                  Overview & Specifications
+                </Text>
+                <View style={detailStyles.specsGrid}>
+                  <View style={detailStyles.specBox}>
+                    <Text style={detailStyles.specLabel}>Property Type</Text>
+                    <Text style={detailStyles.specValue}>
+                      {String(p.type || "Land").toUpperCase()}
+                    </Text>
+                  </View>
+
+                  <View style={detailStyles.specBox}>
+                    <Text style={detailStyles.specLabel}>Sellable Area</Text>
+                    <Text style={detailStyles.specValue}>
+                      {area > 0 ? area.toLocaleString("en-IN") + " sq ft" : "N/A"}
+                    </Text>
+                  </View>
+
+                  {p.roadWidth && (
+                    <View style={detailStyles.specBox}>
+                      <Text style={detailStyles.specLabel}>Front Road Width</Text>
+                      <Text style={detailStyles.specValue}>
+                        {p.roadWidth} ft Wide Road
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={detailStyles.specBox}>
+                    <Text style={detailStyles.specLabel}>Bank Loan</Text>
+                    <Text style={detailStyles.specValue}>
+                      {p.disclosures?.loanEligible ? "Eligible for Loan" : "Inquire with Staff"}
+                    </Text>
+                  </View>
+
+                  <View style={detailStyles.specBox}>
+                    <Text style={detailStyles.specLabel}>Ownership</Text>
+                    <Text style={detailStyles.specValue}>
+                      {p.disclosures?.ownershipType || "Freehold / Direct Owner"}
+                    </Text>
+                  </View>
+
+                  <View style={detailStyles.specBox}>
+                    <Text style={detailStyles.specLabel}>Boundary Wall</Text>
+                    <Text style={detailStyles.specValue}>
+                      {p.disclosures?.boundaryWall ? "Constructed / Marked" : "Open Plot"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Bihar Revenue Land Records (Khata / Khesra / Mauza) */}
+              {(p.khata || p.khesra || p.location?.mauza || p.location?.policeStation) && (
+                <View style={detailStyles.revenueCard}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <MaterialIcons name="account-balance" size={18} color="#1D4ED8" />
+                    <Text style={detailStyles.revenueLabel}>
+                      BIHAR REVENUE CADASTRAL RECORDS
+                    </Text>
+                  </View>
+
+                  <View style={detailStyles.revenueGrid}>
+                    {p.khata && (
+                      <View style={detailStyles.revenueItem}>
+                        <Text style={detailStyles.specLabel}>Khata Number</Text>
+                        <Text style={detailStyles.revenueValue}>{p.khata}</Text>
+                      </View>
+                    )}
+
+                    {p.khesra && (
+                      <View style={detailStyles.revenueItem}>
+                        <Text style={detailStyles.specLabel}>Khesra (Plot) Number</Text>
+                        <Text style={detailStyles.revenueValue}>{p.khesra}</Text>
+                      </View>
+                    )}
+
+                    {p.location?.mauza && (
+                      <View style={detailStyles.revenueItem}>
+                        <Text style={detailStyles.specLabel}>Mauza / Revenue Village</Text>
+                        <Text style={detailStyles.revenueValue}>{p.location.mauza}</Text>
+                      </View>
+                    )}
+
+                    {p.location?.policeStation && (
+                      <View style={detailStyles.revenueItem}>
+                        <Text style={detailStyles.specLabel}>Police Station (Thana)</Text>
+                        <Text style={detailStyles.revenueValue}>{p.location.policeStation}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {/* Detailed Description */}
+              <View style={detailStyles.cardSection}>
+                <Text style={detailStyles.sectionHeading}>
+                  About This Property
+                </Text>
+                <Text style={detailStyles.descriptionText}>
+                  {p.description ||
+                    "This verified property is listed directly by the owner on MalikSe. Full title deeds and cadastral boundary maps are pre-reviewed by assigned verification staff. Direct contact ensures zero brokerage and complete transparency throughout the purchase process."}
+                </Text>
+              </View>
+
+              {/* Interactive Cadastral Map */}
+              <View style={detailStyles.mapCard}>
+                <View style={detailStyles.mapHeader}>
+                  <View style={detailStyles.mapHeaderLeft}>
+                    <MaterialIcons name="satellite-alt" size={20} color="#0A45B5" />
+                    <Text style={detailStyles.sectionHeading}>
+                      Cadastral Boundary & Satellite GIS
+                    </Text>
+                  </View>
+                  {p.location?.lat && p.location?.lng && (
+                    <View style={detailStyles.mapCoordTag}>
+                      <Text style={detailStyles.mapCoordTagText}>
+                        {Number(p.location.lat).toFixed(4)},{" "}
+                        {Number(p.location.lng).toFixed(4)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={{ height: 380 }}>
+                  <VerifiedPropertyMap properties={[p]} onSelect={() => {}} />
+                </View>
+              </View>
+
+              {/* Assigned Advisory & Support Team */}
+              <View style={detailStyles.advisorCard}>
+                <View style={detailStyles.advisorAvatar}>
+                  <MaterialIcons name="support-agent" size={28} color="#0A45B5" />
+                </View>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={detailStyles.sectionHeading}>
+                    Assigned Property Advisory Team
+                  </Text>
+                  <Text style={detailStyles.sectionSub}>
+                    A dedicated MalikSe Advisor is assigned to coordinate site visits, inspect revenue records, and assist with direct seller communication.
+                  </Text>
+                  <Text style={detailStyles.advisorRolePill}>
+                    Active Local Advisor Assigned
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Right Column: Sticky Contact & Direct Offer Card */}
+            <View style={[detailStyles.rightCol, isDesktop ? { width: 380 } : { width: "100%" }]}>
+              <View style={detailStyles.stickyCard}>
+                <View style={{ gap: 6 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: "#64748B" }}>
+                    Listing Price
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
+                    <Text style={detailStyles.mainPriceText}>
+                      {money(p.price)}
+                    </Text>
+                    {pricePerSqFt > 0 && (
+                      <Text style={detailStyles.rateText}>
+                        ₹{pricePerSqFt.toLocaleString("en-IN")}/sq.ft
+                      </Text>
+                    )}
+                  </View>
+                  {p.negotiable && (
+                    <View style={detailStyles.negotiableBadge}>
+                      <Text style={detailStyles.negotiableBadgeText}>
+                        ✓ Price Negotiable
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#059669", marginTop: 2 }}>
+                    Direct Owner Deal · Zero Brokerage Fee
+                  </Text>
+                </View>
+
+                {/* Primary Action Button: Chat with Assigned Staff */}
+                <TouchableOpacity
+                  style={detailStyles.primaryChatBtn}
+                  onPress={() => contact(false)}
+                  disabled={action.busy}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Chat with assigned staff"
+                >
+                  <MaterialIcons name="chat-bubble-outline" size={20} color="#FFFFFF" />
+                  <Text style={detailStyles.primaryChatBtnText}>
+                    {action.busy ? "Connecting..." : "Chat with Assigned Staff"}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Secondary Action: Make an Offer Toggle */}
+                <TouchableOpacity
+                  style={detailStyles.offerToggleBtn}
+                  onPress={() => setShowOfferForm(!showOfferForm)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Make an offer"
+                >
+                  <MaterialIcons
+                    name={showOfferForm ? "keyboard-arrow-up" : "local-offer"}
+                    size={18}
+                    color="#0B1B3F"
+                  />
+                  <Text style={detailStyles.offerToggleBtnText}>
+                    {showOfferForm ? "Hide Offer Form" : "Make a Price Offer"}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Expandable Make an Offer Section */}
+                {showOfferForm && (
+                  <View style={detailStyles.offerFormBox}>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: "#0B1B3F" }}>
+                      Send Private Price Offer
+                    </Text>
+                    <Text style={{ fontSize: 12, color: "#64748B", lineHeight: 16 }}>
+                      Your offer goes directly to the property owner and assigned advisor for review.
+                    </Text>
+
+                    <Field
+                      title="Offer Amount (₹)"
+                      numeric
+                      placeholder="e.g. 1800000"
+                      value={amount}
+                      onChangeText={setAmount}
+                    />
+
+                    <Field
+                      title="Message to Team"
+                      value={message}
+                      onChangeText={setMessage}
+                      multiline
+                    />
+
+                    <Button
+                      title={action.busy ? "Sending..." : "Submit Private Offer"}
+                      disabled={
+                        action.busy || !Number(amount) || Number(amount) <= 0
+                      }
+                      onPress={() => contact(true)}
+                    />
+                  </View>
+                )}
+
+                {/* Safety & Direct Assurance */}
+                <View style={detailStyles.assuranceBox}>
+                  <MaterialIcons name="shield" size={18} color="#059669" />
+                  <Text style={detailStyles.assuranceText}>
+                    MalikSe Direct Assurance: Verified deeds, on-ground boundary checks, and direct communication without broker interference.
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
-        </>
+
+          {/* 5. Rich Share Property Modal Dialog */}
+          <Modal
+            visible={showShareModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowShareModal(false)}
+          >
+            <Pressable
+              style={detailStyles.modalOverlay}
+              onPress={() => setShowShareModal(false)}
+            >
+              <Pressable
+                style={detailStyles.modalCard}
+                onPress={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <View style={detailStyles.modalHeaderRow}>
+                  <View style={detailStyles.modalHeaderLeft}>
+                    <MaterialIcons name="share" size={22} color="#0A45B5" />
+                    <Text style={detailStyles.modalHeaderTitle}>
+                      Share Property
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={detailStyles.modalCloseBtn}
+                    onPress={() => setShowShareModal(false)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close share modal"
+                  >
+                    <MaterialIcons name="close" size={20} color="#64748B" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Property Mini Preview */}
+                <View style={detailStyles.sharePropertyPreview}>
+                  <View style={detailStyles.sharePropertyThumb}>
+                    {heroPhotoUrl ? (
+                      <Image
+                        source={{ uri: getOptimizedPhotoUrl(heroPhotoUrl, 160) }}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          StyleSheet.absoluteFill,
+                          {
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: "#F1F5F9",
+                          },
+                        ]}
+                      >
+                        <MaterialIcons name="home-work" size={24} color="#94A3B8" />
+                      </View>
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={detailStyles.sharePreviewTitle}
+                      numberOfLines={1}
+                    >
+                      {displayTitle}
+                    </Text>
+                    <Text style={detailStyles.sharePreviewPrice}>
+                      {price > 0 ? money(price) : "Price on Request"}
+                    </Text>
+                    <Text
+                      style={detailStyles.sharePreviewLocation}
+                      numberOfLines={1}
+                    >
+                      {p.location?.district || "Patna"},{" "}
+                      {p.location?.state || "Bihar"}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* One-Click Share Options */}
+                <View style={detailStyles.shareChannelsRow}>
+                  {/* WhatsApp */}
+                  <TouchableOpacity
+                    style={[detailStyles.shareChannelBtn, detailStyles.shareChannelWhatsapp]}
+                    onPress={handleShareWhatsApp}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Share on WhatsApp"
+                  >
+                    <MaterialIcons name="chat" size={24} color="#16A34A" />
+                    <Text style={detailStyles.shareChannelText}>WhatsApp</Text>
+                  </TouchableOpacity>
+
+                  {/* Telegram */}
+                  <TouchableOpacity
+                    style={[detailStyles.shareChannelBtn, detailStyles.shareChannelTelegram]}
+                    onPress={handleShareTelegram}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Share on Telegram"
+                  >
+                    <MaterialIcons name="send" size={24} color="#0284C7" />
+                    <Text style={detailStyles.shareChannelText}>Telegram</Text>
+                  </TouchableOpacity>
+
+                  {/* Email */}
+                  <TouchableOpacity
+                    style={[detailStyles.shareChannelBtn, detailStyles.shareChannelEmail]}
+                    onPress={handleShareEmail}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Share via Email"
+                  >
+                    <MaterialIcons name="mail-outline" size={24} color="#4F46E5" />
+                    <Text style={detailStyles.shareChannelText}>Email</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Direct Link Copy */}
+                <View style={detailStyles.copyLinkBox}>
+                  <Text style={detailStyles.copyLinkLabel}>Or Copy Link</Text>
+                  <View style={detailStyles.copyLinkInputRow}>
+                    <TextInput
+                      style={detailStyles.copyLinkInput}
+                      value={typeof window !== "undefined" ? window.location.href : ""}
+                      editable={false}
+                      selectTextOnFocus
+                    />
+                    <TouchableOpacity
+                      style={[
+                        detailStyles.copyLinkBtn,
+                        modalCopied && detailStyles.copyLinkBtnCopied,
+                      ]}
+                      onPress={handleCopyLink}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Copy property link"
+                    >
+                      <MaterialIcons
+                        name={modalCopied ? "check" : "content-copy"}
+                        size={16}
+                        color="#FFFFFF"
+                      />
+                      <Text style={detailStyles.copyLinkBtnText}>
+                        {modalCopied ? "Copied!" : "Copy"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </Pressable>
+            </Pressable>
+          </Modal>
+        </View>
       )}
     </MarketplaceShell>
   );
