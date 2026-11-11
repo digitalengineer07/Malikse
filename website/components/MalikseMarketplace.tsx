@@ -6315,7 +6315,13 @@ const postStyles = StyleSheet.create({
   },
 });
 const font =
-  Platform.OS === "web" ? "Manrope, Inter, system-ui" : "PoppinsRegular";
+  Platform.OS === "web"
+    ? "'Plus Jakarta Sans', Manrope, -apple-system, BlinkMacSystemFont, sans-serif"
+    : "PoppinsRegular";
+const fontDisplay =
+  Platform.OS === "web"
+    ? "'Plus Jakarta Sans', PoppinsBold, Manrope, sans-serif"
+    : "PoppinsBold";
 
 const profileStyles = StyleSheet.create({
   profileHeaderCard: {
@@ -6944,20 +6950,21 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   logo: {
-    fontFamily: font,
-    fontSize: 22,
-    fontWeight: "800",
+    fontFamily: fontDisplay,
+    fontSize: 23,
+    fontWeight: "900",
     color: C.ink,
-    letterSpacing: -0.5,
-    lineHeight: 25,
+    letterSpacing: -0.7,
+    lineHeight: 27,
   },
   brandTagline: {
     fontFamily: font,
-    fontSize: 10.5,
-    fontWeight: "600",
+    fontSize: 10,
+    fontWeight: "700",
     color: "#64748b",
-    letterSpacing: 0.1,
+    letterSpacing: 0.3,
     lineHeight: 14,
+    textTransform: "uppercase",
   },
   logoIcon: {
     backgroundColor: C.blue,
@@ -7071,23 +7078,26 @@ const s = StyleSheet.create({
   },
   heroBadgeText: {
     fontFamily: font,
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 11.5,
+    fontWeight: "800",
     color: C.blue,
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   heroHeading: {
-    fontFamily: font,
-    fontSize: 32,
+    fontFamily: fontDisplay,
+    fontSize: 34,
     fontWeight: "800",
     color: C.ink,
-    letterSpacing: -0.6,
+    letterSpacing: -0.8,
+    lineHeight: 42,
   },
   heroSubheading: {
     fontFamily: font,
-    fontSize: 15,
-    lineHeight: 23,
-    color: "#64748b",
+    fontSize: 16,
+    lineHeight: 26,
+    color: "#475569",
+    fontWeight: "500",
+    letterSpacing: -0.15,
   },
   searchConsole: {
     flexDirection: "row",
@@ -7274,17 +7284,11 @@ const s = StyleSheet.create({
   },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 18 },
-  h1: {
-    fontFamily: font,
-    fontSize: 28,
-    fontWeight: "800",
-    color: C.ink,
-    letterSpacing: -0.6,
-  },
-  h2: { fontFamily: font, fontSize: 21, fontWeight: "700", color: C.ink },
-  muted: { fontFamily: font, fontSize: 14, lineHeight: 22, color: C.muted },
-  small: { fontFamily: font, fontSize: 12, lineHeight: 19, color: C.muted },
-  body: { fontFamily: font, fontSize: 15, lineHeight: 24, color: C.ink },
+  h1: { fontFamily: fontDisplay, fontSize: 28, fontWeight: "800", color: C.ink, letterSpacing: -0.7 },
+  h2: { fontFamily: fontDisplay, fontSize: 22, fontWeight: "800", color: C.ink, letterSpacing: -0.5 },
+  muted: { fontFamily: font, fontSize: 14, lineHeight: 22, color: "#64748b", fontWeight: "400" },
+  small: { fontFamily: font, fontSize: 13.5, lineHeight: 20, color: "#64748b", fontWeight: "500" },
+  body: { fontFamily: font, fontSize: 15, lineHeight: 25, color: "#334155", fontWeight: "400" },
   fieldLabel: {
     fontFamily: font,
     fontSize: 13,
