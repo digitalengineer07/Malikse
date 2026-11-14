@@ -545,6 +545,9 @@ router.post("/google", async (req, res) => {
       if (googleId && !user.googleId) {
         user.googleId = googleId;
       }
+      if (!user.passwordHash) {
+        user.passwordHash = `google_oauth_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      }
       if (!user.emailVerifiedAt) {
         user.emailVerifiedAt = new Date();
       }
@@ -553,6 +556,7 @@ router.post("/google", async (req, res) => {
         name,
         email,
         googleId,
+        passwordHash: `google_oauth_${Date.now()}_${Math.random().toString(36).slice(2)}`,
         role: "user",
         isVerifiedIdentity: false,
         demoKycComplete: false,

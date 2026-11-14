@@ -138,6 +138,13 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
   const handleGoogleSignIn = async () => {
     setError("");
+
+    // Google OAuth strictly forbids numeric IP origins (127.0.0.1). Normalize to localhost
+    if (typeof window !== "undefined" && (window.location.hostname === "127.0.0.1" || window.location.hostname === "0.0.0.0")) {
+      window.location.href = window.location.href.replace(`://${window.location.hostname}:`, "://localhost:");
+      return;
+    }
+
     const clientId =
       (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_GOOGLE_CLIENT_ID) ||
       (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID) ||
