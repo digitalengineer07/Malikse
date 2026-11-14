@@ -43,6 +43,15 @@ const C = {
   line: "#dce5f5",
   green: "#0b5a3a",
 };
+const font =
+  Platform.OS === "web"
+    ? "'Plus Jakarta Sans', Manrope, -apple-system, BlinkMacSystemFont, sans-serif"
+    : "PoppinsRegular";
+const fontDisplay =
+  Platform.OS === "web"
+    ? "'Plus Jakarta Sans', PoppinsBold, Manrope, sans-serif"
+    : "PoppinsBold";
+
 const money = (n: number) =>
   `₹${n >= 10000000 ? (n / 10000000).toFixed(2) + " Cr" : n >= 100000 ? (n / 100000).toFixed(1) + " Lakh" : Number(n || 0).toLocaleString("en-IN")}`;
 const label = (p: any) =>
@@ -897,7 +906,12 @@ export function SearchScreen() {
     [filter, setFilter] = useState(false),
     [map, setMap] = useState(true),
     [selected, setSelected] = useState<any>(null),
-    [submitted, setSubmitted] = useState(String(params.q || params.location || ""));
+    [submitted, setSubmitted] = useState(String(params.q || params.location || "")),
+    [areaUnit, setAreaUnit] = useState<"Kattha" | "Sq.Ft." | "Decimal" | "Bigha">("Kattha"),
+    [mapLayer, setMapLayer] = useState<"standard" | "satellite" | "mouza">("standard"),
+    [directOnly, setDirectOnly] = useState(false),
+    [cornerPlot, setCornerPlot] = useState(false),
+    [showBudgetDropdown, setShowBudgetDropdown] = useState(false);
 
   useEffect(() => {
     const qVal = String(params.q || params.location || "");
@@ -914,6 +928,7 @@ export function SearchScreen() {
     [submitted, district, type, max]
   );
   const select = useCallback((p: any) => setSelected(p), []);
+
   useEffect(() => {
     if (submitted && feed.data)
       for (const property of feed.data.slice(0, 5))
@@ -921,8 +936,10 @@ export function SearchScreen() {
           .post(`/recommendations/${property._id}/activity`, { kind: "search" })
           .catch(() => {});
   }, [feed.data, submitted]);
+
   const search = () => {
     setSubmitted(query);
+    setShowBudgetDropdown(false);
     if (user)
       void api
         .post("/recommendations/preferences", {
@@ -936,63 +953,310 @@ export function SearchScreen() {
       JSON.stringify({ district: district || query, type, maxPrice: max }),
     );
   };
+
+  const activeFiltersCount = (submitted ? 1 : 0) + (district ? 1 : 0) + (type ? 1 : 0) + (max ? 1 : 0) + (directOnly ? 1 : 0) + (cornerPlot ? 1 : 0);
+
   return (
-    <MarketplaceShell
-      title="Explore properties"
-      subtitle="Find your place on the map. Every listing is verified."
-    >
-      <View style={s.wrap}>
-        <View style={[s.input, s.row, { flex: 1.5, minWidth: 200 }]}>
-          <Icon name="search" />
-          <TextInput
-            accessibilityLabel="Search properties"
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Property name, locality, road or ID..."
-            onSubmitEditing={search}
-            style={{ flex: 1 }}
-          />
-          {!!query && (
-            <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); }}>
-              <Icon name="close" size={16} color="#94a3b8" />
-            </TouchableOpacity>
-          )}
+    <MarketplaceShell>
+      {/* Top Header Section */}
+      <View style={exploreStyles.headerRow}>
+        <View style={exploreStyles.headerLeft}>
+          <Text style={exploreStyles.mainTitle}>
+            Explore verified properties in Bihar
+          </Text>
+          <View style={exploreStyles.subtitleRow}>
+            <Text style={exploreStyles.subtitleText}>
+              Find your place on the map. Every listing is geo-tagged and legal title verified.
+            </Text>
+            <View style={exploreStyles.registryPill}>
+              <MaterialIcons name="check" size={13} color="#15803D" />
+              <Text style={exploreStyles.registryPillText}>
+                Bihar Bhumi Registry Synced
+              </Text>
+            </View>
+          </View>
         </View>
 
-        <View style={[s.input, s.row, { flex: 1, minWidth: 150 }]}>
-          <Icon name="location-on" color="#94a3b8" />
-          <TextInput
-            accessibilityLabel="Filter by district"
-            value={district}
-            onChangeText={setDistrict}
-            placeholder="District (e.g. Patna, Gaya)"
-            onSubmitEditing={search}
-            style={{ flex: 1 }}
-          />
-          {!!district && (
-            <TouchableOpacity onPress={() => setDistrict("")}>
-              <Icon name="close" size={16} color="#94a3b8" />
-            </TouchableOpacity>
-          )}
+        {/* Top Right Area Unit Segment */}
+        <View style={exploreStyles.areaUnitContainer}>
+          <Text style={exploreStyles.areaUnitLabel}>Area Unit:</Text>
+          <View style={exploreStyles.areaUnitPills}>
+            {(["Kattha", "Sq.Ft.", "Decimal", "Bigha"] as const).map((unit) => (
+              <TouchableOpacity
+                key={unit}
+                style={[
+                  exploreStyles.unitBtn,
+                  areaUnit === unit && exploreStyles.unitBtnActive,
+                ]}
+                onPress={() => setAreaUnit(unit)}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    exploreStyles.unitBtnText,
+                    areaUnit === unit && exploreStyles.unitBtnTextActive,
+                  ]}
+                >
+                  {unit}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-
-        <Button title="Search" onPress={search} />
-        <Button
-          title="Filters"
-          secondary
-          icon="tune"
-          onPress={() => setFilter(!filter)}
-        />
       </View>
 
-      {(!!submitted || !!district || !!type) && (
+      {/* Search & Filter Unified Card */}
+      <View style={exploreStyles.searchBoxCard}>
+        {/* Top Controls Row */}
+        <View style={exploreStyles.controlsRow}>
+          {/* Input 1: Locality Search */}
+          <View style={exploreStyles.inputFieldWrap}>
+            <MaterialIcons name="search" size={19} color="#0A45B5" />
+            <TextInput
+              accessibilityLabel="Search properties"
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Bailey Road, Saguna More, Patna"
+              placeholderTextColor="#94A3B8"
+              onSubmitEditing={search}
+              style={exploreStyles.textInput}
+            />
+            {!!query ? (
+              <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); }}>
+                <MaterialIcons name="close" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+            ) : (
+              <MaterialIcons name="keyboard-arrow-down" size={18} color="#94A3B8" />
+            )}
+          </View>
+
+          {/* Input 2: District Selector */}
+          <View style={exploreStyles.districtFieldWrap}>
+            <MaterialIcons name="place" size={18} color="#0A45B5" />
+            <TextInput
+              accessibilityLabel="Filter by district"
+              value={district}
+              onChangeText={setDistrict}
+              placeholder="Patna, Begusarai, Bhagalpur"
+              placeholderTextColor="#94A3B8"
+              onSubmitEditing={search}
+              style={exploreStyles.textInput}
+            />
+            {!!district ? (
+              <TouchableOpacity onPress={() => setDistrict("")}>
+                <MaterialIcons name="close" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+            ) : (
+              <MaterialIcons name="keyboard-arrow-down" size={18} color="#94A3B8" />
+            )}
+          </View>
+
+          {/* Input 3: Budget Range Button */}
+          <TouchableOpacity
+            style={exploreStyles.budgetDropdownBtn}
+            onPress={() => setShowBudgetDropdown(!showBudgetDropdown)}
+            activeOpacity={0.8}
+          >
+            <Text style={exploreStyles.budgetText}>
+              {max ? `Up to ₹${(Number(max)/100000).toFixed(0)}L` : "₹20L - ₹2.50 Cr"}
+            </Text>
+            <MaterialIcons name="keyboard-arrow-down" size={18} color="#64748B" />
+          </TouchableOpacity>
+
+          {/* Action 1: Search Button */}
+          <TouchableOpacity
+            style={exploreStyles.searchBtn}
+            onPress={search}
+            activeOpacity={0.8}
+          >
+            <Text style={exploreStyles.searchBtnText}>Search</Text>
+          </TouchableOpacity>
+
+          {/* Action 2: Filters Button */}
+          <TouchableOpacity
+            style={[exploreStyles.filtersBtn, filter && exploreStyles.filtersBtnActive]}
+            onPress={() => setFilter(!filter)}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name="tune" size={16} color="#0A45B5" />
+            <Text style={exploreStyles.filtersBtnText}>
+              Filters {activeFiltersCount > 0 ? `(${activeFiltersCount})` : "(4)"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Action 3: List / Map Toggle Button */}
+          <TouchableOpacity
+            style={exploreStyles.viewToggleBtn}
+            onPress={() => setMap(!map)}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name={map ? "view-list" : "map"} size={17} color="#334155" />
+            <Text style={exploreStyles.viewToggleText}>
+              {map ? "List view" : "Map view"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Budget Popover when toggled */}
+        {showBudgetDropdown && (
+          <View style={exploreStyles.budgetPopover}>
+            <Text style={exploreStyles.popoverTitle}>Select Budget Range</Text>
+            <View style={exploreStyles.budgetChipsRow}>
+              {[
+                { label: "Any Budget", val: "" },
+                { label: "Under ₹25 Lakh", val: "2500000" },
+                { label: "₹25L - ₹50 Lakh", val: "5000000" },
+                { label: "₹50L - ₹1 Crore", val: "10000000" },
+                { label: "₹1 Cr - ₹2.5 Crore", val: "25000000" },
+                { label: "₹2.5 Crore+", val: "50000000" },
+              ].map((b) => (
+                <TouchableOpacity
+                  key={b.label}
+                  style={[
+                    exploreStyles.budgetChip,
+                    max === b.val && exploreStyles.budgetChipActive,
+                  ]}
+                  onPress={() => {
+                    setMax(b.val);
+                    setShowBudgetDropdown(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      exploreStyles.budgetChipText,
+                      max === b.val && exploreStyles.budgetChipTextActive,
+                    ]}
+                  >
+                    {b.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Quick Filter Chips Row */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={exploreStyles.quickChipsScroll}
+        >
+          {/* Chip 1: Verified properties only (Always Active) */}
+          <TouchableOpacity
+            style={exploreStyles.chipVerified}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name="check" size={13} color="#059669" />
+            <Text style={exploreStyles.chipVerifiedText}>Verified properties only</Text>
+          </TouchableOpacity>
+
+          {/* Chip 2: Direct from Malik (No Broker) */}
+          <TouchableOpacity
+            style={[
+              exploreStyles.chipDefault,
+              directOnly && exploreStyles.chipDefaultActive,
+            ]}
+            onPress={() => setDirectOnly(!directOnly)}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                exploreStyles.chipDefaultText,
+                directOnly && exploreStyles.chipDefaultTextActive,
+              ]}
+            >
+              Direct from Malik (No Broker)
+            </Text>
+          </TouchableOpacity>
+
+          {/* Chip 3: Independent House */}
+          <TouchableOpacity
+            style={[
+              exploreStyles.chipDefault,
+              type === "house" && exploreStyles.chipBlueActive,
+            ]}
+            onPress={() => setType(type === "house" ? "" : "house")}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                exploreStyles.chipDefaultText,
+                type === "house" && exploreStyles.chipBlueTextActive,
+              ]}
+            >
+              Independent House
+            </Text>
+          </TouchableOpacity>
+
+          {/* Chip 4: Residential Land / Plot */}
+          <TouchableOpacity
+            style={[
+              exploreStyles.chipDefault,
+              type === "land" && exploreStyles.chipBlueActive,
+            ]}
+            onPress={() => setType(type === "land" ? "" : "land")}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                exploreStyles.chipDefaultText,
+                type === "land" && exploreStyles.chipBlueTextActive,
+              ]}
+            >
+              Residential Land / Plot
+            </Text>
+          </TouchableOpacity>
+
+          {/* Chip 5: Corner Plot (30ft+ Road) */}
+          <TouchableOpacity
+            style={[
+              exploreStyles.chipDefault,
+              cornerPlot && exploreStyles.chipDefaultActive,
+            ]}
+            onPress={() => setCornerPlot(!cornerPlot)}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                exploreStyles.chipDefaultText,
+                cornerPlot && exploreStyles.chipDefaultTextActive,
+              ]}
+            >
+              Corner Plot (30ft+ Road)
+            </Text>
+          </TouchableOpacity>
+
+          {/* Chip 6: Commercial / Showroom */}
+          <TouchableOpacity
+            style={[
+              exploreStyles.chipDefault,
+              (type === "shop" || type === "commercial") && exploreStyles.chipBlueActive,
+            ]}
+            onPress={() => setType((type === "shop" || type === "commercial") ? "" : "shop")}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                exploreStyles.chipDefaultText,
+                (type === "shop" || type === "commercial") && exploreStyles.chipBlueTextActive,
+              ]}
+            >
+              Commercial / Showroom
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+
+      {/* Active Filter Tags */}
+      {(!!submitted || !!district || !!type || !!max || directOnly || cornerPlot) && (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", paddingVertical: 2 }}>
-          <Text style={{ fontSize: 13, color: "#64748B", fontWeight: "600", fontFamily: font }}>Filters:</Text>
+          <Text style={{ fontSize: 13, color: "#64748B", fontWeight: "600", fontFamily: font }}>Active Filters:</Text>
           {!!submitted && (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#EFF6FF", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#DBEAFE" }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#0A45B5", fontFamily: font }}>Query: "{submitted}"</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#0A45B5", fontFamily: font }}>Locality: "{submitted}"</Text>
               <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); }}>
-                <Icon name="close" size={14} color="#0A45B5" />
+                <MaterialIcons name="close" size={14} color="#0A45B5" />
               </TouchableOpacity>
             </View>
           )}
@@ -1000,7 +1264,7 @@ export function SearchScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#ECFDF5", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#A7F3D0" }}>
               <Text style={{ fontSize: 12, fontWeight: "700", color: "#059669", fontFamily: font }}>District: {district}</Text>
               <TouchableOpacity onPress={() => setDistrict("")}>
-                <Icon name="close" size={14} color="#059669" />
+                <MaterialIcons name="close" size={14} color="#059669" />
               </TouchableOpacity>
             </View>
           )}
@@ -1008,16 +1272,25 @@ export function SearchScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#FFF7ED", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#FFEDD5" }}>
               <Text style={{ fontSize: 12, fontWeight: "700", color: "#EA580C", fontFamily: font }}>Type: {type.toUpperCase()}</Text>
               <TouchableOpacity onPress={() => setType("")}>
-                <Icon name="close" size={14} color="#EA580C" />
+                <MaterialIcons name="close" size={14} color="#EA580C" />
               </TouchableOpacity>
             </View>
           )}
-          <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); setDistrict(""); setType(""); setMax(""); }}>
+          {!!max && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F5F3FF", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#DDD6FE" }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#7C3AED", fontFamily: font }}>Max: ₹{(Number(max)/100000).toFixed(0)}L</Text>
+              <TouchableOpacity onPress={() => setMax("")}>
+                <MaterialIcons name="close" size={14} color="#7C3AED" />
+              </TouchableOpacity>
+            </View>
+          )}
+          <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); setDistrict(""); setType(""); setMax(""); setDirectOnly(false); setCornerPlot(false); }}>
             <Text style={{ fontSize: 12, fontWeight: "700", color: "#DC2626", marginLeft: 4, fontFamily: font }}>Clear All</Text>
           </TouchableOpacity>
         </View>
       )}
 
+      {/* Advanced Filter Drawer */}
       {filter && (
         <View style={s.panel}>
           <Field
@@ -1046,22 +1319,96 @@ export function SearchScreen() {
           />
         </View>
       )}
-      <View style={s.between}>
-        <Tag green>✓ Verified properties only</Tag>
-        <Button
-          secondary
-          title={map ? "List view" : "Map view"}
-          icon={map ? "view-list" : "map"}
-          onPress={() => setMap(!map)}
-        />
+
+      {/* Showing 38 districts count banner */}
+      <View style={exploreStyles.statusRow}>
+        <Text style={exploreStyles.statusText}>
+          Showing verified plots & houses across <Text style={exploreStyles.statusBold}>38 districts</Text>
+        </Text>
       </View>
+
       <ErrorBox text={feed.error} />
       {feed.loading && <ActivityIndicator color={C.blue} />}
+
+      {/* Map with Overlay Controls */}
       {map && (
-        <View style={s.map}>
-          <VerifiedPropertyMap properties={feed.data || []} onSelect={select} />
+        <View style={exploreStyles.mapWrapper}>
+          {/* Top-Left Cadastral Grid Badge */}
+          <View style={exploreStyles.mapCadastralBadge}>
+            <View style={exploreStyles.pulseGreenDot} />
+            <Text style={exploreStyles.mapCadastralTitle}>
+              Bihar Cadastral Survey & GPS Boundary Grid
+            </Text>
+            <View style={exploreStyles.epsgTag}>
+              <Text style={exploreStyles.epsgTagText}>EPSG:7760</Text>
+            </View>
+          </View>
+
+          {/* Top-Right Map Layer Switcher */}
+          <View style={exploreStyles.mapLayerSwitchPills}>
+            <TouchableOpacity
+              style={[
+                exploreStyles.layerBtn,
+                mapLayer === "standard" && exploreStyles.layerBtnActive,
+              ]}
+              onPress={() => setMapLayer("standard")}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  exploreStyles.layerBtnText,
+                  mapLayer === "standard" && exploreStyles.layerBtnTextActive,
+                ]}
+              >
+                Standard
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                exploreStyles.layerBtn,
+                mapLayer === "satellite" && exploreStyles.layerBtnActive,
+              ]}
+              onPress={() => setMapLayer("satellite")}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  exploreStyles.layerBtnText,
+                  mapLayer === "satellite" && exploreStyles.layerBtnTextActive,
+                ]}
+              >
+                Satellite
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                exploreStyles.layerBtn,
+                mapLayer === "mouza" && exploreStyles.layerBtnActive,
+              ]}
+              onPress={() => setMapLayer("mouza")}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  exploreStyles.layerBtnText,
+                  mapLayer === "mouza" && exploreStyles.layerBtnTextActive,
+                ]}
+              >
+                Revenue Mouza
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <VerifiedPropertyMap
+            properties={feed.data || []}
+            onSelect={select}
+            mapLayer={mapLayer}
+          />
         </View>
       )}
+
       {selected && map && (
         <View style={s.panel}>
           <PropertyCard property={selected} compact />
@@ -1071,6 +1418,7 @@ export function SearchScreen() {
           />
         </View>
       )}
+
       {(!map || !selected) && (
         <View style={s.grid}>
           {(feed.data || []).map((p: any) => (
@@ -1080,6 +1428,7 @@ export function SearchScreen() {
           ))}
         </View>
       )}
+
       {!!feed.nextCursor && (
         <Button
           title="Load more properties"
@@ -1088,6 +1437,7 @@ export function SearchScreen() {
           onPress={feed.loadMore}
         />
       )}
+
       {feed.data?.length === 0 && (
         <Empty
           title="No matches yet"
@@ -1097,6 +1447,450 @@ export function SearchScreen() {
     </MarketplaceShell>
   );
 }
+
+const exploreStyles = StyleSheet.create({
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 16,
+    marginBottom: 6,
+  },
+  headerLeft: {
+    gap: 6,
+    flex: 1,
+    minWidth: 280,
+  },
+  mainTitle: {
+    fontSize: 27,
+    fontWeight: "900",
+    color: "#0B1B3F",
+    fontFamily: fontDisplay,
+    letterSpacing: -0.7,
+  },
+  subtitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  subtitleText: {
+    fontSize: 13.5,
+    color: "#64748B",
+    fontFamily: font,
+    fontWeight: "500",
+  },
+  registryPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  registryPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#059669",
+    fontFamily: font,
+  },
+  areaUnitContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  areaUnitLabel: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: "#64748B",
+    fontFamily: font,
+  },
+  areaUnitPills: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 20,
+    padding: 3,
+  },
+  unitBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16,
+  },
+  unitBtnActive: {
+    backgroundColor: "#0A45B5",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 6px rgba(10, 69, 181, 0.25)",
+      },
+    }),
+  },
+  unitBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
+    fontFamily: font,
+  },
+  unitBtnTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  searchBoxCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 16,
+    gap: 14,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 20px rgba(11, 27, 63, 0.05)",
+      },
+    }),
+  },
+  controlsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  inputFieldWrap: {
+    flex: 2,
+    minWidth: 200,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    gap: 8,
+  },
+  districtFieldWrap: {
+    flex: 1.5,
+    minWidth: 170,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    gap: 8,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 13,
+    color: "#0B1B3F",
+    fontFamily: font,
+    height: "100%",
+  },
+  budgetDropdownBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    minWidth: 140,
+    gap: 6,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  budgetText: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: "#0F172A",
+    fontFamily: font,
+  },
+  searchBtn: {
+    backgroundColor: "#0A45B5",
+    borderRadius: 12,
+    paddingHorizontal: 22,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 2px 8px rgba(10, 69, 181, 0.25)",
+      },
+    }),
+  },
+  searchBtnText: {
+    fontSize: 13.5,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    fontFamily: font,
+  },
+  filtersBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 44,
+    gap: 6,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  filtersBtnActive: {
+    backgroundColor: "#DBEAFE",
+    borderColor: "#93C5FD",
+  },
+  filtersBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A45B5",
+    fontFamily: font,
+  },
+  viewToggleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 44,
+    gap: 6,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  viewToggleText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1E293B",
+    fontFamily: font,
+  },
+  quickChipsScroll: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingTop: 2,
+  },
+  chipVerified: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    borderRadius: 18,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+  },
+  chipVerifiedText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
+    fontFamily: font,
+  },
+  chipDefault: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  chipDefaultActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+  },
+  chipDefaultText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
+    fontFamily: font,
+  },
+  chipDefaultTextActive: {
+    color: "#0A45B5",
+    fontWeight: "700",
+  },
+  chipBlueActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+  },
+  chipBlueTextActive: {
+    color: "#0A45B5",
+    fontWeight: "700",
+  },
+  statusRow: {
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  statusText: {
+    fontSize: 12.5,
+    color: "#64748B",
+    fontFamily: font,
+    fontWeight: "500",
+  },
+  statusBold: {
+    color: "#0B1B3F",
+    fontWeight: "800",
+  },
+  mapWrapper: {
+    position: "relative",
+    height: 480,
+    borderRadius: 22,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#E9F3FA",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 20px rgba(11, 27, 63, 0.06)",
+      },
+    }),
+  },
+  mapCadastralBadge: {
+    position: "absolute",
+    top: 14,
+    left: 14,
+    zIndex: 500,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 20,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(0, 0, 0, 0.08)",
+        backdropFilter: "blur(6px)",
+      },
+    }),
+  },
+  pulseGreenDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#10B981",
+  },
+  mapCadastralTitle: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: "#0B1B3F",
+    fontFamily: font,
+  },
+  epsgTag: {
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  epsgTagText: {
+    fontSize: 9.5,
+    fontWeight: "700",
+    color: "#64748B",
+    fontFamily: font,
+  },
+  mapLayerSwitchPills: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    zIndex: 500,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 20,
+    padding: 3,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(0, 0, 0, 0.08)",
+        backdropFilter: "blur(6px)",
+      },
+    }),
+  },
+  layerBtn: {
+    paddingHorizontal: 11,
+    paddingVertical: 4,
+    borderRadius: 16,
+  },
+  layerBtnActive: {
+    backgroundColor: "#0A45B5",
+  },
+  layerBtnText: {
+    fontSize: 11.5,
+    fontWeight: "600",
+    color: "#475569",
+    fontFamily: font,
+  },
+  layerBtnTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  budgetPopover: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+  },
+  popoverTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#475569",
+    fontFamily: font,
+  },
+  budgetChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  budgetChip: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  budgetChipActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#0A45B5",
+  },
+  budgetChipText: {
+    fontSize: 11.5,
+    color: "#334155",
+    fontWeight: "600",
+    fontFamily: font,
+  },
+  budgetChipTextActive: {
+    color: "#0A45B5",
+    fontWeight: "800",
+  },
+});
+
 function SavedPropertyCard({
   property: p,
   onRemoved,
@@ -6314,14 +7108,7 @@ const postStyles = StyleSheet.create({
     lineHeight: 16,
   },
 });
-const font =
-  Platform.OS === "web"
-    ? "'Plus Jakarta Sans', Manrope, -apple-system, BlinkMacSystemFont, sans-serif"
-    : "PoppinsRegular";
-const fontDisplay =
-  Platform.OS === "web"
-    ? "'Plus Jakarta Sans', PoppinsBold, Manrope, sans-serif"
-    : "PoppinsBold";
+
 
 const profileStyles = StyleSheet.create({
   profileHeaderCard: {
