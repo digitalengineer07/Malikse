@@ -26,6 +26,7 @@ export default function KycScreen() {
   const { user, authState } = useAuthStore();
   const { width } = useWindowDimensions();
   const compact = width < 640;
+  const isWide = width >= 992;
 
   const [kycData, setKycData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -299,294 +300,405 @@ export default function KycScreen() {
             </View>
           ) : null}
 
-          {/* Central Card */}
-          {loading ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator size="large" color="#0A45B5" />
-              <Text style={styles.loadingText}>Loading verification status...</Text>
-            </View>
-          ) : isVerified ? (
-            /* STATE 1: VERIFIED */
-            <View style={styles.glassCard}>
-              <View style={styles.verifiedHero}>
-                <View style={styles.verifiedIconBadge}>
-                  <MaterialIcons name="verified" size={40} color="#059669" />
+          {/* Two-Column Responsive Grid (Aligned horizontally with 1240px AppHeader) */}
+          <View style={[styles.contentGrid, isWide && styles.contentGridRow]}>
+            {/* Left Column: Interactive KYC Card */}
+            <View style={[styles.leftColumn, isWide && styles.leftColumnWide]}>
+              {loading ? (
+                <View style={styles.loadingBox}>
+                  <ActivityIndicator size="large" color="#0A45B5" />
+                  <Text style={styles.loadingText}>Loading verification status...</Text>
                 </View>
-                <Text style={styles.verifiedMainTitle}>Identity Verified</Text>
-                <Text style={styles.verifiedMainSubtitle}>
-                  Your account is fully certified. You have complete direct access to list properties, contact verified owners, and submit legally binding offers.
-                </Text>
-              </View>
-
-              <View style={styles.verifiedInfoStrip}>
-                <View style={styles.verifiedInfoCol}>
-                  <Text style={styles.verifiedInfoLabel}>MEMBER NAME</Text>
-                  <Text style={styles.verifiedInfoValue}>{user.name || "Member"}</Text>
-                </View>
-                <View style={styles.verifiedInfoDivider} />
-                <View style={styles.verifiedInfoCol}>
-                  <Text style={styles.verifiedInfoLabel}>VERIFICATION STATUS</Text>
-                  <View style={styles.verifiedStatusInline}>
-                    <MaterialIcons name="check-circle" size={14} color="#059669" />
-                    <Text style={[styles.verifiedInfoValue, { color: "#059669", marginLeft: 4 }]}>Certified ✓</Text>
+              ) : isVerified ? (
+                /* STATE 1: VERIFIED */
+                <View style={styles.glassCard}>
+                  <View style={styles.verifiedHero}>
+                    <View style={styles.verifiedIconBadge}>
+                      <MaterialIcons name="verified" size={40} color="#059669" />
+                    </View>
+                    <Text style={styles.verifiedMainTitle}>Identity Verified</Text>
+                    <Text style={styles.verifiedMainSubtitle}>
+                      Your account is fully certified. You have complete direct access to list properties, contact verified owners, and submit legally binding offers.
+                    </Text>
                   </View>
-                </View>
-              </View>
 
-              <View style={styles.ctaRow}>
-                <TouchableOpacity
-                  style={[styles.primaryBtn, { flex: 1 }]}
-                  onPress={() => router.push("/dashboard")}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.primaryBtnText}>Go to Dashboard</Text>
-                  <MaterialIcons name="arrow-forward" size={16} color="#FFFFFF" />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.secondaryBtn, { flex: 1 }]}
-                  onPress={() => router.push("/post")}
-                  activeOpacity={0.85}
-                >
-                  <MaterialIcons name="add" size={16} color="#0A45B5" />
-                  <Text style={styles.secondaryBtnText}>Post a Property</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : isPending ? (
-            /* STATE 2: PENDING REVIEW */
-            <View style={styles.glassCard}>
-              <View style={styles.pendingHero}>
-                <View style={styles.pendingIconBadge}>
-                  <MaterialIcons name="schedule" size={36} color="#D97706" />
-                </View>
-                <Text style={styles.pendingMainTitle}>Review in Progress</Text>
-                <Text style={styles.pendingMainSubtitle}>
-                  Your documents were received and are currently being reviewed by our verification desk. Review typically completes within 2–4 business hours.
-                </Text>
-              </View>
-
-              <View style={styles.pendingInfoStrip}>
-                <MaterialIcons name="info-outline" size={16} color="#D97706" />
-                <Text style={styles.pendingInfoText}>
-                  You will receive an instant notification once your Jamabandi & identity credentials are confirmed.
-                </Text>
-              </View>
-
-              <View style={styles.ctaRow}>
-                <TouchableOpacity
-                  style={[styles.primaryBtn, { flex: 1 }]}
-                  onPress={fetchStatus}
-                  activeOpacity={0.85}
-                >
-                  <MaterialIcons name="refresh" size={16} color="#FFFFFF" />
-                  <Text style={styles.primaryBtnText}>Refresh Status</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.secondaryBtn, { flex: 1 }]}
-                  onPress={() => router.push("/dashboard")}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.secondaryBtnText}>Dashboard</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            /* STATE 3: UPLOAD DOCUMENTS */
-            <View style={styles.glassCard}>
-              {isCorrection && kycData?.identityReview?.notes ? (
-                <View style={styles.notesBox}>
-                  <MaterialIcons name="error-outline" size={18} color="#D97706" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.notesTitle}>Verification Reviewer Feedback:</Text>
-                    <Text style={styles.notesText}>{kycData.identityReview.notes}</Text>
-                  </View>
-                </View>
-              ) : null}
-
-              {/* Upload Card Header */}
-              <View style={styles.cardHeaderRow}>
-                <View style={styles.headerLeft}>
-                  <View style={styles.idIconCircle}>
-                    <MaterialIcons name="badge" size={24} color="#0A45B5" />
-                  </View>
-                  <View>
-                    <Text style={styles.cardHeaderTitle}>Upload Government ID</Text>
-                    <Text style={styles.cardHeaderSub}>Aadhaar, PAN, Voter ID, or Passport</Text>
-                  </View>
-                </View>
-                <View style={styles.statusPillUnverified}>
-                  <MaterialIcons name="lock" size={11} color="#0A45B5" />
-                  <Text style={styles.statusPillUnverifiedText}>Required</Text>
-                </View>
-              </View>
-
-              {/* Accepted Document Chips Strip */}
-              <View style={styles.docTagsRow}>
-                <View style={styles.docTag}>
-                  <MaterialIcons name="credit-card" size={13} color="#0A45B5" />
-                  <Text style={styles.docTagText}>Aadhaar Card</Text>
-                </View>
-                <View style={styles.docTag}>
-                  <MaterialIcons name="assignment-ind" size={13} color="#0A45B5" />
-                  <Text style={styles.docTagText}>PAN Card</Text>
-                </View>
-                <View style={styles.docTag}>
-                  <MaterialIcons name="how-to-vote" size={13} color="#0A45B5" />
-                  <Text style={styles.docTagText}>Voter ID</Text>
-                </View>
-                <View style={styles.docTag}>
-                  <MaterialIcons name="flight-takeoff" size={13} color="#0A45B5" />
-                  <Text style={styles.docTagText}>Passport</Text>
-                </View>
-              </View>
-
-              {/* Enhanced Interactive Drop Zone */}
-              <TouchableOpacity
-                style={[
-                  styles.dropZone,
-                  isDragging && styles.dropZoneActive,
-                ]}
-                onPress={handlePickFiles}
-                activeOpacity={0.88}
-                // @ts-ignore Web drag and drop events
-                onDragOver={(e: any) => {
-                  if (Platform.OS === "web") {
-                    e.preventDefault();
-                    setIsDragging(true);
-                  }
-                }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={handleDrop}
-              >
-                <View style={styles.dropZoneIconCircle}>
-                  <MaterialIcons name="cloud-upload" size={28} color="#0A45B5" />
-                </View>
-                <Text style={styles.dropZoneTitle}>
-                  {files.length > 0 ? "Add more identity documents" : "Choose identity documents"}
-                </Text>
-                <Text style={styles.dropZoneSub}>
-                  Click to browse from your device or drag & drop files here
-                </Text>
-                <View style={styles.dropZoneSpecsBadge}>
-                  <Text style={styles.dropZoneSpecsText}>JPG, PNG or PDF (up to 5 MB each · max 3 files)</Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* Selected Files List */}
-              {files.length > 0 ? (
-                <View style={styles.filesList}>
-                  {files.map((file, idx) => {
-                    const isPdf =
-                      file.name?.toLowerCase().endsWith(".pdf") ||
-                      file.mimeType?.includes("pdf");
-                    return (
-                      <View key={file.uri + idx} style={styles.fileRow}>
-                        <View style={styles.fileIconWrap}>
-                          <MaterialIcons
-                            name={isPdf ? "picture-as-pdf" : "image"}
-                            size={20}
-                            color="#0A45B5"
-                          />
-                        </View>
-                        <View style={styles.fileNameCol}>
-                          <Text style={styles.fileNameText} numberOfLines={1}>
-                            {file.name}
-                          </Text>
-                          <View style={styles.fileMetaRow}>
-                            <Text style={styles.fileSizeText}>{formatFileSize(file.size)}</Text>
-                            <Text style={styles.fileMetaDot}>•</Text>
-                            <View style={styles.fileReadyPill}>
-                              <MaterialIcons name="check" size={11} color="#059669" />
-                              <Text style={styles.fileReadyPillText}>Ready</Text>
-                            </View>
-                          </View>
-                        </View>
-                        <TouchableOpacity
-                          style={styles.removeBtn}
-                          onPress={() => removeFile(idx)}
-                          activeOpacity={0.7}
-                        >
-                          <MaterialIcons name="delete-outline" size={18} color="#EF4444" />
-                        </TouchableOpacity>
+                  <View style={styles.verifiedInfoStrip}>
+                    <View style={styles.verifiedInfoCol}>
+                      <Text style={styles.verifiedInfoLabel}>MEMBER NAME</Text>
+                      <Text style={styles.verifiedInfoValue}>{user.name || "Member"}</Text>
+                    </View>
+                    <View style={styles.verifiedInfoDivider} />
+                    <View style={styles.verifiedInfoCol}>
+                      <Text style={styles.verifiedInfoLabel}>VERIFICATION STATUS</Text>
+                      <View style={styles.verifiedStatusInline}>
+                        <MaterialIcons name="check-circle" size={14} color="#059669" />
+                        <Text style={[styles.verifiedInfoValue, { color: "#059669", marginLeft: 4 }]}>Certified ✓</Text>
                       </View>
-                    );
-                  })}
+                    </View>
+                  </View>
+
+                  <View style={styles.ctaRow}>
+                    <TouchableOpacity
+                      style={[styles.primaryBtn, { flex: 1 }]}
+                      onPress={() => router.push("/dashboard")}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.primaryBtnText}>Go to Dashboard</Text>
+                      <MaterialIcons name="arrow-forward" size={16} color="#FFFFFF" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.secondaryBtn, { flex: 1 }]}
+                      onPress={() => router.push("/post")}
+                      activeOpacity={0.85}
+                    >
+                      <MaterialIcons name="add" size={16} color="#0A45B5" />
+                      <Text style={styles.secondaryBtnText}>Post a Property</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              ) : null}
+              ) : isPending ? (
+                /* STATE 2: PENDING REVIEW */
+                <View style={styles.glassCard}>
+                  <View style={styles.pendingHero}>
+                    <View style={styles.pendingIconBadge}>
+                      <MaterialIcons name="schedule" size={36} color="#D97706" />
+                    </View>
+                    <Text style={styles.pendingMainTitle}>Review in Progress</Text>
+                    <Text style={styles.pendingMainSubtitle}>
+                      Your documents were received and are currently being reviewed by our verification desk. Review typically completes within 2–4 business hours.
+                    </Text>
+                  </View>
 
-              {/* Submit Button */}
-              <TouchableOpacity
-                style={[
-                  styles.primaryBtn,
-                  styles.fullBtn,
-                  (!files.length || submitting) && styles.disabledBtn,
-                ]}
-                disabled={!files.length || submitting}
-                onPress={handleSubmitKyc}
-                activeOpacity={0.85}
-              >
-                {submitting ? (
-                  <>
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={styles.primaryBtnText}>Submitting Documents...</Text>
-                  </>
-                ) : (
-                  <>
-                    <MaterialIcons name="check-circle" size={18} color="#FFFFFF" />
-                    <Text style={styles.primaryBtnText}>Submit Documents</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+                  <View style={styles.pendingInfoStrip}>
+                    <MaterialIcons name="info-outline" size={16} color="#D97706" />
+                    <Text style={styles.pendingInfoText}>
+                      You will receive an instant notification once your Jamabandi & identity credentials are confirmed.
+                    </Text>
+                  </View>
 
-              {!files.length && (
-                <Text style={styles.helperTip}>
-                  Select or drop at least 1 government document above to submit for staff review.
-                </Text>
+                  <View style={styles.ctaRow}>
+                    <TouchableOpacity
+                      style={[styles.primaryBtn, { flex: 1 }]}
+                      onPress={fetchStatus}
+                      activeOpacity={0.85}
+                    >
+                      <MaterialIcons name="refresh" size={16} color="#FFFFFF" />
+                      <Text style={styles.primaryBtnText}>Refresh Status</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.secondaryBtn, { flex: 1 }]}
+                      onPress={() => router.push("/dashboard")}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.secondaryBtnText}>Dashboard</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                /* STATE 3: UPLOAD DOCUMENTS */
+                <View style={styles.glassCard}>
+                  {isCorrection && kycData?.identityReview?.notes ? (
+                    <View style={styles.notesBox}>
+                      <MaterialIcons name="error-outline" size={18} color="#D97706" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.notesTitle}>Verification Reviewer Feedback:</Text>
+                        <Text style={styles.notesText}>{kycData.identityReview.notes}</Text>
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {/* Upload Card Header */}
+                  <View style={styles.cardHeaderRow}>
+                    <View style={styles.headerLeft}>
+                      <View style={styles.idIconCircle}>
+                        <MaterialIcons name="badge" size={24} color="#0A45B5" />
+                      </View>
+                      <View>
+                        <Text style={styles.cardHeaderTitle}>Upload Government ID</Text>
+                        <Text style={styles.cardHeaderSub}>Aadhaar, PAN, Voter ID, or Passport</Text>
+                      </View>
+                    </View>
+                    <View style={styles.statusPillUnverified}>
+                      <MaterialIcons name="lock" size={11} color="#0A45B5" />
+                      <Text style={styles.statusPillUnverifiedText}>Required</Text>
+                    </View>
+                  </View>
+
+                  {/* Accepted Document Chips Strip */}
+                  <View style={styles.docTagsRow}>
+                    <View style={styles.docTag}>
+                      <MaterialIcons name="credit-card" size={13} color="#0A45B5" />
+                      <Text style={styles.docTagText}>Aadhaar Card</Text>
+                    </View>
+                    <View style={styles.docTag}>
+                      <MaterialIcons name="assignment-ind" size={13} color="#0A45B5" />
+                      <Text style={styles.docTagText}>PAN Card</Text>
+                    </View>
+                    <View style={styles.docTag}>
+                      <MaterialIcons name="how-to-vote" size={13} color="#0A45B5" />
+                      <Text style={styles.docTagText}>Voter ID</Text>
+                    </View>
+                    <View style={styles.docTag}>
+                      <MaterialIcons name="flight-takeoff" size={13} color="#0A45B5" />
+                      <Text style={styles.docTagText}>Passport</Text>
+                    </View>
+                  </View>
+
+                  {/* Interactive Drop Zone */}
+                  <TouchableOpacity
+                    style={[
+                      styles.dropZone,
+                      isDragging && styles.dropZoneActive,
+                    ]}
+                    onPress={handlePickFiles}
+                    activeOpacity={0.88}
+                    // @ts-ignore Web drag and drop events
+                    onDragOver={(e: any) => {
+                      if (Platform.OS === "web") {
+                        e.preventDefault();
+                        setIsDragging(true);
+                      }
+                    }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                  >
+                    <View style={styles.dropZoneIconCircle}>
+                      <MaterialIcons name="cloud-upload" size={28} color="#0A45B5" />
+                    </View>
+                    <Text style={styles.dropZoneTitle}>
+                      {files.length > 0 ? "Add more identity documents" : "Choose identity documents"}
+                    </Text>
+                    <Text style={styles.dropZoneSub}>
+                      Click to browse from your device or drag & drop files here
+                    </Text>
+                    <View style={styles.dropZoneSpecsBadge}>
+                      <Text style={styles.dropZoneSpecsText}>JPG, PNG or PDF (up to 5 MB each · max 3 files)</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Selected Files List */}
+                  {files.length > 0 ? (
+                    <View style={styles.filesList}>
+                      {files.map((file, idx) => {
+                        const isPdf =
+                          file.name?.toLowerCase().endsWith(".pdf") ||
+                          file.mimeType?.includes("pdf");
+                        return (
+                          <View key={file.uri + idx} style={styles.fileRow}>
+                            <View style={styles.fileIconWrap}>
+                              <MaterialIcons
+                                name={isPdf ? "picture-as-pdf" : "image"}
+                                size={20}
+                                color="#0A45B5"
+                              />
+                            </View>
+                            <View style={styles.fileNameCol}>
+                              <Text style={styles.fileNameText} numberOfLines={1}>
+                                {file.name}
+                              </Text>
+                              <View style={styles.fileMetaRow}>
+                                <Text style={styles.fileSizeText}>{formatFileSize(file.size)}</Text>
+                                <Text style={styles.fileMetaDot}>•</Text>
+                                <View style={styles.fileReadyPill}>
+                                  <MaterialIcons name="check" size={11} color="#059669" />
+                                  <Text style={styles.fileReadyPillText}>Ready</Text>
+                                </View>
+                              </View>
+                            </View>
+                            <TouchableOpacity
+                              style={styles.removeBtn}
+                              onPress={() => removeFile(idx)}
+                              activeOpacity={0.7}
+                            >
+                              <MaterialIcons name="delete-outline" size={18} color="#EF4444" />
+                            </TouchableOpacity>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+
+                  {/* Submit Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.primaryBtn,
+                      styles.fullBtn,
+                      (!files.length || submitting) && styles.disabledBtn,
+                    ]}
+                    disabled={!files.length || submitting}
+                    onPress={handleSubmitKyc}
+                    activeOpacity={0.85}
+                  >
+                    {submitting ? (
+                      <>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <Text style={styles.primaryBtnText}>Submitting Documents...</Text>
+                      </>
+                    ) : (
+                      <>
+                        <MaterialIcons name="check-circle" size={18} color="#FFFFFF" />
+                        <Text style={styles.primaryBtnText}>Submit Documents</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  {!files.length && (
+                    <Text style={styles.helperTip}>
+                      Select or drop at least 1 government document above to submit for staff review.
+                    </Text>
+                  )}
+
+                  {/* Clean Fast Demo Divider */}
+                  <View style={styles.orDivider}>
+                    <View style={styles.orLine} />
+                    <Text style={styles.orText}>OR INSTANT VERIFICATION</Text>
+                    <View style={styles.orLine} />
+                  </View>
+
+                  {/* Demo Mode Action Card */}
+                  <TouchableOpacity
+                    style={styles.demoActionCard}
+                    onPress={handleDemoVerify}
+                    disabled={demoSubmitting}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.demoIconWrap}>
+                      <MaterialIcons name="bolt" size={18} color="#0A45B5" />
+                    </View>
+                    <View style={styles.demoTextWrap}>
+                      <Text style={styles.demoActionTitle}>Activate Instant Demo Verification</Text>
+                      <Text style={styles.demoActionSub}>
+                        One-click test verification for immediate testing without uploading real files
+                      </Text>
+                    </View>
+                    {demoSubmitting ? (
+                      <ActivityIndicator size="small" color="#0A45B5" />
+                    ) : (
+                      <MaterialIcons name="arrow-forward" size={16} color="#0A45B5" />
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Security Footnote */}
+                  <View style={styles.securityFootnote}>
+                    <MaterialIcons name="lock" size={13} color="#059669" />
+                    <Text style={styles.securityFootnoteText}>
+                      Bank-grade 256-bit encrypted transmission · Strict zero-leakage security.
+                    </Text>
+                  </View>
+                </View>
               )}
+            </View>
 
-              {/* Clean Fast Demo Divider */}
-              <View style={styles.orDivider}>
-                <View style={styles.orLine} />
-                <Text style={styles.orText}>OR INSTANT VERIFICATION</Text>
-                <View style={styles.orLine} />
+            {/* Right Column: Data Privacy, Why Verify, and Document Guidelines */}
+            <View style={[styles.rightColumn, isWide && styles.rightColumnWide]}>
+              {/* Card 1: Data Privacy & Protection Safeguards */}
+              <View style={styles.sideCard}>
+                <View style={styles.sideCardHeader}>
+                  <View style={[styles.sideCardIconWrap, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
+                    <MaterialIcons name="security" size={18} color="#059669" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sideCardTitle}>Data Privacy & Protection</Text>
+                    <Text style={styles.sideCardSubtitle}>Your documents are shielded & encrypted</Text>
+                  </View>
+                </View>
+
+                <View style={styles.privacyFeatureList}>
+                  <View style={styles.privacyFeatureItem}>
+                    <MaterialIcons name="check-circle" size={15} color="#059669" style={styles.privacyCheckIcon} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.featureItemBold}>256-Bit AES Encryption</Text>
+                      <Text style={styles.featureItemText}>
+                        Identity documents are encrypted at rest with restricted, staff-only audit access.
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.privacyFeatureItem}>
+                    <MaterialIcons name="check-circle" size={15} color="#059669" style={styles.privacyCheckIcon} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.featureItemBold}>Zero Third-Party Sharing</Text>
+                      <Text style={styles.featureItemText}>
+                        We never sell, rent, or distribute your identity papers to brokers, telemarketers, or commercial agencies.
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.privacyFeatureItem}>
+                    <MaterialIcons name="check-circle" size={15} color="#059669" style={styles.privacyCheckIcon} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.featureItemBold}>Purpose-Limited Verification</Text>
+                      <Text style={styles.featureItemText}>
+                        Used solely for Bihar Bhumi Jamabandi matching, title deed authenticity, and fraud prevention.
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.privacyFeatureItem}>
+                    <MaterialIcons name="check-circle" size={15} color="#059669" style={styles.privacyCheckIcon} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.featureItemBold}>Right to Data Erasure</Text>
+                      <Text style={styles.featureItemText}>
+                        You can request document deletion at any time via Account Privacy settings.
+                      </Text>
+                    </View>
+                  </View>
+                </View>
               </View>
 
-              {/* Demo Mode Action Card */}
-              <TouchableOpacity
-                style={styles.demoActionCard}
-                onPress={handleDemoVerify}
-                disabled={demoSubmitting}
-                activeOpacity={0.85}
-              >
-                <View style={styles.demoIconWrap}>
-                  <MaterialIcons name="bolt" size={18} color="#0A45B5" />
+              {/* Card 2: Document Guidelines */}
+              <View style={styles.sideCard}>
+                <View style={styles.sideCardHeader}>
+                  <View style={[styles.sideCardIconWrap, { backgroundColor: "#EFF6FF", borderColor: "#DBEAFE" }]}>
+                    <MaterialIcons name="assignment" size={18} color="#0A45B5" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sideCardTitle}>Document Guidelines</Text>
+                    <Text style={styles.sideCardSubtitle}>Ensure fast approval on your first submission</Text>
+                  </View>
                 </View>
-                <View style={styles.demoTextWrap}>
-                  <Text style={styles.demoActionTitle}>Activate Instant Demo Verification</Text>
-                  <Text style={styles.demoActionSub}>
-                    One-click test verification for immediate testing without uploading real files
+
+                <View style={styles.guidelinesList}>
+                  <View style={styles.guidelineRow}>
+                    <View style={styles.guidelineDot} />
+                    <Text style={styles.guidelineText}>
+                      <Text style={{ fontWeight: "700", color: "#0B1B3F" }}>Full Document: </Text>
+                      Ensure all four corners and official seals of the ID are visible.
+                    </Text>
+                  </View>
+                  <View style={styles.guidelineRow}>
+                    <View style={styles.guidelineDot} />
+                    <Text style={styles.guidelineText}>
+                      <Text style={{ fontWeight: "700", color: "#0B1B3F" }}>Clear Text: </Text>
+                      Name, photo, and government ID number must be legible with zero blur or flash glare.
+                    </Text>
+                  </View>
+                  <View style={styles.guidelineRow}>
+                    <View style={styles.guidelineDot} />
+                    <Text style={styles.guidelineText}>
+                      <Text style={{ fontWeight: "700", color: "#0B1B3F" }}>Both Sides: </Text>
+                      For Aadhaar Card or Voter ID, please upload both front and back sides.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Card 3: Bihar Revenue & Compliance Notice */}
+              <View style={styles.biharComplianceCard}>
+                <MaterialIcons name="verified-user" size={18} color="#0A45B5" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.biharComplianceTitle}>Bihar RERA Verified Network</Text>
+                  <Text style={styles.biharComplianceText}>
+                    Identity verification enforces 100% direct-to-owner transparency across all 38 districts of Bihar with zero middleman interference.
                   </Text>
                 </View>
-                {demoSubmitting ? (
-                  <ActivityIndicator size="small" color="#0A45B5" />
-                ) : (
-                  <MaterialIcons name="arrow-forward" size={16} color="#0A45B5" />
-                )}
-              </TouchableOpacity>
-
-              {/* Security & Data Protection Notice */}
-              <View style={styles.securityFootnote}>
-                <MaterialIcons name="lock" size={13} color="#059669" />
-                <Text style={styles.securityFootnoteText}>
-                  Bank-grade 256-bit encrypted transmission · MalikSe does not share your government documents with third parties.
-                </Text>
               </View>
             </View>
-          )}
+          </View>
 
-          {/* Three Visual Benefit Cards */}
+          {/* Three Visual Benefit Cards across the full width */}
           <View style={[styles.benefitsRow, compact && styles.benefitsRowCompact]}>
             <View style={styles.benefitItem}>
               <View style={[styles.benefitIconWrap, { backgroundColor: "#ECFDF5" }]}>
@@ -639,10 +751,10 @@ const styles = premiumStyles({
   },
   mainWrapper: {
     width: "100%",
-    maxWidth: 780,
+    maxWidth: 1240, // Perfectly aligned with AppHeader and WebFooter
     alignSelf: "center",
-    paddingHorizontal: 24,
-    paddingTop: 28,
+    paddingHorizontal: 20, // Perfectly matches AppHeader paddingHorizontal
+    paddingTop: 24,
     paddingBottom: 48,
   },
   mainWrapperCompact: {
@@ -775,6 +887,30 @@ const styles = premiumStyles({
     fontWeight: "600",
   },
 
+  // Content Grid (Two-column layout)
+  contentGrid: {
+    width: "100%",
+    marginBottom: 24,
+  },
+  contentGridRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 24,
+  },
+  leftColumn: {
+    width: "100%",
+  },
+  leftColumnWide: {
+    flex: 1.15,
+  },
+  rightColumn: {
+    width: "100%",
+    gap: 16,
+  },
+  rightColumnWide: {
+    flex: 0.85,
+  },
+
   // Loading
   loadingBox: {
     backgroundColor: "#FFFFFF",
@@ -798,13 +934,12 @@ const styles = premiumStyles({
     borderRadius: 24,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    padding: 28,
+    padding: 26,
     shadowColor: "#0B1B3F",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.05,
     shadowRadius: 20,
     elevation: 2,
-    marginBottom: 24,
   },
 
   // Verified Hero
@@ -1003,8 +1138,8 @@ const styles = premiumStyles({
     borderStyle: "dashed",
     backgroundColor: "#F8FAFF",
     borderRadius: 20,
-    paddingVertical: 28,
-    paddingHorizontal: 20,
+    paddingVertical: 26,
+    paddingHorizontal: 18,
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
@@ -1021,7 +1156,7 @@ const styles = premiumStyles({
     backgroundColor: "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: "#DBEAFE",
   },
@@ -1203,7 +1338,7 @@ const styles = premiumStyles({
   orDivider: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 18,
+    marginVertical: 16,
     gap: 12,
   },
   orLine: {
@@ -1273,11 +1408,123 @@ const styles = premiumStyles({
     textAlign: "center",
   },
 
-  // Benefits Row
+  // Right Side Cards
+  sideCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 20,
+    shadowColor: "#0B1B3F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 14,
+    elevation: 2,
+  },
+  sideCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  sideCardIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  sideCardTitle: {
+    fontSize: 15.5,
+    fontWeight: "800",
+    color: "#0B1B3F",
+  },
+  sideCardSubtitle: {
+    fontSize: 11.5,
+    color: "#64748B",
+    marginTop: 2,
+  },
+
+  // Privacy Feature List
+  privacyFeatureList: {
+    gap: 14,
+  },
+  privacyFeatureItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  privacyCheckIcon: {
+    marginTop: 2,
+  },
+  featureItemBold: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#0B1B3F",
+  },
+  featureItemText: {
+    fontSize: 11.5,
+    color: "#64748B",
+    marginTop: 2,
+    lineHeight: 17,
+  },
+
+  // Guidelines List
+  guidelinesList: {
+    gap: 12,
+  },
+  guidelineRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  guidelineDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#0A45B5",
+    marginTop: 6,
+  },
+  guidelineText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#475569",
+    lineHeight: 18,
+  },
+
+  // Bihar Compliance Card
+  biharComplianceCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    backgroundColor: "#EFF6FF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    padding: 16,
+  },
+  biharComplianceTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0A45B5",
+    marginBottom: 3,
+  },
+  biharComplianceText: {
+    fontSize: 11.5,
+    color: "#334155",
+    lineHeight: 17,
+  },
+
+  // Benefits Row (Full Width below grid)
   benefitsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 14,
+    marginTop: 6,
   },
   benefitsRowCompact: {
     flexDirection: "column",
