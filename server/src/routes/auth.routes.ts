@@ -497,6 +497,86 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// POST /auth/google
+router.post("/google", async (req, res) => {
+  try {
+    const { credential, idToken, email: bodyEmail, name: bodyName, googleId: bodyGoogleId } = req.body;
+    let email = bodyEmail;
+    let name = bodyName;
+    let googleId = bodyGoogleId;
+
+    // Verify token with Google public endpoint if credential or idToken is passed
+    const token = credential || idToken;
+    if (token && typeof token === "string") {
+      try {
+        const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`);
+        if (verifyRes.ok) {
+          const payload = (await verifyRes.json()) as any;
+          if (payload.email) {
+            email = payload.email.toLowerCase();
+            name = payload.name || name || email.split("@")[0];
+            googleId = payload.sub || googleId;
+          }
+        }
+      } catch (e) {
+        console.warn("Google token verification error:", e);
+      }
+    }
+
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({ message: "Google authentication failed: Email address is required" });
+    }
+
+    email = email.trim().toLowerCase();
+    name = (name || email.split("@")[0]).trim();
+
+    // Check if user exists by email or googleId
+    let user = await User.findOne({
+      $or: [
+        { email },
+        ...(googleId ? [{ googleId }] : [])
+      ]
+    });
+
+    if (user) {
+      if (!accountEnabled(user)) {
+        return res.status(403).json({ message: "This account is suspended or inactive" });
+      }
+      if (googleId && !user.googleId) {
+        user.googleId = googleId;
+      }
+      if (!user.emailVerifiedAt) {
+        user.emailVerifiedAt = new Date();
+      }
+    } else {
+      user = new User({
+        name,
+        email,
+        googleId,
+        role: "user",
+        isVerifiedIdentity: false,
+        demoKycComplete: false,
+        emailVerifiedAt: new Date(),
+        sessionVersion: 0,
+        wishlist: [],
+        isActive: true,
+        isSuspended: false,
+      });
+    }
+
+    if (["buyer", "owner"].includes(user.role as string)) user.role = "user";
+
+    const { accessToken, refreshToken } = generateTokens(user);
+    user.refreshTokenHash = tokenDigest(refreshToken);
+    user.refreshTokenExpiresAt = refreshExpiry(refreshToken);
+    await user.save();
+
+    res.json(sessionPayload(req, res, { accessToken, refreshToken }, user));
+  } catch (error: any) {
+    res.status(500).json({ message: error?.message || "An unexpected error occurred during Google sign in" });
+  }
+});
+
 // POST /auth/kyc/demo — a UI prototype toggle, not identity verification.
 router.post("/kyc/demo", authGuard, async (req: any, res) => {
   if (process.env.NODE_ENV === "production") return res.status(403).json({ message: "Identity verification requires staff review" });

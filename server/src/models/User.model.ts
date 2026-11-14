@@ -8,6 +8,7 @@ export interface IUser extends Document {
   mobile?: string;
   email?: string;
   passwordHash?: string;
+  googleId?: string;
   sessionVersion: number;
   administrativeHistory: { actorId: string; action: string; reason: string; at: Date; value?: boolean }[];
   mobileVerifiedAt?: Date;
@@ -38,6 +39,7 @@ const UserSchema = new Schema<IUser>(
     mobile: { type: String, required: false, unique: true, sparse: true, trim: true },
     email: { type: String, trim: true, lowercase: true, unique: true, sparse: true },
     passwordHash: { type: String },
+    googleId: { type: String, sparse: true, unique: true },
     sessionVersion: { type: Number, default: 0 },
     administrativeHistory: [{ actorId: String, action: String, reason: String, at: Date, value: Boolean }],
     mobileVerifiedAt: { type: Date },

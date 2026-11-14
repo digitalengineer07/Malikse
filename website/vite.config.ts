@@ -42,6 +42,7 @@ export default defineConfig(({ mode, command }) => {
       ...(command === "build" ? { "import.meta.env.VITE_API_BASE_URL": JSON.stringify(targetApi) } : {}),
     },
     server: { strictPort: true },
+    envPrefix: ["VITE_", "EXPO_PUBLIC_"],
     build: { outDir: "dist", chunkSizeWarningLimit: 900 },
   };
 });

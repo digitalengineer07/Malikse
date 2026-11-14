@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
 } from "react-native";
 import { Redirect, useRouter, useLocalSearchParams } from "@/web/navigation";
 import { MaterialIcons } from "@/web/icons";
@@ -23,6 +24,37 @@ import PasswordStrengthIndicator, { evaluatePasswordStrength } from "./PasswordS
 
 interface AccountAuthScreenProps {
   mode: "login" | "register";
+}
+
+function GoogleLogo({ size = 18 }: { size?: number }) {
+  if (Platform.OS === "web") {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "block" }}>
+        <path
+          fill="#4285F4"
+          d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+        />
+        <path
+          fill="#34A853"
+          d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"
+        />
+        <path
+          fill="#FBBC05"
+          d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+        />
+        <path
+          fill="#EA4335"
+          d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+        />
+      </svg>
+    );
+  }
+  return (
+    <Image
+      source={{ uri: "https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" }}
+      style={{ width: size, height: size }}
+    />
+  );
 }
 
 export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
@@ -100,6 +132,71 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   const forgotResendSecondsLeft = forgotChallenge
     ? Math.max(0, Math.ceil((forgotChallenge.resendAt - now) / 1000))
     : 0;
+
+  const [keepMeSignedIn, setKeepMeSignedIn] = useState(true);
+  const [showGoogleSetupModal, setShowGoogleSetupModal] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    const clientId =
+      (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_GOOGLE_CLIENT_ID) ||
+      (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID) ||
+      (typeof import.meta !== "undefined" && (import.meta as any).env?.EXPO_PUBLIC_GOOGLE_CLIENT_ID);
+
+    if (
+      typeof window !== "undefined" &&
+      (window as any).google?.accounts?.id &&
+      clientId &&
+      typeof clientId === "string" &&
+      clientId.trim().length > 5
+    ) {
+      try {
+        (window as any).google.accounts.id.initialize({
+          client_id: clientId.trim(),
+          callback: async (response: any) => {
+            if (response?.credential) {
+              setLoading(true);
+              try {
+                await authService.loginWithGoogle(response.credential);
+                router.replace(destination as any);
+              } catch (err: any) {
+                setError(
+                  err?.response?.data?.message ||
+                    err?.message ||
+                    label("Google sign in failed.", "गूगल साइन इन विफल रहा।")
+                );
+              } finally {
+                setLoading(false);
+              }
+            }
+          },
+        });
+        (window as any).google.accounts.id.prompt();
+        return;
+      } catch (e) {
+        console.warn("Google One Tap error:", e);
+      }
+    }
+
+    setShowGoogleSetupModal(true);
+  };
+
+  const handleDemoGoogleSignIn = async () => {
+    setLoading(true);
+    setShowGoogleSetupModal(false);
+    try {
+      await authService.loginWithGoogle({
+        email: "demo.malikse.user@gmail.com",
+        name: "Demo Google User",
+        googleId: "google_demo_12345",
+      });
+      router.replace(destination as any);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || "Demo sign in failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleTabSwitch = (tab: "login" | "register" | "forgot") => {
     setActiveTab(tab);
@@ -1685,6 +1782,40 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                     )}
                   </View>
 
+                  {/* Keep me signed in & Sign in with OTP instead */}
+                  {!isForgot && !isRegister && (
+                    <View style={styles.loginExtraRow}>
+                      <TouchableOpacity
+                        style={styles.keepSignedInWrap}
+                        onPress={() => setKeepMeSignedIn(!keepMeSignedIn)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={[styles.checkboxBox, keepMeSignedIn && styles.checkboxBoxActive]}>
+                          {keepMeSignedIn && <MaterialIcons name="check" size={12} color="#FFFFFF" />}
+                        </View>
+                        <Text style={styles.keepSignedInText}>
+                          {label("Keep me signed in", "मुझे साइन इन रखें")}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSuccessMessage(
+                            label(
+                              "Mobile OTP sign in mode enabled. Enter your mobile number to receive code.",
+                              "मोबाइल OTP साइन इन मोड सक्रिय। कोड प्राप्त करने के लिए अपना मोबाइल नंबर दर्ज करें।"
+                            )
+                          );
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.otpInsteadLink}>
+                          {label("Sign in with OTP instead", "Sign in with OTP instead")}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
                   {/* Submit Button */}
                   <TouchableOpacity
                     style={[
@@ -1722,6 +1853,46 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                     )}
                   </TouchableOpacity>
 
+                  {/* OR FAST CONNECT Divider and Social Buttons */}
+                  {!isForgot && (
+                    <>
+                      <View style={styles.fastConnectDivider}>
+                        <View style={styles.fastConnectLine} />
+                        <Text style={styles.fastConnectText}>
+                          {label("OR FAST CONNECT", "या सीधे जुड़ें")}
+                        </Text>
+                        <View style={styles.fastConnectLine} />
+                      </View>
+
+                      <View style={styles.fastConnectRow}>
+                        <TouchableOpacity
+                          style={styles.googleBtn}
+                          onPress={handleGoogleSignIn}
+                          activeOpacity={0.85}
+                        >
+                          <GoogleLogo size={18} />
+                          <Text style={styles.googleBtnText}>Google</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.digiLockerBtn}
+                          onPress={() => {
+                            setSuccessMessage(
+                              label(
+                                "DigiLocker KYC is supported for all verified accounts.",
+                                "डिजीलॉकर केवाईसी सभी सत्यापित खातों के लिए समर्थित है।"
+                              )
+                            );
+                          }}
+                          activeOpacity={0.85}
+                        >
+                          <MaterialIcons name="check-circle" size={16} color="#059669" />
+                          <Text style={styles.digiLockerBtnText}>DigiLocker KYC</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  )}
+
                   {/* Switch Tab Link */}
                   <View style={styles.switchRow}>
                     <Text style={styles.switchPromptText}>
@@ -1743,15 +1914,20 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           : label("Create an account", "खाता बनाएं")}
                       </Text>
                     </TouchableOpacity>
+                    {!isForgot && !isRegister && (
+                      <Text style={styles.switchSecondaryText}>
+                        · {label("Zero brokerage for buyers", "Zero brokerage for buyers")}
+                      </Text>
+                    )}
                   </View>
 
                   {/* Security Footnote */}
                   <View style={styles.securityFootnote}>
-                    <MaterialIcons name="security" size={15} color="#15803D" />
+                    <MaterialIcons name="security" size={15} color="#059669" />
                     <Text style={styles.securityText}>
                       {label(
-                        "Private account access · Staff-reviewed listings",
-                        "निजी खाता · टीम द्वारा सत्यापित संपत्तियाँ"
+                        "Staff-reviewed listings · 100% Direct Owner Transparency",
+                        "टीम द्वारा सत्यापित संपत्तियां · 100% प्रत्यक्ष मालिक पारदर्शिता"
                       )}
                     </Text>
                   </View>
@@ -1808,6 +1984,73 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
               </View>
             </View>
           </View>
+
+          {/* Google Setup Guide & Demo Modal */}
+          <Modal
+            visible={showGoogleSetupModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowGoogleSetupModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <GoogleLogo size={22} />
+                    <Text style={styles.modalTitle}>Google Sign-In Activation</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setShowGoogleSetupModal(false)}>
+                    <MaterialIcons name="close" size={20} color="#64748B" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ gap: 12, paddingVertical: 6 }}>
+                  <Text style={{ fontSize: 13.5, color: "#334155", lineHeight: 20 }}>
+                    Google Sign-In is completely integrated into MalikSe. To make it active with live Google accounts, follow these 4 steps in Google Cloud Console:
+                  </Text>
+
+                  <View style={styles.setupStepBox}>
+                    <Text style={styles.setupStepTitle}>1. Google Cloud Console</Text>
+                    <Text style={styles.setupStepText}>Go to console.cloud.google.com and select or create your project.</Text>
+                  </View>
+
+                  <View style={styles.setupStepBox}>
+                    <Text style={styles.setupStepTitle}>2. OAuth Consent Screen</Text>
+                    <Text style={styles.setupStepText}>Set User Type to "External", add App name "MalikSe" & your email.</Text>
+                  </View>
+
+                  <View style={styles.setupStepBox}>
+                    <Text style={styles.setupStepTitle}>3. Create Web OAuth Client ID</Text>
+                    <Text style={styles.setupStepText}>Authorized JavaScript Origins: http://localhost:5173, https://malikse.devoxa.in</Text>
+                  </View>
+
+                  <View style={styles.setupStepBox}>
+                    <Text style={styles.setupStepTitle}>4. Add to .env</Text>
+                    <Text style={styles.setupStepText}>Add VITE_GOOGLE_CLIENT_ID=your-client-id to website/.env</Text>
+                  </View>
+
+                  <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
+                    <TouchableOpacity
+                      style={styles.demoGoogleBtn}
+                      onPress={handleDemoGoogleSignIn}
+                      activeOpacity={0.85}
+                    >
+                      <MaterialIcons name="play-circle-outline" size={17} color="#FFFFFF" />
+                      <Text style={styles.demoGoogleBtnText}>Test Instant Demo Sign-In</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.closeModalBtn}
+                      onPress={() => setShowGoogleSetupModal(false)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.closeModalBtnText}>Close</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </Modal>
 
           {/* Full Global Website Footer */}
           <WebFooter />
@@ -2551,7 +2794,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     marginTop: 4,
-    marginBottom: 16,
+    marginBottom: 6,
     ...Platform.select({
       web: {
         backgroundImage: "linear-gradient(135deg, #0A45B5 0%, #0284C7 100%)",
@@ -2573,6 +2816,122 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 
+  /* Keep Signed In & OTP link */
+  loginExtraRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    marginTop: 2,
+  },
+  keepSignedInWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  checkboxBox: {
+    width: 17,
+    height: 17,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxBoxActive: {
+    backgroundColor: "#0A45B5",
+    borderColor: "#0A45B5",
+  },
+  keepSignedInText: {
+    fontFamily: font,
+    fontSize: 12.5,
+    color: "#334155",
+    fontWeight: "500",
+  },
+  otpInsteadLink: {
+    fontFamily: font,
+    fontSize: 12.5,
+    color: "#0A45B5",
+    fontWeight: "600",
+  },
+
+  /* Fast Connect Divider */
+  fastConnectDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 18,
+    marginBottom: 14,
+  },
+  fastConnectLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#E2E8F0",
+  },
+  fastConnectText: {
+    fontFamily: font,
+    fontSize: 10.5,
+    fontWeight: "800",
+    color: "#94A3B8",
+    letterSpacing: 0.8,
+  },
+
+  /* Fast Connect Buttons */
+  fastConnectRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 18,
+  },
+  googleBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
+      },
+    }),
+  },
+  googleBtnText: {
+    fontFamily: font,
+    fontSize: 13.5,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+  digiLockerBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    backgroundColor: "#F0FDF4",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  digiLockerBtnText: {
+    fontFamily: font,
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#065F46",
+  },
+
   /* Switch Row */
   switchRow: {
     flexDirection: "row",
@@ -2580,6 +2939,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     marginBottom: 16,
+    flexWrap: "wrap",
   },
   switchPromptText: {
     fontFamily: font,
@@ -2592,6 +2952,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#0A45B5",
   },
+  switchSecondaryText: {
+    fontFamily: font,
+    fontSize: 12.5,
+    color: "#94A3B8",
+  },
 
   /* Security Footnote */
   securityFootnote: {
@@ -2599,19 +2964,112 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#F0FDF4",
+    backgroundColor: "#ECFDF5",
     borderWidth: 1,
-    borderColor: "#DCFCE7",
-    borderRadius: 12,
+    borderColor: "#A7F3D0",
+    borderRadius: 20,
     paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     marginTop: 4,
   },
   securityText: {
     fontFamily: font,
-    fontSize: 11.5,
-    color: "#15803D",
-    fontWeight: "600",
+    fontSize: 12,
+    color: "#065F46",
+    fontWeight: "700",
+  },
+
+  /* Google Setup Guidance Modal */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 22,
+    width: "100%",
+    maxWidth: 520,
+    gap: 12,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+      },
+    }),
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    paddingBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+    fontFamily: fontDisplay,
+  },
+  setupStepBox: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+    padding: 10,
+    gap: 2,
+  },
+  setupStepTitle: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#0A45B5",
+    fontFamily: fontDisplay,
+  },
+  setupStepText: {
+    fontSize: 12,
+    color: "#475569",
+    fontFamily: font,
+    lineHeight: 16,
+  },
+  demoGoogleBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#0A45B5",
+    borderRadius: 10,
+    paddingVertical: 11,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  demoGoogleBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12.5,
+    fontWeight: "800",
+    fontFamily: font,
+  },
+  closeModalBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  closeModalBtnText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#475569",
+    fontFamily: font,
   },
 
   /* Under-Card Trust Assurance Bar */

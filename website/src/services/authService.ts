@@ -234,6 +234,20 @@ export const authService = {
     return user;
   },
 
+  async loginWithGoogle(credential: string | { email?: string; name?: string; googleId?: string; credential?: string }): Promise<UserProfile> {
+    const payload = typeof credential === "string" ? { credential } : credential;
+    const res = await api.post("/auth/google", payload);
+    const { accessToken, refreshToken, user } = res.data;
+    if (accessToken && refreshToken) {
+      useAuthStore.getState().setTokens({ accessToken, refreshToken });
+    }
+    if (user) {
+      useAuthStore.getState().setUser(user);
+      useAuthStore.getState().setAuthState("AUTHENTICATED");
+    }
+    return user;
+  },
+
   async completeDemoKyc() {
     const { accessToken, user } = useAuthStore.getState();
     if (!user || user.role !== "user" || !accessToken) throw new Error("Sign in as a User first");
