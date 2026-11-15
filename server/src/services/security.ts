@@ -23,12 +23,22 @@ export const refreshExpiry = (token: string) => {
   if (!payload || typeof payload.exp !== "number") throw new Error("Refresh token expiry is required");
   return new Date(payload.exp * 1000);
 };
-export const publicUser = (user: any) => ({
-  id: user._id.toString(), role: user.role, name: user.name, mobile: user.mobile,
-  email: user.email, isVerifiedIdentity: user.isVerifiedIdentity || (kycDemoMode() && user.demoKycComplete === true),
-  demoKycComplete: (process.env.NODE_ENV !== "production" || kycDemoMode()) && user.demoKycComplete,
-  identityVerificationMode: kycDemoMode() || process.env.NODE_ENV !== "production" ? "demo" : "staff", createdAt: user.createdAt,
-});
+export const publicUser = (user: any) => {
+  const hasRealPassword = Boolean(
+    user.passwordHash &&
+    typeof user.passwordHash === "string" &&
+    !user.passwordHash.startsWith("google_oauth") &&
+    /^\$2[aby]\$/.test(user.passwordHash)
+  );
+  return {
+    id: user._id.toString(), role: user.role, name: user.name, mobile: user.mobile,
+    email: user.email, isVerifiedIdentity: user.isVerifiedIdentity || (kycDemoMode() && user.demoKycComplete === true),
+    demoKycComplete: (process.env.NODE_ENV !== "production" || kycDemoMode()) && user.demoKycComplete,
+    identityVerificationMode: kycDemoMode() || process.env.NODE_ENV !== "production" ? "demo" : "staff", createdAt: user.createdAt,
+    hasPassword: hasRealPassword,
+    isGoogleUser: Boolean(user.googleId),
+  };
+};
 export function generateTokens(user: any) {
   const payload = { id: user._id.toString(), role: user.role, sessionVersion: user.sessionVersion ?? 0 };
   return {

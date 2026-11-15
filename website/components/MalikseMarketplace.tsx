@@ -3919,6 +3919,10 @@ export function ProfileScreen() {
     mySaved = useData(user ? "/users/wishlist" : null, [user?.id]);
 
   useEffect(() => {
+    void authService.getMe().catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (user) {
       setName(user.name || "");
       setEmail(user.email || "");
@@ -3943,9 +3947,12 @@ export function ProfileScreen() {
     });
   };
 
+  const isGoogleAccount = Boolean(user?.isGoogleUser || (user as any)?.googleId);
+  const hasExistingPassword = isGoogleAccount ? Boolean(user?.hasPassword) : user?.hasPassword !== false;
+
   const handleChangePassword = async () => {
     setPasswordError("");
-    if (!oldPassword.trim()) {
+    if (hasExistingPassword && !oldPassword.trim()) {
       setPasswordError("Please enter your current password.");
       return;
     }
@@ -3957,7 +3964,7 @@ export function ProfileScreen() {
       setPasswordError("New password must be at least 6 characters long.");
       return;
     }
-    if (newPassword === oldPassword) {
+    if (hasExistingPassword && newPassword === oldPassword) {
       setPasswordError("New password must be different from your current password.");
       return;
     }
@@ -3969,7 +3976,7 @@ export function ProfileScreen() {
     setPasswordBusy(true);
     try {
       const res = await authService.changePassword({
-        oldPassword,
+        ...(hasExistingPassword ? { oldPassword } : {}),
         newPassword,
         confirmPassword,
       });
@@ -3981,7 +3988,7 @@ export function ProfileScreen() {
 
       setPasswordSuccessModal({
         visible: true,
-        message: res.message || "Your password was changed successfully.",
+        message: res.message || (hasExistingPassword ? "Your password was changed successfully." : "Your account password has been created successfully."),
         emailSent: Boolean(res.emailSent),
         email: res.email || user?.email || null,
       });
@@ -4217,8 +4224,14 @@ export function ProfileScreen() {
                   <MaterialIcons name="lock-outline" size={22} color="#4F46E5" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={profileStyles.optionTitle}>Security & password</Text>
-                  <Text style={profileStyles.optionSubtitle}>Change password and secure your account credentials</Text>
+                  <Text style={profileStyles.optionTitle}>
+                    {hasExistingPassword ? "Security & password" : "Set account password"}
+                  </Text>
+                  <Text style={profileStyles.optionSubtitle}>
+                    {hasExistingPassword
+                      ? "Change password and secure your account credentials"
+                      : "Create a password for direct email sign-in"}
+                  </Text>
                 </View>
                 <MaterialIcons
                   name={expandedSection === "security" ? "keyboard-arrow-up" : "keyboard-arrow-down"}
@@ -4231,9 +4244,13 @@ export function ProfileScreen() {
                 <View style={profileStyles.expandableBox}>
                   <View style={profileStyles.expandableHeader}>
                     <View style={{ gap: 2 }}>
-                      <Text style={profileStyles.expandableTitle}>Change Account Password</Text>
+                      <Text style={profileStyles.expandableTitle}>
+                        {hasExistingPassword ? "Change Account Password" : "Create Account Password"}
+                      </Text>
                       <Text style={{ fontSize: 13, color: "#64748B" }}>
-                        Protect your account with a strong, distinct password
+                        {hasExistingPassword
+                          ? "Protect your account with a strong, distinct password"
+                          : "You authenticated via Google. Set a password to also log in directly with your email"}
                       </Text>
                     </View>
                     <TouchableOpacity onPress={() => setExpandedSection(null)}>
@@ -4252,33 +4269,47 @@ export function ProfileScreen() {
                     <ErrorBox text={passwordError} onRetry={handleChangePassword} />
                   ) : null}
 
-                  {/* Current Password Input */}
-                  <View style={profileStyles.formInputWrap}>
-                    <Text style={profileStyles.formInputLabel}>Current Password *</Text>
-                    <View style={{ position: "relative", justifyContent: "center" }}>
-                      <TextInput
-                        style={[profileStyles.formTextInput, { paddingRight: 45 }]}
-                        value={oldPassword}
-                        onChangeText={setOldPassword}
-                        placeholder="Enter your current password"
-                        placeholderTextColor="#94A3B8"
-                        secureTextEntry={!showOldPassword}
-                        autoCapitalize="none"
-                      />
-                      <TouchableOpacity
-                        onPress={() => setShowOldPassword((prev) => !prev)}
-                        style={profileStyles.eyeBtn}
-                        accessibilityRole="button"
-                        accessibilityLabel={showOldPassword ? "Hide password" : "Show password"}
-                      >
-                        <MaterialIcons
-                          name={showOldPassword ? "visibility-off" : "visibility"}
-                          size={20}
-                          color="#64748B"
+                  {/* Current Password Input OR Google Account Notice */}
+                  {hasExistingPassword ? (
+                    <View style={profileStyles.formInputWrap}>
+                      <Text style={profileStyles.formInputLabel}>Current Password *</Text>
+                      <View style={{ position: "relative", justifyContent: "center" }}>
+                        <TextInput
+                          style={[profileStyles.formTextInput, { paddingRight: 45 }]}
+                          value={oldPassword}
+                          onChangeText={setOldPassword}
+                          placeholder="Enter your current password"
+                          placeholderTextColor="#94A3B8"
+                          secureTextEntry={!showOldPassword}
+                          autoCapitalize="none"
                         />
-                      </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => setShowOldPassword((prev) => !prev)}
+                          style={profileStyles.eyeBtn}
+                          accessibilityRole="button"
+                          accessibilityLabel={showOldPassword ? "Hide password" : "Show password"}
+                        >
+                          <MaterialIcons
+                            name={showOldPassword ? "visibility-off" : "visibility"}
+                            size={20}
+                            color="#64748B"
+                          />
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  </View>
+                  ) : (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#BFDBFE", borderRadius: 12, padding: 14 }}>
+                      <MaterialIcons name="account-circle" size={24} color="#0A45B5" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: "#1E3A8A" }}>
+                          Google Sign-In Account ({user.email || "Active"})
+                        </Text>
+                        <Text style={{ fontSize: 12, color: "#2563EB", marginTop: 2 }}>
+                          You authenticated via Google and do not have an existing password. You can set your new password below without entering an old password.
+                        </Text>
+                      </View>
+                    </View>
+                  )}
 
                   {/* New Password Input */}
                   <View style={profileStyles.formInputWrap}>
@@ -4376,19 +4407,21 @@ export function ProfileScreen() {
                     <TouchableOpacity
                       style={[
                         profileStyles.saveBtn,
-                        (!oldPassword || !newPassword || !confirmPassword || passwordBusy) && { opacity: 0.7 },
+                        (((hasExistingPassword && !oldPassword) || !newPassword || !confirmPassword || passwordBusy)) && { opacity: 0.7 },
                       ]}
                       onPress={handleChangePassword}
-                      disabled={passwordBusy || !oldPassword || !newPassword || !confirmPassword}
+                      disabled={passwordBusy || (hasExistingPassword && !oldPassword) || !newPassword || !confirmPassword}
                       activeOpacity={0.8}
                     >
                       {passwordBusy ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
-                        <MaterialIcons name="lock-reset" size={18} color="#FFFFFF" />
+                        <MaterialIcons name={hasExistingPassword ? "lock-reset" : "add-moderator"} size={18} color="#FFFFFF" />
                       )}
                       <Text style={profileStyles.saveBtnText}>
-                        {passwordBusy ? "Updating Password..." : "Update Password"}
+                        {passwordBusy
+                          ? (hasExistingPassword ? "Updating Password..." : "Setting Password...")
+                          : (hasExistingPassword ? "Update Password" : "Set Password")}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity

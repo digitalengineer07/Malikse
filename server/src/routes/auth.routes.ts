@@ -545,9 +545,6 @@ router.post("/google", async (req, res) => {
       if (googleId && !user.googleId) {
         user.googleId = googleId;
       }
-      if (!user.passwordHash) {
-        user.passwordHash = `google_oauth_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-      }
       if (!user.emailVerifiedAt) {
         user.emailVerifiedAt = new Date();
       }
@@ -556,7 +553,6 @@ router.post("/google", async (req, res) => {
         name,
         email,
         googleId,
-        passwordHash: `google_oauth_${Date.now()}_${Math.random().toString(36).slice(2)}`,
         role: "user",
         isVerifiedIdentity: false,
         demoKycComplete: false,
@@ -671,12 +667,19 @@ router.post(
         return res.status(403).json({ message: "Your staff account has been deactivated." });
       }
 
-      // If user has a current password, oldPassword is required and verified
-      if (user.passwordHash) {
+      // If user has a real current password, oldPassword is required and verified
+      const hasRealPassword = Boolean(
+        user.passwordHash &&
+        typeof user.passwordHash === "string" &&
+        !user.passwordHash.startsWith("google_oauth") &&
+        /^\$2[aby]\$/.test(user.passwordHash)
+      );
+
+      if (hasRealPassword) {
         if (!oldPassword || typeof oldPassword !== "string") {
           return res.status(400).json({ message: "Please enter your current password." });
         }
-        const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
+        const isMatch = await bcrypt.compare(oldPassword, user.passwordHash!);
         if (!isMatch) {
           return res.status(400).json({ message: "The current password you entered is incorrect." });
         }
@@ -693,8 +696,8 @@ router.post(
       }
 
       // If user had an existing password, ensure new password is not identical to current password
-      if (user.passwordHash) {
-        const isSame = await bcrypt.compare(newPassword, user.passwordHash);
+      if (hasRealPassword) {
+        const isSame = await bcrypt.compare(newPassword, user.passwordHash!);
         if (isSame) {
           return res.status(400).json({ message: "New password must be different from your current password." });
         }
