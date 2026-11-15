@@ -367,13 +367,14 @@ function PropertyCard({
   compact = false,
   onSaved,
   initiallySaved = false,
+  style,
 }: any) {
   const router = useRouter(),
     gate = useGate(),
     action = useAction(),
     [saved, setSaved] = useState(initiallySaved);
   return (
-    <View style={[s.card, compact && { flexDirection: "row" }]}>
+    <View style={[s.card, compact && { flexDirection: "row" }, style]}>
       <Pressable
         style={compact ? { width: 112, minHeight: 130 } : s.photo}
         onPress={() => router.push(`/property/${p._id}` as any)}
@@ -434,6 +435,324 @@ function PropertyCard({
     </View>
   );
 }
+
+const sSlide = StyleSheet.create({
+  carouselContainer: {
+    position: "relative",
+    width: "100%",
+    overflow: "visible",
+  },
+  scrollContent: {
+    flexDirection: "row",
+    gap: 18,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    alignItems: "stretch",
+  },
+  floatingArrowBtn: {
+    position: "absolute",
+    top: "44%",
+    marginTop: -22,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 40,
+    boxShadow: "0 6px 20px rgba(11, 27, 63, 0.18)",
+    elevation: 8,
+    cursor: "pointer" as any,
+  },
+  floatingArrowBtnHover: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#0A45B5",
+    transform: [{ scale: 1.08 }],
+  },
+  headerArrowBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer" as any,
+  },
+  arrowBtnDisabled: {
+    opacity: 0.35,
+    backgroundColor: "#F8FAFC",
+  },
+});
+
+function PropertySlideRow({
+  title,
+  sub,
+  badge,
+  feed,
+  typeFilter,
+  headerRight,
+  emptyTitle = "Properties are on their way",
+  emptyText = "Verified listings will appear here as they become available.",
+}: {
+  title: string;
+  sub: string;
+  badge?: string;
+  feed: any;
+  typeFilter?: string;
+  headerRight?: React.ReactNode;
+  emptyTitle?: string;
+  emptyText?: string;
+}) {
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollOffset = useRef(0);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [contentWidth, setContentWidth] = useState(0);
+
+  const cardWidth = width > 1100 ? 350 : width > 768 ? 310 : 280;
+  const gap = 18;
+  const slideStep = cardWidth + gap;
+
+  const rawList = feed?.data || [];
+  const properties = rawList
+    .filter((p: any) => !typeFilter || p.type === typeFilter)
+    .slice(0, 24);
+
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(properties.length >= 4);
+
+  useEffect(() => {
+    scrollOffset.current = 0;
+    if (scrollRef.current) {
+      if (typeof (scrollRef.current as any).scrollTo === "function") {
+        (scrollRef.current as any).scrollTo({ x: 0, animated: false });
+      }
+    }
+    setCanScrollLeft(false);
+  }, [typeFilter]);
+
+  useEffect(() => {
+    if (contentWidth > 0 && containerWidth > 0) {
+      setCanScrollRight(
+        contentWidth > containerWidth + 10 &&
+          scrollOffset.current + containerWidth < contentWidth - 10
+      );
+      setCanScrollLeft(scrollOffset.current > 10);
+    } else if (properties.length > 0) {
+      const estimatedWidth = properties.length * slideStep;
+      if (containerWidth > 0) {
+        setCanScrollRight(estimatedWidth > containerWidth + 10);
+      }
+    }
+  }, [properties.length, containerWidth, contentWidth, slideStep]);
+
+  const slide = (direction: "left" | "right") => {
+    const maxScroll = Math.max(0, contentWidth - containerWidth);
+    const delta = direction === "left" ? -slideStep : slideStep;
+    const current = scrollOffset.current;
+    let target = direction === "left" ? Math.max(0, current + delta) : current + delta;
+    if (maxScroll > 0) {
+      target = Math.min(maxScroll, Math.max(0, target));
+    } else {
+      target = Math.max(0, target);
+    }
+    scrollOffset.current = target;
+
+    if (scrollRef.current) {
+      if (typeof (scrollRef.current as any).scrollTo === "function") {
+        (scrollRef.current as any).scrollTo({ x: target, animated: true });
+      } else {
+        const node = (scrollRef.current as any)?.getScrollableNode?.() || scrollRef.current;
+        if (node && typeof node.scrollTo === "function") {
+          node.scrollTo({ left: target, behavior: "smooth" });
+        }
+      }
+    }
+
+    setCanScrollLeft(target > 10);
+    if (maxScroll > 0) {
+      setCanScrollRight(target < maxScroll - 10);
+    }
+  };
+
+  const onScroll = (e: any) => {
+    const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+    const x = contentOffset.x;
+    scrollOffset.current = x;
+    setCanScrollLeft(x > 10);
+    setCanScrollRight(x + layoutMeasurement.width < contentSize.width - 15);
+  };
+
+  const buttonSideOffset = width > 1240 ? -14 : 6;
+
+  return (
+    <View style={{ gap: 14, position: "relative" }}>
+      <View style={s.between}>
+        <View style={{ flex: 1, paddingRight: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <Text style={s.h2}>{title}</Text>
+            {!!badge && (
+              <View
+                style={{
+                  backgroundColor: "#EFF6FF",
+                  paddingHorizontal: 10,
+                  paddingVertical: 3,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: "#DBEAFE",
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#0A45B5", fontFamily: font }}>
+                  {badge}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={s.small}>{sub}</Text>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          {properties.length > 0 && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={`Previous ${title}`}
+                disabled={!canScrollLeft}
+                onPress={() => slide("left")}
+                style={[
+                  sSlide.headerArrowBtn,
+                  !canScrollLeft && sSlide.arrowBtnDisabled,
+                ]}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons
+                  name="chevron-left"
+                  size={20}
+                  color={canScrollLeft ? C.blue : "#94a3b8"}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={`Next ${title}`}
+                disabled={!canScrollRight}
+                onPress={() => slide("right")}
+                style={[
+                  sSlide.headerArrowBtn,
+                  !canScrollRight && sSlide.arrowBtnDisabled,
+                ]}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons
+                  name="chevron-right"
+                  size={20}
+                  color={canScrollRight ? C.blue : "#94a3b8"}
+                />
+              </TouchableOpacity>
+            </View>
+          )}
+          {headerRight || (
+            <Pressable onPress={() => router.push("/search")}>
+              <Text style={s.link}>View all →</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      {feed?.loading ? (
+        <ActivityIndicator color={C.blue} style={{ padding: 24 }} />
+      ) : feed?.error ? (
+        <ErrorBox text={feed.error} />
+      ) : !properties.length ? (
+        <Empty title={emptyTitle} text={emptyText} />
+      ) : (
+        <View style={sSlide.carouselContainer}>
+          {/* Floating Left Slide Button */}
+          {canScrollLeft && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Slide ${title} left`}
+              onPress={() => slide("left")}
+              style={({ hovered }: any) => [
+                sSlide.floatingArrowBtn,
+                { left: buttonSideOffset },
+                hovered && sSlide.floatingArrowBtnHover,
+              ]}
+            >
+              <MaterialIcons name="chevron-left" size={28} color="#0A45B5" />
+            </Pressable>
+          )}
+
+          {/* Floating Right Slide Button */}
+          {canScrollRight && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Slide ${title} right`}
+              onPress={() => slide("right")}
+              style={({ hovered }: any) => [
+                sSlide.floatingArrowBtn,
+                { right: buttonSideOffset },
+                hovered && sSlide.floatingArrowBtnHover,
+              ]}
+            >
+              <MaterialIcons name="chevron-right" size={28} color="#0A45B5" />
+            </Pressable>
+          )}
+
+          {/* Single-Row Horizontal Scroll Track */}
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            onLayout={(e) => {
+              const w = e.nativeEvent.layout.width;
+              setContainerWidth(w);
+              if (contentWidth > 0) {
+                setCanScrollRight(
+                  contentWidth > w + 10 && scrollOffset.current + w < contentWidth - 10
+                );
+              }
+            }}
+            onContentSizeChange={(w) => {
+              setContentWidth(w);
+              if (containerWidth > 0) {
+                setCanScrollRight(
+                  w > containerWidth + 10 && scrollOffset.current + containerWidth < w - 10
+                );
+              }
+            }}
+            contentContainerStyle={[
+              sSlide.scrollContent,
+              Platform.OS === "web" &&
+                ({
+                  willChange: "transform",
+                  transform: "translateZ(0)",
+                } as any),
+            ]}
+          >
+            {properties.map((p: any) => (
+              <View
+                key={p._id}
+                style={{
+                  width: cardWidth,
+                  flexShrink: 0,
+                }}
+              >
+                <PropertyCard property={p} style={{ flex: 1 }} />
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export function HomeScreen() {
   const user = useAuthStore((x) => x.user),
     router = useRouter(),
@@ -752,32 +1071,18 @@ export function HomeScreen() {
 
       {/* Live Search Results Section (Renders immediately when searching/filtering on Home) */}
       {hasActiveSearch && (
-        <View style={{ gap: 14, marginVertical: 6 }}>
-          <View style={s.between}>
-            <View style={{ gap: 3, flex: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <Text style={s.h2}>Search Results</Text>
-                <View
-                  style={{
-                    backgroundColor: "#EFF6FF",
-                    paddingHorizontal: 10,
-                    paddingVertical: 3,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: "#DBEAFE",
-                  }}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#0A45B5", fontFamily: font }}>
-                    {liveSearchResults.data?.length ?? 0} Found
-                  </Text>
-                </View>
-              </View>
-              <Text style={s.small}>
-                {query.trim() ? `Matching "${query.trim()}"` : "All listings"}
-                {activeDistrictParam ? ` in ${activeDistrictParam}` : ""}
-                {type ? ` · ${types.find((t) => t[0] === type)?.[1] || type}` : ""}
-              </Text>
-            </View>
+        <PropertySlideRow
+          title="Search Results"
+          badge={`${liveSearchResults.data?.length ?? 0} Found`}
+          sub={
+            `${query.trim() ? `Matching "${query.trim()}"` : "All listings"}${
+              activeDistrictParam ? ` in ${activeDistrictParam}` : ""
+            }${type ? ` · ${types.find((t) => t[0] === type)?.[1] || type}` : ""}`
+          }
+          feed={liveSearchResults}
+          emptyTitle="No properties found"
+          emptyText={`No matching verified spaces for "${query || activeDistrictParam}". Try searching by another district or keyword.`}
+          headerRight={
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <TouchableOpacity
                 onPress={() => {
@@ -800,31 +1105,8 @@ export function HomeScreen() {
                 <Text style={s.link}>Open in Map / Explore →</Text>
               </Pressable>
             </View>
-          </View>
-          {liveSearchResults.loading ? (
-            <ActivityIndicator color={C.blue} style={{ padding: 24 }} />
-          ) : liveSearchResults.error ? (
-            <ErrorBox text={liveSearchResults.error} />
-          ) : !liveSearchResults.data?.length ? (
-            <Empty
-              title="No properties found"
-              text={`No matching verified spaces for "${query || activeDistrictParam}". Try searching by another district or keyword.`}
-            />
-          ) : (
-            <View style={s.grid}>
-              {liveSearchResults.data.map((p: any) => (
-                <View
-                  key={p._id}
-                  style={{
-                    width: width > 1000 ? "31.8%" : width > 650 ? "48.5%" : "100%",
-                  }}
-                >
-                  <PropertyCard property={p} />
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
+          }
+        />
       )}
 
       {[
@@ -840,47 +1122,13 @@ export function HomeScreen() {
           trending,
         ],
       ].map(([title, sub, feed]: any) => (
-        <View key={title} style={{ gap: 14 }}>
-          <View style={s.between}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.h2}>{title}</Text>
-              <Text style={s.small}>{sub}</Text>
-            </View>
-            <Pressable onPress={() => router.push("/search")}>
-              <Text style={s.link}>View all →</Text>
-            </Pressable>
-          </View>
-          {feed.loading ? (
-            <ActivityIndicator color={C.blue} />
-          ) : feed.error ? (
-            <ErrorBox text={feed.error} />
-          ) : !feed.data?.length ? (
-            <Empty
-              title="Properties are on their way"
-              text="Verified listings will appear here as they become available."
-            />
-          ) : (
-            <View style={s.grid}>
-              {feed.data
-                .filter((p: any) => !type || p.type === type)
-                .slice(0, 6)
-                .map((p: any) => (
-                  <View
-                    key={p._id}
-                    style={{
-                      width:
-                        width > 1000 ? "31.8%" : width > 650 ? "48.5%" : "100%",
-                    }}
-                  >
-                    <PropertyCard
-                      property={p}
-                      compact={title === "New Properties" && width < 650}
-                    />
-                  </View>
-                ))}
-            </View>
-          )}
-        </View>
+        <PropertySlideRow
+          key={title}
+          title={title}
+          sub={sub}
+          feed={feed}
+          typeFilter={type}
+        />
       ))}
       <View style={[s.panel, s.row]}>
         <Icon name="handshake" size={34} />
