@@ -11,7 +11,7 @@ import { authGuard } from "../middleware/auth.middleware";
 import { User } from "../models/User.model";
 
 import { REFRESH_SECRET, accountEnabled, generateTokens, publicUser, tokenDigest, refreshExpiry } from "../services/security";
-import { sendEmailOtp } from "../services/mailer";
+import { sendEmailOtp, sendPasswordChangeConfirmationEmail } from "../services/mailer";
 
 const router = Router();
 router.use((req, res, next) => {
@@ -639,6 +639,117 @@ router.get("/me", authGuard, async (req: any, res) => {
     res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });
+
+// POST /auth/change-password
+router.post(
+  "/change-password",
+  authGuard,
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 15,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    validate: { xForwardedForHeader: false, default: true },
+  }),
+  async (req: any, res) => {
+    try {
+      const { oldPassword, newPassword, confirmPassword } = req.body;
+
+      if (!req.user?.id) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const user = await User.findById(req.user.id);
+      if (!user) {
+        return res.status(404).json({ message: "User account not found" });
+      }
+
+      if (user.isSuspended) {
+        return res.status(403).json({ message: "Your account has been suspended by the administrator." });
+      }
+      if (user.isActive === false) {
+        return res.status(403).json({ message: "Your staff account has been deactivated." });
+      }
+
+      // If user has a current password, oldPassword is required and verified
+      if (user.passwordHash) {
+        if (!oldPassword || typeof oldPassword !== "string") {
+          return res.status(400).json({ message: "Please enter your current password." });
+        }
+        const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
+        if (!isMatch) {
+          return res.status(400).json({ message: "The current password you entered is incorrect." });
+        }
+      }
+
+      // Validate new password format and length
+      if (typeof newPassword !== "string" || newPassword.length < 6 || Buffer.byteLength(newPassword, "utf8") > 72) {
+        return res.status(400).json({ message: "New password must contain at least 6 characters and at most 72 UTF-8 bytes." });
+      }
+
+      // Check confirm password if provided
+      if (confirmPassword !== undefined && confirmPassword !== newPassword) {
+        return res.status(400).json({ message: "New password and confirm password do not match." });
+      }
+
+      // If user had an existing password, ensure new password is not identical to current password
+      if (user.passwordHash) {
+        const isSame = await bcrypt.compare(newPassword, user.passwordHash);
+        if (isSame) {
+          return res.status(400).json({ message: "New password must be different from your current password." });
+        }
+      }
+
+      // Weak password checks (common strings, sequential digits, personal info)
+      const weakReason = isWeakPassword(newPassword, {
+        name: user.name,
+        mobile: user.mobile,
+        email: user.email,
+      });
+      if (weakReason) {
+        return res.status(400).json({ message: weakReason });
+      }
+
+      // Hash new password and update user
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+      user.passwordHash = passwordHash;
+      user.sessionVersion = (user.sessionVersion ?? 0) + 1;
+
+      // Invalidate old refresh tokens and issue fresh login tokens
+      const { accessToken, refreshToken } = generateTokens(user);
+      user.refreshTokenHash = tokenDigest(refreshToken);
+      user.refreshTokenExpiresAt = refreshExpiry(refreshToken);
+      await user.save();
+
+      // Dispatch confirmation email if user has a registered email address
+      let emailSent = false;
+      const targetEmail = user.email?.trim().toLowerCase();
+      if (targetEmail) {
+        try {
+          const mailResult = await sendPasswordChangeConfirmationEmail(
+            targetEmail,
+            user.name
+          );
+          emailSent = Boolean(mailResult.success);
+        } catch (mailError: any) {
+          console.error("[Auth] Confirmation email delivery failed:", mailError?.message || mailError);
+        }
+      }
+
+      return res.status(200).json({
+        message: "Password changed successfully.",
+        emailSent,
+        email: targetEmail || null,
+        ...sessionPayload(req, res, { accessToken, refreshToken }, user),
+      });
+    } catch (error: any) {
+      console.error("[Auth] Change password failed:", error?.message || error);
+      res.status(error?.status === 503 ? 503 : 500).json({
+        message: error?.status === 503 ? error.message : "Password change service temporarily unavailable. Please try again.",
+      });
+    }
+  }
+);
 
 // POST /auth/forgot-password
 router.post(

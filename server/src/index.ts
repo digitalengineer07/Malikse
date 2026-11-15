@@ -1,5 +1,8 @@
 import { processFileCleanup } from "./services/fileCleanup";
-import "dotenv/config";
+import path from "path";
+import dotenv from "dotenv";
+dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 import { createRequiredIndexes, verifyRequiredIndexes } from "./services/requiredIndexes";
 import { startAccountDeletionWorker } from "./services/accountDeletion";
 import { deliverNotifications } from "./services/notificationQueue";

@@ -3901,6 +3901,20 @@ export function ProfileScreen() {
     [name, setName] = useState(user?.name || ""),
     [email, setEmail] = useState(user?.email || ""),
     [saveSuccess, setSaveSuccess] = useState(false),
+    [oldPassword, setOldPassword] = useState(""),
+    [newPassword, setNewPassword] = useState(""),
+    [confirmPassword, setConfirmPassword] = useState(""),
+    [showOldPassword, setShowOldPassword] = useState(false),
+    [showNewPassword, setShowNewPassword] = useState(false),
+    [showConfirmPassword, setShowConfirmPassword] = useState(false),
+    [passwordBusy, setPasswordBusy] = useState(false),
+    [passwordError, setPasswordError] = useState(""),
+    [passwordSuccessModal, setPasswordSuccessModal] = useState<{
+      visible: boolean;
+      message: string;
+      emailSent: boolean;
+      email: string | null;
+    } | null>(null),
     myListings = useData(user ? "/properties/mine" : null, [user?.id]),
     mySaved = useData(user ? "/users/wishlist" : null, [user?.id]);
 
@@ -3913,6 +3927,7 @@ export function ProfileScreen() {
 
   const toggleSection = (section: string) => {
     setSaveSuccess(false);
+    setPasswordError("");
     setExpandedSection((prev) => (prev === section ? null : section));
   };
 
@@ -3926,6 +3941,60 @@ export function ProfileScreen() {
         setExpandedSection(null);
       }, 1800);
     });
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordError("");
+    if (!oldPassword.trim()) {
+      setPasswordError("Please enter your current password.");
+      return;
+    }
+    if (!newPassword) {
+      setPasswordError("Please enter your new password.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError("New password must be at least 6 characters long.");
+      return;
+    }
+    if (newPassword === oldPassword) {
+      setPasswordError("New password must be different from your current password.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New password and confirm password do not match.");
+      return;
+    }
+
+    setPasswordBusy(true);
+    try {
+      const res = await authService.changePassword({
+        oldPassword,
+        newPassword,
+        confirmPassword,
+      });
+
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordError("");
+
+      setPasswordSuccessModal({
+        visible: true,
+        message: res.message || "Your password was changed successfully.",
+        emailSent: Boolean(res.emailSent),
+        email: res.email || user?.email || null,
+      });
+    } catch (err: any) {
+      setPasswordError(errorText(err));
+    } finally {
+      setPasswordBusy(false);
+    }
+  };
+
+  const handleClosePasswordModal = () => {
+    setPasswordSuccessModal(null);
+    setExpandedSection(null);
   };
 
   const isApproved = approved(user);
@@ -4134,7 +4203,214 @@ export function ProfileScreen() {
               )}
             </View>
 
-            {/* 2. My Posted Properties Option */}
+            {/* 2. Security & Password Option */}
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity
+                style={[
+                  profileStyles.optionCard,
+                  expandedSection === "security" && profileStyles.optionCardActive,
+                ]}
+                onPress={() => toggleSection("security")}
+                activeOpacity={0.8}
+              >
+                <View style={[profileStyles.optionIconBox, { backgroundColor: "#EEF2FF" }]}>
+                  <MaterialIcons name="lock-outline" size={22} color="#4F46E5" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={profileStyles.optionTitle}>Security & password</Text>
+                  <Text style={profileStyles.optionSubtitle}>Change password and secure your account credentials</Text>
+                </View>
+                <MaterialIcons
+                  name={expandedSection === "security" ? "keyboard-arrow-up" : "keyboard-arrow-down"}
+                  size={24}
+                  color={expandedSection === "security" ? "#0A45B5" : "#94A3B8"}
+                />
+              </TouchableOpacity>
+
+              {expandedSection === "security" && (
+                <View style={profileStyles.expandableBox}>
+                  <View style={profileStyles.expandableHeader}>
+                    <View style={{ gap: 2 }}>
+                      <Text style={profileStyles.expandableTitle}>Change Account Password</Text>
+                      <Text style={{ fontSize: 13, color: "#64748B" }}>
+                        Protect your account with a strong, distinct password
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setExpandedSection(null)}>
+                      <MaterialIcons name="close" size={20} color="#64748B" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={[profileStyles.successBanner, { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" }]}>
+                    <MaterialIcons name="shield" size={18} color="#16A34A" />
+                    <Text style={[profileStyles.successBannerText, { color: "#15803D" }]}>
+                      Encrypted credentials. An automated confirmation email is dispatched to your registered address upon change.
+                    </Text>
+                  </View>
+
+                  {passwordError ? (
+                    <ErrorBox text={passwordError} onRetry={handleChangePassword} />
+                  ) : null}
+
+                  {/* Current Password Input */}
+                  <View style={profileStyles.formInputWrap}>
+                    <Text style={profileStyles.formInputLabel}>Current Password *</Text>
+                    <View style={{ position: "relative", justifyContent: "center" }}>
+                      <TextInput
+                        style={[profileStyles.formTextInput, { paddingRight: 45 }]}
+                        value={oldPassword}
+                        onChangeText={setOldPassword}
+                        placeholder="Enter your current password"
+                        placeholderTextColor="#94A3B8"
+                        secureTextEntry={!showOldPassword}
+                        autoCapitalize="none"
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowOldPassword((prev) => !prev)}
+                        style={profileStyles.eyeBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel={showOldPassword ? "Hide password" : "Show password"}
+                      >
+                        <MaterialIcons
+                          name={showOldPassword ? "visibility-off" : "visibility"}
+                          size={20}
+                          color="#64748B"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* New Password Input */}
+                  <View style={profileStyles.formInputWrap}>
+                    <Text style={profileStyles.formInputLabel}>New Password *</Text>
+                    <View style={{ position: "relative", justifyContent: "center" }}>
+                      <TextInput
+                        style={[profileStyles.formTextInput, { paddingRight: 45 }]}
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                        placeholder="At least 6 characters"
+                        placeholderTextColor="#94A3B8"
+                        secureTextEntry={!showNewPassword}
+                        autoCapitalize="none"
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowNewPassword((prev) => !prev)}
+                        style={profileStyles.eyeBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel={showNewPassword ? "Hide password" : "Show password"}
+                      >
+                        <MaterialIcons
+                          name={showNewPassword ? "visibility-off" : "visibility"}
+                          size={20}
+                          color="#64748B"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={{ fontSize: 11, color: "#64748B" }}>
+                      Must be at least 6 characters. Avoid common words or sequential numbers.
+                    </Text>
+                  </View>
+
+                  {/* Confirm New Password Input */}
+                  <View style={profileStyles.formInputWrap}>
+                    <Text style={profileStyles.formInputLabel}>Confirm New Password *</Text>
+                    <View style={{ position: "relative", justifyContent: "center" }}>
+                      <TextInput
+                        style={[profileStyles.formTextInput, { paddingRight: 45 }]}
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        placeholder="Re-enter your new password"
+                        placeholderTextColor="#94A3B8"
+                        secureTextEntry={!showConfirmPassword}
+                        autoCapitalize="none"
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowConfirmPassword((prev) => !prev)}
+                        style={profileStyles.eyeBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel={showConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        <MaterialIcons
+                          name={showConfirmPassword ? "visibility-off" : "visibility"}
+                          size={20}
+                          color="#64748B"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    {confirmPassword.length > 0 && (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                        <MaterialIcons
+                          name={newPassword === confirmPassword ? "check-circle" : "cancel"}
+                          size={14}
+                          color={newPassword === confirmPassword ? "#059669" : "#DC2626"}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            fontWeight: "600",
+                            color: newPassword === confirmPassword ? "#059669" : "#DC2626",
+                          }}
+                        >
+                          {newPassword === confirmPassword
+                            ? "Passwords match"
+                            : "Passwords do not match"}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Registered email advisory */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F8FAFC", padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0" }}>
+                    <MaterialIcons name="mail-outline" size={18} color="#64748B" />
+                    <Text style={{ fontSize: 12, color: "#475569", flex: 1 }}>
+                      {user.email ? (
+                        <>Confirmation alert will be sent to <Text style={{ fontWeight: "700", color: "#0A45B5" }}>{user.email}</Text></>
+                      ) : (
+                        "No email on file. You can add your email under Personal Information to receive security receipts."
+                      )}
+                    </Text>
+                  </View>
+
+                  {/* Action Buttons */}
+                  <View style={profileStyles.formActionsRow}>
+                    <TouchableOpacity
+                      style={[
+                        profileStyles.saveBtn,
+                        (!oldPassword || !newPassword || !confirmPassword || passwordBusy) && { opacity: 0.7 },
+                      ]}
+                      onPress={handleChangePassword}
+                      disabled={passwordBusy || !oldPassword || !newPassword || !confirmPassword}
+                      activeOpacity={0.8}
+                    >
+                      {passwordBusy ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <MaterialIcons name="lock-reset" size={18} color="#FFFFFF" />
+                      )}
+                      <Text style={profileStyles.saveBtnText}>
+                        {passwordBusy ? "Updating Password..." : "Update Password"}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={profileStyles.cancelBtn}
+                      onPress={() => {
+                        setPasswordError("");
+                        setOldPassword("");
+                        setNewPassword("");
+                        setConfirmPassword("");
+                        setExpandedSection(null);
+                      }}
+                      disabled={passwordBusy}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={profileStyles.cancelBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* 3. My Posted Properties Option */}
             <View style={{ gap: 10 }}>
               <TouchableOpacity
                 style={[
@@ -4401,6 +4677,74 @@ export function ProfileScreen() {
               <MaterialIcons name="logout" size={18} color="#E11D48" />
               <Text style={profileStyles.logoutBtnText}>Log out of MalikSe</Text>
             </TouchableOpacity>
+
+            {/* Password Change Confirmation Modal Window */}
+            <Modal
+              visible={!!passwordSuccessModal?.visible}
+              transparent
+              animationType="fade"
+              onRequestClose={handleClosePasswordModal}
+            >
+              <View style={profileStyles.modalBackdrop}>
+                <View style={profileStyles.modalContent}>
+                  {/* Green Success Icon Badge */}
+                  <View style={profileStyles.modalIconCircle}>
+                    <MaterialIcons name="check" size={36} color="#059669" />
+                  </View>
+
+                  {/* Title */}
+                  <Text style={profileStyles.modalTitle}>Password Changed Successfully!</Text>
+
+                  {/* Description */}
+                  <Text style={profileStyles.modalDescription}>
+                    Your MalikSe account password has been safely updated. All active sessions have been refreshed for your security.
+                  </Text>
+
+                  {/* Mail Confirmation Box */}
+                  {passwordSuccessModal?.emailSent ? (
+                    <View style={profileStyles.modalMailBox}>
+                      <MaterialIcons name="mark-email-read" size={24} color="#0A45B5" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={profileStyles.modalMailTitle}>Confirmation Email Sent</Text>
+                        <Text style={profileStyles.modalMailSubtitle}>
+                          A security confirmation has been dispatched to{"\n"}
+                          <Text style={{ fontWeight: "700", color: "#0A45B5" }}>{passwordSuccessModal.email}</Text>
+                        </Text>
+                      </View>
+                    </View>
+                  ) : passwordSuccessModal?.email ? (
+                    <View style={[profileStyles.modalMailBox, { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" }]}>
+                      <MaterialIcons name="mail-outline" size={24} color="#D97706" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[profileStyles.modalMailTitle, { color: "#92400E" }]}>Password Updated</Text>
+                        <Text style={[profileStyles.modalMailSubtitle, { color: "#B45309" }]}>
+                          Your new password is now active. (Email delivery to {passwordSuccessModal.email} will sync once mail services finish queued tasks).
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={[profileStyles.modalMailBox, { backgroundColor: "#EFF6FF", borderColor: "#DBEAFE" }]}>
+                      <MaterialIcons name="security" size={24} color="#0A45B5" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={profileStyles.modalMailTitle}>Account Protected</Text>
+                        <Text style={profileStyles.modalMailSubtitle}>
+                          Tip: Add an email address in Personal Information to receive instant security alerts for future updates.
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Okay Button */}
+                  <TouchableOpacity
+                    style={profileStyles.modalOkayBtn}
+                    onPress={handleClosePasswordModal}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={profileStyles.modalOkayBtnText}>Okay, Got It</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
           </View>
         )}
       </Protected>
@@ -9286,6 +9630,97 @@ const profileStyles = StyleSheet.create({
     fontWeight: "700",
     color: "#E11D48",
     fontFamily: font,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(11, 27, 63, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    zIndex: 9999,
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 28,
+    width: "100%",
+    maxWidth: 480,
+    alignItems: "center",
+    shadowColor: "#0B1B3F",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 8,
+    gap: 16,
+  },
+  modalIconCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 2,
+    borderColor: "#A7F3D0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    textAlign: "center",
+    fontFamily: font,
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 20,
+    fontFamily: font,
+  },
+  modalMailBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1.5,
+    borderColor: "#BFDBFE",
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+    width: "100%",
+  },
+  modalMailTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1E3A8A",
+    fontFamily: font,
+  },
+  modalMailSubtitle: {
+    fontSize: 12,
+    color: "#3B82F6",
+    marginTop: 2,
+    fontFamily: font,
+    lineHeight: 16,
+  },
+  modalOkayBtn: {
+    backgroundColor: "#0A45B5",
+    width: "100%",
+    paddingVertical: 13,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  modalOkayBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+    fontFamily: font,
+  },
+  eyeBtn: {
+    position: "absolute",
+    right: 12,
+    top: 12,
+    padding: 4,
   },
 });
 
