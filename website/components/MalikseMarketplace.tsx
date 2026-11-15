@@ -1,11 +1,21 @@
 import { randomUUID } from "@/web/crypto";
-import { useSafeAreaInsets } from "@/web/safeArea";
-import React, { useCallback, useEffect, useState, useRef } from "react";
+import * as DocumentPicker from "@/web/files";
+import { MaterialIcons } from "@/web/icons";
+import * as Location from "@/web/location";
 import {
-  KeyboardAvoidingView,
+  useFocusEffect,
+  useLocalSearchParams,
+  usePathname,
+  useRouter,
+} from "@/web/navigation";
+import { useSafeAreaInsets } from "@/web/safeArea";
+import AsyncStorage from "@/web/storage";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
   ActivityIndicator,
-  Modal,
   Image,
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -16,25 +26,15 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import {
-  useFocusEffect,
-  useLocalSearchParams,
-  usePathname,
-  useRouter,
-} from "@/web/navigation";
-import { MaterialIcons } from "@/web/icons";
-import * as DocumentPicker from "@/web/files";
-import * as Location from "@/web/location";
-import AsyncStorage from "@/web/storage";
 import api, { authService } from "../src/services/authService";
-import { useAuthStore } from "../src/store/authStore";
-import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
-import VerifiedPropertyMap from "./VerifiedPropertyMap";
-import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
+import { userService } from "../src/services/userService";
+import { useAuthStore } from "../src/store/authStore";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
-import WebFooter from "./WebFooter";
 import AppHeader from "./AppHeader";
+import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
+import VerifiedPropertyMap from "./VerifiedPropertyMap";
+import WebFooter from "./WebFooter";
 const C = {
   bg: "#f3f7ff",
   ink: "#0b1b3f",
@@ -167,20 +167,32 @@ function useData(path: string | null, deps: any[] = []) {
     [error, setError] = useState(""),
     [loading, setLoading] = useState(false),
     [nextCursor, setNextCursor] = useState("");
-  const refresh = useCallback(async () => {
+  const retryTimeoutRef = useRef<any>(null);
+
+  const refresh = useCallback(async (isRetry = false) => {
     if (!path) return;
-    setLoading(true);
+    if (!isRetry) setLoading(true);
     setError("");
     try {
       const response = await api.get(path);
       setData(response.data);
       setNextCursor(response.headers["x-next-cursor"] || "");
-    } catch (e) {
-      setError(errorText(e));
+    } catch (e: any) {
+      const msg = errorText(e);
+      // Auto-retry once after 1.5s if temporary startup or network glitch
+      if (!isRetry && (msg === "Network Error" || e?.response?.status === 503)) {
+        if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = setTimeout(() => {
+          void refresh(true);
+        }, 1500);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
   }, [path, ...deps]);
+
   useFocusEffect(
     useCallback(() => {
       void refresh();
@@ -188,6 +200,9 @@ function useData(path: string | null, deps: any[] = []) {
   );
   useEffect(() => {
     setData(null);
+    return () => {
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+    };
   }, [path, ...deps]);
   const loadMore = async () => {
     if (!path || !nextCursor || loading) return;
@@ -195,9 +210,9 @@ function useData(path: string | null, deps: any[] = []) {
     try {
       const response = await api.get(
         path +
-          (path.includes("?") ? "&" : "?") +
-          "cursor=" +
-          encodeURIComponent(nextCursor),
+        (path.includes("?") ? "&" : "?") +
+        "cursor=" +
+        encodeURIComponent(nextCursor),
       );
       setData((old: any[]) => [
         ...old,
@@ -212,7 +227,7 @@ function useData(path: string | null, deps: any[] = []) {
       setLoading(false);
     }
   };
-  return { data, error, loading, refresh, setData, nextCursor, loadMore };
+  return { data, error, loading, refresh: () => refresh(false), setData, nextCursor, loadMore };
 }
 function useAction() {
   const [busy, setBusy] = useState(false),
@@ -233,12 +248,31 @@ function useAction() {
     },
   };
 }
-function ErrorBox({ text }: any) {
-  return text ? (
-    <Text accessibilityRole="alert" style={s.error}>
-      {text}
-    </Text>
-  ) : null;
+function ErrorBox({ text, onRetry }: any) {
+  if (!text) return null;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#fee2e2", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: "#fecaca", gap: 10 }}>
+      <Text accessibilityRole="alert" style={[s.error, { flex: 1, backgroundColor: "transparent", borderWidth: 0, padding: 0 }]}>
+        {text}
+      </Text>
+      {!!onRetry && (
+        <TouchableOpacity
+          onPress={onRetry}
+          style={{
+            paddingVertical: 5,
+            paddingHorizontal: 14,
+            backgroundColor: "#b91c1c",
+            borderRadius: 8,
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff", fontFamily: font }}>
+            Retry
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
 }
 function useGate() {
   const user = useAuthStore((x) => x.user),
@@ -370,14 +404,45 @@ function PropertyCard({
   style,
 }: any) {
   const router = useRouter(),
+    user = useAuthStore((x) => x.user),
     gate = useGate(),
     action = useAction(),
     [saved, setSaved] = useState(initiallySaved);
+
+  const openProperty = () => {
+    if (p?._id) {
+      void api.post(`/recommendations/${p._id}/activity`, { kind: "view" }).catch(() => { });
+      const storageKey = `marketplace_preferences_${user?.id || "guest"}`;
+      AsyncStorage.getItem(storageKey).then((raw) => {
+        let parsed: any = {};
+        try { if (raw) parsed = JSON.parse(raw); } catch { }
+        const dist = p.location?.district;
+        const pType = p.type;
+        const recentDistricts = Array.from(
+          new Set([dist, ...(parsed.recentDistricts || [])])
+        ).filter(Boolean).slice(0, 6);
+        const recentTypes = Array.from(
+          new Set([pType, ...(parsed.recentTypes || [])])
+        ).filter(Boolean).slice(0, 6);
+        const updated = {
+          ...parsed,
+          district: dist || parsed.district,
+          type: pType || parsed.type,
+          recentDistricts,
+          recentTypes,
+          lastViewedAt: Date.now(),
+        };
+        AsyncStorage.setItem(storageKey, JSON.stringify(updated)).catch(() => { });
+      }).catch(() => { });
+    }
+    router.push(`/property/${p._id}` as any);
+  };
+
   return (
     <View style={[s.card, compact && { flexDirection: "row" }, style]}>
       <Pressable
         style={compact ? { width: 112, minHeight: 130 } : s.photo}
-        onPress={() => router.push(`/property/${p._id}` as any)}
+        onPress={openProperty}
       >
         {p.media?.photos?.[0] ? (
           <Image
@@ -412,7 +477,7 @@ function PropertyCard({
                       .post(`/recommendations/${p._id}/activity`, {
                         kind: "save",
                       })
-                      .catch(() => {});
+                      .catch(() => { });
                   onSaved?.();
                 });
             }}
@@ -420,7 +485,7 @@ function PropertyCard({
             <Icon name={saved ? "favorite" : "favorite-border"} />
           </Pressable>
         </View>
-        <Pressable onPress={() => router.push(`/property/${p._id}` as any)}>
+        <Pressable onPress={openProperty}>
           <Text style={s.cardTitle}>{label(p)}</Text>
         </Pressable>
         <Text style={s.muted}>
@@ -486,6 +551,24 @@ const sSlide = StyleSheet.create({
     opacity: 0.35,
     backgroundColor: "#F8FAFC",
   },
+  headerRefreshBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: 14,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+    cursor: "pointer" as any,
+  },
+  headerRefreshText: {
+    fontFamily: font,
+    fontSize: 12,
+    fontWeight: "700",
+    color: C.blue,
+  },
 });
 
 function PropertySlideRow({
@@ -495,6 +578,7 @@ function PropertySlideRow({
   feed,
   typeFilter,
   headerRight,
+  onRefresh,
   emptyTitle = "Properties are on their way",
   emptyText = "Verified listings will appear here as they become available.",
 }: {
@@ -504,6 +588,7 @@ function PropertySlideRow({
   feed: any;
   typeFilter?: string;
   headerRight?: React.ReactNode;
+  onRefresh?: () => void;
   emptyTitle?: string;
   emptyText?: string;
 }) {
@@ -519,7 +604,20 @@ function PropertySlideRow({
   const slideStep = cardWidth + gap;
 
   const rawList = feed?.data || [];
-  const properties = rawList
+  // Deduplicate properties by _id and normalized title + district + price
+  const seenKeys = new Set<string>();
+  const deduplicatedList: any[] = [];
+  for (const p of rawList) {
+    if (!p?._id) continue;
+    const key = `${(p.title || "").trim().toLowerCase()}|${(p.location?.district || "").trim().toLowerCase()}|${p.price || 0}`;
+    if (!seenKeys.has(p._id) && !seenKeys.has(key)) {
+      seenKeys.add(p._id);
+      seenKeys.add(key);
+      deduplicatedList.push(p);
+    }
+  }
+
+  const properties = deduplicatedList
     .filter((p: any) => !typeFilter || p.type === typeFilter)
     .slice(0, 24);
 
@@ -540,7 +638,7 @@ function PropertySlideRow({
     if (contentWidth > 0 && containerWidth > 0) {
       setCanScrollRight(
         contentWidth > containerWidth + 10 &&
-          scrollOffset.current + containerWidth < contentWidth - 10
+        scrollOffset.current + containerWidth < contentWidth - 10
       );
       setCanScrollLeft(scrollOffset.current > 10);
     } else if (properties.length > 0) {
@@ -654,6 +752,18 @@ function PropertySlideRow({
               </TouchableOpacity>
             </View>
           )}
+          {!!onRefresh && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Refresh recommendations"
+              onPress={onRefresh}
+              style={sSlide.headerRefreshBtn}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="refresh" size={16} color={C.blue} />
+              <Text style={sSlide.headerRefreshText}>Refresh</Text>
+            </TouchableOpacity>
+          )}
           {headerRight || (
             <Pressable onPress={() => router.push("/search")}>
               <Text style={s.link}>View all →</Text>
@@ -665,7 +775,7 @@ function PropertySlideRow({
       {feed?.loading ? (
         <ActivityIndicator color={C.blue} style={{ padding: 24 }} />
       ) : feed?.error ? (
-        <ErrorBox text={feed.error} />
+        <ErrorBox text={feed.error} onRetry={feed.refresh} />
       ) : !properties.length ? (
         <Empty title={emptyTitle} text={emptyText} />
       ) : (
@@ -729,10 +839,10 @@ function PropertySlideRow({
             contentContainerStyle={[
               sSlide.scrollContent,
               Platform.OS === "web" &&
-                ({
-                  willChange: "transform",
-                  transform: "translateZ(0)",
-                } as any),
+              ({
+                willChange: "transform",
+                transform: "translateZ(0)",
+              } as any),
             ]}
           >
             {properties.map((p: any) => (
@@ -760,21 +870,60 @@ export function HomeScreen() {
     [locationInput, setLocationInput] = useState(""),
     [type, setType] = useState(""),
     [focusedField, setFocusedField] = useState<"location" | "query" | null>(null),
-    [prefs, setPrefs] = useState<any>({});
+    [prefs, setPrefs] = useState<any>({}),
+    [refreshSeed, setRefreshSeed] = useState(() => Date.now());
 
-  useEffect(() => {
+  const loadPreferences = useCallback(() => {
     AsyncStorage.getItem(`marketplace_preferences_${user?.id || "guest"}`)
       .then((v) => {
         if (v) {
           const parsed = JSON.parse(v);
           setPrefs(parsed);
-          if (parsed.district && parsed.district.toLowerCase() !== "rps") {
+          if (parsed.district && parsed.district.toLowerCase() !== "rps" && !locationInput) {
             setLocationInput(parsed.district);
           }
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [user?.id]);
+
+  useEffect(() => {
+    loadPreferences();
+  }, [loadPreferences]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPreferences();
+      setRefreshSeed(Date.now());
+    }, [loadPreferences])
+  );
+
+  const saveInterest = (newDistrict?: string, newType?: string) => {
+    const dist = newDistrict && newDistrict.toLowerCase() !== "all bihar" ? newDistrict : "";
+    const pType = newType || "";
+    const recentDistricts = Array.from(
+      new Set([dist, ...(prefs.recentDistricts || [])])
+    ).filter(Boolean).slice(0, 5);
+    const recentTypes = Array.from(
+      new Set([pType, ...(prefs.recentTypes || [])])
+    ).filter(Boolean).slice(0, 5);
+    const updated = {
+      ...prefs,
+      ...(dist ? { district: dist } : {}),
+      ...(pType ? { type: pType } : {}),
+      recentDistricts,
+      recentTypes,
+      lastInterestAt: Date.now(),
+    };
+    setPrefs(updated);
+    AsyncStorage.setItem(
+      `marketplace_preferences_${user?.id || "guest"}`,
+      JSON.stringify(updated)
+    ).catch(() => { });
+    if (user && (dist || pType)) {
+      api.post("/recommendations/preferences", { district: dist, type: pType }).catch(() => { });
+    }
+  };
 
   const handleSearch = () => {
     const params: Record<string, string> = {};
@@ -785,8 +934,12 @@ export function HomeScreen() {
       locationInput.trim().toLowerCase() !== "explore all bihar"
     ) {
       params.district = locationInput.trim();
+      saveInterest(locationInput.trim(), type);
     }
-    if (type) params.type = type;
+    if (type) {
+      params.type = type;
+      saveInterest(locationInput.trim(), type);
+    }
     router.push({
       pathname: "/search",
       params,
@@ -795,8 +948,8 @@ export function HomeScreen() {
 
   const hasActiveSearch = Boolean(
     query.trim() ||
-      (locationInput.trim() && locationInput.trim().toLowerCase() !== "all bihar") ||
-      type
+    (locationInput.trim() && locationInput.trim().toLowerCase() !== "all bihar") ||
+    type
   );
 
   const activeDistrictParam =
@@ -806,19 +959,25 @@ export function HomeScreen() {
 
   const liveSearchResults = useData(
     hasActiveSearch
-      ? `/properties/search?limit=12&q=${encodeURIComponent(query.trim())}${
-          activeDistrictParam ? "&district=" + encodeURIComponent(activeDistrictParam) : ""
-        }${type ? "&type=" + type : ""}`
+      ? `/properties/search?limit=12&q=${encodeURIComponent(query.trim())}${activeDistrictParam ? "&district=" + encodeURIComponent(activeDistrictParam) : ""
+      }${type ? "&type=" + type : ""}`
       : null,
     [query, activeDistrictParam, type]
   );
 
+  const recentDistrictsParam = (prefs.recentDistricts || []).slice(0, 5).join(",");
+  const recentTypesParam = (prefs.recentTypes || []).slice(0, 5).join(",");
+
   const personal = useData(
-      `/recommendations?mode=personalized&district=${encodeURIComponent(
-        activeDistrictParam || prefs.district || ""
-      )}&type=${type || prefs.type || ""}&maxPrice=${prefs.maxPrice || ""}`,
-      [user?.id, activeDistrictParam, type],
-    ),
+    `/recommendations?mode=personalized&district=${encodeURIComponent(
+      activeDistrictParam || prefs.district || ""
+    )}&type=${type || prefs.type || ""}&maxPrice=${prefs.maxPrice || ""}&recentDistricts=${encodeURIComponent(
+      recentDistrictsParam
+    )}&recentTypes=${encodeURIComponent(
+      recentTypesParam
+    )}&refresh=${refreshSeed}`,
+    [user?.id, activeDistrictParam, type, prefs.district, prefs.type, refreshSeed],
+  ),
     recent = useData("/recommendations?mode=new"),
     trending = useData("/recommendations?mode=trending"),
     { width } = useWindowDimensions();
@@ -994,7 +1153,12 @@ export function HomeScreen() {
             return (
               <TouchableOpacity
                 key={d}
-                onPress={() => setLocationInput(d === "All Bihar" ? "" : d)}
+                onPress={() => {
+                  const nextVal = d === "All Bihar" ? "" : d;
+                  setLocationInput(nextVal);
+                  if (nextVal) saveInterest(nextVal, type);
+                  setRefreshSeed(Date.now());
+                }}
                 style={{
                   paddingVertical: 5,
                   paddingHorizontal: 12,
@@ -1026,7 +1190,12 @@ export function HomeScreen() {
             return (
               <Pressable
                 key={id}
-                onPress={() => setType(isSelected ? "" : id)}
+                onPress={() => {
+                  const nextType = isSelected ? "" : id;
+                  setType(nextType);
+                  if (nextType) saveInterest(locationInput, nextType);
+                  setRefreshSeed(Date.now());
+                }}
                 style={[
                   s.categoryPill,
                   isSelected && s.categoryPillActive,
@@ -1075,8 +1244,7 @@ export function HomeScreen() {
           title="Search Results"
           badge={`${liveSearchResults.data?.length ?? 0} Found`}
           sub={
-            `${query.trim() ? `Matching "${query.trim()}"` : "All listings"}${
-              activeDistrictParam ? ` in ${activeDistrictParam}` : ""
+            `${query.trim() ? `Matching "${query.trim()}"` : "All listings"}${activeDistrictParam ? ` in ${activeDistrictParam}` : ""
             }${type ? ` · ${types.find((t) => t[0] === type)?.[1] || type}` : ""}`
           }
           feed={liveSearchResults}
@@ -1114,20 +1282,23 @@ export function HomeScreen() {
           "Recommended for You",
           "Inspired by your searches and wishlist",
           personal,
+          true,
         ],
-        ["New Properties", "Recently verified and published", recent],
+        ["New Properties", "Recently verified and published", recent, false],
         [
           "Trending Properties",
           "Popular with property seekers this week",
           trending,
+          false,
         ],
-      ].map(([title, sub, feed]: any) => (
+      ].map(([title, sub, feed, isRec]: any) => (
         <PropertySlideRow
           key={title}
           title={title}
           sub={sub}
           feed={feed}
           typeFilter={type}
+          onRefresh={isRec ? () => setRefreshSeed(Date.now()) : undefined}
         />
       ))}
       <View style={[s.panel, s.row]}>
@@ -1168,9 +1339,9 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -1513,8 +1684,7 @@ export function SearchScreen() {
   }, [params.q, params.location, params.district, params.type]);
 
   const feed = useData(
-    `/properties/search?limit=50&q=${encodeURIComponent(submitted)}${
-      district ? "&district=" + encodeURIComponent(district) : ""
+    `/properties/search?limit=50&q=${encodeURIComponent(submitted)}${district ? "&district=" + encodeURIComponent(district) : ""
     }${type ? "&type=" + type : ""}${max ? "&maxPrice=" + max : ""}`,
     [submitted, district, type, max]
   );
@@ -1525,7 +1695,7 @@ export function SearchScreen() {
       for (const property of feed.data.slice(0, 5))
         void api
           .post(`/recommendations/${property._id}/activity`, { kind: "search" })
-          .catch(() => {});
+          .catch(() => { });
   }, [feed.data, submitted]);
 
   const search = () => {
@@ -1538,7 +1708,7 @@ export function SearchScreen() {
           type,
           ...(max ? { maxPrice: Number(max) } : {}),
         })
-        .catch(() => {});
+        .catch(() => { });
     void AsyncStorage.setItem(
       `marketplace_preferences_${user?.id || "guest"}`,
       JSON.stringify({ district: district || query, type, maxPrice: max }),
@@ -1664,10 +1834,10 @@ export function SearchScreen() {
   const cardWidth = isDesktop
     ? "calc(25% - 12px)"
     : isLaptop
-    ? "calc(33.333% - 11px)"
-    : isTablet
-    ? "calc(50% - 8px)"
-    : "100%";
+      ? "calc(33.333% - 11px)"
+      : isTablet
+        ? "calc(50% - 8px)"
+        : "100%";
 
   const compareProps = (
     compareIds.length > 0 ? compareIds : ["demo_patna_1", "demo_patna_2"]
@@ -1783,7 +1953,7 @@ export function SearchScreen() {
             activeOpacity={0.8}
           >
             <Text style={exploreStyles.budgetText}>
-              {max ? `Up to ₹${(Number(max)/100000).toFixed(0)}L` : "₹20L - ₹2.50 Cr"}
+              {max ? `Up to ₹${(Number(max) / 100000).toFixed(0)}L` : "₹20L - ₹2.50 Cr"}
             </Text>
             <MaterialIcons name="keyboard-arrow-down" size={18} color="#64748B" />
           </TouchableOpacity>
@@ -2003,7 +2173,7 @@ export function SearchScreen() {
           )}
           {!!max && (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F5F3FF", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#DDD6FE" }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#7C3AED", fontFamily: font }}>Max: ₹{(Number(max)/100000).toFixed(0)}L</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#7C3AED", fontFamily: font }}>Max: ₹{(Number(max) / 100000).toFixed(0)}L</Text>
               <TouchableOpacity onPress={() => setMax("")}>
                 <MaterialIcons name="close" size={14} color="#7C3AED" />
               </TouchableOpacity>
@@ -2194,12 +2364,12 @@ export function SearchScreen() {
                   {sortBy === "recommended"
                     ? "Recommended (Verified First)"
                     : sortBy === "price_asc"
-                    ? "Price: Low to High"
-                    : sortBy === "price_desc"
-                    ? "Price: High to Low"
-                    : sortBy === "area_desc"
-                    ? "Area: Largest First"
-                    : "Recently Added"}
+                      ? "Price: Low to High"
+                      : sortBy === "price_desc"
+                        ? "Price: High to Low"
+                        : sortBy === "area_desc"
+                          ? "Area: Largest First"
+                          : "Recently Added"}
                 </Text>
                 <MaterialIcons name="keyboard-arrow-down" size={16} color="#64748B" />
               </TouchableOpacity>
@@ -2304,10 +2474,10 @@ export function SearchScreen() {
                             p.type === "shop"
                               ? "#EFF6FF"
                               : p.type === "house"
-                              ? "#F5F7FF"
-                              : p.type === "flat"
-                              ? "#F8FAFC"
-                              : "#F0FDF4",
+                                ? "#F5F7FF"
+                                : p.type === "flat"
+                                  ? "#F8FAFC"
+                                  : "#F0FDF4",
                           alignItems: "center",
                           justifyContent: "center",
                         },
@@ -2318,30 +2488,30 @@ export function SearchScreen() {
                           p.type === "shop"
                             ? "storefront"
                             : p.type === "house"
-                            ? "home"
-                            : p.type === "flat"
-                            ? "apartment"
-                            : "landscape"
+                              ? "home"
+                              : p.type === "flat"
+                                ? "apartment"
+                                : "landscape"
                         }
                         size={32}
                         color={
                           p.type === "shop"
                             ? "#3B82F6"
                             : p.type === "house"
-                            ? "#6366F1"
-                            : p.type === "flat"
-                            ? "#64748B"
-                            : "#10B981"
+                              ? "#6366F1"
+                              : p.type === "flat"
+                                ? "#64748B"
+                                : "#10B981"
                         }
                       />
                       <Text style={exploreStyles.cardPlaceholderText}>
                         {p.type === "shop"
                           ? `Commercial Space · ${p.location?.district || "Bihar"}`
                           : p.type === "house"
-                          ? `Duplex Villa · ${p.location?.district || "Bihar"}`
-                          : p.type === "flat"
-                          ? `Modern 3 BHK · ${p.location?.district || "Bihar"}`
-                          : `Residential Plot · ${p.location?.district || "Bihar"}`}
+                            ? `Duplex Villa · ${p.location?.district || "Bihar"}`
+                            : p.type === "flat"
+                              ? `Modern 3 BHK · ${p.location?.district || "Bihar"}`
+                              : `Residential Plot · ${p.location?.district || "Bihar"}`}
                       </Text>
                     </View>
                   )}
@@ -2383,8 +2553,8 @@ export function SearchScreen() {
                         highlight.theme === "green"
                           ? exploreStyles.cardTagGreen
                           : highlight.theme === "amber"
-                          ? exploreStyles.cardTagAmber
-                          : exploreStyles.cardTagBlue,
+                            ? exploreStyles.cardTagAmber
+                            : exploreStyles.cardTagBlue,
                       ]}
                     >
                       <Text
@@ -2392,8 +2562,8 @@ export function SearchScreen() {
                           highlight.theme === "green"
                             ? exploreStyles.cardTagGreenText
                             : highlight.theme === "amber"
-                            ? exploreStyles.cardTagAmberText
-                            : exploreStyles.cardTagBlueText,
+                              ? exploreStyles.cardTagAmberText
+                              : exploreStyles.cardTagBlueText,
                         ]}
                       >
                         {highlight.label}
@@ -4335,9 +4505,9 @@ export function KycScreen() {
                 {feed.data?.isVerifiedIdentity
                   ? "Approved"
                   : (feed.data?.kycStatus || "not_submitted").replaceAll(
-                      "_",
-                      " ",
-                    )}
+                    "_",
+                    " ",
+                  )}
               </Tag>
             </View>
           </View>
@@ -4434,8 +4604,8 @@ export function KycScreen() {
               void authService.getMe();
               router.replace(
                 (typeof params.returnTo === "string" &&
-                params.returnTo.startsWith("/") &&
-                !params.returnTo.startsWith("//")
+                  params.returnTo.startsWith("/") &&
+                  !params.returnTo.startsWith("//")
                   ? params.returnTo
                   : "/profile") as any,
               );
@@ -5234,7 +5404,7 @@ export function PropertyDetailScreen() {
     if (id)
       void api
         .post(`/recommendations/${id}/activity`, { kind: "view" })
-        .catch(() => {});
+        .catch(() => { });
   }, [id]);
 
   useEffect(() => {
@@ -5247,7 +5417,7 @@ export function PropertyDetailScreen() {
             list.some((item: any) => (item._id || item.id) === p._id);
           setSaved(isSaved);
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [p?._id, authState]);
 
@@ -5368,9 +5538,9 @@ Link: ${url}`;
           message,
           ...(offer
             ? {
-                offerAmount: Number(amount),
-                requestKey: offerRequest.current?.key,
-              }
+              offerAmount: Number(amount),
+              requestKey: offerRequest.current?.key,
+            }
             : {}),
         })
       ).data;
@@ -5815,7 +5985,7 @@ Link: ${url}`;
                 </View>
 
                 <View style={{ height: 380 }}>
-                  <VerifiedPropertyMap properties={[p]} onSelect={() => {}} />
+                  <VerifiedPropertyMap properties={[p]} onSelect={() => { }} />
                 </View>
               </View>
 
@@ -6135,7 +6305,7 @@ export function ChatsScreen() {
       if (latest)
         void api
           .post(`/inquiries/${selected}/read`, { through: latest })
-          .catch(() => {});
+          .catch(() => { });
     }
   }, [messages.data, chat.data?.createdAt]);
   const c = chat.data,
@@ -6414,13 +6584,13 @@ export function DealScreen() {
             {["offered", "countered", "accepted", "token_paid"].includes(
               d.status,
             ) && (
-              <Button
-                title="Cancel offer / reservation"
-                secondary
-                disabled={action.busy}
-                onPress={() => update("cancelled")}
-              />
-            )}
+                <Button
+                  title="Cancel offer / reservation"
+                  secondary
+                  disabled={action.busy}
+                  onPress={() => update("cancelled")}
+                />
+              )}
             {staff && ["accepted", "token_paid"].includes(d.status) && (
               <View style={s.panel}>
                 <Text style={s.cardTitle}>Confirm the completed sale</Text>
@@ -6602,8 +6772,8 @@ export function PostScreen() {
           po.Block && po.Block !== "NA"
             ? po.Block
             : po.Name && po.Name !== districtName
-            ? po.Name
-            : "";
+              ? po.Name
+              : "";
 
         setForm((f: any) => ({
           ...f,
@@ -7324,10 +7494,10 @@ export function PostScreen() {
                           color: pincodeLoading
                             ? "#0A45B5"
                             : pincodeStatus
-                            ? pincodeStatus.isError
-                              ? "#D97706"
-                              : "#059669"
-                            : "#64748B",
+                              ? pincodeStatus.isError
+                                ? "#D97706"
+                                : "#059669"
+                              : "#64748B",
                           fontWeight: pincodeStatus && !pincodeStatus.isError ? "600" : "400",
                         },
                       ]}
@@ -7335,8 +7505,8 @@ export function PostScreen() {
                       {pincodeLoading
                         ? "Checking Indian Postal Database..."
                         : pincodeStatus
-                        ? pincodeStatus.message
-                        : "Enter 6-digit Indian PIN code to auto-detect City and State."}
+                          ? pincodeStatus.message
+                          : "Enter 6-digit Indian PIN code to auto-detect City and State."}
                     </Text>
                   </View>
 

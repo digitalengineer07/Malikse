@@ -59,6 +59,11 @@ export function createFastifyApp(isReady?: () => boolean) {
   app.addHook("onRequest", (request, reply, done) => {
     const path = (request.raw.url || "").split("?")[0].replace(/\/$/, "").toLowerCase();
     if (isReady && !isReady() && path !== "/health" && path !== "/ready") {
+      const origin = request.headers.origin;
+      if (origin && (origins.includes(origin) || (!production && !origins.length))) {
+        reply.header("Access-Control-Allow-Origin", origin);
+        reply.header("Access-Control-Allow-Credentials", "true");
+      }
       reply.code(503).header("Retry-After", "1").send({ message: "Service is initializing. Please try again shortly." });
       done();
       return;
