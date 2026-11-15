@@ -7,6 +7,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useRouter, useFocusEffect } from "@/web/navigation";
@@ -34,9 +35,12 @@ const getAvatarStyle = (name: string = "") => {
 
 const getInitials = (name?: string) => {
   if (!name || !name.trim()) return "U";
-  const parts = name.trim().split(/\s+/);
+  // Strip non-alphanumeric characters like parentheses, emojis, commas
+  const cleaned = name.replace(/[^a-zA-Z0-9\s]/g, " ").trim();
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "U";
   if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
 };
 
 const formatDate = (dateString?: string) => {
@@ -70,7 +74,7 @@ const getKycBadge = (status?: string, isVerified?: boolean) => {
   if (status === "rejected") {
     return { label: "KYC Rejected", bg: "#FEF2F2", text: "#DC2626", border: "#FECACA", icon: "cancel" };
   }
-  return { label: "No KYC", bg: "#F1F5F9", text: "#64748B", border: "#E2E8F0", icon: "person-outline" };
+  return { label: "Not Submitted", bg: "#F1F5F9", text: "#64748B", border: "#E2E8F0", icon: "person-outline" };
 };
 
 const getPropertyStatusBadge = (status?: string) => {
@@ -95,6 +99,9 @@ const getPropertyStatusBadge = (status?: string) => {
 
 export default function ManageUsersScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
+
   const { user, authState } = useAuthStore();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -338,7 +345,7 @@ export default function ManageUsersScreen() {
     );
   }
 
-  // Filter users
+  // Filter metrics
   const counts = {
     all: users.length,
     verified: users.filter((u) => u.isVerifiedIdentity).length,
@@ -364,7 +371,7 @@ export default function ManageUsersScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      {/* Top Navigation */}
+      {/* Top Navigation Bar */}
       <View style={styles.topNav}>
         <TouchableOpacity
           style={styles.backButton}
@@ -418,6 +425,73 @@ export default function ManageUsersScreen() {
         </View>
       ) : null}
 
+      {/* KPI Stat Cards Summary (Quick Interactive Filter) */}
+      <View style={styles.kpiRow}>
+        <TouchableOpacity
+          style={[styles.kpiCard, filterTab === "all" && styles.kpiCardActive]}
+          onPress={() => setFilterTab("all")}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.kpiIconBox, { backgroundColor: "#EFF6FF" }]}>
+            <MaterialIcons name="people" size={20} color="#1D4ED8" />
+          </View>
+          <View style={styles.kpiInfo}>
+            <Text style={styles.kpiValue}>{counts.all}</Text>
+            <Text style={styles.kpiLabel}>Total Accounts</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.kpiCard, filterTab === "verified" && styles.kpiCardActive]}
+          onPress={() => setFilterTab("verified")}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.kpiIconBox, { backgroundColor: "#ECFDF5" }]}>
+            <MaterialIcons name="verified" size={20} color="#059669" />
+          </View>
+          <View style={styles.kpiInfo}>
+            <Text style={[styles.kpiValue, { color: "#059669" }]}>{counts.verified}</Text>
+            <Text style={styles.kpiLabel}>Verified Identity</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.kpiCard,
+            filterTab === "pending_kyc" && styles.kpiCardActive,
+            counts.pending_kyc > 0 && styles.kpiCardAlert,
+          ]}
+          onPress={() => setFilterTab("pending_kyc")}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.kpiIconBox, { backgroundColor: "#FFFBEB" }]}>
+            <MaterialIcons name="hourglass-empty" size={20} color="#D97706" />
+          </View>
+          <View style={styles.kpiInfo}>
+            <Text style={[styles.kpiValue, { color: counts.pending_kyc > 0 ? "#D97706" : "#475569" }]}>
+              {counts.pending_kyc}
+            </Text>
+            <Text style={styles.kpiLabel}>Pending Review</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.kpiCard, filterTab === "suspended" && styles.kpiCardActive]}
+          onPress={() => setFilterTab("suspended")}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.kpiIconBox, { backgroundColor: "#FEF2F2" }]}>
+            <MaterialIcons name="lock" size={20} color="#DC2626" />
+          </View>
+          <View style={styles.kpiInfo}>
+            <Text style={[styles.kpiValue, { color: counts.suspended > 0 ? "#DC2626" : "#475569" }]}>
+              {counts.suspended}
+            </Text>
+            <Text style={styles.kpiLabel}>Suspended</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
       {/* Search & Filter Toolbar */}
       <View style={styles.controlsCard}>
         <View style={styles.searchBar}>
@@ -437,43 +511,59 @@ export default function ManageUsersScreen() {
           )}
         </View>
 
-        <View style={styles.filterTabs}>
-          <TouchableOpacity
-            style={[styles.filterChip, filterTab === "all" && styles.filterChipActive]}
-            onPress={() => setFilterTab("all")}
-          >
-            <Text style={[styles.filterChipText, filterTab === "all" && styles.filterChipTextActive]}>
-              All ({counts.all})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterChip, filterTab === "verified" && styles.filterChipActive]}
-            onPress={() => setFilterTab("verified")}
-          >
-            <Text style={[styles.filterChipText, filterTab === "verified" && styles.filterChipTextActive]}>
-              Verified ({counts.verified})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterChip, filterTab === "pending_kyc" && styles.filterChipActive]}
-            onPress={() => setFilterTab("pending_kyc")}
-          >
-            <Text style={[styles.filterChipText, filterTab === "pending_kyc" && styles.filterChipTextActive]}>
-              Pending KYC ({counts.pending_kyc})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterChip, filterTab === "suspended" && styles.filterChipActive]}
-            onPress={() => setFilterTab("suspended")}
-          >
-            <Text style={[styles.filterChipText, filterTab === "suspended" && styles.filterChipTextActive]}>
-              Suspended ({counts.suspended})
-            </Text>
-          </TouchableOpacity>
+        <View style={styles.filterTabsRow}>
+          <View style={styles.filterTabs}>
+            <TouchableOpacity
+              style={[styles.filterChip, filterTab === "all" && styles.filterChipActive]}
+              onPress={() => setFilterTab("all")}
+            >
+              <Text style={[styles.filterChipText, filterTab === "all" && styles.filterChipTextActive]}>
+                All ({counts.all})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterChip, filterTab === "verified" && styles.filterChipActive]}
+              onPress={() => setFilterTab("verified")}
+            >
+              <Text style={[styles.filterChipText, filterTab === "verified" && styles.filterChipTextActive]}>
+                Verified ({counts.verified})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterChip, filterTab === "pending_kyc" && styles.filterChipActive]}
+              onPress={() => setFilterTab("pending_kyc")}
+            >
+              <Text style={[styles.filterChipText, filterTab === "pending_kyc" && styles.filterChipTextActive]}>
+                Pending KYC ({counts.pending_kyc})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterChip, filterTab === "suspended" && styles.filterChipActive]}
+              onPress={() => setFilterTab("suspended")}
+            >
+              <Text style={[styles.filterChipText, filterTab === "suspended" && styles.filterChipTextActive]}>
+                Suspended ({counts.suspended})
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.showingText}>
+            Showing <Text style={{ fontWeight: "700", color: "#0F172A" }}>{filteredUsers.length}</Text> of {users.length}
+          </Text>
         </View>
       </View>
 
-      {/* Users List */}
+      {/* Table Column Headers (Desktop Only) */}
+      {isDesktop && (
+        <View style={styles.tableHeader}>
+          <Text style={[styles.tableColHeader, { flex: 2.3 }]}>USER PROFILE</Text>
+          <Text style={[styles.tableColHeader, { flex: 2.2 }]}>CONTACT INFORMATION</Text>
+          <Text style={[styles.tableColHeader, { flex: 1.8 }]}>KYC STATUS</Text>
+          <Text style={[styles.tableColHeader, { flex: 1.2, textAlign: "right" }]}>ACTION</Text>
+        </View>
+      )}
+
+      {/* Users Directory List */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator color="#0A45B5" size="large" />
@@ -504,426 +594,439 @@ export default function ManageUsersScreen() {
           return (
             <View key={usr._id} style={[styles.userCard, isExpanded && styles.userCardExpanded]}>
               <TouchableOpacity
-                style={styles.userHeader}
+                style={[styles.userRow, !isDesktop && styles.userRowMobile]}
                 onPress={() => viewProperties(usr)}
-                activeOpacity={0.7}
+                activeOpacity={0.75}
               >
-                {/* Left: Avatar Circle */}
-                <View style={[styles.avatar, { backgroundColor: avatar.bg, borderColor: avatar.border }]}>
-                  <Text style={[styles.avatarText, { color: avatar.text }]}>{initials}</Text>
-                </View>
+                {/* Column 1: User Profile (Avatar + Name + Joined) */}
+                <View style={[styles.profileCol, isDesktop ? { flex: 2.3 } : styles.profileColMobile]}>
+                  <View style={[styles.avatar, { backgroundColor: avatar.bg, borderColor: avatar.border }]}>
+                    <Text style={[styles.avatarText, { color: avatar.text }]}>{initials}</Text>
+                  </View>
 
-                {/* Center: Details */}
-                <View style={styles.userMainInfo}>
-                  {/* Name and Badges */}
-                  <View style={styles.userNameRow}>
-                    <Text
-                      style={[
-                        styles.userName,
-                        usr.isSuspended && styles.userNameSuspended,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {usr.name || "Unnamed User"}
-                    </Text>
+                  <View style={styles.profileTextWrapper}>
+                    <View style={styles.nameRow}>
+                      <Text
+                        style={[styles.userName, usr.isSuspended && styles.userNameSuspended]}
+                        numberOfLines={1}
+                      >
+                        {usr.name || "Unnamed User"}
+                      </Text>
+                      {usr.isVerifiedIdentity && (
+                        <View style={styles.verifiedIconBadge} accessibilityLabel="Identity Verified">
+                          <MaterialIcons name="verified" size={14} color="#059669" />
+                        </View>
+                      )}
+                      {usr.isSuspended && (
+                        <View style={styles.suspendedTag}>
+                          <Text style={styles.suspendedTagText}>SUSPENDED</Text>
+                        </View>
+                      )}
+                    </View>
 
-                    {usr.isVerifiedIdentity && (
-                      <View style={styles.verifiedBadge}>
-                        <MaterialIcons name="verified" size={13} color="#059669" />
-                        <Text style={styles.verifiedBadgeText}>Verified</Text>
-                      </View>
-                    )}
-
-                    {usr.isSuspended && (
-                      <View style={styles.suspendedBadge}>
-                        <MaterialIcons name="lock" size={12} color="#DC2626" />
-                        <Text style={styles.suspendedBadgeText}>Suspended</Text>
-                      </View>
-                    )}
+                    <View style={styles.joinedRow}>
+                      <MaterialIcons name="calendar-today" size={12} color="#94A3B8" />
+                      <Text style={styles.joinedText}>Joined {formatDate(usr.createdAt)}</Text>
+                    </View>
 
                     {usr.deletionRequestedAt && (
-                      <View style={styles.deletionBadge}>
-                        <MaterialIcons name="error-outline" size={12} color="#B45309" />
-                        <Text style={styles.deletionBadgeText}>Deletion Requested</Text>
+                      <View style={styles.deletionAlertTag}>
+                        <MaterialIcons name="error-outline" size={11} color="#B45309" />
+                        <Text style={styles.deletionAlertText}>Deletion Requested</Text>
                       </View>
                     )}
                   </View>
-
-                  {/* Contact Chips */}
-                  <View style={styles.contactsRow}>
-                    {usr.email ? (
-                      <View style={styles.contactItem}>
-                        <MaterialIcons name="mail-outline" size={14} color="#64748B" />
-                        <Text style={styles.contactText}>{usr.email}</Text>
-                      </View>
-                    ) : null}
-
-                    {usr.mobile ? (
-                      <View style={styles.contactItem}>
-                        <MaterialIcons name="phone" size={14} color="#64748B" />
-                        <Text style={styles.contactText}>{usr.mobile}</Text>
-                      </View>
-                    ) : null}
-
-                    {!usr.email && !usr.mobile ? (
-                      <Text style={styles.noContactText}>No email or phone recorded</Text>
-                    ) : null}
-                  </View>
-
-                  {/* Metadata Row: KYC Status & Joined Date */}
-                  <View style={styles.metaRow}>
-                    <View style={[styles.kycChip, { backgroundColor: kyc.bg, borderColor: kyc.border }]}>
-                      <MaterialIcons name={kyc.icon} size={13} color={kyc.text} />
-                      <Text style={[styles.kycChipText, { color: kyc.text }]}>{kyc.label}</Text>
-                    </View>
-
-                    <View style={styles.metaItem}>
-                      <MaterialIcons name="calendar-today" size={13} color="#94A3B8" />
-                      <Text style={styles.metaText}>Joined {formatDate(usr.createdAt)}</Text>
-                    </View>
-                  </View>
                 </View>
 
-                {/* Right: Expand / Collapse Chevron */}
-                <View style={[styles.expandBtn, isExpanded && styles.expandBtnActive]}>
-                  <MaterialIcons
-                    name={isExpanded ? "expand-less" : "expand-more"}
-                    size={22}
-                    color={isExpanded ? "#0A45B5" : "#64748B"}
-                  />
+                {/* Column 2: Contact Information */}
+                <View style={[styles.contactCol, isDesktop ? { flex: 2.2 } : styles.contactColMobile]}>
+                  {usr.email ? (
+                    <View style={styles.contactItem}>
+                      <MaterialIcons name="mail-outline" size={14} color="#64748B" />
+                      <Text style={styles.contactEmailText} numberOfLines={1}>
+                        {usr.email}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {usr.mobile ? (
+                    <View style={styles.contactItem}>
+                      <MaterialIcons name="phone" size={14} color="#64748B" />
+                      <Text style={styles.contactPhoneText}>{usr.mobile}</Text>
+                    </View>
+                  ) : null}
+
+                  {!usr.email && !usr.mobile && (
+                    <Text style={styles.noContactText}>No email or phone on file</Text>
+                  )}
+                </View>
+
+                {/* Column 3: KYC & Security Status */}
+                <View style={[styles.kycCol, isDesktop ? { flex: 1.8 } : styles.kycColMobile]}>
+                  <View style={[styles.kycChip, { backgroundColor: kyc.bg, borderColor: kyc.border }]}>
+                    <MaterialIcons name={kyc.icon} size={13} color={kyc.text} />
+                    <Text style={[styles.kycChipText, { color: kyc.text }]}>{kyc.label}</Text>
+                  </View>
+
+                  {(usr.kycDocuments || []).length > 0 && (
+                    <Text style={styles.docsCountSub}>
+                      {usr.kycDocuments.length} document{usr.kycDocuments.length > 1 ? "s" : ""} uploaded
+                    </Text>
+                  )}
+                </View>
+
+                {/* Column 4: Action Button */}
+                <View style={[styles.actionCol, isDesktop ? { flex: 1.2 } : styles.actionColMobile]}>
+                  <View style={[styles.actionBtnPill, isExpanded && styles.actionBtnPillActive]}>
+                    <Text style={[styles.actionBtnText, isExpanded && styles.actionBtnTextActive]}>
+                      {isExpanded ? "Close" : "Inspect"}
+                    </Text>
+                    <MaterialIcons
+                      name={isExpanded ? "expand-less" : "expand-more"}
+                      size={18}
+                      color={isExpanded ? "#FFFFFF" : "#0A45B5"}
+                    />
+                  </View>
                 </View>
               </TouchableOpacity>
 
-              {/* Expanded Section */}
+              {/* Expanded Inspection Drawer */}
               {isExpanded && (
-                <View style={styles.expandedSection}>
-                  {/* Identity Review Card */}
-                  <View style={styles.sectionCard}>
-                    <View style={styles.sectionCardHeader}>
-                      <View style={styles.sectionCardTitleRow}>
-                        <MaterialIcons name="badge" size={18} color="#0A45B5" />
-                        <Text style={styles.sectionCardTitle}>Identity Verification & KYC</Text>
-                      </View>
-                      <View style={[styles.kycChip, { backgroundColor: kyc.bg, borderColor: kyc.border }]}>
-                        <MaterialIcons name={kyc.icon} size={12} color={kyc.text} />
-                        <Text style={[styles.kycChipText, { color: kyc.text }]}>{kyc.label}</Text>
+                <View style={styles.expandedDrawer}>
+                  <View style={[styles.drawerGrid, !isDesktop && styles.drawerGridMobile]}>
+                    {/* Left Column: KYC Verification & Identity */}
+                    <View style={[styles.drawerCol, isDesktop ? { flex: 1.1 } : { width: "100%" }]}>
+                      <View style={styles.sectionCard}>
+                        <View style={styles.sectionCardHeader}>
+                          <View style={styles.sectionCardTitleRow}>
+                            <MaterialIcons name="badge" size={18} color="#0A45B5" />
+                            <Text style={styles.sectionCardTitle}>Identity Verification & KYC</Text>
+                          </View>
+                          <View style={[styles.kycChip, { backgroundColor: kyc.bg, borderColor: kyc.border }]}>
+                            <MaterialIcons name={kyc.icon} size={12} color={kyc.text} />
+                            <Text style={[styles.kycChipText, { color: kyc.text }]}>{kyc.label}</Text>
+                          </View>
+                        </View>
+
+                        {/* Last Review Notes */}
+                        {usr.identityReview?.reviewedAt && (
+                          <View style={styles.prevReviewBox}>
+                            <Text style={styles.prevReviewHeader}>
+                              Last reviewed on {formatDate(usr.identityReview.reviewedAt)}
+                            </Text>
+                            {usr.identityReview.notes ? (
+                              <Text style={styles.prevReviewNotes}>"{usr.identityReview.notes}"</Text>
+                            ) : null}
+                          </View>
+                        )}
+
+                        {/* Uploaded Documents */}
+                        <Text style={styles.subHeading}>Uploaded Documents ({(usr.kycDocuments || []).length})</Text>
+                        {(usr.kycDocuments || []).length === 0 ? (
+                          <View style={styles.emptyDocBox}>
+                            <MaterialIcons name="description" size={18} color="#94A3B8" />
+                            <Text style={styles.emptyDocText}>No KYC documents submitted yet</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.docList}>
+                            {usr.kycDocuments.map((docId: string, idx: number) => (
+                              <TouchableOpacity
+                                key={docId}
+                                style={styles.docItem}
+                                onPress={async () => {
+                                  try {
+                                    const result = await api.post(`/users/kyc/${docId}/download`);
+                                    await Linking.openURL(result.data.url);
+                                  } catch {
+                                    setError("Could not open identity document");
+                                  }
+                                }}
+                              >
+                                <View style={styles.docItemLeft}>
+                                  <MaterialIcons name="description" size={18} color="#0A45B5" />
+                                  <Text style={styles.docItemName}>Identity Document #{idx + 1}</Text>
+                                </View>
+                                <View style={styles.docItemRight}>
+                                  <Text style={styles.docItemAction}>Review</Text>
+                                  <MaterialIcons name="open-in-new" size={14} color="#0A45B5" />
+                                </View>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+
+                        {/* Admin Remarks Input */}
+                        <Text style={[styles.subHeading, { marginTop: 14 }]}>Admin Review Remarks</Text>
+                        <TextInput
+                          style={styles.notesInput}
+                          placeholder="Record identity evidence or state reason for correction/rejection (min. 10 chars)..."
+                          placeholderTextColor="#94A3B8"
+                          value={identityNotes}
+                          onChangeText={setIdentityNotes}
+                          multiline
+                          numberOfLines={3}
+                        />
+                        <Text style={styles.notesHelpText}>
+                          {identityNotes.trim().length < 10
+                            ? `* Minimum 10 characters required (${identityNotes.trim().length}/10)`
+                            : `✓ Ready to apply decision (${identityNotes.trim().length} chars)`}
+                        </Text>
+
+                        {/* Action Decision Buttons */}
+                        <View style={styles.reviewActionsRow}>
+                          {!usr.isVerifiedIdentity ? (
+                            <>
+                              <TouchableOpacity
+                                style={[
+                                  styles.actionBtn,
+                                  styles.approveBtn,
+                                  (reviewingIdentity || identityNotes.trim().length < 10) && styles.btnDisabled,
+                                ]}
+                                disabled={reviewingIdentity || identityNotes.trim().length < 10}
+                                onPress={() => handleApproveIdentity(usr)}
+                              >
+                                <MaterialIcons name="check-circle" size={15} color="#FFFFFF" />
+                                <Text style={styles.approveBtnText}>
+                                  {reviewingIdentity ? "Saving..." : "Approve Identity"}
+                                </Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={[
+                                  styles.actionBtn,
+                                  styles.correctionBtn,
+                                  (reviewingIdentity || identityNotes.trim().length < 10) && styles.btnDisabled,
+                                ]}
+                                disabled={reviewingIdentity || identityNotes.trim().length < 10}
+                                onPress={() => handleCorrectionOrReject(usr, "correction")}
+                              >
+                                <MaterialIcons name="error-outline" size={15} color="#C2410C" />
+                                <Text style={styles.correctionBtnText}>Request Correction</Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={[
+                                  styles.actionBtn,
+                                  styles.rejectBtn,
+                                  (reviewingIdentity || identityNotes.trim().length < 10) && styles.btnDisabled,
+                                ]}
+                                disabled={reviewingIdentity || identityNotes.trim().length < 10}
+                                onPress={() => handleCorrectionOrReject(usr, "reject")}
+                              >
+                                <MaterialIcons name="cancel" size={15} color="#DC2626" />
+                                <Text style={styles.rejectBtnText}>Reject KYC</Text>
+                              </TouchableOpacity>
+                            </>
+                          ) : (
+                            <TouchableOpacity
+                              style={[
+                                styles.actionBtn,
+                                styles.revokeBtn,
+                                (reviewingIdentity || identityNotes.trim().length < 10) && styles.btnDisabled,
+                              ]}
+                              disabled={reviewingIdentity || identityNotes.trim().length < 10}
+                              onPress={() => handleRevokeIdentity(usr)}
+                            >
+                              <MaterialIcons name="cancel" size={15} color="#DC2626" />
+                              <Text style={styles.revokeBtnText}>
+                                {reviewingIdentity ? "Saving..." : "Revoke Identity Approval"}
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
                       </View>
                     </View>
 
-                    {/* Previous Review Notes */}
-                    {usr.identityReview?.reviewedAt && (
-                      <View style={styles.prevReviewBox}>
-                        <Text style={styles.prevReviewHeader}>
-                          Last reviewed on {formatDate(usr.identityReview.reviewedAt)}
-                        </Text>
-                        {usr.identityReview.notes ? (
-                          <Text style={styles.prevReviewNotes}>"{usr.identityReview.notes}"</Text>
+                    {/* Right Column: Properties, Deals & Safety Moderation */}
+                    <View style={[styles.drawerCol, isDesktop ? { flex: 0.9 } : { width: "100%" }]}>
+                      {/* Properties Listed */}
+                      <View style={styles.sectionCard}>
+                        <View style={styles.sectionCardHeader}>
+                          <View style={styles.sectionCardTitleRow}>
+                            <MaterialIcons name="business" size={18} color="#0A45B5" />
+                            <Text style={styles.sectionCardTitle}>Properties Listed ({properties.length})</Text>
+                          </View>
+                        </View>
+
+                        {loadingProps ? (
+                          <View style={styles.loadingBox}>
+                            <ActivityIndicator color="#0A45B5" />
+                            <Text style={styles.loadingText}>Loading listings...</Text>
+                          </View>
+                        ) : properties.length === 0 ? (
+                          <View style={styles.emptyDocBox}>
+                            <MaterialIcons name="business" size={18} color="#94A3B8" />
+                            <Text style={styles.emptyDocText}>No properties listed by this account.</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.propList}>
+                            {properties.map((prop) => {
+                              const pStatus = getPropertyStatusBadge(prop.status);
+                              return (
+                                <TouchableOpacity
+                                  key={prop._id}
+                                  style={styles.propRow}
+                                  onPress={() =>
+                                    router.push({ pathname: "/verification/[id]", params: { id: prop._id } })
+                                  }
+                                >
+                                  <View style={styles.propInfo}>
+                                    <Text style={styles.propTitle} numberOfLines={1}>
+                                      {prop.title || `${prop.type || "Property"} in ${prop.location?.district || "Bihar"}`}
+                                    </Text>
+                                    <View style={styles.propMetaRow}>
+                                      <Text style={styles.propPrice}>{formatPrice(prop.price)}</Text>
+                                      {prop.location?.district ? (
+                                        <Text style={styles.propDistrict}>· {prop.location.district}</Text>
+                                      ) : null}
+                                    </View>
+                                  </View>
+                                  <View style={styles.propRight}>
+                                    <View
+                                      style={[
+                                        styles.propStatusBadge,
+                                        { backgroundColor: pStatus.bg, borderColor: pStatus.border },
+                                      ]}
+                                    >
+                                      <Text style={[styles.propStatusText, { color: pStatus.text }]}>
+                                        {pStatus.label}
+                                      </Text>
+                                    </View>
+                                    <MaterialIcons name="chevron-right" size={18} color="#94A3B8" />
+                                  </View>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        )}
+
+                        {propertyCursor ? (
+                          <TouchableOpacity
+                            style={styles.moreBtn}
+                            disabled={loadingProps}
+                            onPress={moreProperties}
+                          >
+                            <Text style={styles.moreBtnText}>Load more properties</Text>
+                          </TouchableOpacity>
                         ) : null}
                       </View>
-                    )}
 
-                    {/* Uploaded Documents */}
-                    <Text style={styles.subHeading}>Uploaded Documents ({(usr.kycDocuments || []).length})</Text>
-                    {(usr.kycDocuments || []).length === 0 ? (
-                      <View style={styles.emptyDocBox}>
-                        <MaterialIcons name="description" size={18} color="#94A3B8" />
-                        <Text style={styles.emptyDocText}>No KYC documents submitted yet</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.docList}>
-                        {usr.kycDocuments.map((docId: string, idx: number) => (
-                          <TouchableOpacity
-                            key={docId}
-                            style={styles.docItem}
-                            onPress={async () => {
-                              try {
-                                const result = await api.post(`/users/kyc/${docId}/download`);
-                                await Linking.openURL(result.data.url);
-                              } catch {
-                                setError("Could not open identity document");
-                              }
-                            }}
-                          >
-                            <View style={styles.docItemLeft}>
-                              <MaterialIcons name="description" size={18} color="#0A45B5" />
-                              <Text style={styles.docItemName}>Identity Document #{idx + 1}</Text>
-                            </View>
-                            <View style={styles.docItemRight}>
-                              <Text style={styles.docItemAction}>Review Document</Text>
-                              <MaterialIcons name="open-in-new" size={15} color="#0A45B5" />
-                            </View>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-
-                    {/* Review Notes Input */}
-                    <Text style={[styles.subHeading, { marginTop: 16 }]}>Admin Review Remarks</Text>
-                    <TextInput
-                      style={styles.notesInput}
-                      placeholder="Record the identity evidence you verified or state correction details (min. 10 chars required)..."
-                      placeholderTextColor="#94A3B8"
-                      value={identityNotes}
-                      onChangeText={setIdentityNotes}
-                      multiline
-                      numberOfLines={3}
-                    />
-                    <Text style={styles.notesHelpText}>
-                      {identityNotes.trim().length < 10
-                        ? `* Minimum 10 characters required (${identityNotes.trim().length}/10)`
-                        : `✓ Ready to apply decision (${identityNotes.trim().length} chars)`}
-                    </Text>
-
-                    {/* Review Action Buttons */}
-                    <View style={styles.reviewActionsRow}>
-                      {!usr.isVerifiedIdentity ? (
-                        <>
-                          <TouchableOpacity
-                            style={[
-                              styles.actionBtn,
-                              styles.approveBtn,
-                              (reviewingIdentity || identityNotes.trim().length < 10) && styles.btnDisabled,
-                            ]}
-                            disabled={reviewingIdentity || identityNotes.trim().length < 10}
-                            onPress={() => handleApproveIdentity(usr)}
-                          >
-                            <MaterialIcons name="check-circle" size={16} color="#FFFFFF" />
-                            <Text style={styles.approveBtnText}>
-                              {reviewingIdentity ? "Saving..." : "Approve Identity"}
+                      {/* Transactions & Inquiries */}
+                      <View style={styles.sectionCard}>
+                        <View style={styles.sectionCardHeader}>
+                          <View style={styles.sectionCardTitleRow}>
+                            <MaterialIcons name="receipt-long" size={18} color="#0A45B5" />
+                            <Text style={styles.sectionCardTitle}>
+                              Transactions & Deals (
+                              {(transactions.deals?.length || 0) + (transactions.inquiries?.length || 0)})
                             </Text>
-                          </TouchableOpacity>
+                          </View>
+                        </View>
 
-                          <TouchableOpacity
-                            style={[
-                              styles.actionBtn,
-                              styles.correctionBtn,
-                              (reviewingIdentity || identityNotes.trim().length < 10) && styles.btnDisabled,
-                            ]}
-                            disabled={reviewingIdentity || identityNotes.trim().length < 10}
-                            onPress={() => handleCorrectionOrReject(usr, "correction")}
-                          >
-                            <MaterialIcons name="error-outline" size={16} color="#C2410C" />
-                            <Text style={styles.correctionBtnText}>Request Correction</Text>
-                          </TouchableOpacity>
+                        {loadingProps ? (
+                          <View style={styles.loadingBox}>
+                            <ActivityIndicator color="#0A45B5" />
+                            <Text style={styles.loadingText}>Loading transactions...</Text>
+                          </View>
+                        ) : (transactions.deals?.length || 0) === 0 && (transactions.inquiries?.length || 0) === 0 ? (
+                          <View style={styles.emptyDocBox}>
+                            <MaterialIcons name="receipt-long" size={18} color="#94A3B8" />
+                            <Text style={styles.emptyDocText}>No active deals or inquiries.</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.txList}>
+                            {(transactions.deals || []).map((deal: any) => (
+                              <View key={`d_${deal._id}`} style={styles.txRow}>
+                                <View style={styles.txLeft}>
+                                  <View style={styles.txTypeDeal}>
+                                    <Text style={styles.txTypeDealText}>Deal</Text>
+                                  </View>
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={styles.txTitle} numberOfLines={1}>
+                                      {deal.propertyId?.title || "Property Deal"}
+                                    </Text>
+                                    <Text style={styles.txSub}>
+                                      Offer: {formatPrice(deal.counterAmount ?? deal.offerAmount ?? 0)}
+                                    </Text>
+                                  </View>
+                                </View>
+                                <View style={styles.txStatusPill}>
+                                  <Text style={styles.txStatusText}>{deal.status}</Text>
+                                </View>
+                              </View>
+                            ))}
+                            {(transactions.inquiries || []).map((inq: any) => (
+                              <View key={`i_${inq._id}`} style={styles.txRow}>
+                                <View style={styles.txLeft}>
+                                  <View style={styles.txTypeInquiry}>
+                                    <Text style={styles.txTypeInquiryText}>Inquiry</Text>
+                                  </View>
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={styles.txTitle} numberOfLines={1}>
+                                      {inq.propertyId?.title || "Property Inquiry"}
+                                    </Text>
+                                    <Text style={styles.txSub}>Date: {formatDate(inq.createdAt)}</Text>
+                                  </View>
+                                </View>
+                                <View style={styles.txStatusPill}>
+                                  <Text style={styles.txStatusText}>{inq.status}</Text>
+                                </View>
+                              </View>
+                            ))}
+                          </View>
+                        )}
 
+                        {transactions.nextInquiries ? (
                           <TouchableOpacity
-                            style={[
-                              styles.actionBtn,
-                              styles.rejectBtn,
-                              (reviewingIdentity || identityNotes.trim().length < 10) && styles.btnDisabled,
-                            ]}
-                            disabled={reviewingIdentity || identityNotes.trim().length < 10}
-                            onPress={() => handleCorrectionOrReject(usr, "reject")}
+                            style={styles.moreBtn}
+                            disabled={loadingProps}
+                            onPress={() => moreTransactions("inquiries")}
                           >
-                            <MaterialIcons name="cancel" size={16} color="#DC2626" />
-                            <Text style={styles.rejectBtnText}>Reject KYC</Text>
+                            <Text style={styles.moreBtnText}>Load more inquiries</Text>
                           </TouchableOpacity>
-                        </>
-                      ) : (
+                        ) : null}
+                        {transactions.nextDeals ? (
+                          <TouchableOpacity
+                            style={styles.moreBtn}
+                            disabled={loadingProps}
+                            onPress={() => moreTransactions("deals")}
+                          >
+                            <Text style={styles.moreBtnText}>Load more deals</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+
+                      {/* Safety & Moderation Card */}
+                      <View style={[styles.sectionCard, styles.dangerCard]}>
+                        <View style={styles.dangerCardHeader}>
+                          <MaterialIcons name="security" size={17} color="#DC2626" />
+                          <Text style={styles.dangerTitle}>Account Safety & Moderation</Text>
+                        </View>
+                        <Text style={styles.dangerDesc}>
+                          {usr.isSuspended
+                            ? "This user is currently suspended and restricted from logging in or listing properties."
+                            : "Suspending will revoke access, terminate active sessions, and restrict platform interaction."}
+                        </Text>
                         <TouchableOpacity
-                          style={[
-                            styles.actionBtn,
-                            styles.revokeBtn,
-                            (reviewingIdentity || identityNotes.trim().length < 10) && styles.btnDisabled,
-                          ]}
-                          disabled={reviewingIdentity || identityNotes.trim().length < 10}
-                          onPress={() => handleRevokeIdentity(usr)}
+                          style={[styles.suspensionBtn, usr.isSuspended ? styles.unsuspendBtn : styles.suspendBtn]}
+                          onPress={() => toggleSuspension(usr)}
                         >
-                          <MaterialIcons name="cancel" size={16} color="#DC2626" />
-                          <Text style={styles.revokeBtnText}>
-                            {reviewingIdentity ? "Saving..." : "Revoke Identity Approval"}
+                          <MaterialIcons
+                            name={usr.isSuspended ? "lock-open" : "lock"}
+                            size={16}
+                            color={usr.isSuspended ? "#065F46" : "#DC2626"}
+                          />
+                          <Text
+                            style={[
+                              styles.suspensionBtnText,
+                              usr.isSuspended ? styles.unsuspendBtnText : styles.suspendBtnText,
+                            ]}
+                          >
+                            {usr.isSuspended ? "Unsuspend User Account" : "Suspend User Account"}
                           </Text>
                         </TouchableOpacity>
-                      )}
-                    </View>
-                  </View>
-
-                  {/* Properties Listed Card */}
-                  <View style={styles.sectionCard}>
-                    <View style={styles.sectionCardHeader}>
-                      <View style={styles.sectionCardTitleRow}>
-                        <MaterialIcons name="business" size={18} color="#0A45B5" />
-                        <Text style={styles.sectionCardTitle}>Properties Listed ({properties.length})</Text>
                       </View>
                     </View>
-
-                    {loadingProps ? (
-                      <View style={styles.loadingBox}>
-                        <ActivityIndicator color="#0A45B5" />
-                        <Text style={styles.loadingText}>Loading user properties...</Text>
-                      </View>
-                    ) : properties.length === 0 ? (
-                      <View style={styles.emptyDocBox}>
-                        <MaterialIcons name="business" size={20} color="#94A3B8" />
-                        <Text style={styles.emptyDocText}>No properties listed by this user.</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.propList}>
-                        {properties.map((prop) => {
-                          const pStatus = getPropertyStatusBadge(prop.status);
-                          return (
-                            <TouchableOpacity
-                              key={prop._id}
-                              style={styles.propRow}
-                              onPress={() =>
-                                router.push({ pathname: "/verification/[id]", params: { id: prop._id } })
-                              }
-                            >
-                              <View style={styles.propInfo}>
-                                <Text style={styles.propTitle} numberOfLines={1}>
-                                  {prop.title || `${prop.type || "Property"} in ${prop.location?.district || "Bihar"}`}
-                                </Text>
-                                <View style={styles.propMetaRow}>
-                                  <Text style={styles.propPrice}>{formatPrice(prop.price)}</Text>
-                                  {prop.location?.district ? (
-                                    <Text style={styles.propDistrict}>· {prop.location.district}</Text>
-                                  ) : null}
-                                </View>
-                              </View>
-                              <View style={styles.propRight}>
-                                <View
-                                  style={[
-                                    styles.propStatusBadge,
-                                    { backgroundColor: pStatus.bg, borderColor: pStatus.border },
-                                  ]}
-                                >
-                                  <Text style={[styles.propStatusText, { color: pStatus.text }]}>
-                                    {pStatus.label}
-                                  </Text>
-                                </View>
-                                <MaterialIcons name="chevron-right" size={20} color="#94A3B8" />
-                              </View>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    )}
-
-                    {propertyCursor ? (
-                      <TouchableOpacity
-                        style={styles.moreBtn}
-                        disabled={loadingProps}
-                        onPress={moreProperties}
-                      >
-                        <Text style={styles.moreBtnText}>Load more properties</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-
-                  {/* Transactions Card */}
-                  <View style={styles.sectionCard}>
-                    <View style={styles.sectionCardHeader}>
-                      <View style={styles.sectionCardTitleRow}>
-                        <MaterialIcons name="receipt-long" size={18} color="#0A45B5" />
-                        <Text style={styles.sectionCardTitle}>
-                          Transactions & Inquiries (
-                          {(transactions.deals?.length || 0) + (transactions.inquiries?.length || 0)})
-                        </Text>
-                      </View>
-                    </View>
-
-                    {loadingProps ? (
-                      <View style={styles.loadingBox}>
-                        <ActivityIndicator color="#0A45B5" />
-                        <Text style={styles.loadingText}>Loading transaction activity...</Text>
-                      </View>
-                    ) : (transactions.deals?.length || 0) === 0 && (transactions.inquiries?.length || 0) === 0 ? (
-                      <View style={styles.emptyDocBox}>
-                        <MaterialIcons name="receipt-long" size={20} color="#94A3B8" />
-                        <Text style={styles.emptyDocText}>No active deals or inquiries for this account.</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.txList}>
-                        {(transactions.deals || []).map((deal: any) => (
-                          <View key={`d_${deal._id}`} style={styles.txRow}>
-                            <View style={styles.txLeft}>
-                              <View style={styles.txTypeDeal}>
-                                <Text style={styles.txTypeDealText}>Deal</Text>
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <Text style={styles.txTitle} numberOfLines={1}>
-                                  {deal.propertyId?.title || "Property Deal"}
-                                </Text>
-                                <Text style={styles.txSub}>
-                                  Offer: {formatPrice(deal.counterAmount ?? deal.offerAmount ?? 0)}
-                                </Text>
-                              </View>
-                            </View>
-                            <View style={styles.txStatusPill}>
-                              <Text style={styles.txStatusText}>{deal.status}</Text>
-                            </View>
-                          </View>
-                        ))}
-                        {(transactions.inquiries || []).map((inq: any) => (
-                          <View key={`i_${inq._id}`} style={styles.txRow}>
-                            <View style={styles.txLeft}>
-                              <View style={styles.txTypeInquiry}>
-                                <Text style={styles.txTypeInquiryText}>Inquiry</Text>
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <Text style={styles.txTitle} numberOfLines={1}>
-                                  {inq.propertyId?.title || "Property Inquiry"}
-                                </Text>
-                                <Text style={styles.txSub}>Date: {formatDate(inq.createdAt)}</Text>
-                              </View>
-                            </View>
-                            <View style={styles.txStatusPill}>
-                              <Text style={styles.txStatusText}>{inq.status}</Text>
-                            </View>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-
-                    {transactions.nextInquiries ? (
-                      <TouchableOpacity
-                        style={styles.moreBtn}
-                        disabled={loadingProps}
-                        onPress={() => moreTransactions("inquiries")}
-                      >
-                        <Text style={styles.moreBtnText}>Load more inquiries</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                    {transactions.nextDeals ? (
-                      <TouchableOpacity
-                        style={styles.moreBtn}
-                        disabled={loadingProps}
-                        onPress={() => moreTransactions("deals")}
-                      >
-                        <Text style={styles.moreBtnText}>Load more deals</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-
-                  {/* Account Moderation Danger Zone */}
-                  <View style={[styles.sectionCard, styles.dangerCard]}>
-                    <View style={styles.dangerCardHeader}>
-                      <MaterialIcons name="security" size={18} color="#DC2626" />
-                      <Text style={styles.dangerTitle}>Account Safety & Moderation</Text>
-                    </View>
-                    <Text style={styles.dangerDesc}>
-                      {usr.isSuspended
-                        ? "This account is currently suspended. The user is prevented from signing in or posting new properties."
-                        : "Suspending will restrict user sign-in and suspend property posting capabilities."}
-                    </Text>
-                    <TouchableOpacity
-                      style={[styles.suspensionBtn, usr.isSuspended ? styles.unsuspendBtn : styles.suspendBtn]}
-                      onPress={() => toggleSuspension(usr)}
-                    >
-                      <MaterialIcons
-                        name={usr.isSuspended ? "lock-open" : "lock"}
-                        size={16}
-                        color={usr.isSuspended ? "#065F46" : "#DC2626"}
-                      />
-                      <Text
-                        style={[
-                          styles.suspensionBtnText,
-                          usr.isSuspended ? styles.unsuspendBtnText : styles.suspendBtnText,
-                        ]}
-                      >
-                        {usr.isSuspended ? "Unsuspend User Account" : "Suspend User Account"}
-                      </Text>
-                    </TouchableOpacity>
                   </View>
                 </View>
               )}
@@ -956,7 +1059,7 @@ const styles = StyleSheet.create({
   },
   content: {
     width: "100%",
-    maxWidth: 880,
+    maxWidth: 1120,
     alignSelf: "center",
     paddingHorizontal: 20,
     paddingTop: 24,
@@ -966,30 +1069,34 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 20,
+    marginBottom: 18,
   },
   backButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 12,
     borderRadius: 8,
     backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
   },
   backButtonText: {
     color: "#0A45B5",
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: "700",
   },
   refreshButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 12,
     borderRadius: 8,
     backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
   },
   refreshButtonText: {
     color: "#0A45B5",
@@ -1006,7 +1113,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   title: {
-    fontSize: 26,
+    fontSize: 27,
     fontWeight: "800",
     color: "#0F172A",
     letterSpacing: -0.4,
@@ -1066,18 +1173,71 @@ const styles = StyleSheet.create({
   alertClose: {
     padding: 4,
   },
+  /* KPI Cards */
+  kpiRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 18,
+  },
+  kpiCard: {
+    flex: 1,
+    minWidth: 170,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  kpiCardActive: {
+    borderColor: "#0A45B5",
+    backgroundColor: "#F8FAFF",
+    borderWidth: 1.5,
+  },
+  kpiCardAlert: {
+    borderColor: "#FCD34D",
+  },
+  kpiIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  kpiInfo: {
+    gap: 1,
+  },
+  kpiValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  kpiLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  /* Search & Filter Bar */
   controlsCard: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    gap: 14,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    gap: 12,
     shadowColor: "#0A45B5",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
     elevation: 1,
   },
   searchBar: {
@@ -1103,15 +1263,22 @@ const styles = StyleSheet.create({
   clearSearchBtn: {
     padding: 4,
   },
+  filterTabsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 10,
+  },
   filterTabs: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
   filterChip: {
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 18,
     backgroundColor: "#F1F5F9",
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -1121,13 +1288,31 @@ const styles = StyleSheet.create({
     borderColor: "#0A45B5",
   },
   filterChipText: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: "600",
     color: "#475569",
   },
   filterChipTextActive: {
     color: "#FFFFFF",
     fontWeight: "700",
+  },
+  showingText: {
+    fontSize: 12.5,
+    color: "#64748B",
+  },
+  /* Table Header */
+  tableHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    marginBottom: 6,
+  },
+  tableColHeader: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#64748B",
+    letterSpacing: 0.8,
   },
   loadingContainer: {
     paddingVertical: 60,
@@ -1170,138 +1355,152 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+  /* User Directory Row / Card */
   userCard: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderRadius: 16,
-    marginBottom: 12,
+    borderRadius: 14,
+    marginBottom: 10,
     overflow: "hidden",
     shadowColor: "#0A45B5",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 5,
     elevation: 1,
   },
   userCardExpanded: {
-    borderColor: "#BFDBFE",
+    borderColor: "#93C5FD",
     shadowOpacity: 0.08,
     shadowRadius: 10,
   },
-  userHeader: {
-    padding: 16,
+  userRow: {
+    padding: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: 16,
+  },
+  userRowMobile: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  profileCol: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  profileColMobile: {
+    width: "100%",
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
-  userMainInfo: {
+  profileTextWrapper: {
     flex: 1,
-    gap: 6,
+    gap: 3,
   },
-  userNameRow: {
+  nameRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 6,
     flexWrap: "wrap",
-    gap: 8,
   },
   userName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
     color: "#0F172A",
-    letterSpacing: -0.2,
   },
   userNameSuspended: {
     color: "#94A3B8",
     textDecorationLine: "line-through",
   },
-  verifiedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: "#ECFDF5",
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+  verifiedIconBadge: {
+    marginTop: 1,
   },
-  verifiedBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#065F46",
-  },
-  suspendedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
+  suspendedTag: {
     backgroundColor: "#FEF2F2",
     borderWidth: 1,
     borderColor: "#FECACA",
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
   },
-  suspendedBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
+  suspendedTagText: {
+    fontSize: 9.5,
+    fontWeight: "800",
     color: "#DC2626",
   },
-  deletionBadge: {
+  joinedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  joinedText: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+  deletionAlertTag: {
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
     backgroundColor: "#FFFBEB",
-    borderWidth: 1,
-    borderColor: "#FDE68A",
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+    marginTop: 2,
   },
-  deletionBadgeText: {
-    fontSize: 11,
+  deletionAlertText: {
+    fontSize: 10.5,
     fontWeight: "700",
     color: "#B45309",
   },
-  contactsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 12,
+  contactCol: {
+    gap: 4,
+  },
+  contactColMobile: {
+    width: "100%",
   },
   contactItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 6,
   },
-  contactText: {
-    fontSize: 13,
-    color: "#475569",
+  contactEmailText: {
+    fontSize: 12.5,
+    color: "#334155",
     fontWeight: "500",
   },
-  noContactText: {
+  contactPhoneText: {
     fontSize: 12.5,
+    color: "#334155",
+    fontWeight: "600",
+  },
+  noContactText: {
+    fontSize: 12,
     color: "#94A3B8",
     fontStyle: "italic",
   },
-  metaRow: {
+  kycCol: {
+    alignItems: "flex-start",
+    gap: 3,
+  },
+  kycColMobile: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
-    flexWrap: "wrap",
-    gap: 12,
-    marginTop: 2,
+    gap: 8,
   },
   kycChip: {
     flexDirection: "row",
@@ -1310,45 +1509,72 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 8,
-    paddingVertical: 2.5,
+    paddingVertical: 3,
   },
   kycChipText: {
     fontSize: 11,
     fontWeight: "700",
   },
-  metaItem: {
+  docsCountSub: {
+    fontSize: 11,
+    color: "#64748B",
+    marginLeft: 2,
+  },
+  actionCol: {
+    alignItems: "flex-end",
+  },
+  actionColMobile: {
+    width: "100%",
+    alignItems: "flex-start",
+    marginTop: 4,
+  },
+  actionBtnPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-  },
-  metaText: {
-    fontSize: 12,
-    color: "#64748B",
-  },
-  expandBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F8FAFC",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  expandBtnActive: {
     backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
-  expandedSection: {
-    padding: 18,
+  actionBtnPillActive: {
+    backgroundColor: "#0A45B5",
+    borderColor: "#0A45B5",
+  },
+  actionBtnText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#0A45B5",
+  },
+  actionBtnTextActive: {
+    color: "#FFFFFF",
+  },
+  /* Expanded Drawer (Split Grid on Desktop) */
+  expandedDrawer: {
+    padding: 16,
     backgroundColor: "#F8FAFC",
     borderTopWidth: 1,
     borderTopColor: "#E2E8F0",
+  },
+  drawerGrid: {
+    flexDirection: "row",
     gap: 16,
+    alignItems: "flex-start",
+  },
+  drawerGridMobile: {
+    flexDirection: "column",
+  },
+  drawerCol: {
+    gap: 14,
   },
   sectionCard: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 12,
+    padding: 14,
     gap: 12,
   },
   sectionCardHeader: {
@@ -1362,7 +1588,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionCardTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
     color: "#0F172A",
   },
@@ -1383,7 +1609,7 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   subHeading: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: "700",
     color: "#334155",
   },
@@ -1398,7 +1624,7 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   emptyDocText: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: "#64748B",
   },
   docList: {
@@ -1411,9 +1637,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
     borderWidth: 1,
     borderColor: "#BFDBFE",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 8,
   },
   docItemLeft: {
     flexDirection: "row",
@@ -1421,7 +1647,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   docItemName: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: "600",
     color: "#1E3A8A",
   },
@@ -1431,7 +1657,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   docItemAction: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0A45B5",
   },
@@ -1439,15 +1665,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#CBD5E1",
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 13.5,
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 13,
     color: "#0F172A",
-    minHeight: 70,
+    minHeight: 65,
     textAlignVertical: "top",
   },
   notesHelpText: {
-    fontSize: 11.5,
+    fontSize: 11,
     color: "#64748B",
     marginTop: -6,
   },
@@ -1455,15 +1681,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
-    gap: 10,
-    marginTop: 4,
+    gap: 8,
+    marginTop: 2,
   },
   actionBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingVertical: 9,
-    paddingHorizontal: 16,
+    gap: 5,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 8,
   },
   approveBtn: {
@@ -1471,7 +1697,7 @@ const styles = StyleSheet.create({
   },
   approveBtnText: {
     color: "#FFFFFF",
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: "700",
   },
   correctionBtn: {
@@ -1481,7 +1707,7 @@ const styles = StyleSheet.create({
   },
   correctionBtnText: {
     color: "#C2410C",
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: "700",
   },
   rejectBtn: {
@@ -1491,7 +1717,7 @@ const styles = StyleSheet.create({
   },
   rejectBtnText: {
     color: "#DC2626",
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: "700",
   },
   revokeBtn: {
@@ -1501,14 +1727,14 @@ const styles = StyleSheet.create({
   },
   revokeBtnText: {
     color: "#DC2626",
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: "700",
   },
   btnDisabled: {
     opacity: 0.5,
   },
   loadingBox: {
-    paddingVertical: 24,
+    paddingVertical: 20,
     alignItems: "center",
     gap: 8,
   },
@@ -1520,18 +1746,18 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#F8FAFC",
-    padding: 12,
-    borderRadius: 10,
+    padding: 10,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
   propInfo: {
     flex: 1,
-    gap: 4,
-    paddingRight: 12,
+    gap: 3,
+    paddingRight: 10,
   },
   propTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
     color: "#0F172A",
   },
@@ -1541,38 +1767,38 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   propPrice: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: "700",
     color: "#0A45B5",
   },
   propDistrict: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: "#64748B",
   },
   propRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   propStatusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 10,
     borderWidth: 1,
   },
   propStatusText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: "700",
   },
   moreBtn: {
-    paddingVertical: 8,
+    paddingVertical: 7,
     alignItems: "center",
     backgroundColor: "#F1F5F9",
-    borderRadius: 8,
-    marginTop: 4,
+    borderRadius: 6,
+    marginTop: 2,
   },
   moreBtnText: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: "700",
     color: "#0A45B5",
   },
@@ -1584,17 +1810,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#F8FAFC",
-    padding: 12,
-    borderRadius: 10,
+    padding: 10,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    gap: 12,
+    gap: 10,
   },
   txLeft: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
   },
   txTypeDeal: {
     backgroundColor: "#EFF6FF",
@@ -1605,7 +1831,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   txTypeDealText: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: "800",
     color: "#1D4ED8",
   },
@@ -1618,27 +1844,27 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   txTypeInquiryText: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: "800",
     color: "#6B21A8",
   },
   txTitle: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: "700",
     color: "#0F172A",
   },
   txSub: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: "#64748B",
   },
   txStatusPill: {
     backgroundColor: "#F1F5F9",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 8,
   },
   txStatusText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: "700",
     color: "#475569",
     textTransform: "capitalize",
@@ -1653,28 +1879,28 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   dangerTitle: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: "700",
     color: "#991B1B",
   },
   dangerDesc: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: "#7F1D1D",
-    lineHeight: 18,
+    lineHeight: 17,
   },
   suspensionBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 8,
     borderWidth: 1,
-    marginTop: 4,
+    marginTop: 2,
   },
   suspensionBtnText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: "700",
   },
   suspendBtn: {
@@ -1683,7 +1909,7 @@ const styles = StyleSheet.create({
   },
   suspendBtnText: {
     color: "#DC2626",
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: "700",
   },
   unsuspendBtn: {
@@ -1692,7 +1918,7 @@ const styles = StyleSheet.create({
   },
   unsuspendBtnText: {
     color: "#065F46",
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: "700",
   },
   loadMorePageBtn: {
