@@ -15,6 +15,9 @@ import api from "../../src/services/authService";
 import { adminService } from "../../src/services/adminService";
 import { useAuthStore } from "../../src/store/authStore";
 import { MaterialIcons } from "@/web/icons";
+import AppHeader from "../../components/AppHeader";
+import WebFooter from "../../components/WebFooter";
+import BottomNav from "../../components/BottomNav";
 
 const avatarColorPalettes = [
   { bg: "#EEF2FF", text: "#3730A3", border: "#C7D2FE" }, // Indigo
@@ -333,14 +336,19 @@ export default function ManageUsersScreen() {
   if (authState !== "AUTHENTICATED" || user?.role !== "admin") {
     return (
       <View style={styles.screen}>
-        <View style={styles.authWarningCard}>
-          <MaterialIcons name="lock" size={32} color="#DC2626" />
-          <Text style={styles.title}>Admin Access Required</Text>
-          <Text style={styles.description}>Please sign in with administrator credentials to view this page.</Text>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => router.replace("/login")}>
-            <Text style={styles.primaryBtnText}>Go to sign in</Text>
-          </TouchableOpacity>
-        </View>
+        <AppHeader showBack={false} showNavLinks={true} showPostPropertyBtn={false} />
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.authWarningCard}>
+            <MaterialIcons name="lock" size={32} color="#DC2626" />
+            <Text style={styles.title}>Admin Access Required</Text>
+            <Text style={styles.description}>Please sign in with administrator credentials to view this page.</Text>
+            <TouchableOpacity style={styles.primaryBtn} onPress={() => router.replace("/login")}>
+              <Text style={styles.primaryBtnText}>Go to sign in</Text>
+            </TouchableOpacity>
+          </View>
+          <WebFooter />
+        </ScrollView>
+        <BottomNav />
       </View>
     );
   }
@@ -370,26 +378,34 @@ export default function ManageUsersScreen() {
   });
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      {/* Top Navigation Bar */}
-      <View style={styles.topNav}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => (router.canGoBack() ? router.back() : router.replace("/admin/dashboard"))}
-        >
-          <MaterialIcons name="arrow-back" size={18} color="#0A45B5" />
-          <Text style={styles.backButtonText}>Admin dashboard</Text>
-        </TouchableOpacity>
+    <View style={styles.screen}>
+      <AppHeader showBack={false} showNavLinks={true} showPostPropertyBtn={true} />
 
-        <TouchableOpacity
-          style={styles.refreshButton}
-          onPress={refreshUsers}
-          disabled={loading}
-        >
-          <MaterialIcons name="refresh" size={18} color="#0A45B5" />
-          <Text style={styles.refreshButtonText}>Refresh</Text>
-        </TouchableOpacity>
-      </View>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.content}>
+          {/* Top Navigation Bar */}
+          <View style={styles.topNav}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => (router.canGoBack() ? router.back() : router.replace("/admin/dashboard"))}
+            >
+              <MaterialIcons name="arrow-back" size={18} color="#0A45B5" />
+              <Text style={styles.backButtonText}>Admin dashboard</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.refreshButton}
+              onPress={refreshUsers}
+              disabled={loading}
+            >
+              <MaterialIcons name="refresh" size={18} color="#0A45B5" />
+              <Text style={styles.refreshButtonText}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
 
       {/* Page Header */}
       <View style={styles.header}>
@@ -1048,7 +1064,15 @@ export default function ManageUsersScreen() {
           </Text>
         </TouchableOpacity>
       )}
-    </ScrollView>
+        </View>
+
+        {/* Global Web Footer */}
+        <WebFooter />
+      </ScrollView>
+
+      {/* Bottom Nav on Mobile / Staff Link */}
+      <BottomNav />
+    </View>
   );
 }
 
@@ -1057,13 +1081,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F8FAFC",
   },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "space-between",
+  },
   content: {
     width: "100%",
     maxWidth: 1120,
     alignSelf: "center",
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 80,
+    paddingBottom: 40,
   },
   topNav: {
     flexDirection: "row",
