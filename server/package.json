@@ -12,7 +12,7 @@
     "test:regions": "npm run build && node load/test-regions.cjs",
     "load:pm2": "npm run build && node load/run-pm2.cjs",
     "load:pm2-max": "npm run build && node --expose-gc load/run-pm2.cjs --sweep",
-    "dev": "nodemon --exec ts-node src/index.ts",
+    "dev": "node scripts/freePort.cjs 5000 && nodemon --exec ts-node src/index.ts",
     "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc",
     "postinstall": "npm run build",
     "start": "node dist/index.js",
