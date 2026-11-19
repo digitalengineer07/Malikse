@@ -27,7 +27,7 @@ The latter two commands use `MONGO_URI`; point them at a test replica set and se
 ## 🛠 Tech Stack
 
 - **Website**: React, Vite, React Router and React Native Web.
-- **Mobile app**: React Native (Expo SDK 57), TypeScript, Expo Router.
+- **Mobile app**: React Native (Expo SDK 58), TypeScript, Expo Router.
 - **Web Support**: React Native Web with Leaflet integration for property pins.
 - **State Management**: Zustand (Auth, Language, Listing Filters).
 - **Backend**: Node.js (Express) REST API.
@@ -106,11 +106,13 @@ malikse/
 5. **Run the Mobile Application**:
    ```bash
    # Start Expo bundler (Expo Go / QR code)
-   npm --prefix app start
+   npm --prefix app start -- --go
 
    # Run on Android emulator / device
    npm --prefix app run android
    ```
+   MalikSe uses Expo SDK 58. Install the [SDK 58 build of Expo Go](https://expo.dev/go?sdkVersion=58) on your phone. If Expo Go asks you to sign in, run `npx expo login` from `app/` and sign in to the same Expo account on your phone. Connect your phone and computer to the same Wi-Fi, then scan the QR code. If the network blocks the connection to Metro, try `npm --prefix app start -- --go --tunnel`. The Metro tunnel carries the JavaScript bundle, so configure `EXPO_PUBLIC_API_BASE_URL` with an API address the phone can reach when using tunnel mode. Remote push notifications require an installed development or release build.
+
    Any UI changes made in `app/` will only affect the mobile application and will not alter the website UI.
 
 Users register from the app and are signed in immediately. The Admin signs in with the seeded mobile number and password, then clicks Profile and opens **Advisors and Verifiers** on the Admin dashboard to create staff accounts. Staff sign in through the same login screen with the credentials the Admin set. Registration does not create staff or Admin accounts.

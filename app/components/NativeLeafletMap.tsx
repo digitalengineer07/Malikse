@@ -29,7 +29,7 @@ export default function NativeLeafletMap({ options, focus, onSelect, onPoints }:
   return <NativeMapContent key={html + attempt} html={html} options={options} focus={focus ?? options.focus} onSelect={onSelect} onPoints={onPoints} retry={retry} />;
 }
 function NativeMapContent({ html, options, focus, onSelect, onPoints, retry }: { html: string; options: NativeMapOptions; focus?: MapFocus; onSelect?: (id: string) => void; onPoints?: (points: MapPoint[]) => void; retry: () => void }) {
-  const webview = useRef<WebView>(null);
+  const webview = useRef<WebView<unknown>>(null);
   const source = useMemo(() => ({ html, baseUrl: "https://malikse.local/" }), [html]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [boundaryError, setBoundaryError] = useState(false);
@@ -72,7 +72,7 @@ function NativeMapContent({ html, options, focus, onSelect, onPoints, retry }: {
     return () => clearTimeout(timeout);
   }, []);
   return <View style={styles.container}>
-    <WebView ref={webview} source={source} originWhitelist={["*"]} javaScriptEnabled scrollEnabled={false} nestedScrollEnabled style={styles.webview}
+    <WebView<unknown> ref={webview} source={source} originWhitelist={["*"]} javaScriptEnabled scrollEnabled={false} nestedScrollEnabled style={styles.webview}
       onShouldStartLoadWithRequest={request => {
         if (request.url === "about:blank" || request.url === "https://malikse.local/") return true;
         if (request.url.startsWith("https://www.openstreetmap.org/") || request.url.startsWith("https://indianopenmaps.com/") || request.url === "https://maps.google.com/") Linking.openURL(request.url).catch(() => {});

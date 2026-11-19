@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
+  type ScrollViewInstance,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -148,7 +149,7 @@ export default function MarketplaceScreen() {
   const isDesktop = width >= 980;
 
   // Scroll ref for smooth navigation
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const [heroEntrance] = useState(() => new Animated.Value(0));
   useEffect(() => {
     const animation = Animated.timing(heroEntrance, {

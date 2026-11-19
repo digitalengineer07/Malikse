@@ -1,3 +1,4 @@
+import { isRunningInExpoGo } from "expo";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
@@ -5,7 +6,7 @@ let registeredToken: string | null = null;
 let handlerInstalled = false;
 
 async function notificationsModule() {
-  if (Platform.OS === "web") return null;
+  if (Platform.OS === "web" || isRunningInExpoGo()) return null;
   const Notifications = await import("expo-notifications");
   if (!handlerInstalled) {
     Notifications.setNotificationHandler({

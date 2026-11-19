@@ -1,5 +1,6 @@
 import { randomUUID } from "expo-crypto";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
   Linking,
@@ -17,6 +18,7 @@ import {
 } from "react-native";
 import {
   useFocusEffect,
+  useIsFocused,
   useLocalSearchParams,
   usePathname,
   useRouter,
@@ -32,13 +34,16 @@ import { prepareUpload } from "../src/services/prepareUpload";
 import EmailChangeForm from "./EmailChangeForm";
 import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
+import PropertyImage from "./PropertyImage";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 const C = {
-  bg: "transparent",
-  ink: "#071a45",
-  muted: "#3d5278",
-  blue: "#0a45b5",
-  line: "rgba(10, 69, 181, 0.12)",
+  bg: "#F7F4EC",
+  ink: "#14263E",
+  muted: "#536174",
+  blue: "#14263E",
+  sun: "#FCC61C",
+  sunSoft: "#FFF1C0",
+  line: "rgba(20, 38, 62, 0.12)",
   green: "#076c31",
 };
 const money = (n: number) =>
@@ -78,7 +83,7 @@ function Button({
       onPress={onPress}
       style={[s.button, secondary && s.secondary, disabled && { opacity: 0.5 }]}
     >
-      {icon && <Icon name={icon} color={secondary ? C.blue : "white"} size={17} />}
+      {icon && <Icon name={icon} size={17} />}
       <Text style={[s.buttonText, secondary && { color: C.blue }]}>
         {title}
       </Text>
@@ -237,74 +242,98 @@ export function MarketplaceShell({
   subtitle,
   children,
   back = false,
-}: any) {
+  headerContent,
+  headerAction,
+  showDock = true,
+  footer,
+}: {
+  title?: React.ReactNode;
+  subtitle?: string;
+  children: React.ReactNode;
+  back?: boolean;
+  headerContent?: React.ReactNode;
+  headerAction?: React.ReactNode;
+  showDock?: boolean;
+  footer?: React.ReactNode;
+}) {
   const insets = useSafeAreaInsets();
   const router = useRouter(),
     path = usePathname(),
-    { width } = useWindowDimensions(),
     user = useAuthStore((x) => x.user);
+  const focused = useIsFocused();
   return (
     <KeyboardAvoidingView
       style={s.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View
-        style={[s.header, { height: 58 + insets.top, paddingTop: insets.top }]}
+      {focused && <StatusBar style="light" />}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[s.scroll, !showDock && { paddingBottom: 12 }]}
+        keyboardShouldPersistTaps="handled"
       >
+      <View style={[s.hero, { paddingTop: insets.top + 14 }]}>
+        <View pointerEvents="none" style={s.heroSun} />
+        <View pointerEvents="none" style={s.heroRay} />
+        <View style={s.heroInner}>
+        <View style={s.header}>
         <View style={[s.row, { flex: 1 }]}>
           {back ? (
             <Pressable
               accessibilityLabel="Back"
+              accessibilityRole="button"
+              style={s.heroIcon}
               onPress={() =>
                 router.canGoBack() ? router.back() : router.replace("/home")
               }
             >
-              <Icon name="arrow-back" size={20} />
+              <Icon name="arrow-back" color="white" size={20} />
             </Pressable>
           ) : (
             <View style={s.logoIcon}>
-              <Icon name="roofing" color="white" size={18} />
+              <Icon name="roofing" size={18} />
             </View>
           )}
           <Pressable onPress={() => router.push("/home")}>
             <Text style={s.logo}>
-              MalikSe<Text style={{ color: "#0b8a3e" }}>.</Text>
+              MalikSe<Text style={{ color: C.sun }}>.</Text>
             </Text>
           </Pressable>
-          {width > 850 && (
-            <Text style={s.muted}>Verified spaces. Trusted connections.</Text>
-          )}
         </View>
+        {headerAction || <>
         <Pressable
           accessibilityLabel="Wishlist"
+          accessibilityRole="button"
+          style={s.heroIcon}
           onPress={() => router.push("/saved")}
         >
-          <Icon name="favorite-border" size={20} />
+          <Icon name="favorite-border" color="white" size={20} />
         </Pressable>
         <Pressable
           accessibilityLabel="Profile"
+          accessibilityRole="button"
           onPress={() => router.push("/profile")}
           style={s.avatar}
         >
-          <Text style={s.avatarText}>{user?.name?.[0] || "M"}</Text>
+          {user?.name?.[0] ? <Text style={s.avatarText}>{user.name[0]}</Text> : <Icon name="person-outline" size={19} />}
         </Pressable>
-      </View>
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={s.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={s.content}>
+        </>}
+        </View>
           {Boolean(title) && (
             <View style={{ gap: 4 }}>
-              <Text style={s.h1}>{title}</Text>
-              {Boolean(subtitle) && <Text style={s.muted}>{subtitle}</Text>}
+              <Text accessibilityRole="header" style={s.heroTitle}>{title}</Text>
+              {Boolean(subtitle) && <Text style={s.heroSubtitle}>{subtitle}</Text>}
             </View>
           )}
+          {headerContent}
+        </View>
+      </View>
+        <View style={s.content}>
           {children}
         </View>
       </ScrollView>
-      <View
+      {footer && <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>{footer}</View>}
+      {showDock && <View
         style={[s.dockWrapper, { bottom: Math.max(insets.bottom, 8), pointerEvents: "box-none" }]}
       >
         <View style={s.nav}>
@@ -322,23 +351,24 @@ export function MarketplaceShell({
                 key={url}
                 accessibilityRole="button"
                 onPress={() => router.push(url as any)}
-                style={[s.navItem, isActive && !isPost && s.navItemActive]}
+                accessibilityState={{ selected: isActive }}
+                style={s.navItem}
               >
                 {isPost ? (
                   <View style={s.postCircle}>
-                    <Icon name="add" color="white" size={22} />
+                    <Icon name="add" color={C.ink} size={24} />
                   </View>
                 ) : (
-                  <Icon
+                  <View style={[s.navGlyph, isActive && s.navItemActive]}><Icon
                     name={icon}
-                    color={isActive ? C.blue : C.muted}
+                    color={isActive ? C.ink : C.sunSoft}
                     size={20}
-                  />
+                  /></View>
                 )}
                 <Text
                   style={[
                     s.navText,
-                    isActive && { color: C.blue, fontWeight: "800" },
+                    isActive && { color: C.sun },
                   ]}
                 >
                   {text}
@@ -347,7 +377,7 @@ export function MarketplaceShell({
             );
           })}
         </View>
-      </View>
+      </View>}
     </KeyboardAvoidingView>
   );
 }
@@ -416,7 +446,7 @@ function PropertyCard({
               saved ? "Remove from wishlist" : "Save property"
             }
             disabled={action.busy}
-            style={s.heartBtn}
+            style={[s.heartBtn, saved && { backgroundColor: C.sun }]}
             onPress={() => {
               if (gate())
                 void action.run(async () => {
@@ -432,7 +462,7 @@ function PropertyCard({
                 });
             }}
           >
-            <Icon name={saved ? "favorite" : "favorite-border"} color={saved ? "#e11d48" : C.muted} size={18} />
+            <Icon name={saved ? "favorite" : "favorite-border"} color={C.ink} size={18} />
           </Pressable>
         </View>
         <Pressable onPress={() => router.push(`/property/${p._id}` as any)}>
@@ -470,16 +500,15 @@ export function HomeScreen() {
     { width } = useWindowDimensions();
   return (
     <MarketplaceShell
-      title={`Hello${user ? ", " + user.name.split(" ")[0] : ", welcome"} 👋`}
-      subtitle="Find your next place, verified by people you can trust."
-    >
-      <View style={{ gap: 12 }}>
-        <View style={[s.typeChip, { alignSelf: "flex-start", backgroundColor: "rgba(255, 255, 255, 0.94)", borderColor: "rgba(10, 69, 181, 0.16)", paddingHorizontal: 12, paddingVertical: 6, gap: 6 }]}>
-          <Icon name="location-on" size={17} color={C.blue} />
-          <Text style={[s.cardTitle, { fontSize: 13, color: C.ink }]}>
-            {prefs.district || "Explore your preferred location"}
-          </Text>
+      title={<>Find a home,{"\n"}<Text style={{ color: C.sun }}>direct from the owner.</Text></>}
+      headerContent={
+        <View style={[s.row, { alignSelf: "flex-start" }]}>
+          <Icon name="location-on" size={18} color={C.sun} />
+          <Text style={s.heroSubtitle}>{prefs.district || "Explore properties near you"}</Text>
         </View>
+      }
+    >
+      <View style={s.panel}>
         <View style={s.row}>
           <View style={[s.input, s.row, { flex: 1, backgroundColor: "#ffffff" }]}>
             <Icon name="search" size={19} />
@@ -508,7 +537,6 @@ export function HomeScreen() {
             }
           />
         </View>
-      </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -520,11 +548,12 @@ export function HomeScreen() {
             onPress={() => setType(type === id ? "" : id)}
             style={[s.typeChip, type === id && { backgroundColor: C.blue }]}
           >
-            <Icon name={icon} color={type === id ? "white" : C.blue} size={16} />
-            <Text style={[{ fontSize: 12, fontWeight: "600" }, { color: type === id ? "white" : C.ink }]}>{text}</Text>
+            <Icon name={icon} color={type === id ? C.sun : C.blue} size={16} />
+            <Text style={[s.small, { color: type === id ? C.sun : C.ink }]}>{text}</Text>
           </Pressable>
         ))}
       </ScrollView>
+      </View>
       {[
         [
           "Recommended for You",
@@ -537,14 +566,17 @@ export function HomeScreen() {
           "Popular with property seekers this week",
           trending,
         ],
-      ].map(([title, sub, feed]: any) => (
+      ].map(([title, sub, feed]: any) => {
+        const listings = (feed.data || []).filter((p: any) => !type || p.type === type).slice(0, 6);
+        const carousel = title === "Recommended for You" && width < 650;
+        return (
         <View key={title} style={{ gap: 14 }}>
           <View style={s.between}>
             <View style={{ flex: 1 }}>
               <Text style={s.h2}>{title}</Text>
               <Text style={s.small}>{sub}</Text>
             </View>
-            <Pressable onPress={() => router.push("/search")}>
+            <Pressable onPress={() => router.push({ pathname: "/search", params: { type } })}>
               <Text style={s.link}>View all →</Text>
             </Pressable>
           </View>
@@ -552,22 +584,22 @@ export function HomeScreen() {
             <ActivityIndicator color={C.blue} />
           ) : feed.error ? (
             <ErrorBox text={feed.error} />
-          ) : !feed.data?.length ? (
+          ) : !listings.length ? (
             <Empty
-              title="Properties are on their way"
-              text="Verified listings will appear here as they become available."
+              title={type ? "No listings in this category" : "Properties are on their way"}
+              text={type ? "Choose another property type to see more listings." : "Verified listings will appear here as they become available."}
             />
           ) : (
-            <View style={s.grid}>
-              {feed.data
-                .filter((p: any) => !type || p.type === type)
-                .slice(0, 6)
-                .map((p: any) => (
+            <ScrollView horizontal={carousel} scrollEnabled={carousel} showsHorizontalScrollIndicator={false}
+              contentContainerStyle={carousel ? { gap: 14 } : s.grid}>
+              {listings.map((p: any) => (
                   <View
                     key={p._id}
                     style={{
                       width:
-                        width > 1000 ? "31.8%" : width > 650 ? "48.5%" : "100%",
+                        width > 1000 ? "31.8%" : width > 650 ? "48.5%" :
+                          title === "Recommended for You" ? Math.min(width - 64, 320) :
+                          title === "Trending Properties" && width >= 360 ? "47.5%" : "100%",
                     }}
                   >
                     <PropertyCard
@@ -576,18 +608,19 @@ export function HomeScreen() {
                     />
                   </View>
                 ))}
-            </View>
+            </ScrollView>
           )}
         </View>
-      ))}
-      <View style={[s.panel, s.row]}>
-        <Icon name="handshake" size={34} />
+        );
+      })}
+      <View style={[s.panel, { backgroundColor: C.sunSoft }]}>
         <View style={{ flex: 1 }}>
-          <Text style={s.cardTitle}>Real people, every step of the way</Text>
+          <Text style={s.h2}>List your property</Text>
           <Text style={s.muted}>
             Your assigned team helps with questions, offers and deal closure.
           </Text>
         </View>
+        <Button title="Post property" icon="add" onPress={() => router.push("/post")} />
       </View>
     </MarketplaceShell>
   );
@@ -607,6 +640,9 @@ export function SearchScreen() {
     `/properties/search?limit=50&location=${encodeURIComponent(submitted)}${type ? "&type=" + type : ""}${max ? "&maxPrice=" + max : ""}`,
   );
   const select = useCallback((p: any) => setSelected(p), []);
+  const { height } = useWindowDimensions();
+  const properties = feed.data || [];
+  const visibleSelection = selected && properties.find((property: any) => property._id === selected._id);
   useEffect(() => {
     if (submitted && feed.data)
       for (const property of feed.data.slice(0, 5))
@@ -631,17 +667,16 @@ export function SearchScreen() {
   };
   return (
     <MarketplaceShell
-      title="Explore properties"
-      subtitle="Find your place on the map. Every listing is verified."
-    >
+      title="Search properties"
+      headerContent={
       <View style={s.wrap}>
-        <View style={[s.input, s.row, { flex: 1, minWidth: 180, backgroundColor: "#ffffff" }]}>
+        <View style={[s.input, s.row, { flex: 1, minWidth: 140, backgroundColor: "#ffffff" }]}>
           <Icon name="search" size={19} />
           <TextInput
             accessibilityLabel="Search properties"
             value={query}
             onChangeText={setQuery}
-            placeholder="City, district or property"
+            placeholder="Locality, project or city"
             placeholderTextColor="#6f82a8"
             onSubmitEditing={search}
             style={{ flex: 1, color: C.ink, fontSize: 13.5 }}
@@ -655,6 +690,8 @@ export function SearchScreen() {
           onPress={() => setFilter(!filter)}
         />
       </View>
+      }
+    >
       {filter && (
         <View style={s.panel}>
           <Field
@@ -695,20 +732,20 @@ export function SearchScreen() {
       <ErrorBox text={feed.error} />
       {feed.loading && <ActivityIndicator color={C.blue} />}
       {map && (
-        <View style={s.map}>
-          <VerifiedPropertyMap properties={feed.data || []} onSelect={select} />
+        <View style={[s.map, { height: Math.max(400, height * 0.57) }]}>
+          <VerifiedPropertyMap properties={properties} onSelect={select} />
         </View>
       )}
-      {selected && map && (
+      {visibleSelection && map && (
         <View style={s.panel}>
-          <PropertyCard property={selected} compact />
+          <PropertyCard property={visibleSelection} compact />
           <Button
             title="View full property details"
-            onPress={() => router.push(`/property/${selected._id}` as any)}
+            onPress={() => router.push(`/property/${visibleSelection._id}` as any)}
           />
         </View>
       )}
-      {(!map || !selected) && (
+      {(!map || !visibleSelection) && (
         <View style={s.grid}>
           {(feed.data || []).map((p: any) => (
             <View style={{ minWidth: 270, flex: 1, maxWidth: 520 }} key={p._id}>
@@ -792,7 +829,7 @@ export function ProfileScreen() {
     [name, setName] = useState(user?.name || ""),
     [email, setEmail] = useState(user?.email || "");
   return (
-    <MarketplaceShell title="Your account">
+    <MarketplaceShell title="Profile">
       <Protected>
         {user && (
           <>
@@ -804,15 +841,17 @@ export function ProfileScreen() {
                   {user.name[0]}
                 </Text>
               </View>
-              <Text style={s.h2}>{user.name}</Text>
-              <Text style={s.muted}>{user.mobile || user.email}</Text>
-              <Tag green={approved(user)}>
-                {approved(user)
-                  ? "✓ Identity approved"
-                  : "Identity verification pending"}
-              </Tag>
+              <View style={{ flex: 1, gap: 5 }}>
+                <Text style={s.h2}>{user.name}</Text>
+                <Text style={s.muted}>{user.mobile || user.email}</Text>
+                <Tag green={approved(user)}>
+                  {approved(user)
+                    ? "✓ Identity approved"
+                    : "Identity verification pending"}
+                </Tag>
+              </View>
             </View>
-            <Text style={s.h2}>Account & preferences</Text>
+            <Text style={s.h2}>Preferences</Text>
             {[
               [
                 "Personal information",
@@ -857,14 +896,15 @@ export function ProfileScreen() {
             ].map(([title, icon, sub, url]) => (
               <Pressable
                 key={title}
-                style={[s.panel, s.row]}
+                accessibilityRole="button"
+                style={s.preferenceRow}
                 onPress={() =>
                   url === "edit"
                     ? setEditing(!editing)
                     : router.push(url as any)
                 }
               >
-                <Icon name={icon} />
+                <View style={s.preferenceIcon}><Icon name={icon} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.cardTitle}>{title}</Text>
                   <Text style={s.small}>{sub}</Text>
@@ -873,7 +913,7 @@ export function ProfileScreen() {
               </Pressable>
             ))}
             {editing && (
-              <View style={s.panel}>
+              <View style={[s.panel, s.row]}>
                 <Field title="Full name" value={name} onChangeText={setName} />
                 <Field title="New email" value={email} onChangeText={setEmail} />
                 <EmailChangeForm email={email} />
@@ -914,36 +954,55 @@ export function ListingsScreen() {
   const user = useAuthStore((x) => x.user),
     router = useRouter(),
     feed = useData(user ? "/properties/mine" : null, [user?.id]);
+  const groups = [
+    { id: "all", label: "All listings", status: null },
+    { id: "verified", label: "Verified", status: ["verified"] },
+    { id: "review", label: "In review", status: ["queued", "pending", "advisor_verified"] },
+  ].map(group => ({
+    ...group,
+    rows: (feed.data || []).filter((property: any) => !group.status || group.status.includes(property.status)),
+  }));
+  const [activeGroup, setActiveGroup] = useState("all");
+  const visible = groups.find(group => group.id === activeGroup)?.rows ?? groups[0].rows;
   return (
     <MarketplaceShell
-      title="Your Listings"
-      subtitle="Manage your portfolio"
+      title="My listings"
+      subtitle="Manage your properties"
+      headerAction={<Button title="Post new" icon="add" onPress={() => router.push("/post")} />}
       back
     >
       <Protected>
-        <View style={s.between}>
-          <Tag>{feed.data?.length || 0} listings</Tag>
-          <Button
-            title="Post new"
-            icon="add"
-            onPress={() => router.push("/post")}
-          />
-        </View>
+        {feed.data && <View style={[s.panel, s.row]}>
+          {groups.map(group => (
+            <Pressable
+              key={group.id}
+              style={[s.stat, activeGroup === group.id && { backgroundColor: C.sunSoft }]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: activeGroup === group.id }}
+              onPress={() => setActiveGroup(group.id)}
+            >
+              <Text style={s.price}>{group.rows.length}{feed.nextCursor ? "+" : ""}</Text>
+              <Text style={s.small}>{group.label}</Text>
+            </Pressable>
+          ))}
+        </View>}
         <ErrorBox text={feed.error} />
         {feed.loading && <ActivityIndicator />}
-        {feed.data?.map((p: any) => (
+        {visible.map((p: any) => (
           <View key={p._id} style={s.panel}>
-            <View style={s.between}>
-              <Tag green={p.status === "verified"}>
-                {p.status.replaceAll("_", " ")}
-              </Tag>
-              <Text style={s.small}>ID: {p._id.slice(-8)}</Text>
+            <View style={s.row}>
+              {p.media?.photos?.[0] ? (
+                <PropertyImage source={{ uri: p.media.photos[0] }} style={s.listingPhoto} resizeMode="cover" thumbnailWidth={240} />
+              ) : (
+                <View style={[s.listingPhoto, s.placeholder]}><Icon name="home-work" size={30} /></View>
+              )}
+              <View style={{ flex: 1, gap: 4 }}>
+                <Tag green={p.status === "verified"}>{p.status.replaceAll("_", " ")}</Tag>
+                <Text style={s.cardTitle}>{label(p)}</Text>
+                <Text style={s.muted}>{[p.location?.district, p.totalArea ? `${p.totalArea} sq ft` : null].filter(Boolean).join(" · ")}</Text>
+                <Text style={s.price}>{money(p.price)}</Text>
+              </View>
             </View>
-            <Text style={s.h2}>{label(p)}</Text>
-            <Text style={s.muted}>
-              {p.location.district} · {p.totalArea} sq ft
-            </Text>
-            <Text style={s.price}>{money(p.price)}</Text>
             {Boolean(p.rejectionReason) && <ErrorBox text={p.rejectionReason} />}
             <View style={s.wrap}>
               {["draft", "correction_required"].includes(p.status) && (
@@ -967,6 +1026,9 @@ export function ListingsScreen() {
             </View>
           </View>
         ))}
+        {feed.data?.length > 0 && visible.length === 0 && (
+          <Empty title="No matching listings" text={feed.nextCursor ? "Load more properties to see additional listings." : "Choose All listings to view your other properties."} />
+        )}
         {Boolean(feed.nextCursor) && (
           <Button
             title="Load more properties"
@@ -1779,13 +1841,48 @@ export function PostScreen() {
     });
   return (
     <MarketplaceShell
-      title="Post Property"
+      title="Post property"
       subtitle={
         done
           ? "Your listing has been submitted"
           : `Step ${step} of 5 · Private until verified`
       }
       back
+      showDock={false}
+      footer={user && approved(user) && !done ? (
+      <View style={s.between}>
+        <Button
+          title="Back"
+          secondary
+          disabled={step === 1 || action.busy}
+          onPress={() => setStep(step - 1)}
+        />
+        <Button
+          title={
+            action.busy
+              ? "Submitting…"
+              : step === 5
+                ? "Submit for verification"
+                : "Continue →"
+          }
+          disabled={action.busy || (step === 5 && !consent)}
+          onPress={() => (step === 5 ? submit() : setStep(step + 1))}
+        />
+      </View>
+      ) : undefined}
+      headerContent={user && approved(user) && !done ? (
+        <View style={s.progress}>
+          {["Basics", "Location", "Details", "Uploads", "Review"].map((label, index) => (
+            <View key={label} style={s.progressStep} accessibilityState={{ selected: step === index + 1 }}>
+              <View style={[s.progressCircle, index < step && { backgroundColor: C.sun }]}>
+                {index + 1 < step ? <Icon name="check" size={17} /> :
+                  <Text style={{ color: index < step ? C.ink : "#fff", fontFamily: "ManropeExtraBold" }}>{index + 1}</Text>}
+              </View>
+              <Text style={[s.progressLabel, index < step && { color: C.sun }]}>{label}</Text>
+            </View>
+          ))}
+        </View>
+      ) : undefined}
     >
       <Protected kyc>
         {done ? (
@@ -1801,17 +1898,6 @@ export function PostScreen() {
           />
         ) : (
           <>
-            <View style={s.progress}>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <View
-                  key={i}
-                  style={[
-                    s.progressPart,
-                    i <= step && { backgroundColor: C.blue },
-                  ]}
-                />
-              ))}
-            </View>
             <ErrorBox text={action.error} />
             {step === 1 && (
               <View style={s.panel}>
@@ -1915,7 +2001,7 @@ export function PostScreen() {
                     <MapParcelPicker
                       initialPoints={points}
                       onParcelChange={onParcelChange}
-                      areaSqFt={form.totalArea || "2,400"}
+                      areaSqFt={form.totalArea}
                     />
                   </View>
                   <Field
@@ -2052,25 +2138,6 @@ export function PostScreen() {
                 </Pressable>
               </View>
             )}
-            <View style={s.between}>
-              <Button
-                title="Back"
-                secondary
-                disabled={step === 1 || action.busy}
-                onPress={() => setStep(step - 1)}
-              />
-              <Button
-                title={
-                  action.busy
-                    ? "Submitting…"
-                    : step === 5
-                      ? "Submit for verification"
-                      : "Continue →"
-                }
-                disabled={action.busy || (step === 5 && !consent)}
-                onPress={() => (step === 5 ? submit() : setStep(step + 1))}
-              />
-            </View>
             {Boolean(draftId) && (
               <Text style={s.small}>
                 Draft saved: {draftId}. Uploads are retained if submission needs
@@ -2083,38 +2150,21 @@ export function PostScreen() {
     </MarketplaceShell>
   );
 }
-const font =
-  Platform.OS === "web" ? "'Manrope', 'Inter', system-ui, sans-serif" : "PoppinsRegular";
-const fontDisplay =
-  Platform.OS === "web" ? "'Fraunces', Georgia, serif" : "PoppinsBold";
+const font = "Manrope";
+const fontDisplay = "Fraunces";
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "transparent" },
-  header: {
-    height: 58,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
-    borderBottomWidth: 1,
-    borderColor: "rgba(10, 69, 181, 0.10)",
-    shadowColor: "#0a2a6b",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    zIndex: 10,
+  root: { flex: 1, backgroundColor: C.bg },
+  header: { flexDirection: "row", alignItems: "center", gap: 10 },
+  heroInner: { width: "100%", maxWidth: 1140, alignSelf: "center", gap: 18 },
+  heroIcon: {
+    width: 42, height: 42, borderRadius: 21, alignItems: "center",
+    justifyContent: "center", backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.20)",
   },
-  logo: {
-    fontFamily: fontDisplay,
-    fontSize: 21,
-    fontWeight: "800",
-    color: C.blue,
-    letterSpacing: -0.5,
-  },
-  logoIcon: { backgroundColor: C.blue, padding: 5, borderRadius: 10 },
-  scroll: { padding: 16, paddingBottom: 100 },
-  content: { width: "100%", maxWidth: 1140, alignSelf: "center", gap: 18 },
+  logo: { fontFamily: fontDisplay, fontSize: 25, color: "#fff", letterSpacing: -0.5 },
+  logoIcon: { backgroundColor: C.sun, padding: 8, borderRadius: 12 },
+  scroll: { paddingBottom: 108 },
+  content: { width: "100%", maxWidth: 1180, alignSelf: "center", padding: 20, gap: 18 },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   between: {
     flexDirection: "row",
@@ -2126,9 +2176,8 @@ const s = StyleSheet.create({
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
   h1: {
     fontFamily: fontDisplay,
-    fontSize: 21,
-    lineHeight: 27,
-    fontWeight: "700",
+    fontSize: 28,
+    lineHeight: 34,
     color: C.ink,
     letterSpacing: -0.4,
     textShadowColor: "rgba(255, 255, 255, 0.85)",
@@ -2137,9 +2186,8 @@ const s = StyleSheet.create({
   },
   h2: {
     fontFamily: fontDisplay,
-    fontSize: 17,
-    lineHeight: 23,
-    fontWeight: "700",
+    fontSize: 22,
+    lineHeight: 28,
     color: C.ink,
     letterSpacing: -0.3,
     textShadowColor: "rgba(255, 255, 255, 0.85)",
@@ -2147,7 +2195,7 @@ const s = StyleSheet.create({
     textShadowRadius: 2,
   },
   muted: { fontFamily: font, fontSize: 12.5, lineHeight: 18, color: C.muted, fontWeight: "500" },
-  small: { fontFamily: font, fontSize: 11.5, lineHeight: 16, color: "#4b628c", fontWeight: "600" },
+  small: { fontFamily: font, fontSize: 11.5, lineHeight: 16, color: "#536174", fontWeight: "600" },
   body: { fontFamily: font, fontSize: 13.5, lineHeight: 21, color: C.ink, fontWeight: "500" },
   fieldLabel: {
     fontFamily: font,
@@ -2157,75 +2205,65 @@ const s = StyleSheet.create({
     letterSpacing: 0.1,
   },
   button: {
-    minHeight: 38,
+    minHeight: 44,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: C.blue,
+    borderRadius: 22,
+    backgroundColor: C.sun,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    shadowColor: "#0a45b5",
+    shadowColor: "#14263E",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 2,
   },
   secondary: {
-    backgroundColor: "rgba(238, 244, 255, 0.95)",
+    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "rgba(10, 69, 181, 0.18)",
+    borderColor: "rgba(20, 38, 62, 0.18)",
     shadowOpacity: 0,
     elevation: 0,
   },
   buttonText: {
-    fontFamily: font,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "white",
+    fontFamily: "ManropeExtraBold",
+    fontSize: 14,
+    color: C.ink,
     letterSpacing: 0.1,
   },
   input: {
     fontFamily: font,
-    minHeight: 40,
+    minHeight: 50,
     borderWidth: 1,
-    borderColor: "rgba(10, 69, 181, 0.18)",
+    borderColor: "rgba(20, 38, 62, 0.18)",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 8,
     backgroundColor: "#ffffff",
     fontSize: 13.5,
     color: C.ink,
-    shadowColor: "#0a2a6b",
+    shadowColor: "#14263E",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
     shadowRadius: 4,
     elevation: 1,
   },
   hero: {
-    padding: 20,
-    gap: 12,
-    borderRadius: 18,
-    backgroundColor: "rgba(255, 255, 255, 0.94)",
-    borderWidth: 1,
-    borderColor: "rgba(196, 211, 240, 0.75)",
-    shadowColor: "#0a2a6b",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.09,
-    shadowRadius: 18,
-    elevation: 3,
+    paddingHorizontal: 20, paddingBottom: 24, backgroundColor: C.ink,
+    borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden",
   },
-  heroTitle: {
-    fontFamily: fontDisplay,
-    fontSize: 25,
-    lineHeight: 31,
-    color: C.ink,
-    letterSpacing: -0.5,
-    textShadowColor: "rgba(255, 255, 255, 0.85)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+  heroSun: {
+    position: "absolute", width: 178, height: 178, borderRadius: 89,
+    right: -52, top: -58, backgroundColor: C.sun,
   },
+  heroRay: {
+    position: "absolute", width: 74, height: 210, borderRadius: 40,
+    right: 62, top: 70, backgroundColor: "#1C3556", transform: [{ rotate: "-30deg" }],
+  },
+  heroTitle: { fontFamily: fontDisplay, fontSize: 32, lineHeight: 38, color: "#fff" },
+  heroSubtitle: { fontFamily: font, fontSize: 14, lineHeight: 20, color: "rgba(255,255,255,0.78)" },
   tag: {
     alignSelf: "flex-start",
     paddingHorizontal: 9,
@@ -2234,7 +2272,7 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.95)",
     borderWidth: 1,
     borderColor: "rgba(10, 69, 181, 0.14)",
-    shadowColor: "#0a2a6b",
+    shadowColor: "#14263E",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 2,
@@ -2244,13 +2282,13 @@ const s = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: 13,
     borderWidth: 1,
-    borderColor: "rgba(196, 211, 240, 0.75)",
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
+    borderColor: "rgba(20, 38, 62, 0.12)",
+    borderRadius: 20,
+    backgroundColor: "#fff",
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    shadowColor: "#0a2a6b",
+    shadowColor: "#14263E",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 4,
@@ -2258,43 +2296,42 @@ const s = StyleSheet.create({
   },
   panel: {
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: "rgba(196, 211, 240, 0.70)",
-    backgroundColor: "rgba(255, 255, 255, 0.94)",
+    borderColor: "rgba(20, 38, 62, 0.08)",
+    backgroundColor: "#fff",
     gap: 12,
-    shadowColor: "#0a2a6b",
+    shadowColor: "#14263E",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.08,
     shadowRadius: 16,
     elevation: 3,
   },
   card: {
-    backgroundColor: "rgba(255, 255, 255, 0.94)",
+    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "rgba(196, 211, 240, 0.70)",
-    borderRadius: 16,
+    borderColor: "rgba(20, 38, 62, 0.08)",
+    borderRadius: 22,
     overflow: "hidden",
-    shadowColor: "#0a2a6b",
+    shadowColor: "#14263E",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.08,
     shadowRadius: 16,
     elevation: 3,
   },
-  photo: { height: 180, backgroundColor: "#dce7fa" },
+  photo: { height: 180, backgroundColor: "#EEE8D9" },
   placeholder: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#e0eaff",
+    backgroundColor: "#EEE8D9",
   },
   imageTags: { position: "absolute", top: 10, left: 10 },
   cardBody: { padding: 14, gap: 6 },
   price: { fontFamily: font, fontSize: 19, lineHeight: 23, fontWeight: "800", color: C.ink, letterSpacing: -0.4 },
   cardTitle: {
-    fontFamily: font,
+    fontFamily: "ManropeBold",
     fontSize: 14.5,
     lineHeight: 20,
-    fontWeight: "700",
     color: C.ink,
     letterSpacing: -0.2,
   },
@@ -2303,7 +2340,7 @@ const s = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "rgba(26, 86, 219, 0.12)",
+    backgroundColor: C.sunSoft,
     borderWidth: 1,
     borderColor: "rgba(26, 86, 219, 0.20)",
     alignItems: "center",
@@ -2321,18 +2358,18 @@ const s = StyleSheet.create({
   },
   nav: {
     width: "100%",
-    maxWidth: 500,
+    maxWidth: 406,
     minHeight: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    height: 70,
+    borderRadius: 32,
+    backgroundColor: C.ink,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
     paddingHorizontal: 6,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.98)",
-    shadowColor: "#0a2a6b",
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    shadowColor: "#14263E",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.16,
     shadowRadius: 20,
@@ -2347,21 +2384,20 @@ const s = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 18,
   },
-  navItemActive: {
-    backgroundColor: "rgba(26, 86, 219, 0.12)",
-  },
-  navText: { fontFamily: font, fontSize: 10.5, fontWeight: "600", color: C.muted },
+  navGlyph: { width: 48, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  navItemActive: { backgroundColor: C.sun },
+  navText: { fontFamily: font, fontSize: 10.5, color: "#F7F4EC" },
   postCircle: {
-    height: 44,
-    width: 44,
-    borderRadius: 22,
-    marginTop: -22,
+    height: 58,
+    width: 58,
+    borderRadius: 29,
+    marginTop: -36,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: C.blue,
-    borderWidth: 3,
-    borderColor: "#ffffff",
-    shadowColor: "#0a45b5",
+    backgroundColor: C.sun,
+    borderWidth: 5,
+    borderColor: C.bg,
+    shadowColor: "#14263E",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.40,
     shadowRadius: 12,
@@ -2371,7 +2407,7 @@ const s = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "rgba(240, 244, 255, 0.90)",
+    backgroundColor: C.bg,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -2410,7 +2446,7 @@ const s = StyleSheet.create({
     alignSelf: "flex-end",
     backgroundColor: "#dbe8fd",
     borderWidth: 1,
-    borderColor: "rgba(10, 69, 181, 0.18)",
+    borderColor: "rgba(20, 38, 62, 0.18)",
     borderBottomRightRadius: 4,
   },
   theirs: {
@@ -2432,11 +2468,19 @@ const s = StyleSheet.create({
     borderColor: C.blue,
     gap: 3,
   },
-  progress: { flexDirection: "row", gap: 5 },
-  progressPart: {
-    height: 4,
-    flex: 1,
-    borderRadius: 4,
-    backgroundColor: "rgba(10, 69, 181, 0.15)",
+  progress: { flexDirection: "row", gap: 4 },
+  progressStep: { flex: 1, alignItems: "center", gap: 5 },
+  progressCircle: {
+    height: 36, width: 36, borderRadius: 18, alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1, borderColor: "rgba(255,255,255,0.22)",
   },
+  progressLabel: { fontFamily: "ManropeBold", fontSize: 11, color: "rgba(255,255,255,0.76)" },
+  footer: { backgroundColor: "#fff", borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 20, paddingTop: 12 },
+  preferenceRow: {
+    minHeight: 64, flexDirection: "row", alignItems: "center", gap: 12, padding: 12,
+    backgroundColor: "#fff", borderRadius: 22, borderWidth: 1, borderColor: C.line,
+  },
+  preferenceIcon: { height: 42, width: 42, borderRadius: 14, backgroundColor: C.sunSoft, alignItems: "center", justifyContent: "center" },
+  stat: { flex: 1, minHeight: 52, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  listingPhoto: { width: 96, height: 104, borderRadius: 16, backgroundColor: C.bg },
 });

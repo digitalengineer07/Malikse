@@ -59,6 +59,10 @@ let openingCompleted = false;
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     PoppinsRegular: require("../assets/fonts/Poppins-Regular.ttf"),
+    Fraunces: require("../assets/fonts/Fraunces_400Regular.ttf"),
+    Manrope: require("../assets/fonts/Manrope_400Regular.ttf"),
+    ManropeBold: require("../assets/fonts/Manrope_700Bold.ttf"),
+    ManropeExtraBold: require("../assets/fonts/Manrope_800ExtraBold.ttf"),
     PoppinsMedium: require("../assets/fonts/Poppins-Medium.ttf"),
     PoppinsSemiBold: require("../assets/fonts/Poppins-SemiBold.ttf"),
     PoppinsBold: require("../assets/fonts/Poppins-Bold.ttf"),

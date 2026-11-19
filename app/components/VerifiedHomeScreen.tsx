@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
+  type ScrollViewInstance,
 } from "react-native";
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -36,7 +37,7 @@ export default function VerifiedHomeScreen() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<Property | null>(null);
-  const resultsScroll = useRef<ScrollView>(null);
+  const resultsScroll = useRef<ScrollViewInstance>(null);
   const [heroEntrance] = useState(() => new Animated.Value(0));
   useEffect(() => {
     const animation = Animated.timing(heroEntrance, {

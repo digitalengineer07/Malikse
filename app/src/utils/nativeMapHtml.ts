@@ -20,7 +20,7 @@ export function nativeMapHtml(options: NativeMapOptions, assets?: NativeMapAsset
   const leaflet = assets ? inlineScript(assets.leafletJs) : '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="send(\'error\')"></script>';
   const vectorGrid = !options.regions ? "" : assets ? inlineScript(assets.vectorGridJs) : '<script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.min.js" onerror="send(\'boundaryError\')"></script>';
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">${css}<style>
-html,body,#map{height:100%;width:100%;margin:0}body{background:#E9F3FA;font-family:Arial,sans-serif}.price{display:inline-block;background:#1A365D;color:white;padding:8px 12px;border:2px solid white;border-radius:22px;font-size:13px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 5px #0003}.vertex{background:#fff;border:3px solid #059669;border-radius:50%;box-sizing:border-box}.tools{position:absolute;bottom:25px;left:10px;right:10px;z-index:1000;display:flex;gap:8px;justify-content:center}.tools button{min-height:44px;padding:8px 16px;background:white;border:1px solid #cbd5e1;border-radius:12px;color:#19334a;font-weight:bold}.tools button:disabled{opacity:.5}.leaflet-control-attribution{font-size:9px}
+html,body,#map{height:100%;width:100%;margin:0}body{background:#F7F4EC;font-family:Arial,sans-serif}.price{display:inline-block;background:#14263E;color:#FCC61C;padding:8px 12px;border:2px solid white;border-radius:22px;font-size:13px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 5px #0003}.price.selected{background:#FCC61C;color:#14263E;border-color:#14263E}.vertex{background:#fff;border:3px solid #059669;border-radius:50%;box-sizing:border-box}.tools{position:absolute;bottom:25px;left:10px;right:10px;z-index:1000;display:flex;gap:8px;justify-content:center}.tools button{min-height:44px;padding:8px 16px;background:white;border:1px solid #cbd5e1;border-radius:12px;color:#19334a;font-weight:bold}.tools button:disabled{opacity:.5}.leaflet-control-attribution{font-size:9px}
 </style></head><body><div id="map" aria-label="Property map"></div><script>
 function send(type,payload){window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({type,payload}));}
 </script>${leaflet}${vectorGrid}<script>
@@ -62,7 +62,11 @@ bounds.length=0;
 pins.forEach(pin=>{
  const label=document.createElement('div');label.className='price';label.textContent=pin.label;
  const marker=L.marker([pin.lat,pin.lng],{title:pin.title,icon:L.divIcon({html:label,className:'',iconSize:[90,40],iconAnchor:[45,40]})}).addTo(propertyLayer);
- marker.on('click',()=>send('select',pin.id));
+ marker.on('click',()=>{
+  map.getContainer().querySelector('.price.selected')?.classList.remove('selected');
+  label.classList.add('selected');
+  send('select',pin.id);
+ });
  bounds.push([pin.lat,pin.lng]);
 });
 }
