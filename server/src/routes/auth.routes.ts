@@ -142,7 +142,7 @@ function isWeakPassword(password: string, context?: { name?: string; mobile?: st
 }
 
 // POST /auth/register
-router.post("/register", async (req, res) => {
+router.post("/register", rateLimit({ windowMs: 60000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false, validate: { xForwardedForHeader: false, default: true } }), async (req, res) => {
   try {
     const { name, fullName, mobile, email, password, method } = req.body;
     const rawName = name || fullName;
@@ -204,7 +204,31 @@ router.post("/register", async (req, res) => {
       $and: [{ $or: [{ resendAt: { $lte: now } }, { resendAt: { $exists: false } }] },
         { $or: [{ lockUntil: { $lte: now } }, { lockUntil: { $exists: false } }] }],
     }, { $set: { challengeId, lockUntil: new Date(Date.now() + 30000), resendAt: new Date(Date.now() + 60000), expiresAt: now, attempts: 0 } }, { new: true });
-    if (!pending) return res.status(429).json({ message: "Please wait before requesting another OTP", retryAfterSeconds: 60 });
+    if (!pending) {
+      const existing = await Registration.findById(challengeKey).lean();
+      const retryAfterSeconds = Math.max(1, Math.ceil(
+        (Math.max(existing?.resendAt?.getTime() ?? 0, existing?.lockUntil?.getTime() ?? 0) - Date.now()) / 1000,
+      ));
+      // A reload can lose the response after delivery. Resume only the same registration.
+      if (existing?.challengeId && existing.otpHash && existing.passwordHash
+        && existing.channel === channel && existing.name === cleanName
+        && (existing.mobile || "") === cleanMobile && (existing.email || "") === cleanEmail
+        && (existing.attempts ?? 0) < 5 && (existing.lockUntil?.getTime() ?? 0) <= Date.now()
+        && existing.expiresAt && existing.expiresAt.getTime() > Date.now()
+        && await bcrypt.compare(password, existing.passwordHash)) {
+        const expiresInSeconds = Math.ceil((existing.expiresAt.getTime() - Date.now()) / 1000);
+        if (expiresInSeconds > 0) {
+          return res.status(202).json({
+            challengeId: existing.challengeId,
+            channel,
+            expiresInSeconds,
+            resendAfterSeconds: Math.max(0, Math.ceil(((existing.resendAt?.getTime() ?? 0) - Date.now()) / 1000)),
+            resumed: true,
+          });
+        }
+      }
+      return res.status(429).json({ message: "Please wait before requesting another OTP", retryAfterSeconds });
+    }
 
     try {
       if (channel === "mobile" && process.env.TWILIO_SMS_TEST_MODE === "true" && process.env.NODE_ENV === "test") {
@@ -267,8 +291,8 @@ router.post("/register", async (req, res) => {
       await Registration.updateOne({ _id: challengeKey, challengeId }, { $set: {
         channel,
         name: cleanName,
-        mobile: cleanMobile || undefined,
-        email: cleanEmail || undefined,
+        mobile: cleanMobile,
+        email: cleanEmail,
         passwordHash,
         otpHash: otpDigest(challengeId, code),
         expiresAt,

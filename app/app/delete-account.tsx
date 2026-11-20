@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, ScrollView, View, Text, TextInput, TouchableOpacity, StyleSheet, Linking, Platform } from "react-native";
-import { useIsFocused, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Image, KeyboardAvoidingView, ScrollView, View, Text, TextInput, TouchableOpacity, StyleSheet, Linking, Platform } from "react-native";
+import { useFocusEffect, useIsFocused, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,6 +10,7 @@ import axios, { isAxiosError } from "axios";
 import api from "../src/services/authService";
 import { useAuthStore } from "../src/store/authStore";
 import { useResumeStore } from "../src/store/resumeStore";
+import AccountArtworkFooter from "../components/AccountArtworkFooter";
 
 type Receipt = { reference: string; receipt: string; status: string };
 const receiptKey = "malikse_deletion_receipt";
@@ -19,35 +20,59 @@ export default function DeleteAccount() {
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
   const user = useAuthStore(state => state.user);
-  const [identifier, setIdentifier] = useState(user?.email || user?.mobile || "");
+  const identifier = user?.email || user?.mobile || "";
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [confirmation, setConfirmation] = useState("");
-  const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [issuedReceipt, setReceipt] = useState<Receipt | null>(null);
+  const receipt = focused && !user ? issuedReceipt : null;
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
+  const receiptContext = useRef(0);
   useEffect(() => {
-    let alive = true;
-    const read = Platform.OS === "web" ? Promise.resolve().then(() => sessionStorage.getItem(receiptKey)) : SecureStore.getItemAsync(receiptKey);
-    void read.then(value => { if (alive && value) setReceipt(JSON.parse(value)); }).catch(() => {});
-    return () => { alive = false; };
+    if (Platform.OS === "web") { try { sessionStorage.removeItem(receiptKey); } catch {} }
+    else void SecureStore.deleteItemAsync(receiptKey).catch(() => {});
+    return useAuthStore.subscribe((next, previous) => {
+      if (next.user?.id === previous.user?.id) return;
+      receiptContext.current++;
+      setReceipt(null);
+      setPassword("");
+      setShowPassword(false);
+      setConfirmation("");
+      setError("");
+    });
   }, []);
+  useFocusEffect(useCallback(() => () => {
+    receiptContext.current++;
+    setReceipt(null);
+    setPassword("");
+    setShowPassword(false);
+    setConfirmation("");
+  }, []));
   async function submit() {
+    const session = useAuthStore.getState();
+    if (!user || session.user?.id !== user.id || !session.accessToken) {
+      setError("Sign in to the account you want to delete.");
+      return;
+    }
     if (submitting.current) return; submitting.current = true; setBusy(true); setError("");
+    const context = receiptContext.current;
     try {
-      const { data } = await axios.post<Receipt>(`${api.defaults.baseURL}/account-deletion`, { identifier, password, confirmation }, { timeout: 20_000 });
-      setReceipt(data); setPassword(""); useAuthStore.getState().clearSession();
-      if (Platform.OS === "web") { try { sessionStorage.setItem(receiptKey, JSON.stringify(data)); } catch {} }
-      else await SecureStore.setItemAsync(receiptKey, JSON.stringify(data)).catch(() => {});
+      const { data } = await axios.post<Receipt>(`${api.defaults.baseURL}/account-deletion`, { identifier, password, confirmation }, {
+        timeout: 20_000, headers: { Authorization: `Bearer ${session.accessToken}` },
+      });
+      if (receiptContext.current !== context) return;
+      useAuthStore.getState().clearSession();
+      setReceipt(data);
+      setPassword("");
+      setShowPassword(false);
+      setConfirmation("");
       useResumeStore.setState({ tab: "/home", search: { query: "" } });
       await clearUserAffinity();
-    } catch (e) { setError(isAxiosError(e) ? e.response?.data?.message || "Could not confirm the request. Retry with the same details." : "Could not request deletion."); }
-    finally { submitting.current = false; setBusy(false); }
-  }
-  async function refresh() {
-    if (!receipt || submitting.current) return; submitting.current = true; setBusy(true); setError("");
-    try { const { data } = await axios.post<Receipt>(`${api.defaults.baseURL}/account-deletion/status`, receipt, { timeout: 15_000 }); setReceipt(data); }
-    catch { setError("Could not check status. Keep your receipt and try again shortly."); }
+    } catch (e) {
+      if (receiptContext.current === context) setError(isAxiosError(e) ? e.response?.data?.message || "Could not confirm the request. Retry with the same details." : "Could not request deletion.");
+    }
     finally { submitting.current = false; setBusy(false); }
   }
   const canSubmit = !busy && confirmation === "DELETE" && Boolean(password && identifier.trim());
@@ -57,7 +82,7 @@ export default function DeleteAccount() {
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       {focused && <StatusBar style="light" />}
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
         <View style={[styles.hero, { paddingTop: insets.top + 14 }]}>
           <View pointerEvents="none" style={[styles.sun, { top: insets.top + 2 }]} />
           <View pointerEvents="none" style={styles.ray} />
@@ -80,17 +105,22 @@ export default function DeleteAccount() {
               <Text style={styles.body}>
                 {receipt.status === "awaiting_deals"
                   ? "Your account is disabled. Assigned staff must complete or cancel your accepted or paid deals before cleanup."
-                  : "Keep this private receipt to check your request. Cleanup retries automatically after interruptions."}
+                  : "Cleanup retries automatically after interruptions."}
               </Text>
+              <Text style={styles.body}>Save both codes before leaving this screen. You’ll need them to track your request on the MalikSe website.</Text>
               <View style={styles.receiptDetails}>
-                <Text selectable style={styles.body}>Reference: {receipt.reference}</Text>
-                <Text selectable style={styles.receipt}>Private receipt: {receipt.receipt}</Text>
+                <Text style={styles.label}>Reference number</Text>
+                <Text selectable style={styles.receipt}>{receipt.reference}</Text>
+                <Text style={styles.label}>Private receipt</Text>
+                <Text selectable style={styles.receipt}>{receipt.receipt}</Text>
               </View>
-              {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-              <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: busy, busy }} disabled={busy}
-                style={[styles.button, busy && styles.disabled]} onPress={refresh}>
-                {busy && <ActivityIndicator color={navy} />}
-                <Text style={styles.buttonText}>{busy ? "Checking…" : "Check status"}</Text>
+            </View>
+          ) : !user ? (
+            <View style={styles.card}>
+              <Text accessibilityRole="header" style={styles.heading}>Sign in to delete your account</Text>
+              <TouchableOpacity accessibilityRole="button" style={styles.button}
+                onPress={() => router.push({ pathname: "/(auth)/login", params: { returnTo: "/delete-account" } })}>
+                <Text style={styles.buttonText}>Sign in</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -113,14 +143,20 @@ export default function DeleteAccount() {
               <View style={styles.card}>
                 <Text accessibilityRole="header" style={styles.heading}>Confirm account deletion</Text>
                 <View style={styles.field}>
-                  <Text style={styles.label}>Registered email or mobile number</Text>
-                  <TextInput accessibilityLabel="Registered email or mobile number" autoCapitalize="none" autoComplete="username"
-                    editable={!busy} style={styles.input} value={identifier} onChangeText={setIdentifier} />
+                  <Text style={styles.label}>Signed-in account</Text>
+                  <Text selectable style={styles.body}>{identifier}</Text>
                 </View>
                 <View style={styles.field}>
                   <Text style={styles.label}>Password</Text>
-                  <TextInput accessibilityLabel="Password" autoComplete="current-password" secureTextEntry editable={!busy}
-                    style={styles.input} value={password} onChangeText={setPassword} />
+                  <View style={styles.passwordRow}>
+                    <TextInput accessibilityLabel="Password" autoComplete="current-password" secureTextEntry={!showPassword}
+                      autoCapitalize="none" autoCorrect={false} editable={!busy}
+                      style={styles.passwordInput} value={password} onChangeText={setPassword} />
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                      disabled={busy} onPress={() => setShowPassword(visible => !visible)} style={styles.passwordToggle}>
+                      <MaterialIcons name={showPassword ? "visibility-off" : "visibility"} size={22} color={navy} />
+                    </TouchableOpacity>
+                  </View>
                   <TouchableOpacity accessibilityRole="button" disabled={busy} style={styles.recovery}
                     onPress={() => router.push("/(auth)/forgot-password" as never)}>
                     <Text style={styles.link}>Forgot password?</Text>
@@ -144,6 +180,12 @@ export default function DeleteAccount() {
             </>
           )}
         </View>
+        <AccountArtworkFooter wavesOnly illustration={receipt && (
+          <View aria-hidden pointerEvents="none" style={styles.watermark}>
+            <Image source={require("../assets/images/account_deletion_watermark.png")}
+              accessible={false} resizeMode="contain" style={styles.watermarkImage} />
+          </View>
+        )} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -156,6 +198,9 @@ const red = "#A52D3B";
 const border = "rgba(20,38,62,0.14)";
 
 const styles = StyleSheet.create({
+  scroll: { flexGrow: 1 },
+  watermark: { width: "76%", maxWidth: 300, aspectRatio: 1.5, overflow: "hidden" },
+  watermarkImage: { position: "absolute", width: "100%", height: "150%", top: "-25%" },
   screen: { flex: 1, backgroundColor: cream },
   hero: { backgroundColor: navy, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden", paddingHorizontal: 20, paddingBottom: 34 },
   heroInner: { width: "100%", maxWidth: 520, alignSelf: "center", gap: 14 },
@@ -177,6 +222,9 @@ const styles = StyleSheet.create({
   field: { gap: 6 },
   label: { color: navy, fontFamily: "ManropeBold", fontSize: 13 },
   input: { minHeight: 50, borderWidth: 1, borderColor: border, borderRadius: 16, paddingHorizontal: 13, color: navy, fontFamily: "Manrope", fontSize: 16 },
+  passwordRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: border, borderRadius: 16 },
+  passwordInput: { flex: 1, minWidth: 0, minHeight: 48, paddingHorizontal: 13, color: navy, fontFamily: "Manrope", fontSize: 16 },
+  passwordToggle: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
   button: { minHeight: 50, borderRadius: 25, paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: sun },
   buttonText: { fontFamily: "ManropeExtraBold", color: navy, textAlign: "center", fontSize: 14 },
   dangerButton: { backgroundColor: red },

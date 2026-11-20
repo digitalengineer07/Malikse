@@ -11,7 +11,7 @@ import AppOpeningScreen from "../components/AppOpeningScreen";
 import { useAuthStore } from "../src/store/authStore";
 import { authService } from "../src/services/authService";
 
-import AppBackground from "../components/AppBackground";
+import { marketplaceBackground } from "../constants/theme";
 import { hydrateResume, resumeTabs, useResumeStore } from "../src/store/resumeStore";
 import { preloadStartupResources } from "../src/services/startupPreload";
 import { cachedMapAssets, preloadMapAssets } from "../src/services/mapAssets";
@@ -115,9 +115,8 @@ export default function RootLayout() {
   if ((!fontsLoaded && !fontError) || !resumeReady) return null;
 
   return (
-    <SafeAreaProvider style={{ flex: 1, backgroundColor: "transparent" }}>
-      <AppBackground />
-      <Stack screenLayout={renderAppScreen} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "transparent" } }}>
+    <SafeAreaProvider style={{ flex: 1, backgroundColor: marketplaceBackground }}>
+      <Stack screenLayout={renderAppScreen} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: marketplaceBackground } }}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="property/[id]" options={{ headerShown: false }} />

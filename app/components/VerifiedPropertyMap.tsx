@@ -3,9 +3,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { Platform, View, Text, StyleSheet } from "react-native";
 import type { Property } from "../src/types/property.types";
 import { addParcelBaseLayer, hasParcelBoundary, parcelStyle } from "../src/utils/parcelMap";
-import { validMapPoint, type MapFocus } from "../src/utils/nativeMapHtml";
+import { propertyZoomStyles, validMapPoint, type MapFocus } from "../src/utils/nativeMapHtml";
 
-export default function VerifiedPropertyMap({ properties, onSelect, focus }: { properties: Property[]; onSelect: (property: Property) => void; focus?: MapFocus }) {
+export default function VerifiedPropertyMap({ properties, onSelect, focus, zoomControls = false, twoFingerPan = false }: { properties: Property[]; onSelect: (property: Property) => void; focus?: MapFocus; zoomControls?: boolean; twoFingerPan?: boolean }) {
   const container = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -16,7 +16,11 @@ export default function VerifiedPropertyMap({ properties, onSelect, focus }: { p
     import("leaflet").then(module => {
       if (!active || !container.current) return;
       const L = module.default || module;
-      map = L.map(container.current, { scrollWheelZoom: true, zoomControl: false }).setView([25.6, 85.1], 7);
+      map = L.map(container.current, {
+        scrollWheelZoom: !twoFingerPan && !zoomControls,
+        zoomControl: zoomControls,
+        ...(twoFingerPan && { dragging: false, touchZoom: true, doubleClickZoom: false, boxZoom: false }),
+      }).setView([25.6, 85.1], 7);
       
       // Use satellite base layer if viewing a single property (popup from details), else use OSM for marketplace.
       if (properties.length === 1 && hasParcelBoundary(properties[0].parcelPoints)) {
@@ -51,9 +55,12 @@ export default function VerifiedPropertyMap({ properties, onSelect, focus }: { p
       resize.observe(container.current);
     }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; resize?.disconnect(); removeLeafletMap(map); };
-  }, [properties, onSelect, focus]);
+  }, [properties, onSelect, focus, zoomControls, twoFingerPan]);
   return <View style={styles.map}>
-    {Platform.OS === "web" && <div ref={container} aria-label="Map of verified properties" style={{ width: "100%", height: "100%" }} />}
+    {Platform.OS === "web" && <>
+      {zoomControls && <style>{propertyZoomStyles}</style>}
+      <div ref={container} className={zoomControls ? "property-zoom-map" : undefined} aria-label="Map of verified properties" style={{ width: "100%", height: "100%", touchAction: twoFingerPan ? "pan-y" : undefined }} />
+    </>}
     {(failed || Platform.OS !== "web") && <View style={styles.fallback}><Text style={styles.text}>{failed ? "Map unavailable. Explore the verified properties below." : "Explore verified properties below. Open a property for its map location."}</Text></View>}
   </View>;
 }

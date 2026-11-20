@@ -127,6 +127,7 @@ export interface RegisterPayload {
 
 export interface RegisterResponse {
   testOnly?: boolean;
+  resumed?: boolean;
   message?: string;
   challengeId?: string;
   channel?: "mobile" | "email";

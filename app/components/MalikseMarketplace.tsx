@@ -26,9 +26,10 @@ import {
   useRouter,
 } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
+import AccountArtworkFooter from "./AccountArtworkFooter";
 import Svg, { Rect } from "react-native-svg";
 import * as DocumentPicker from "expo-document-picker";
-import { currentMapLocation } from "../src/services/currentMapLocation";
+import { currentMapLocation, LocationPermissionBlocked } from "../src/services/currentMapLocation";
 import { validMapPoint, type MapFocus, type MapPoint } from "../src/utils/nativeMapHtml";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api, { authService } from "../src/services/authService";
@@ -158,6 +159,8 @@ function useData(path: string | null, deps: any[] = []) {
     [loading, setLoading] = useState(false),
     [nextCursor, setNextCursor] = useState<string | null>(null);
   const requestKey = JSON.stringify([path, deps]);
+  const latestRequest = useRef(requestKey);
+  useEffect(() => { latestRequest.current = requestKey; }, [requestKey]);
   const [resultKey, setResultKey] = useState(requestKey);
   const refresh = useCallback(async () => {
     const [path] = JSON.parse(requestKey);
@@ -166,13 +169,14 @@ function useData(path: string | null, deps: any[] = []) {
     setError("");
     try {
       const response = await api.get(path);
+      if (latestRequest.current !== requestKey) return;
       setResultKey(requestKey);
       setData(response.data);
       setNextCursor(response.headers["x-next-cursor"] || null);
     } catch (e) {
-      setError(errorText(e));
+      if (latestRequest.current === requestKey) setError(errorText(e));
     } finally {
-      setLoading(false);
+      if (latestRequest.current === requestKey) setLoading(false);
     }
   }, [requestKey]);
   useFocusEffect(
@@ -181,30 +185,32 @@ function useData(path: string | null, deps: any[] = []) {
     }, [refresh]),
   );
 
-  const loadMore = async () => {
-    if (!path || !nextCursor || loading) return;
+  const loadPages = async (all: boolean) => {
+    if (!path || !nextCursor || loading || resultKey !== requestKey) return;
     setLoading(true);
     try {
-      const response = await api.get(
-        path +
-          (path.includes("?") ? "&" : "?") +
-          "cursor=" +
-          encodeURIComponent(nextCursor),
-      );
-      setData((old: any[]) => [
-        ...old,
-        ...response.data.filter(
-          (p: any) => !old.some((item) => item._id === p._id),
-        ),
-      ]);
-      setNextCursor(response.headers["x-next-cursor"] || null);
+      let cursor: string | null = nextCursor;
+      const items = new Map<string, any>(data.map((item: any) => [item._id, item]));
+      const visited = new Set<string>();
+      while (cursor && !visited.has(cursor)) {
+        visited.add(cursor);
+        const pagePath: string = path + (path.includes("?") ? "&" : "?") + "cursor=" + encodeURIComponent(cursor);
+        const response = await api.get(pagePath);
+        if (latestRequest.current !== requestKey) return;
+        for (const item of response.data) items.set(item._id, item);
+        cursor = response.headers["x-next-cursor"] || null;
+        if (!all) break;
+      }
+      setData([...items.values()]);
+      setNextCursor(cursor);
     } catch (e) {
-      setError(errorText(e));
+      if (latestRequest.current === requestKey) setError(errorText(e));
     } finally {
-      setLoading(false);
+      if (latestRequest.current === requestKey) setLoading(false);
     }
   };
-  return { data: resultKey === requestKey ? data : null, error, loading, refresh, setData, nextCursor, loadMore };
+  return { data: resultKey === requestKey ? data : null, error, loading, refresh, setData, nextCursor,
+    loadMore: () => loadPages(false), loadAll: () => loadPages(true) };
 }
 function useAction() {
   const [busy, setBusy] = useState(false),
@@ -243,6 +249,8 @@ function useGate() {
     return true;
   };
 }
+const dockHeight = 70;
+
 export function MarketplaceShell({
   title,
   subtitle,
@@ -253,6 +261,8 @@ export function MarketplaceShell({
   showDock = true,
   footer,
   profileHeader,
+  scrollFooter,
+  scrollEnabled = true,
   step,
 }: {
   title?: React.ReactNode;
@@ -264,9 +274,12 @@ export function MarketplaceShell({
   showDock?: boolean;
   footer?: React.ReactNode;
   profileHeader?: React.ReactElement;
+  scrollFooter?: (dockClearance: number) => React.ReactElement;
+  scrollEnabled?: boolean;
   step?: number;
 }) {
   const insets = useSafeAreaInsets();
+  const dockBottom = Math.max(insets.bottom, 8);
   const router = useRouter(),
     path = usePathname(),
     user = useAuthStore((x) => x.user);
@@ -288,8 +301,9 @@ export function MarketplaceShell({
       {focused && <StatusBar style="light" />}
       <ScrollView
         ref={scroll}
+        scrollEnabled={scrollEnabled}
         style={{ flex: 1 }}
-        contentContainerStyle={[s.scroll, !showDock && { paddingBottom: 12 }]}
+        contentContainerStyle={[s.scroll, !showDock && { paddingBottom: 12 }, scrollFooter && s.scrollWithArtwork]}
         keyboardShouldPersistTaps="handled"
       >
       <View style={[s.hero, { paddingTop: insets.top + 14 }, profileHeader && s.profileHero]}>
@@ -353,10 +367,11 @@ export function MarketplaceShell({
         <View style={[s.content, profileHeader && s.profileContent]}>
           {children}
         </View>
+        {scrollFooter?.(showDock ? dockBottom - insets.bottom + dockHeight : 0)}
       </ScrollView>
       {footer && <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>{footer}</View>}
       {showDock && <View
-        style={[s.dockWrapper, { bottom: Math.max(insets.bottom, 8), pointerEvents: "box-none" }]}
+        style={[s.dockWrapper, { bottom: dockBottom, pointerEvents: "box-none" }]}
       >
         <View style={s.nav}>
           {[
@@ -664,13 +679,32 @@ export function SearchScreen() {
     [map, setMap] = useState(true),
     [selected, setSelected] = useState<any>(null),
     [submitted, setSubmitted] = useState(String(params.q || ""));
+  const [nearby, setNearby] = useState<MapFocus>();
+  const locationAction = useAction();
+  const [locationPermissionBlocked, setLocationPermissionBlocked] = useState(false);
+  const directionsAction = useAction();
+  const nearbyQuery = nearby ? `&nearLat=${nearby.lat.toFixed(3)}&nearLng=${nearby.lng.toFixed(3)}` : "";
   const feed = useData(
-    `/properties/search?limit=50&location=${encodeURIComponent(submitted)}${type ? "&type=" + type : ""}${max ? "&maxPrice=" + max : ""}`,
+    `/properties/search?limit=50&location=${encodeURIComponent(nearby ? "" : submitted)}${type ? "&type=" + type : ""}${max ? "&maxPrice=" + max : ""}${nearbyQuery}`,
   );
+  const nearbyLoad = useRef("");
+  const nearbyLoadKey = `${nearbyQuery}:${type}:${max}`;
+  const { data: searchResults, nextCursor: searchCursor, loading: searchLoading, loadAll } = feed;
+  useEffect(() => {
+    if (!nearbyQuery || !searchResults || !searchCursor || searchLoading || nearbyLoad.current === nearbyLoadKey) return;
+    nearbyLoad.current = nearbyLoadKey;
+    void loadAll();
+  }, [nearbyQuery, nearbyLoadKey, searchResults, searchCursor, searchLoading, loadAll]);
   const select = useCallback((p: any) => setSelected(p), []);
+  const [mapGestureActive, setMapGestureActive] = useState(false);
+  const [mapFitVersion, setMapFitVersion] = useState(0);
   const { height } = useWindowDimensions();
   const properties = feed.data || [];
   const visibleSelection = selected && properties.find((property: any) => property._id === selected._id);
+  const destination = visibleSelection?.location;
+  const directionsUrl = validMapPoint(destination)
+    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${destination.lat},${destination.lng}`)}&dir_action=navigate`
+    : null;
   useEffect(() => {
     if (submitted && feed.data)
       for (const property of feed.data.slice(0, 5))
@@ -679,6 +713,8 @@ export function SearchScreen() {
           .catch(() => {});
   }, [feed.data, submitted]);
   const search = () => {
+    setNearby(undefined);
+    setSelected(null);
     setSubmitted(query);
     if (user)
       void api
@@ -696,10 +732,11 @@ export function SearchScreen() {
   return (
     <MarketplaceShell
       title="Search properties"
+      subtitle="Search by area or explore listings on the map."
+      scrollEnabled={!mapGestureActive}
       headerContent={
-      <View style={s.wrap}>
-        <View style={[s.input, s.row, { flex: 1, minWidth: 140, backgroundColor: "#ffffff" }]}>
-          <Icon name="search" size={19} />
+      <View style={s.searchControls}>
+        <View style={s.searchInputRow}>
           <TextInput
             accessibilityLabel="Search properties"
             value={query}
@@ -707,10 +744,13 @@ export function SearchScreen() {
             placeholder="Locality, project or city"
             placeholderTextColor="#6f82a8"
             onSubmitEditing={search}
-            style={{ flex: 1, color: C.ink, fontSize: 13.5 }}
+            returnKeyType="search"
+            style={s.searchInputText}
           />
+          <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={search} style={s.searchSubmit}>
+            <Icon name="search" size={21} />
+          </Pressable>
         </View>
-        <Button title="Search" onPress={search} />
         <Button
           title="Filters"
           secondary
@@ -721,21 +761,27 @@ export function SearchScreen() {
       }
     >
       {filter && (
-        <View style={s.panel}>
+        <View style={[s.panel, s.searchFilterPanel]}>
+          <View style={s.searchFilterHeader}>
+            <View style={s.searchFilterIcon}><Icon name="tune" color={C.ink} size={20} /></View>
+            <Text accessibilityRole="header" style={s.searchFilterTitle}>Refine your search</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close filters" onPress={() => setFilter(false)} style={s.searchFilterClose}>
+              <Icon name="close" color={C.ink} size={20} />
+            </Pressable>
+          </View>
           <Field
             title="Maximum price (₹)"
             value={max}
             onChangeText={setMax}
             numeric
           />
+          <Text style={s.fieldLabel}>Property type</Text>
           <View style={s.wrap}>
             {types.map(([id, text]) => (
-              <Button
-                key={id}
-                secondary={type !== id}
-                title={text}
-                onPress={() => setType(id)}
-              />
+              <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: type === id }}
+                onPress={() => setType(id)} style={[s.searchFilterChip, type === id && s.searchFilterChipSelected]}>
+                <Text style={[s.searchMapLoadingText, type === id && s.searchFilterChipTextSelected]}>{text}</Text>
+              </Pressable>
             ))}
           </View>
           <Button
@@ -748,26 +794,74 @@ export function SearchScreen() {
           />
         </View>
       )}
-      <View style={s.between}>
-        <Tag green>✓ Verified properties only</Tag>
+      <View style={s.searchResultsControls}>
         <Button
           secondary
           title={map ? "List view" : "Map view"}
           icon={map ? "view-list" : "map"}
-          onPress={() => setMap(!map)}
+          onPress={() => { setMapGestureActive(false); setSelected(null); setMap(!map); }}
         />
+        <Button title="Show all on map" icon="map" disabled={feed.loading || !properties.length}
+          onPress={() => {
+            setMapGestureActive(false);
+            setSelected(null);
+            setMap(true);
+            if (!feed.nextCursor) setMapFitVersion(version => version + 1);
+            void feed.loadAll();
+          }} />
       </View>
+      {nearby && <View style={s.searchResultsControls}>
+        <Tag>Within 25 km of your location</Tag>
+        <Button title="Clear nearby" secondary onPress={() => { setNearby(undefined); setSelected(null); }} />
+      </View>}
       <ErrorBox text={feed.error} />
-      {feed.loading && <ActivityIndicator color={C.blue} />}
+      <ErrorBox text={locationAction.error} />
+      {locationPermissionBlocked && locationAction.error && <Button title="Open app settings" icon="settings" secondary
+        onPress={() => void locationAction.run(() => Linking.openSettings())} />}
+      {feed.loading && !map && <ActivityIndicator color={C.blue} />}
       {map && (
-        <View style={[s.map, { height: Math.max(400, height * 0.57) }]}>
-          <VerifiedPropertyMap properties={properties} onSelect={select} />
+        <View style={[s.map, { height: Math.min(420, Math.max(260, height * 0.44)), zIndex: 0 }]}
+          onTouchStart={event => { if (Platform.OS !== "web" && event.nativeEvent.touches.length === 2) setMapGestureActive(true); }}
+          onTouchEnd={event => { if (Platform.OS !== "web" && event.nativeEvent.touches.length === 0) setMapGestureActive(false); }}
+          onTouchCancel={() => setMapGestureActive(false)}>
+          <VerifiedPropertyMap key={mapFitVersion} properties={properties} onSelect={select}
+            focus={nearby} zoomControls twoFingerPan />
+          <Pressable accessibilityRole="button" accessibilityLabel="Find properties near my location"
+            accessibilityState={{ disabled: locationAction.busy, busy: locationAction.busy }}
+            disabled={locationAction.busy} style={s.searchMapLocation}
+            onPress={() => void locationAction.run(async () => {
+              setLocationPermissionBlocked(false);
+              let point: MapPoint;
+              try {
+                point = await currentMapLocation({ allowRecent: true });
+              } catch (error) {
+                setLocationPermissionBlocked(error instanceof LocationPermissionBlocked);
+                throw error;
+              }
+              nearbyLoad.current = "";
+              setSelected(null);
+              setNearby({ ...point, zoom: 9 });
+            })}>
+            {locationAction.busy ? <ActivityIndicator color={C.ink} /> : <Icon name="my-location" color={C.ink} />}
+          </Pressable>
+          {(locationAction.busy || feed.loading) && (
+            <View pointerEvents="none" style={[StyleSheet.absoluteFill, s.searchMapLoading]} accessibilityLiveRegion="polite">
+              <View style={s.searchMapLoadingPill}>
+                <ActivityIndicator color={C.ink} />
+                <Text style={s.searchMapLoadingText}>{locationAction.busy ? "Finding your location…" : "Loading properties…"}</Text>
+              </View>
+            </View>
+          )}
         </View>
       )}
       {visibleSelection && map && (
         <View style={s.panel}>
           <PropertyCard property={visibleSelection} compact />
+          {directionsUrl && <Button title="Google Maps directions" icon="directions" disabled={directionsAction.busy}
+            onPress={() => void directionsAction.run(() => Linking.openURL(directionsUrl))} />}
+          <ErrorBox text={directionsAction.error} />
           <Button
+            secondary
             title="View full property details"
             onPress={() => router.push(`/property/${visibleSelection._id}` as any)}
           />
@@ -905,7 +999,8 @@ export function ProfileScreen() {
     </>
   ) : undefined;
   return (
-    <MarketplaceShell title="Profile" profileHeader={profileHeader}>
+    <MarketplaceShell title="Profile" profileHeader={profileHeader}
+      scrollFooter={!user ? bottomExtension => <AccountArtworkFooter bottomExtension={bottomExtension} /> : undefined}>
       <Protected>
         {user && (
           <>
@@ -2408,6 +2503,7 @@ const s = StyleSheet.create({
   logo: { fontFamily: fontDisplay, fontSize: 25, color: "#fff", letterSpacing: -0.5 },
   logoIcon: { backgroundColor: C.sun, padding: 8, borderRadius: 12 },
   scroll: { paddingBottom: 108 },
+  scrollWithArtwork: { flexGrow: 1, paddingBottom: 0 },
   content: { width: "100%", maxWidth: 1180, alignSelf: "center", padding: 20, gap: 18 },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   between: {
@@ -2417,6 +2513,23 @@ const s = StyleSheet.create({
     gap: 10,
   },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  searchControls: { flexDirection: "row", alignItems: "center", gap: 8 },
+  searchInputRow: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", padding: 4, borderRadius: 16, backgroundColor: "#fff" },
+  searchInputText: { flex: 1, minWidth: 0, minHeight: 44, paddingHorizontal: 8, color: C.ink, fontSize: 14 },
+  searchSubmit: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.sun },
+  searchResultsControls: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  searchFilterPanel: { gap: 12 },
+  searchFilterHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  searchFilterIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: "#FFF1C0", alignItems: "center", justifyContent: "center" },
+  searchFilterTitle: { flex: 1, color: C.ink, fontFamily: "Fraunces", fontSize: 21 },
+  searchFilterClose: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" },
+  searchFilterChip: { minHeight: 44, borderWidth: 1, borderColor: C.line, paddingHorizontal: 14, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  searchFilterChipSelected: { backgroundColor: C.ink, borderColor: C.ink },
+  searchFilterChipTextSelected: { color: C.sun },
+  searchMapLoading: { alignItems: "center", justifyContent: "center", zIndex: 1100, backgroundColor: "rgba(20,38,62,0.16)" },
+  searchMapLoadingPill: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 24, backgroundColor: "#fff" },
+  searchMapLoadingText: { color: C.ink, fontFamily: "ManropeBold" },
+  searchMapLocation: { position: "absolute", top: 10, right: 10, zIndex: 1001, width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.sun, elevation: 3 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
   h1: {
     fontFamily: fontDisplay,
@@ -2604,7 +2717,7 @@ const s = StyleSheet.create({
     width: "100%",
     maxWidth: 406,
     minHeight: 52,
-    height: 70,
+    height: dockHeight,
     borderRadius: 32,
     backgroundColor: C.ink,
     flexDirection: "row",

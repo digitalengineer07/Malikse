@@ -6,6 +6,7 @@
 import { Platform } from 'react-native';
 
 const tintColorDark = '#fff';
+export const marketplaceBackground = '#F7F4EC';
 
 export const AppTheme = {
   colors: {
@@ -14,7 +15,7 @@ export const AppTheme = {
     primaryLight: '#E8F1F6',
     accent: '#245B78', // Lighter Blue
     accentLight: '#E8F1F6',
-    background: 'transparent', // Make screens transparent for shared gradient background
+    background: 'transparent', // Use the shared app backdrop.
     card: 'rgba(255,255,255,0.72)',
     cardSolid: '#FFFFFF',
     cardBorder: 'rgba(255,255,255,0.8)',

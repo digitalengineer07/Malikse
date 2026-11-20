@@ -8,13 +8,14 @@ require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileMo
 }).outputText, filename);
 const { nativeMapHtml } = require('../src/utils/nativeMapHtml.ts');
 const messages = [], tiles = [], markers = [], controls = [];
-const element = () => ({ style: {}, appendChild() {}, remove() {}, textContent: '', onclick: undefined });
-const map = { setView() { return this; }, removeLayer() {}, zoomIn() {}, zoomOut() {}, on() {}, fitBounds() {}, invalidateSize() {} };
+const element = () => ({ style: {}, classList: { add() {} }, appendChild() {}, remove() {}, textContent: '', onclick: undefined });
+let fittedPoints;
+const map = { setView() { return this; }, removeLayer() {}, zoomIn() {}, zoomOut() {}, on() {}, fitBounds(points) { fittedPoints = Array.from(points); }, invalidateSize() {}, getSize() { return { x: 340, y: 310 }; }, getContainer() { return { querySelector: () => null }; } };
 const layer = () => ({ addTo() { return this; }, clearLayers() {} });
 const context = {
-  console, setTimeout, clearTimeout,
+  console, setTimeout, clearTimeout, requestAnimationFrame: callback => callback(),
   window: { ReactNativeWebView: { postMessage: text => messages.push(JSON.parse(text)) }, addEventListener() {} },
-  document: { createElement: tag => { const el = element(); if (tag === 'button') controls.push(el); return el; }, body: element() },
+  document: { getElementById: element, createElement: tag => { const el = element(); if (tag === 'button') controls.push(el); return el; }, body: element() },
   L: {
     map: () => map,
     tileLayer: url => { tiles.push(url); return { addTo() { return this; }, on() {} }; },
@@ -43,6 +44,17 @@ assert.equal(markers.at(-1).options.title, 'Updated');
 for (const options of [{}, { editable: true }, { pins: [], satellite: true }]) {
   for (const match of nativeMapHtml(options).matchAll(/<script>([\s\S]*?)<\/script>/g)) new vm.Script(match[1]);
 }
+const searchContext = vm.createContext({ ...context, window: { ...context.window } });
+for (const match of nativeMapHtml({ twoFingerPan: true, zoomControls: true }).matchAll(/<script>([\s\S]*?)<\/script>/g)) {
+  new vm.Script(match[1]).runInContext(searchContext);
+}
+const searchPins = [
+  { id: 'search:1', lat: 25.6, lng: 85.1, label: '₹25 L' },
+  { id: 'search:2', lat: 12.9, lng: 77.6, label: '₹30 L' },
+];
+searchContext.window.updatePropertyData(searchPins, [], true);
+assert.deepEqual(markers.slice(-2).map(marker => Array.from(marker.point)), searchPins.map(pin => [pin.lat, pin.lng]));
+assert.deepEqual(fittedPoints.map(point => Array.from(point)), searchPins.map(pin => [pin.lat, pin.lng]));
 console.log('Marketplace map checks passed: HTML safety, bridge selection, live marker updates, layers, and existing map modes.');
 
 (async () => {

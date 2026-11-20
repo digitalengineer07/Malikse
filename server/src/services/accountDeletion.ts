@@ -1,5 +1,5 @@
 import { ContactChange } from "../models/ContactChange.model";
-import { createHash, createHmac, randomUUID } from "crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "crypto";
 import mongoose from "mongoose";
 import fs from "fs/promises";
 import path from "path";
@@ -22,14 +22,22 @@ import { invalidatePublicResponses } from "./publicCacheGeneration";
 import { markRegionCountsDirty } from "./regionCountStore";
 import { photoDirectory } from "./propertyPhotos";
 
-export const deletionReceipt = (id: string) => createHmac("sha256", REFRESH_SECRET).update(`account-deletion:${id}`).digest("hex");
-export const deletionSummary = (job: any) => ({ reference: job._id, receipt: deletionReceipt(job._id), status: job.status, requestedAt: job.requestedAt, completedAt: job.completedAt });
+export const deletionReferencePattern = /^DEL(?:-[A-F0-9]{4}){5}$/;
+export const privateReceiptPattern = /^PRV(?:-[A-F0-9]{8}){4}$/;
+export const deletionReceipt = (id: string) => {
+  const digest = createHmac("sha256", REFRESH_SECRET).update(`account-deletion:${id}`).digest("hex");
+  return deletionReferencePattern.test(id) ? "PRV-" + digest.slice(0, 32).toUpperCase().match(/.{8}/g)!.join("-") : digest;
+};
+export const hashDeletionReceipt = (receipt: string) => createHash("sha256").update(receipt).digest("hex");
+export const deletionSummary = (job: any, receipt = deletionReceipt(job._id)) => ({ reference: job._id, receipt, status: job.status, requestedAt: job.requestedAt, completedAt: job.completedAt });
 
 export async function requestAccountDeletion(user: any) {
+  const reference = "DEL-" + randomBytes(10).toString("hex").toUpperCase().match(/.{4}/g)!.join("-");
   let job;
   try {
     job = await AccountDeletion.findOneAndUpdate({ userId: user._id }, { $setOnInsert: {
-      _id: randomUUID(), userId: user._id, email: user.email, mobile: user.mobile,
+      _id: reference, receiptHash: hashDeletionReceipt(deletionReceipt(reference)),
+      userId: user._id, email: user.email, mobile: user.mobile,
       status: "pending", requestedAt: new Date(), nextAttemptAt: new Date(Date.now() + 60_000),
     } }, { upsert: true, new: true });
   } catch (error: any) {

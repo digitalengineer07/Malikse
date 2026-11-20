@@ -24,7 +24,7 @@ export default function NativeLeafletMap({ options, focus, onSelect, onPoints, p
   // Region data and camera changes use the bridge, not a new browser document.
   const documentKey = JSON.stringify(options.regions
     ? { ...options, focus: undefined, pins: [], parcels: [], regions: { groups: [], level: "state" } }
-    : options);
+    : options.twoFingerPan ? { ...options, pins: [], parcels: [] } : options);
   const html = useMemo(() => nativeMapHtml(JSON.parse(documentKey), assets), [documentKey, assets]);
   const [attempt, setAttempt] = useState(0);
   const retry = useCallback(() => {
@@ -56,9 +56,9 @@ function NativeMapContent({ html, options, focus, onSelect, onPoints, parcelCont
   if (previousRegions !== regionsJson) { setPreviousRegions(regionsJson); setBoundaryError(false); }
   const propertiesJson = JSON.stringify({ pins: options.pins?.filter(validMapPoint) ?? [], parcels: options.parcels ?? [] });
   useEffect(() => {
-    if (status !== "ready" || !options.regions) return;
-    webview.current?.injectJavaScript(`(function(){const data=${propertiesJson.replace(/</g, "\\u003c")};window.updatePropertyData(data.pins,data.parcels);})();true;`);
-  }, [propertiesJson, status, options.regions]);
+    if (status !== "ready" || (!options.regions && !options.twoFingerPan)) return;
+    webview.current?.injectJavaScript(`(function(){const data=${propertiesJson.replace(/</g, "\\u003c")};window.updatePropertyData(data.pins,data.parcels,${Boolean(options.twoFingerPan && !focus)});})();true;`);
+  }, [propertiesJson, status, options.regions, options.twoFingerPan, focus]);
   useEffect(() => {
     if (status !== "ready" || !options.marketplace) return;
     return attachPlacesTransport(request => {
@@ -91,7 +91,7 @@ function NativeMapContent({ html, options, focus, onSelect, onPoints, parcelCont
     return () => clearTimeout(timeout);
   }, []);
   return <View style={styles.container}>
-    <WebView<unknown> ref={webview} source={source} originWhitelist={["*"]} javaScriptEnabled scrollEnabled={false} nestedScrollEnabled style={styles.webview}
+    <WebView<unknown> ref={webview} source={source} originWhitelist={["*"]} javaScriptEnabled scrollEnabled={false} nestedScrollEnabled={!options.twoFingerPan} style={styles.webview}
       onShouldStartLoadWithRequest={request => {
         if (request.url === "about:blank" || request.url === "https://malikse.local/") return true;
         if (request.url.startsWith("https://www.openstreetmap.org/") || request.url.startsWith("https://indianopenmaps.com/") || request.url === "https://maps.google.com/") Linking.openURL(request.url).catch(() => {});

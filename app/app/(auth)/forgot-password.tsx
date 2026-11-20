@@ -5,6 +5,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import api from "../../src/services/authService";
+import AccountArtworkFooter from "../../components/AccountArtworkFooter";
 
 type Challenge = { challengeId: string; destination?: string; expiresInSeconds: number; resendAfterSeconds: number };
 
@@ -80,7 +81,7 @@ export default function ForgotPassword() {
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       {focused && <StatusBar style="light" />}
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[{ paddingBottom: insets.bottom + 24 }, done && styles.successScroll]}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
         <View style={[styles.hero, { paddingTop: insets.top + 14 }]}>
           <View pointerEvents="none" style={[styles.sun, { top: insets.top + 4 }]} />
           <View pointerEvents="none" style={styles.ray} />
@@ -211,6 +212,7 @@ export default function ForgotPassword() {
               </TouchableOpacity>
         </View>
         )}
+        <AccountArtworkFooter wavesOnly={!!challenge && !done} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -241,8 +243,8 @@ const styles = StyleSheet.create({
   progressActive: { backgroundColor: sun },
   card: { width: "90%", maxWidth: 440, alignSelf: "center", marginTop: -14, padding: 20, gap: 14, borderColor: border, borderWidth: 1, borderRadius: 22, backgroundColor: "#fff", shadowColor: navy, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 3 },
   codeCard: { gap: 12 },
-  successScroll: { flexGrow: 1 },
-  successArea: { flexGrow: 1, justifyContent: "center", paddingVertical: 24 },
+  scroll: { flexGrow: 1 },
+  successArea: { paddingVertical: 24 },
   successCard: { alignItems: "center", paddingHorizontal: 24, paddingVertical: 30, marginTop: 0, gap: 14 },
   successRing: { width: 104, height: 104, borderRadius: 52, backgroundColor: "#E6F4EC", borderWidth: 1, borderColor: "#CAE8D7", alignItems: "center", justifyContent: "center" },
   successIcon: { width: 76, height: 76, borderRadius: 38, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
@@ -261,7 +263,10 @@ const styles = StyleSheet.create({
   codeField: { minHeight: 46, paddingVertical: 9 },
   codeStatus: { fontFamily: "Manrope", color: muted, fontSize: 12, lineHeight: 16 },
   otpRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 0 },
-  otpInput: { flex: 1, minWidth: 0, minHeight: 44, fontFamily: "Manrope", fontSize: 16, color: navy, paddingVertical: 8 },
+  otpInput: {
+    flex: 1, minWidth: 0, minHeight: 44, fontFamily: "Manrope", fontSize: 16, color: navy, paddingVertical: 8,
+    ...Platform.select({ web: { outlineWidth: 0 } }),
+  },
   otpVerified: { borderColor: "#087647" },
   otpIncorrect: { borderColor: "#A52D3B" },
   verifiedText: { color: "#087647" },
