@@ -2,6 +2,7 @@
   "expo": {
     "name": "MalikSe App",
     "slug": "malikse-app",
+    "owner": "nikhilkr0035",
     "version": "3.1.0",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
@@ -54,9 +55,13 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
       "eas": {
-        "projectId": "e24fd52b-0204-44b4-b5a5-96d087759d1d"
+        "projectId": "c144cce3-b103-4049-9e6c-db24224e1302"
       }
     }
   }

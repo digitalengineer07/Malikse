@@ -24,7 +24,7 @@ import PremiumIndiaMap from "./PremiumIndiaMap";
 import BiharLandIntelligenceCard from "./BiharLandIntelligenceCard";
 import BiharDistrictExplorerPanel from "./BiharDistrictExplorerPanel";
 import PropertyCard from "./PropertyCard";
-import { BIHAR_DISTRICTS_DATA, type BiharDistrictInfo } from "../src/data/biharDistrictsData";
+import { BIHAR_DISTRICTS_DATA, type BiharDistrictInfo } from "../src/geo-data/biharDistrictsData";
 
 import {
   cachedRegionCounts,

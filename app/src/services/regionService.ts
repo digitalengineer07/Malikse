@@ -1,6 +1,6 @@
 import api from "./authService";
 import { fetchGooglePlaceSuggestions } from "../utils/googleMaps";
-import { BIHAR_DISTRICTS_DATA } from "../data/biharDistrictsData";
+import { BIHAR_DISTRICTS_DATA } from "../geo-data/biharDistrictsData";
 import type { PropertyType } from "../types/property.types";
 import { searchGeneration, searchKey } from "./searchCache";
 export type RegionGroup = { key: string; name: string; count: number; lat: number; lng: number };

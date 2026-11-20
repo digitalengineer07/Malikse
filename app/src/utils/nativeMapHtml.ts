@@ -68,8 +68,14 @@ function draw(){
 }
 const bounds=[];
 const propertyLayer=L.layerGroup().addTo(map);
+const propertyLabels=new Map();
+window.selectPropertyPin=id=>{
+ map.getContainer().querySelector('.price.selected')?.classList.remove('selected');
+ propertyLabels.get(id)?.classList.add('selected');
+};
 function updateProperties(pins,parcels){
 propertyLayer.clearLayers();
+propertyLabels.clear();
 bounds.length=0;
 (parcels || []).forEach(parcel=>{
  const coordinates=parcel.points.filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&Math.abs(p.lat)<=90&&Math.abs(p.lng)<=180).map(p=>[p.lat,p.lng]);
@@ -79,10 +85,10 @@ bounds.length=0;
 });
 pins.forEach(pin=>{
  const label=document.createElement('div');label.className='price';label.textContent=pin.label;
+ propertyLabels.set(pin.id,label);
  const marker=L.marker([pin.lat,pin.lng],{title:pin.title,icon:L.divIcon({html:label,className:'',iconSize:[90,40],iconAnchor:[45,40]})}).addTo(propertyLayer);
  marker.on('click',()=>{
-  map.getContainer().querySelector('.price.selected')?.classList.remove('selected');
-  label.classList.add('selected');
+  window.selectPropertyPin(pin.id);
   send('select',pin.id);
  });
  bounds.push([pin.lat,pin.lng]);

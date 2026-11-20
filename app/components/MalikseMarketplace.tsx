@@ -7,6 +7,7 @@ import {
   Linking,
   KeyboardAvoidingView,
   ActivityIndicator,
+  BackHandler,
   Image,
   Platform,
   Pressable,
@@ -115,11 +116,12 @@ function Tag({ children, green = false }: any) {
 function Empty({
   title = "Nothing here yet",
   text = "New activity will appear here.",
+  icon = "real-estate-agent",
   action,
 }: any) {
   return (
     <View style={[s.panel, { alignItems: "center", padding: 32 }]}>
-      <Icon name="real-estate-agent" size={40} />
+      <Icon name={icon} size={40} />
       <Text style={s.h2}>{title}</Text>
       <Text style={s.muted}>{text}</Text>
       {action}
@@ -254,32 +256,41 @@ const dockHeight = 70;
 export function MarketplaceShell({
   title,
   subtitle,
+  compactHeader = false,
   children,
   back = false,
+  onBack,
   headerContent,
   headerAction,
   showDock = true,
   footer,
   profileHeader,
   scrollFooter,
+  dockArtwork = false,
   scrollEnabled = true,
   step,
 }: {
   title?: React.ReactNode;
   subtitle?: string;
+  compactHeader?: boolean;
   children: React.ReactNode;
   back?: boolean;
+  onBack?: () => void;
   headerContent?: React.ReactNode;
   headerAction?: React.ReactNode;
   showDock?: boolean;
   footer?: React.ReactNode;
   profileHeader?: React.ReactElement;
   scrollFooter?: (dockClearance: number) => React.ReactElement;
+  dockArtwork?: boolean;
   scrollEnabled?: boolean;
   step?: number;
 }) {
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const smallHeader = compactHeader && (width < 370 || height - insets.top - insets.bottom < 620);
   const dockBottom = Math.max(insets.bottom, 8);
+  const dockClearance = dockBottom - insets.bottom + dockHeight;
   const router = useRouter(),
     path = usePathname(),
     user = useAuthStore((x) => x.user);
@@ -303,13 +314,17 @@ export function MarketplaceShell({
         ref={scroll}
         scrollEnabled={scrollEnabled}
         style={{ flex: 1 }}
-        contentContainerStyle={[s.scroll, !showDock && { paddingBottom: 12 }, scrollFooter && s.scrollWithArtwork]}
+        contentContainerStyle={[s.scroll, !showDock && { paddingBottom: 12 }, scrollFooter && s.scrollWithArtwork,
+          !scrollEnabled && scrollFooter && s.fitArtworkToViewport,
+          !scrollEnabled && scrollFooter && showDock && !dockArtwork && { paddingBottom: dockBottom + dockHeight + 16 },
+          showDock && dockArtwork && { paddingBottom: dockBottom + dockHeight + 54 }]}
         keyboardShouldPersistTaps="handled"
       >
-      <View style={[s.hero, { paddingTop: insets.top + 14 }, profileHeader && s.profileHero]}>
+      <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
+        smallHeader && s.smallHero, profileHeader && s.profileHero]}>
         <View pointerEvents="none" style={s.heroSun} />
         <View pointerEvents="none" style={s.heroRay} />
-        <View style={s.heroInner}>
+        <View style={[s.heroInner, compactHeader && s.compactHeroInner]}>
         {profileHeader || <>
         <View style={s.header}>
         <View style={[s.row, { flex: 1 }]}>
@@ -318,9 +333,9 @@ export function MarketplaceShell({
               accessibilityLabel="Back"
               accessibilityRole="button"
               style={s.heroIcon}
-              onPress={() =>
+              onPress={onBack ?? (() =>
                 router.canGoBack() ? router.back() : router.replace("/home")
-              }
+              )}
             >
               <Icon name="arrow-back" color="white" size={20} />
             </Pressable>
@@ -357,7 +372,9 @@ export function MarketplaceShell({
           {Boolean(title) && (
             <View style={{ gap: 4 }}>
               <Text accessibilityRole="header" style={s.heroTitle}>{title}</Text>
-              {Boolean(subtitle) && <Text style={s.heroSubtitle}>{subtitle}</Text>}
+              {Boolean(subtitle) && <Text numberOfLines={compactHeader ? 1 : undefined}
+                adjustsFontSizeToFit={compactHeader} minimumFontScale={0.85}
+                style={[s.heroSubtitle, smallHeader && s.smallHeroSubtitle]}>{subtitle}</Text>}
             </View>
           )}
           {headerContent}
@@ -367,9 +384,12 @@ export function MarketplaceShell({
         <View style={[s.content, profileHeader && s.profileContent]}>
           {children}
         </View>
-        {scrollFooter?.(showDock ? dockBottom - insets.bottom + dockHeight : 0)}
+        {scrollFooter?.(showDock ? dockClearance : 0)}
       </ScrollView>
       {footer && <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>{footer}</View>}
+      {showDock && dockArtwork && <View pointerEvents="none" style={s.dockArtwork}>
+        <AccountArtworkFooter wavesOnly bottomExtension={dockClearance} hideWhileTyping={false} />
+      </View>}
       {showDock && <View
         style={[s.dockWrapper, { bottom: dockBottom, pointerEvents: "box-none" }]}
       >
@@ -424,20 +444,25 @@ export function MarketplaceShell({
     </KeyboardAvoidingView>
   );
 }
-function Protected({ children, kyc = false }: any) {
+function Protected({ children, kyc = false, guest }: {
+  children: React.ReactNode;
+  kyc?: boolean;
+  guest?: { title: string; text: string; icon: keyof typeof MaterialIcons.glyphMap };
+}) {
   const user = useAuthStore((x) => x.user),
     gate = useGate();
   if (!user || (kyc && !approved(user)))
     return (
       <Empty
+        icon={!user ? guest?.icon : undefined}
         title={
           !user
-            ? "Your next step starts here"
+            ? guest?.title ?? "Your next step starts here"
             : "Complete identity verification"
         }
         text={
           !user
-            ? "Browse freely. Sign in to save properties and manage your account."
+            ? guest?.text ?? "Browse freely. Sign in to save properties and manage your account."
             : "Approved KYC is required to sell, make an offer or contact assigned staff."
         }
         action={
@@ -701,6 +726,27 @@ export function SearchScreen() {
   const { height } = useWindowDimensions();
   const properties = feed.data || [];
   const visibleSelection = selected && properties.find((property: any) => property._id === selected._id);
+  const hasMapSelection = Boolean(map && visibleSelection);
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS !== "android") return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (hasMapSelection) {
+        setSelected(null);
+      } else if (filter) {
+        setFilter(false);
+      } else if (nearby) {
+        setNearby(undefined);
+        setSelected(null);
+      } else if (!map) {
+        setMap(true);
+      }
+      setMapGestureActive(false);
+      // Search is a primary tab. Home is available from the bottom navigation.
+      return true;
+    });
+    return () => subscription.remove();
+  }, [filter, hasMapSelection, map, nearby]));
+  useFocusEffect(useCallback(() => () => setSelected(null), []));
   const destination = visibleSelection?.location;
   const directionsUrl = validMapPoint(destination)
     ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${destination.lat},${destination.lng}`)}&dir_action=navigate`
@@ -825,7 +871,7 @@ export function SearchScreen() {
           onTouchEnd={event => { if (Platform.OS !== "web" && event.nativeEvent.touches.length === 0) setMapGestureActive(false); }}
           onTouchCancel={() => setMapGestureActive(false)}>
           <VerifiedPropertyMap key={mapFitVersion} properties={properties} onSelect={select}
-            focus={nearby} zoomControls twoFingerPan />
+            focus={nearby} selectedId={visibleSelection ? visibleSelection.id || visibleSelection._id : null} zoomControls twoFingerPan />
           <Pressable accessibilityRole="button" accessibilityLabel="Find properties near my location"
             accessibilityState={{ disabled: locationAction.busy, busy: locationAction.busy }}
             disabled={locationAction.busy} style={s.searchMapLocation}
@@ -858,7 +904,10 @@ export function SearchScreen() {
         <View style={s.panel}>
           <PropertyCard property={visibleSelection} compact />
           {directionsUrl && <Button title="Google Maps directions" icon="directions" disabled={directionsAction.busy}
-            onPress={() => void directionsAction.run(() => Linking.openURL(directionsUrl))} />}
+            onPress={() => void directionsAction.run(async () => {
+              await Linking.openURL(directionsUrl);
+              setSelected(null);
+            })} />}
           <ErrorBox text={directionsAction.error} />
           <Button
             secondary
@@ -894,19 +943,50 @@ export function SearchScreen() {
   );
 }
 export function WishlistScreen() {
+  const router = useRouter();
+  const goToChats = useCallback(() => router.navigate("/messages"), [router]);
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS !== "android") return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      goToChats();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [goToChats]));
   const user = useAuthStore((x) => x.user),
     feed = useData(user ? "/users/wishlist" : null, [user?.id]),
     [sort, setSort] = useState(false);
   const rows = [...(feed.data || [])];
+  const showArtwork = !user || (!feed.loading && !feed.error && feed.data?.length === 0);
+  const savedCount = `${rows.length}${feed.nextCursor ? "+" : ""}`;
   if (sort) rows.sort((a, b) => a.price - b.price);
   return (
     <MarketplaceShell
       title="Wishlist"
-      subtitle={feed.data ? `${rows.length}${feed.nextCursor ? "+" : ""} saved properties` : undefined}
+      compactHeader
+      dockArtwork
+      scrollEnabled={rows.length > 0}
+      scrollFooter={showArtwork ? () => (
+        <View style={s.wishlistArtwork} pointerEvents="none">
+          <View style={s.wishlistWatermarkFrame}>
+            <Image source={require("../assets/images/wishlist_watermark.png")}
+              style={s.watermarkImage} resizeMode="contain"
+              accessible={Boolean(user)} accessibilityLabel={user ? "Your wishlist is empty" : undefined} />
+          </View>
+        </View>
+      ) : undefined}
+      subtitle={rows.length
+        ? `Revisit ${savedCount} saved ${rows.length === 1 && !feed.nextCursor ? "property" : "properties"} anytime.`
+        : "Save your favourites and revisit them anytime."}
       headerAction={user ? <Button secondary icon="sort" title={sort ? "Newest saved" : "Sort by price"} onPress={() => setSort(!sort)} /> : undefined}
       back
+      onBack={goToChats}
     >
-      <Protected>
+      <Protected guest={{
+        title: "Keep your favourites together",
+        text: "Sign in, then tap the heart on any listing to add it to your Wishlist.",
+        icon: "favorite-border",
+      }}>
         <ErrorBox text={feed.error} />
         {feed.loading && <ActivityIndicator />}
         {rows.map((p) => (
@@ -924,12 +1004,6 @@ export function WishlistScreen() {
             secondary
             disabled={feed.loading}
             onPress={feed.loadMore}
-          />
-        )}
-        {feed.data?.length === 0 && (
-          <Empty
-            title="Keep your favourites close"
-            text="Tap the heart on a property to save it here. Sold listings are no longer shown."
           />
         )}
       </Protected>
@@ -1551,7 +1625,8 @@ export function ChatsScreen() {
   const user = useAuthStore((x) => x.user),
     router = useRouter(),
     params = useLocalSearchParams(),
-    [selected, setSelected] = useState(String(params.inquiryId || "")),
+    [selectedInquiry, setSelected] = useState(String(params.inquiryId || "")),
+    selected = user ? selectedInquiry : "",
     [text, setText] = useState(""),
     [query, setQuery] = useState(""),
     [unreadOnly, setUnreadOnly] = useState(false),
@@ -1598,9 +1673,19 @@ export function ChatsScreen() {
   return (
     <MarketplaceShell
       title={selected ? other?.name || "Property conversation" : "Messages"}
-      subtitle={selected ? c?.propertyId?.title : undefined}
+      compactHeader={!selected}
+      subtitle={selected ? c?.propertyId?.title : "Follow your property enquiries and replies."}
       back
       showDock={!selected}
+      dockArtwork={Boolean(user)}
+      scrollFooter={!user ? bottomExtension => (
+        <AccountArtworkFooter wavesOnly bottomExtension={bottomExtension} hideWhileTyping={false}
+          illustration={<View style={s.watermarkFrame} aria-hidden pointerEvents="none">
+            <Image source={require("../assets/images/messages_watermark.png")}
+              style={s.watermarkImage} resizeMode="contain" accessible={false} />
+          </View>}
+        />
+      ) : undefined}
       headerAction={selected ? <Button secondary title="All messages" onPress={() => {
         setSelected("");
         setText("");
@@ -1641,7 +1726,11 @@ export function ChatsScreen() {
         </View>
       ) : undefined}
     >
-      <Protected>
+      <Protected guest={{
+        title: "Pick up the conversation",
+        text: "Sign in to read replies and follow up with your property team.",
+        icon: "chat-bubble-outline",
+      }}>
         <ErrorBox
           text={feed.error || chat.error || messages.error || action.error}
         />
@@ -2136,18 +2225,28 @@ export function PostScreen() {
       await api.post(`/properties/${id}/submit`, { consent: true });
       setDone(true);
     });
+  const canPost = Boolean(user && approved(user));
   return (
     <MarketplaceShell
       title="Post property"
       subtitle={
         done
           ? "Your listing has been submitted"
-          : `Step ${step} of 5 · Private until verified`
+          : canPost
+            ? `Step ${step} of 5 · Private until verified`
+            : "Create a listing for your property on MalikSe."
       }
       back
-      showDock={false}
+      showDock={!canPost || done}
+      scrollEnabled={canPost}
+      scrollFooter={!canPost ? () => (
+        <View style={s.postWatermarkFrame} aria-hidden pointerEvents="none">
+          <Image source={require("../assets/images/post_property_watermark.png")}
+            style={s.watermarkImage} resizeMode="contain" accessible={false} />
+        </View>
+      ) : undefined}
       step={step}
-      footer={user && approved(user) && !done ? (
+      footer={canPost && !done ? (
       <View style={s.between}>
         <Button
           title="Back"
@@ -2168,7 +2267,7 @@ export function PostScreen() {
         />
       </View>
       ) : undefined}
-      headerContent={user && approved(user) && !done ? (
+      headerContent={canPost && !done ? (
         <View style={s.progress}>
           {["Basics", "Location", "Details", "Uploads", "Review"].map((label, index) => {
             const number = index + 1;
@@ -2190,7 +2289,11 @@ export function PostScreen() {
         </View>
       ) : undefined}
     >
-      <Protected kyc>
+      <Protected kyc guest={{
+        title: "Start your property listing",
+        text: "Sign in or create an account to add your property details and submit your listing for verification.",
+        icon: "real-estate-agent",
+      }}>
         {done ? (
           <Empty
             title="Submitted for review"
@@ -2486,6 +2589,21 @@ export function PostScreen() {
           </>
         )}
       </Protected>
+      {!canPost && (
+        <View style={s.panel}>
+          <Text accessibilityRole="header" style={s.h2}>What you’ll need</Text>
+          {([
+            ["place", "Property address and location"],
+            ["photo-camera", "Clear photos and property details"],
+            ["description", "Ownership documents for verification"],
+          ] as const).map(([icon, text]) => (
+            <View key={icon} style={s.row}>
+              <View style={s.postPrepIcon}><Icon name={icon} size={19} color={C.ink} /></View>
+              <Text style={[s.body, { flex: 1 }]}>{text}</Text>
+            </View>
+          ))}
+        </View>
+      )}
     </MarketplaceShell>
   );
 }
@@ -2495,6 +2613,7 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   header: { flexDirection: "row", alignItems: "center", gap: 10 },
   heroInner: { width: "100%", maxWidth: 1140, alignSelf: "center", gap: 18 },
+  compactHeroInner: { gap: 10 },
   heroIcon: {
     width: 42, height: 42, borderRadius: 21, alignItems: "center",
     justifyContent: "center", backgroundColor: "rgba(255,255,255,0.15)",
@@ -2504,6 +2623,13 @@ const s = StyleSheet.create({
   logoIcon: { backgroundColor: C.sun, padding: 8, borderRadius: 12 },
   scroll: { paddingBottom: 108 },
   scrollWithArtwork: { flexGrow: 1, paddingBottom: 0 },
+  fitArtworkToViewport: { flex: 1 },
+  wishlistArtwork: { flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" },
+  wishlistWatermarkFrame: { width: "86%", maxWidth: 335, height: "95%" },
+  watermarkFrame: { width: "72%", maxWidth: 280, aspectRatio: 1.2 },
+  watermarkImage: { width: "100%", height: "100%" },
+  postWatermarkFrame: { flex: 1, minHeight: 0, width: "86%", maxWidth: 420, alignSelf: "center" },
+  postPrepIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF1C0" },
   content: { width: "100%", maxWidth: 1180, alignSelf: "center", padding: 20, gap: 18 },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   between: {
@@ -2611,6 +2737,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingBottom: 24, backgroundColor: C.ink,
     borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden",
   },
+  compactHero: { paddingBottom: 13 },
+  smallHero: { paddingHorizontal: 16, paddingBottom: 10 },
+  smallHeroSubtitle: { fontSize: 13, lineHeight: 18 },
   heroSun: {
     position: "absolute", width: 178, height: 178, borderRadius: 89,
     right: -52, top: -58, backgroundColor: C.sun,
@@ -2704,6 +2833,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   avatarText: { fontWeight: "800", color: C.blue, fontSize: 14 },
+  dockArtwork: { position: "absolute", left: 0, right: 0, bottom: 0 },
   dockWrapper: {
     position: "absolute",
     left: 0,

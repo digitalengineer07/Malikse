@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { BIHAR_DISTRICTS_DATA, type BiharDistrictInfo } from "../src/data/biharDistrictsData";
+import { BIHAR_DISTRICTS_DATA, type BiharDistrictInfo } from "../src/geo-data/biharDistrictsData";
 
 interface BiharDistrictExplorerPanelProps {
   selectedDistrict?: string;

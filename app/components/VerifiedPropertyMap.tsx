@@ -5,7 +5,7 @@ import type { Property } from "../src/types/property.types";
 import { addParcelBaseLayer, hasParcelBoundary, parcelStyle } from "../src/utils/parcelMap";
 import { propertyZoomStyles, validMapPoint, type MapFocus } from "../src/utils/nativeMapHtml";
 
-export default function VerifiedPropertyMap({ properties, onSelect, focus, zoomControls = false, twoFingerPan = false }: { properties: Property[]; onSelect: (property: Property) => void; focus?: MapFocus; zoomControls?: boolean; twoFingerPan?: boolean }) {
+export default function VerifiedPropertyMap({ properties, onSelect, focus, zoomControls = false, twoFingerPan = false }: { properties: Property[]; onSelect: (property: Property) => void; focus?: MapFocus; zoomControls?: boolean; twoFingerPan?: boolean; selectedId?: string | null }) {
   const container = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {

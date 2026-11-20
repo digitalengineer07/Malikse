@@ -22,9 +22,8 @@ export function loadGoogleMaps(): Promise<any> {
     return googleMapsPromise;
   }
 
-  const apiKey =
-    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
-    "AIzaSyAD35RnKNgKBt2LDHSC6QHhui6tZrM_Pzw";
+  const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim();
+  if (!apiKey) return Promise.reject(new Error("Google Maps JavaScript key is not configured"));
 
   googleMapsPromise = new Promise((resolve, reject) => {
     // Clean up stale or failed script elements

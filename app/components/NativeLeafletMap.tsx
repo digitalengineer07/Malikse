@@ -11,9 +11,9 @@ type ParcelControls = {
   zoomRequest?: { delta: number };
   onPin: (point: MapPoint) => void;
 };
-type MapProps = { options: NativeMapOptions; focus?: MapFocus; onSelect?: (id: string) => void; onPoints?: (points: MapPoint[]) => void; parcelControls?: ParcelControls };
+type MapProps = { options: NativeMapOptions; focus?: MapFocus; selectedId?: string | null; onSelect?: (id: string) => void; onPoints?: (points: MapPoint[]) => void; parcelControls?: ParcelControls };
 
-export default function NativeLeafletMap({ options, focus, onSelect, onPoints, parcelControls }: MapProps) {
+export default function NativeLeafletMap({ options, focus, selectedId, onSelect, onPoints, parcelControls }: MapProps) {
   const [assets, setAssets] = useState(cachedMapAssets);
   const [assetsReady, setAssetsReady] = useState(!!assets);
   useEffect(() => {
@@ -33,9 +33,9 @@ export default function NativeLeafletMap({ options, focus, onSelect, onPoints, p
   }, []);
   if (!assetsReady) return <View style={styles.container}><View style={styles.overlay}><ActivityIndicator color="#1A365D" /><Text style={styles.text}>Preparing map…</Text></View></View>;
   if (!assets) return <View style={styles.container}><View style={styles.overlay}><Text style={styles.text}>Map files could not download. Check your connection and try again.</Text><TouchableOpacity accessibilityRole="button" style={styles.retry} onPress={retry}><Text style={styles.retryText}>Retry map</Text></TouchableOpacity></View></View>;
-  return <NativeMapContent key={html + attempt} html={html} options={options} focus={focus ?? options.focus} onSelect={onSelect} onPoints={onPoints} parcelControls={parcelControls} retry={retry} />;
+  return <NativeMapContent key={html + attempt} html={html} options={options} focus={focus ?? options.focus} selectedId={selectedId} onSelect={onSelect} onPoints={onPoints} parcelControls={parcelControls} retry={retry} />;
 }
-function NativeMapContent({ html, options, focus, onSelect, onPoints, parcelControls, retry }: MapProps & { html: string; retry: () => void }) {
+function NativeMapContent({ html, options, focus, selectedId, onSelect, onPoints, parcelControls, retry }: MapProps & { html: string; retry: () => void }) {
   const webview = useRef<WebView<unknown>>(null);
   const source = useMemo(() => ({ html, baseUrl: "https://malikse.local/" }), [html]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -59,6 +59,10 @@ function NativeMapContent({ html, options, focus, onSelect, onPoints, parcelCont
     if (status !== "ready" || (!options.regions && !options.twoFingerPan)) return;
     webview.current?.injectJavaScript(`(function(){const data=${propertiesJson.replace(/</g, "\\u003c")};window.updatePropertyData(data.pins,data.parcels,${Boolean(options.twoFingerPan && !focus)});})();true;`);
   }, [propertiesJson, status, options.regions, options.twoFingerPan, focus]);
+  useEffect(() => {
+    if (status !== "ready" || selectedId === undefined) return;
+    webview.current?.injectJavaScript(`window.selectPropertyPin(${JSON.stringify(selectedId).replace(/</g, "\\u003c")});true;`);
+  }, [selectedId, status, propertiesJson]);
   useEffect(() => {
     if (status !== "ready" || !options.marketplace) return;
     return attachPlacesTransport(request => {

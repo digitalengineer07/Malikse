@@ -7,7 +7,8 @@ export default function AccountArtworkFooter({
   bottomExtension = 0,
   wavesOnly = false,
   illustration,
-}: { bottomExtension?: number; wavesOnly?: boolean; illustration?: React.ReactElement | null }) {
+  hideWhileTyping = true,
+}: { bottomExtension?: number; wavesOnly?: boolean; illustration?: React.ReactElement | null; hideWhileTyping?: boolean }) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const bottomInset = insets.bottom + bottomExtension;
@@ -22,7 +23,7 @@ export default function AccountArtworkFooter({
     const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
     return () => { show.remove(); hide.remove(); };
   }, []);
-  if (keyboardVisible) return <View style={{ height: 18 }} />;
+  if (hideWhileTyping && keyboardVisible) return <View style={{ height: 18 }} />;
 
   return (
     <>
