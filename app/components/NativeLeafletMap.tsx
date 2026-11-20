@@ -6,7 +6,14 @@ import { attachPlacesTransport, receivePlaceResult } from "../src/utils/nativePl
 import { currentMapLocation } from "../src/services/currentMapLocation";
 import { cachedMapAssets, preloadMapAssets } from "../src/services/mapAssets";
 
-export default function NativeLeafletMap({ options, focus, onSelect, onPoints }: { options: NativeMapOptions; focus?: MapFocus; onSelect?: (id: string) => void; onPoints?: (points: MapPoint[]) => void }) {
+type ParcelControls = {
+  mode: "pin" | "boundary" | null;
+  zoomRequest?: { delta: number };
+  onPin: (point: MapPoint) => void;
+};
+type MapProps = { options: NativeMapOptions; focus?: MapFocus; onSelect?: (id: string) => void; onPoints?: (points: MapPoint[]) => void; parcelControls?: ParcelControls };
+
+export default function NativeLeafletMap({ options, focus, onSelect, onPoints, parcelControls }: MapProps) {
   const [assets, setAssets] = useState(cachedMapAssets);
   const [assetsReady, setAssetsReady] = useState(!!assets);
   useEffect(() => {
@@ -26,9 +33,9 @@ export default function NativeLeafletMap({ options, focus, onSelect, onPoints }:
   }, []);
   if (!assetsReady) return <View style={styles.container}><View style={styles.overlay}><ActivityIndicator color="#1A365D" /><Text style={styles.text}>Preparing map…</Text></View></View>;
   if (!assets) return <View style={styles.container}><View style={styles.overlay}><Text style={styles.text}>Map files could not download. Check your connection and try again.</Text><TouchableOpacity accessibilityRole="button" style={styles.retry} onPress={retry}><Text style={styles.retryText}>Retry map</Text></TouchableOpacity></View></View>;
-  return <NativeMapContent key={html + attempt} html={html} options={options} focus={focus ?? options.focus} onSelect={onSelect} onPoints={onPoints} retry={retry} />;
+  return <NativeMapContent key={html + attempt} html={html} options={options} focus={focus ?? options.focus} onSelect={onSelect} onPoints={onPoints} parcelControls={parcelControls} retry={retry} />;
 }
-function NativeMapContent({ html, options, focus, onSelect, onPoints, retry }: { html: string; options: NativeMapOptions; focus?: MapFocus; onSelect?: (id: string) => void; onPoints?: (points: MapPoint[]) => void; retry: () => void }) {
+function NativeMapContent({ html, options, focus, onSelect, onPoints, parcelControls, retry }: MapProps & { html: string; retry: () => void }) {
   const webview = useRef<WebView<unknown>>(null);
   const source = useMemo(() => ({ html, baseUrl: "https://malikse.local/" }), [html]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -67,6 +74,18 @@ function NativeMapContent({ html, options, focus, onSelect, onPoints, retry }: {
       webview.current?.injectJavaScript(`window.focusMap && window.focusMap(${focus.lat},${focus.lng},${Math.max(1, Math.min(19, focus.zoom))}); true;`);
     }
   }, [focus, status]);
+  const mode = parcelControls?.mode;
+  const zoomRequest = parcelControls?.zoomRequest;
+  const lastZoom = useRef<typeof zoomRequest>(undefined);
+  useEffect(() => {
+    if (status !== "ready" || mode === undefined) return;
+    webview.current?.injectJavaScript(`window.setParcelEditMode?.(${JSON.stringify(mode)});true;`);
+  }, [mode, status]);
+  useEffect(() => {
+    if (status !== "ready" || !zoomRequest || zoomRequest === lastZoom.current) return;
+    lastZoom.current = zoomRequest;
+    webview.current?.injectJavaScript(`window.zoomParcelMap?.(${zoomRequest.delta > 0 ? 1 : -1});true;`);
+  }, [status, zoomRequest]);
   useEffect(() => {
     const timeout = setTimeout(() => setStatus(current => current === "loading" ? "error" : current), 20000);
     return () => clearTimeout(timeout);
@@ -88,6 +107,7 @@ function NativeMapContent({ html, options, focus, onSelect, onPoints, retry }: {
           if (message.type === "ready") setStatus("ready");
           else if (message.type === "error") setStatus("error");
           else if (message.type === "boundaryError") setBoundaryError(true);
+          else if (message.type === "parcelPin" && mode === "pin" && validMapPoint(message.payload)) parcelControls?.onPin(message.payload);
           else if (message.type === "placeResult" && options.marketplace && typeof message.payload?.id === "number") receivePlaceResult(message.payload.id, message.payload.result);
           else if (message.type === "locate" && options.marketplace) {
             currentMapLocation().then(point => {

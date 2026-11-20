@@ -10,6 +10,7 @@ const schema = new Schema({
   challengeId: { type: String, required: true, index: true },
   provider: { type: String, enum: ["local", "twilio-verify"] },
   otpHash: { type: String, required: true },
+  resetGrantHash: { type: String },
   expiresAt: { type: Date, required: true },
   resendAt: { type: Date, required: true },
   lockUntil: { type: Date, default: () => new Date(0) },

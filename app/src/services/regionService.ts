@@ -29,7 +29,8 @@ export async function fetchRegionCounts(filters: RegionFilters, signal?: AbortSi
 export async function fetchLocationSuggestions(
   q: string,
   type?: PropertyType,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  includeGooglePlaces = true,
 ): Promise<LocationSuggestion[]> {
   const term = q.trim().toLowerCase();
   if (!term || term.length < 2) return [];
@@ -59,7 +60,7 @@ export async function fetchLocationSuggestions(
     .catch(() => [] as LocationSuggestion[]);
 
   // 3. Query Google Places API for real-world landmark & place predictions
-  const googlePromise = fetchGooglePlaceSuggestions(q)
+  const googlePromise = (includeGooglePlaces ? fetchGooglePlaceSuggestions(q) : Promise.resolve([]))
     .then((places) =>
       places.slice(0, 5).map((p) => ({
         kind: "address" as const,

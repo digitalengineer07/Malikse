@@ -2,7 +2,7 @@ import { Property, IProperty } from "../models/Property.model";
 import { User } from "../models/User.model";
 import { AssignmentCursor } from "../models/AssignmentCursor.model";
 
-export const editableFields = ["requestedAdvisorId", "title", "description", "type", "location", "parcelPoints", "khata", "khesra", "holdingNumber", "totalArea", "sellableArea", "boundary", "roadWidth", "price", "negotiable", "media", "disclosures"];
+export const editableFields = ["requestedAdvisorId", "title", "description", "bedrooms", "bathrooms", "furnishing", "streetAddress", "type", "location", "parcelPoints", "khata", "khesra", "holdingNumber", "totalArea", "sellableArea", "boundary", "roadWidth", "price", "negotiable", "media", "disclosures"];
 export const listingFields = (body: Record<string, unknown>) => Object.fromEntries(Object.entries(body).filter(([key]) => editableFields.includes(key) && key !== "media"));
 export const canReadProperty = (property: IProperty, actor: { id: string; role: string }) =>
   actor.role === "admin" || property.ownerId.toString() === actor.id ||
@@ -31,6 +31,12 @@ export function validateListing(data: any) {
     if (data[key] !== undefined && (typeof data[key] !== "string" || data[key].length > (key === "description" ? 10000 : 500))) return "Invalid listing text";
   }
   if (!["land", "flat", "house", "shop", "office"].includes(data.type)) return "Invalid property type";
+  for (const key of ["bedrooms", "bathrooms"]) {
+    const value = data[key];
+    if (value !== undefined && (!Number.isInteger(value) || value < 0 || value > 99)) return `Invalid ${key}`;
+  }
+  if (data.furnishing !== undefined && !["unfurnished", "semi-furnished", "fully furnished"].includes(data.furnishing)) return "Invalid furnishing";
+  if (data.streetAddress !== undefined && (typeof data.streetAddress !== "string" || data.streetAddress.length > 500)) return "Invalid street address";
   if (data.negotiable !== undefined && typeof data.negotiable !== "boolean") return "Invalid negotiable flag";
   if (data.boundary !== undefined && (typeof data.boundary !== "string" || data.boundary.length > 2000)) return "Invalid boundary";
   if (data.disclosures !== undefined) {
@@ -79,4 +85,4 @@ export async function transition(property: IProperty, changes: object, event: ob
   return updated;
 }
 
-export const publicFields = "title description type location parcelPoints totalArea sellableArea boundary roadWidth price negotiable media disclosures status badges firstPublishedAt createdAt updatedAt";
+export const publicFields = "title description bedrooms bathrooms furnishing type location parcelPoints totalArea sellableArea boundary roadWidth price negotiable media disclosures status badges firstPublishedAt createdAt updatedAt";

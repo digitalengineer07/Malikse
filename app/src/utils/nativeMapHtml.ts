@@ -26,8 +26,9 @@ function send(type,payload){window.ReactNativeWebView && window.ReactNativeWebVi
 </script>${leaflet}${vectorGrid}<script>
 try {
 const data=${data};
-const map=L.map('map',{scrollWheelZoom:false,zoomControl:false,...(data.marketplace?{minZoom:3.8,maxZoom:18,maxBounds:[[4,64],[39,101]]}:{})}).setView([25.6,85.1],7);
+const map=L.map('map',{scrollWheelZoom:false,zoomControl:false,...(data.editable?{touchZoom:false,doubleClickZoom:false,boxZoom:false}:{}),...(data.marketplace?{minZoom:3.8,maxZoom:18,maxBounds:[[4,64],[39,101]]}:{})}).setView([25.6,85.1],7);
 window.focusMap=(lat,lng,zoom)=>map.setView([lat,lng],zoom);
+window.zoomParcelMap=(delta)=>map.setZoom(map.getZoom()+delta);
 let tiles;
 function setLayer(satellite){
  if(tiles)map.removeLayer(tiles);
@@ -100,12 +101,29 @@ if(data.focus && Number.isFinite(data.focus.lat) && Number.isFinite(data.focus.l
 else if(bounds.length)map.fitBounds(bounds,{padding:[50,50],maxZoom:points.length || data.parcels?.length ?18:14});
 if(data.editable){
  const tools=document.createElement('div');tools.className='tools';
+ let editMode='boundary', pin;
+ window.setParcelEditMode=(mode)=>{
+  editMode=mode;
+  tools.style.display=mode==='boundary'?'flex':'none';
+  finishButton.style.display='none';
+  closed=mode!=='boundary'&&points.length>=3;
+  draw();
+ };
  function button(label,action){const b=document.createElement('button');b.textContent=label;b.onclick=action;tools.appendChild(b);return b;}
  undoButton=button('Undo',()=>{points.pop();closed=false;draw();send('points',points);});
  clearButton=button('Clear',()=>{points=[];closed=false;draw();send('points',points);});
  finishButton=button('Finish',()=>{closed=true;draw();send('points',points);});
  document.body.appendChild(tools);
- map.on('click',e=>{if(closed)return;points.push({lat:e.latlng.lat,lng:e.latlng.lng});draw();send('points',points);});
+ map.on('click',e=>{
+  if(editMode==='pin'){
+   if(pin)pin.remove();
+   pin=L.circleMarker(e.latlng,{radius:8,color:'#14263E',fillColor:'#FCC61C',fillOpacity:1}).addTo(map);
+   send('parcelPin',{lat:e.latlng.lat,lng:e.latlng.lng});
+   return;
+  }
+  if(editMode!=='boundary'||closed||points.length>=500)return;
+  points.push({lat:e.latlng.lat,lng:e.latlng.lng});draw();send('points',points);
+ });
 }
 draw();
 // The controls are usable before slow tile servers deliver their first image.

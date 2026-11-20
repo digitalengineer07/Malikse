@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
-import { Redirect, useRouter, useLocalSearchParams } from "expo-router";
+import { ActivityIndicator, Image, Keyboard, KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Redirect, useRouter, useLocalSearchParams, useIsFocused } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { authService } from "../src/services/authService";
@@ -8,38 +9,29 @@ import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
 
 export default function AccountAuthScreen({ mode }: { mode: "login" | "register" }) {
-  const [stage, setStage] = useState<"welcome" | "login" | "register">(mode === "register" ? "register" : "welcome");
-  const register = stage === "register";
-  const [progress] = useState(() => new Animated.Value(mode === "register" ? 1 : 0));
-  const reduceMotion = useRef(false);
-  const { height } = useWindowDimensions();
-  const cardHeight = Math.max(620, Math.min(800, height - 90));
+  const [register, setRegister] = useState(mode === "register");
+  const focused = useIsFocused();
 
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(value => { reduceMotion.current = value; });
-    const listener = AccessibilityInfo.addEventListener("reduceMotionChanged", value => { reduceMotion.current = value; });
-    return () => { listener.remove(); progress.stopAnimation(); };
-  }, [progress]);
-
-  const reveal = (next: "welcome" | "login" | "register") => {
+  const switchForm = (registration: boolean) => {
     setError("");
     setShowPassword(false);
-    setStage(next);
+    setRegister(registration);
     setChallenge(null);
     setOtp("");
-    Animated.timing(progress, {
-      toValue: next === "welcome" ? 0 : 1,
-      duration: reduceMotion.current ? 0 : 620,
-      easing: Easing.bezier(0.22, 1, 0.36, 1),
-      useNativeDriver: false,
-    }).start();
   };
   const router = useRouter();
   const { returnTo } = useLocalSearchParams();
   const destination = typeof returnTo === "string" && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/home";
   const insets = useSafeAreaInsets();
   const { user, authState, hydrated } = useAuthStore();
-  const { language, toggleLanguage } = useLanguageStore();
+  const { language, toggleLanguage, setLanguage } = useLanguageStore();
+  const [showSettings, setShowSettings] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
   const label = (en: string, hi: string) => language === "hi" ? hi : en;
   const [name, setName] = useState("");
   const [mobile, setMobile] = useState("");
@@ -134,82 +126,83 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
     }
   };
 
-  if (!hydrated) return <View style={styles.center}><ActivityIndicator color="#047857" /></View>;
+  if (!hydrated) return <View style={styles.center}><ActivityIndicator color={navy} /></View>;
   if (authState === "AUTHENTICATED" && user) return <Redirect href={destination as any} />;
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 20 }]}>
-        <View style={styles.topBar}>
-          <TouchableOpacity accessibilityRole="button" disabled={loading} onPress={() => stage === "welcome" ? router.replace(destination as any) : reveal("welcome")}>
-            <Text style={styles.link}>← {stage === "welcome" ? label("Marketplace", "मार्केटप्लेस") : label("Welcome", "स्वागत है")}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" onPress={toggleLanguage}>
-            <Text style={styles.link}>{label("हिन्दी", "English")}</Text>
-          </TouchableOpacity>
+      {focused && <StatusBar style="light" />}
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{
+        flexGrow: 1,
+        paddingBottom: register ? insets.bottom + 18 : keyboardVisible ? 18 : 0,
+      }}>
+        <View style={[styles.hero, { paddingTop: insets.top + 14 }]}>
+          <View pointerEvents="none" style={[styles.heroSun, { top: insets.top + 4 }]} />
+          <View pointerEvents="none" style={styles.heroRay} />
+          <View style={styles.heroInner}>
+            <View style={styles.topBar}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={label("Back", "वापस")} style={styles.heroIcon} disabled={loading}
+                onPress={() => {
+                  if (register) switchForm(false);
+                  else if (router.canGoBack()) router.back();
+                  else router.replace("/home");
+                }}>
+                <MaterialIcons name="arrow-back" size={22} color="#fff" />
+              </TouchableOpacity>
+              <View style={styles.brandLockup}>
+                <Image source={require("../assets/images/icon.png")} style={styles.brandLogo} resizeMode="contain" accessible={false} />
+                <Text style={styles.brand}>MalikSe<Text style={{ color: sun }}>.</Text></Text>
+              </View>
+              <TouchableOpacity accessibilityRole="button" style={styles.language} onPress={toggleLanguage}>
+                <Text style={styles.languageText}>{label("हिन्दी", "English")}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.titleGroup}>
+              <Text accessibilityRole="header" style={styles.heading}>
+                {register ? label("Create your account", "अपना खाता बनाएं") : label("Sign in", "साइन इन करें")}
+              </Text>
+              {!register && <Text style={styles.heroHint}>{label("Use your registered mobile number or email.", "अपना पंजीकृत मोबाइल नंबर या ईमेल इस्तेमाल करें।")}</Text>}
+            </View>
+          </View>
         </View>
-        <View style={[styles.card, register ? styles.registerCard : { height: cardHeight }]}>
-          {!register && <Image
-            source={{ uri: "https://images.unsplash.com/photo-1628624747186-a941c476b7ef?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MjB8fGhvdXNlfGVufDB8fDB8fHww" }}
-            style={styles.housePhoto}
-            resizeMode="cover"
-            accessibilityLabel={label("A home surrounded by greenery", "हरियाली से घिरा एक घर")}
-          />}
-          {!register && <View style={[styles.photoShade, { pointerEvents: "none" }]} />}
-          {!register && <Animated.View style={[styles.photoBrand, { opacity: progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }), pointerEvents: "none" }]}>
-            <View style={styles.brandSeal}><MaterialIcons name="wb-sunny" size={26} color="#20251F" /><Text style={styles.sealText}>MALIKSE</Text></View>
-            <Text style={styles.brand}>MalikSe</Text>
-            <Text style={styles.brandTagline}>{label("Your land. A safer future.", "आपकी ज़मीन। सुरक्षित भविष्य।")}</Text>
-          </Animated.View>}
-          <Animated.View style={register ? styles.registerPanel : [styles.panel, { top: progress.interpolate({ inputRange: [0, 1], outputRange: [cardHeight * 0.61, cardHeight * 0.16] }) }]}>
-            {!register && <View style={[styles.panelCurve, { pointerEvents: "none" }]} />}
-            <Animated.View accessibilityElementsHidden={stage !== "welcome"} importantForAccessibility={stage === "welcome" ? "auto" : "no-hide-descendants"} aria-hidden={stage !== "welcome"} style={[styles.welcome, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [1, 0, 0] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -24] }) }], pointerEvents: stage === "welcome" ? "auto" : "none" }]}>
-              <Text accessibilityRole="header" style={styles.welcomeTitle}>{label("WELCOME", "स्वागत है")}</Text>
-              <Text style={styles.welcomeDescription}>{label("Find your next space, feel at home.\nWhere comfort meets confidence.", "अपना नया ठिकाना खोजें, घर जैसा महसूस करें।\nजहाँ सुकून और भरोसा साथ मिलें।")}</Text>
-              <TouchableOpacity accessibilityRole="button" style={[styles.button, styles.welcomeButton]} onPress={() => reveal("login")}><Text style={styles.buttonText}>{label("Login", "लॉगिन")}</Text></TouchableOpacity>
-              <TouchableOpacity accessibilityRole="button" style={[styles.button, styles.welcomeButton, styles.outlineButton]} onPress={() => reveal("register")}><Text style={styles.outlineButtonText}>{label("Sign Up", "साइन अप")}</Text></TouchableOpacity>
-            </Animated.View>
-            {stage !== "welcome" && <Animated.View style={[!register && styles.form, { opacity: progress.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0, 1] }), transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
-              <View style={styles.formContent}>
-                <Text accessibilityRole="header" style={styles.heading}>{register ? label("Create your account", "अपना खाता बनाएं") : label("Welcome back", "वापस स्वागत है")}</Text>
-                <Text style={styles.description}>{register ? label("Your next chapter starts here.", "आपकी नई शुरुआत यहीं से।") : label("A place of your own is one step closer.", "आपका अपना ठिकाना, बस एक कदम दूर।")}</Text>
+        <View style={styles.card}>
           {!(register && challenge) && <>
           <View style={styles.methodRow}>
             {(["mobile", "email"] as const).map(method => {
               const selected = (register ? registerMethod : loginMethod) === method;
               return <TouchableOpacity key={method} accessibilityRole="button" accessibilityState={{ selected, disabled: loading }} disabled={loading} style={[styles.methodButton, selected && styles.methodButtonActive]} onPress={() => { if (register) { setRegisterMethod(method); setRetryAt(0); } else setLoginMethod(method); setError(""); }}>
-                <MaterialIcons name={method === "mobile" ? "phone-iphone" : "mail-outline"} size={17} color={selected ? "#1F5548" : "#6B756F"} />
+                <MaterialIcons name={method === "mobile" ? "phone-iphone" : "mail-outline"} size={17} color={selected ? sun : navy} />
                 <Text style={[styles.methodText, selected && styles.methodTextActive]}>{method === "mobile" ? label("Mobile", "मोबाइल") : label("Email", "ईमेल")}</Text>
               </TouchableOpacity>;
             })}
           </View>
           {register && <View style={styles.field}>
             <Text style={styles.label}>{label("Full name", "पूरा नाम")}</Text>
-            <TextInput accessibilityLabel={label("Full name", "पूरा नाम")} style={styles.input} value={name} onChangeText={setName} editable={!loading} autoComplete="name" autoCapitalize="words" placeholder={label("Enter your full name", "अपना पूरा नाम दर्ज करें")} placeholderTextColor="#718078" />
+            <TextInput accessibilityLabel={label("Full name", "पूरा नाम")} style={styles.input} value={name} onChangeText={setName} editable={!loading} autoComplete="name" autoCapitalize="words" placeholder={label("Enter your full name", "अपना पूरा नाम दर्ज करें")} placeholderTextColor="#536174" />
           </View>}
           {(register ? registerMethod === "email" : loginMethod === "email") && <View style={styles.field}>
             <Text style={styles.label}>{label("Email address", "ईमेल पता")}</Text>
-            <TextInput accessibilityLabel={label("Email address", "ईमेल पता")} style={styles.input} value={register ? email : loginEmail} onChangeText={register ? setEmail : setLoginEmail} editable={!loading} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" placeholder="name@example.com" placeholderTextColor="#718078" />
+            <TextInput accessibilityLabel={label("Email address", "ईमेल पता")} style={styles.input} value={register ? email : loginEmail} onChangeText={register ? setEmail : setLoginEmail} editable={!loading} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" placeholder="name@example.com" placeholderTextColor="#536174" />
           </View>}
           {(register || loginMethod === "mobile") && <View style={styles.field}>
             <Text style={styles.label}>{register && registerMethod === "email" ? label("Mobile number (optional)", "मोबाइल नंबर (वैकल्पिक)") : label("Mobile number", "मोबाइल नंबर")}</Text>
             <View style={styles.phoneRow}>
               <Text style={styles.prefix}>+91</Text>
-              <TextInput accessibilityLabel={label("Mobile number", "मोबाइल नंबर")} style={styles.phoneInput} value={mobile} onChangeText={setMobile} editable={!loading} keyboardType="phone-pad" autoComplete="tel-national" maxLength={10} placeholder={label("10-digit mobile number", "10 अंकों का मोबाइल नंबर")} placeholderTextColor="#718078" />
+              <TextInput accessibilityLabel={label("Mobile number", "मोबाइल नंबर")} style={styles.phoneInput} value={mobile} onChangeText={setMobile} editable={!loading} keyboardType="phone-pad" autoComplete="tel-national" maxLength={10} placeholder={label("10-digit mobile number", "10 अंकों का मोबाइल नंबर")} placeholderTextColor="#536174" />
             </View>
           </View>}
           <View style={styles.field}>
             <Text style={styles.label}>{label("Password", "पासवर्ड")}</Text>
             <View style={styles.phoneRow}>
-              <TextInput accessibilityLabel={label("Password", "पासवर्ड")} style={styles.passwordInput} value={password} onChangeText={setPassword} editable={!loading} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} autoComplete={register ? "new-password" : "current-password"} placeholder={register ? label("At least 6 characters", "कम से कम 6 अक्षर") : label("Enter your password", "अपना पासवर्ड दर्ज करें")} placeholderTextColor="#718078" onSubmitEditing={register ? undefined : submit} returnKeyType={register ? "next" : "go"} />
+              <TextInput accessibilityLabel={label("Password", "पासवर्ड")} style={styles.passwordInput} value={password} onChangeText={setPassword} editable={!loading} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} autoComplete={register ? "new-password" : "current-password"} placeholder={register ? label("At least 6 characters", "कम से कम 6 अक्षर") : label("Enter your password", "अपना पासवर्ड दर्ज करें")} placeholderTextColor="#536174" onSubmitEditing={register ? undefined : submit} returnKeyType={register ? "next" : "go"} />
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={showPassword ? label("Hide password", "पासवर्ड छिपाएं") : label("Show password", "पासवर्ड दिखाएं")} style={styles.eye} onPress={() => setShowPassword(!showPassword)}>
-                <MaterialIcons name={showPassword ? "visibility-off" : "visibility"} size={22} color="#53645B" />
+                <MaterialIcons name={showPassword ? "visibility-off" : "visibility"} size={22} color={navy} />
               </TouchableOpacity>
             </View>
           </View>
           {register && registerMethod === "mobile" && <View style={styles.field}>
             <Text style={styles.label}>{label("Email (optional)", "ईमेल (वैकल्पिक)")}</Text>
-            <TextInput accessibilityLabel={label("Email (optional)", "ईमेल (वैकल्पिक)")} style={styles.input} value={email} onChangeText={setEmail} editable={!loading} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" placeholder="name@example.com" placeholderTextColor="#718078" returnKeyType="go" onSubmitEditing={submit} />
+            <TextInput accessibilityLabel={label("Email (optional)", "ईमेल (वैकल्पिक)")} style={styles.input} value={email} onChangeText={setEmail} editable={!loading} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" placeholder="name@example.com" placeholderTextColor="#536174" returnKeyType="go" onSubmitEditing={submit} />
           </View>}
           </>}
           {register && challenge && <View style={styles.field}>
@@ -225,68 +218,131 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
           {!!notice && register && <Text accessibilityLiveRegion="polite" style={styles.description}>{notice}</Text>}
           {!!error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
           <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: loading, busy: loading }} style={[styles.button, loading && styles.disabled]} onPress={submit} disabled={loading || (register && (challenge ? expiresIn === 0 : resendIn > 0))}>
-            {loading && <ActivityIndicator color="white" />}
+            {loading && <ActivityIndicator color={navy} />}
             <Text style={styles.buttonText}>{loading ? label("Please wait…", "कृपया प्रतीक्षा करें…") : register ? (challenge ? label("Verify & create account", "सत्यापित करें और खाता बनाएं") : registerMethod === "email" ? label("Send email OTP", "ईमेल OTP भेजें") : label("Send OTP", "OTP भेजें")) : label("Sign in", "साइन इन करें")}</Text>
           </TouchableOpacity>
-          {!register && <TouchableOpacity accessibilityRole="button" disabled={loading} onPress={() => router.push("/(auth)/forgot-password" as any)}><Text style={styles.link}>Forgot password?</Text></TouchableOpacity>}
-          <TouchableOpacity accessibilityRole="button" style={styles.secondary} disabled={loading} onPress={() => reveal(register ? "login" : "register")}>
+          {!register && <TouchableOpacity accessibilityRole="button" style={styles.secondary} disabled={loading} onPress={() => router.push("/(auth)/forgot-password" as any)}><Text style={styles.link}>{label("Forgot password?", "पासवर्ड भूल गए?")}</Text></TouchableOpacity>}
+          <TouchableOpacity accessibilityRole="button" style={[styles.secondary, styles.accountSwitch]} disabled={loading} onPress={() => switchForm(!register)}>
             <Text style={styles.link}>{register ? label("Already have an account? Sign in", "पहले से खाता है? साइन इन करें") : label("New to MalikSe? Create an account", "MalikSe पर नए हैं? खाता बनाएं")}</Text>
           </TouchableOpacity>
-              </View>
-            </Animated.View>}
-          </Animated.View>
         </View>
+        {!register && !keyboardVisible && (
+          <>
+            <View style={styles.signInFooter}>
+              <View pointerEvents="none" style={[styles.artCrop, styles.houseArt]}>
+                <Image source={require("../assets/images/modern_house_with_location_pin.png")} style={styles.houseAsset} resizeMode="stretch" accessible={false} />
+              </View>
+              <Text accessibilityRole="header" style={styles.footerHeading}>{label("Buy & Sell Property", "प्रॉपर्टी खरीदें और बेचें")}</Text>
+              <View pointerEvents="none" style={[styles.artCrop, styles.ownerBadge]}>
+                <Image source={require("../assets/images/directly_from_the_owner_badge.png")} style={styles.ownerAsset}
+                  resizeMode="stretch" accessible accessibilityLabel="Directly from the Owner" />
+              </View>
+              <View style={styles.footerActions}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={label("Language settings", "भाषा सेटिंग")}
+                  accessibilityState={{ expanded: showSettings }} style={styles.settingsButton} onPress={() => setShowSettings(open => !open)}>
+                  <View style={[styles.artCrop, styles.settingsIcon]}>
+                    <Image source={require("../assets/images/sign_in_settings_icon.png")} style={styles.settingsAsset} resizeMode="stretch" accessible={false} />
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity accessibilityRole="link" style={styles.support}
+                  onPress={() => void Linking.openURL("mailto:support@malikse.in").catch(() => {
+                    setError(label("Email support@malikse.in for help.", "सहायता के लिए support@malikse.in पर ईमेल करें।"));
+                  })}>
+                  <View style={[styles.artCrop, styles.supportIcon]}>
+                    <Image source={require("../assets/images/sign_in_contact_support_icon.png")} style={styles.supportAsset} resizeMode="stretch" accessible={false} />
+                  </View>
+                  <Text style={styles.link}>{label("Contact support", "सहायता से संपर्क करें")}</Text>
+                </TouchableOpacity>
+                <View style={styles.settingsButton} />
+              </View>
+              {showSettings && (
+                <View style={styles.footerLanguages}>
+                  {([{ key: "en", name: "English" }, { key: "hi", name: "हिन्दी" }] as const).map(option => (
+                    <TouchableOpacity key={option.key} accessibilityRole="radio" accessibilityState={{ checked: language === option.key }}
+                      style={[styles.footerLanguage, language === option.key && styles.footerLanguageSelected]}
+                      onPress={() => { setLanguage(option.key); setShowSettings(false); }}>
+                      <Text style={styles.link}>{option.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+            <View pointerEvents="none" style={[styles.artCrop, styles.footerWaves]}>
+              <Image source={require("../assets/images/navy_waves_with_rising_sun.png")} style={styles.wavesAsset} resizeMode="stretch" accessible={false} />
+            </View>
+            <View pointerEvents="none" style={{ height: insets.bottom, backgroundColor: "#142D4B" }} />
+          </>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
+const navy = "#14263E";
+const sun = "#FCC61C";
+const cream = "#F7F4EC";
+const line = "rgba(20,38,62,0.16)";
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "transparent" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  content: { flexGrow: 1, paddingHorizontal: 18, alignItems: "center", justifyContent: "center" },
-  topBar: { width: "100%", maxWidth: 440, flexDirection: "row", justifyContent: "space-between", marginBottom: 14, gap: 16 },
-  card: { width: "100%", maxWidth: 440, backgroundColor: "#D9E4E5", borderRadius: 42, overflow: "hidden", shadowColor: "#20302B", shadowOffset: { width: 0, height: 18 }, shadowOpacity: 0.14, shadowRadius: 28, elevation: 7 },
-  registerCard: { backgroundColor: "white", borderRadius: 24 },
-  housePhoto: { position: "absolute", top: 0, left: 0, right: 0, height: "76%", width: "100%" },
-  photoShade: { position: "absolute", top: 0, left: 0, right: 0, height: "76%", backgroundColor: "rgba(10,24,21,0.12)" },
-  photoBrand: { position: "absolute", top: "28%", left: 0, right: 0, alignItems: "center" },
-  brandSeal: { width: 68, height: 68, borderRadius: 34, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", gap: 4, marginBottom: 10 },
-  sealText: { fontFamily: "PoppinsBold", fontSize: 7, letterSpacing: 1 },
-  brandTagline: { color: "white", fontFamily: "PoppinsMedium", fontSize: 11, marginTop: 2 },
-  panel: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "white" },
-  registerPanel: { backgroundColor: "white" },
-  panelCurve: { position: "absolute", top: -30, left: "-10%", width: "120%", height: 65, borderTopLeftRadius: "50%", borderTopRightRadius: "50%", backgroundColor: "white" },
-  welcome: { position: "absolute", top: 16, left: 24, right: 24, alignItems: "center" },
-  welcomeTitle: { fontSize: 28, fontFamily: "PoppinsBold", color: "#343632", letterSpacing: -0.8 },
-  welcomeDescription: { color: "#8B8D88", textAlign: "center", fontSize: 12, fontFamily: "PoppinsRegular", lineHeight: 19, marginTop: 8, marginBottom: 24 },
-  welcomeButton: { width: "78%", minHeight: 44, marginBottom: 10, paddingVertical: 10 },
-  outlineButton: { backgroundColor: "white", borderWidth: 1, borderColor: "#DFE1DD" },
-  outlineButtonText: { color: "#242723", fontFamily: "PoppinsMedium", fontSize: 14 },
-  form: { flex: 1, minHeight: 0 },
-  formContent: { padding: 26, paddingTop: 8, paddingBottom: 30 },
-  backButton: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 7, paddingVertical: 10, marginBottom: 12 },
-  backLabel: { color: "#72786F", fontFamily: "PoppinsMedium", fontSize: 12 },
-  brand: { color: "white", fontSize: 29, fontFamily: "PoppinsBold", letterSpacing: -1 },
-  heading: { fontSize: 26, fontFamily: "PoppinsBold", color: "#242723" },
-  description: { color: "#858A81", fontFamily: "PoppinsRegular", fontSize: 12, lineHeight: 20, marginTop: 8, marginBottom: 24 },
-  methodRow: { flexDirection: "row", gap: 8, marginBottom: 18 },
-  methodButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 44, borderWidth: 1, borderColor: "#E3E6DF", borderRadius: 12 },
-  methodButtonActive: { backgroundColor: "#EAF4EF", borderColor: "#87B49F" },
-  methodText: { color: "#6B756F", fontFamily: "PoppinsMedium", fontSize: 13 },
-  methodTextActive: { color: "#1F5548" },
+  screen: { flex: 1, backgroundColor: cream },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: cream },
+  hero: { backgroundColor: navy, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden", paddingHorizontal: 20, paddingBottom: 36 },
+  heroInner: { width: "100%", maxWidth: 440, alignSelf: "center", gap: 20 },
+  heroSun: { position: "absolute", width: 138, height: 138, borderRadius: 69, right: -66, backgroundColor: sun },
+  heroRay: { position: "absolute", width: 74, height: 210, borderRadius: 40, right: 62, top: 70, backgroundColor: "#1C3556", transform: [{ rotate: "-30deg" }] },
+  topBar: { flexDirection: "row", alignItems: "center", gap: 12 },
+  heroIcon: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "#244268" },
+  language: { minHeight: 44, justifyContent: "center", paddingHorizontal: 14, borderRadius: 22, backgroundColor: navy, borderColor: "#536174", borderWidth: 1 },
+  languageText: { color: "#fff", fontFamily: "ManropeBold", fontSize: 14 },
+  brandLockup: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
+  brandLogo: { width: 32, height: 32 },
+  brand: { color: "#fff", fontSize: 24, fontFamily: "Fraunces" },
+  titleGroup: { gap: 4 },
+  heading: { fontSize: 32, lineHeight: 40, fontFamily: "Fraunces", color: "#fff" },
+  heroHint: { color: "#F7F4EC", fontFamily: "Manrope", fontSize: 13, lineHeight: 19, maxWidth: "88%" },
+  card: {
+    width: "90%", maxWidth: 440, alignSelf: "center", marginTop: -14, padding: 20,
+    borderRadius: 22, backgroundColor: "#fff", borderWidth: 1, borderColor: line,
+    shadowColor: navy, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 3,
+  },
+  description: { color: "#536174", fontFamily: "Manrope", fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: 14 },
+  methodRow: { flexDirection: "row", gap: 4, marginBottom: 18, backgroundColor: cream, borderRadius: 16, padding: 4 },
+  methodButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 44, borderRadius: 12 },
+  methodButtonActive: { backgroundColor: navy },
+  methodText: { color: navy, fontFamily: "ManropeBold", fontSize: 14 },
+  methodTextActive: { color: sun },
   field: { marginBottom: 14 },
-  label: { color: "#3E566B", fontWeight: "600", marginBottom: 8 },
-  input: { borderWidth: 1, borderColor: "#E3E6DF", borderRadius: 14, padding: 14, fontSize: 16, color: "#111827", minHeight: 50 },
-  phoneRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#E3E6DF", borderRadius: 14, minHeight: 50 },
-  prefix: { paddingHorizontal: 12, color: "#53645B" },
-  phoneInput: { flex: 1, minWidth: 0, paddingVertical: 14, paddingRight: 12, fontSize: 16, color: "#111827" },
-  passwordInput: { flex: 1, minWidth: 0, padding: 14, fontSize: 16, color: "#111827" },
+  label: { color: navy, fontFamily: "ManropeBold", marginBottom: 8 },
+  input: { borderWidth: 1, borderColor: line, borderRadius: 16, padding: 14, fontSize: 16, fontFamily: "Manrope", color: navy, minHeight: 52 },
+  phoneRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: line, borderRadius: 16, minHeight: 52 },
+  prefix: { paddingHorizontal: 12, color: navy, fontFamily: "ManropeBold" },
+  phoneInput: { flex: 1, minWidth: 0, paddingVertical: 14, paddingRight: 12, fontSize: 16, fontFamily: "Manrope", color: navy },
+  passwordInput: { flex: 1, minWidth: 0, padding: 14, fontSize: 16, fontFamily: "Manrope", color: navy },
   eye: { padding: 14 },
   error: { color: "#B91C1C", lineHeight: 21, marginBottom: 16 },
-  button: { backgroundColor: "#222521", borderRadius: 26, padding: 15, flexDirection: "row", gap: 10, alignItems: "center", justifyContent: "center" },
+  button: { backgroundColor: sun, minHeight: 50, borderRadius: 25, padding: 14, flexDirection: "row", gap: 10, alignItems: "center", justifyContent: "center" },
   disabled: { opacity: 0.6 },
-  buttonText: { color: "white", fontFamily: "PoppinsMedium", fontSize: 14 },
-  secondary: { alignItems: "center", paddingTop: 18, paddingBottom: 8 },
-  link: { color: "#416980", fontWeight: "600", lineHeight: 22 },
+  buttonText: { color: navy, fontFamily: "ManropeExtraBold", fontSize: 15, textAlign: "center" },
+  secondary: { alignItems: "center", justifyContent: "center", minHeight: 44, paddingVertical: 8 },
+  accountSwitch: { borderTopWidth: 1, borderColor: line, marginTop: 4, paddingTop: 12 },
+  signInFooter: { flexGrow: 1, justifyContent: "flex-end", alignItems: "center", paddingTop: 14 },
+  artCrop: { overflow: "hidden" },
+  houseArt: { width: "90%", maxWidth: 420, aspectRatio: 1448 / 540 },
+  houseAsset: { position: "absolute", width: "100%", height: "201.11%", top: "-61.11%" },
+  footerHeading: { color: navy, fontFamily: "ManropeExtraBold", fontSize: 17, lineHeight: 22, textAlign: "center" },
+  ownerBadge: { width: "52%", maxWidth: 224, aspectRatio: 1900 / 258 },
+  ownerAsset: { position: "absolute", width: "114.32%", height: "280.62%", left: "-7.16%", top: "-91.09%" },
+  footerActions: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", width: "100%", maxWidth: 460, paddingHorizontal: 14, marginTop: 4, zIndex: 1 },
+  settingsButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  settingsIcon: { width: 42, height: 42 },
+  settingsAsset: { position: "absolute", width: "169.46%", height: "169.46%", left: "-33.78%", top: "-37.84%" },
+  supportIcon: { width: 17, height: 17 },
+  supportAsset: { position: "absolute", width: "190%", height: "190%", left: "-44.7%", top: "-47.7%" },
+  support: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 12 },
+  footerLanguages: { flexDirection: "row", gap: 8, marginVertical: 6 },
+  footerLanguage: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, borderRadius: 22, borderWidth: 1, borderColor: line, backgroundColor: "#fff" },
+  footerLanguageSelected: { backgroundColor: "#FFF1C0" },
+  footerWaves: { width: "100%", height: 54, marginTop: -15 },
+  wavesAsset: { position: "absolute", width: "100%", height: "207%", bottom: 0 },
+  link: { color: navy, fontFamily: "ManropeBold", lineHeight: 22, textAlign: "center" },
 });

@@ -115,6 +115,10 @@ malikse/
 
    Any UI changes made in `app/` will only affect the mobile application and will not alter the website UI.
 
+   Post Property uses native Google Maps in Android Expo Go. For a standalone Android build, enable Maps SDK for Android and set `GOOGLE_MAPS_ANDROID_API_KEY` in the local or EAS build environment. Restrict the key to `com.devoxa.malikse` and the signing certificate SHA-1 for that build, then rebuild the app. Builds without the key use the existing satellite map.
+
+   Google address suggestions in Post Property use Places API (New). Enable it in Google Cloud and set `GOOGLE_PLACES_SERVER_API_KEY` in the backend environment. Restrict this server key to Places API (New) and the server's outbound IP where available. Restart the backend after setting it. The app falls back to MalikSe district and pincode results when Places is unavailable.
+
 Users register from the app and are signed in immediately. The Admin signs in with the seeded mobile number and password, then clicks Profile and opens **Advisors and Verifiers** on the Admin dashboard to create staff accounts. Staff sign in through the same login screen with the credentials the Admin set. Registration does not create staff or Admin accounts.
 
 ---

@@ -1,6 +1,7 @@
 import { randomUUID } from "expo-crypto";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { isRunningInExpoGo } from "expo";
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
   Linking,
@@ -10,6 +11,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
   Text,
   TextInput,
@@ -24,11 +26,14 @@ import {
   useRouter,
 } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
+import Svg, { Rect } from "react-native-svg";
 import * as DocumentPicker from "expo-document-picker";
-import * as Location from "expo-location";
+import { currentMapLocation } from "../src/services/currentMapLocation";
+import { validMapPoint, type MapFocus, type MapPoint } from "../src/utils/nativeMapHtml";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api, { authService } from "../src/services/authService";
 import { useAuthStore } from "../src/store/authStore";
+import { useLanguageStore } from "../src/store/languageStore";
 import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
 import EmailChangeForm from "./EmailChangeForm";
@@ -126,10 +131,11 @@ function Field({
   onChangeText,
   numeric = false,
   multiline = false,
+  uppercaseLabel = false,
 }: any) {
   return (
-    <View style={{ flex: 1, minWidth: 140, gap: 5 }}>
-      <Text style={s.fieldLabel}>{title}</Text>
+    <View style={{ flex: 1, minWidth: uppercaseLabel ? 0 : 140, gap: 5 }}>
+      <Text style={[s.fieldLabel, uppercaseLabel && s.postFieldLabel]}>{title}</Text>
       <TextInput
         accessibilityLabel={title}
         style={[
@@ -246,6 +252,8 @@ export function MarketplaceShell({
   headerAction,
   showDock = true,
   footer,
+  profileHeader,
+  step,
 }: {
   title?: React.ReactNode;
   subtitle?: string;
@@ -255,12 +263,23 @@ export function MarketplaceShell({
   headerAction?: React.ReactNode;
   showDock?: boolean;
   footer?: React.ReactNode;
+  profileHeader?: React.ReactElement;
+  step?: number;
 }) {
   const insets = useSafeAreaInsets();
   const router = useRouter(),
     path = usePathname(),
     user = useAuthStore((x) => x.user);
   const focused = useIsFocused();
+  const contextualTab =
+    path === "/saved" ? ["/saved", "favorite-border", "Wishlist"] :
+    path === "/my-properties" ? ["/my-properties", "apartment", "Listings"] :
+    path.startsWith("/deal/") ? [path, "handshake", "Deal"] :
+    ["/messages", "chat-bubble-outline", "Chats"];
+  const scroll = useRef<ScrollViewInstance>(null);
+  useEffect(() => {
+    if (step !== undefined) scroll.current?.scrollTo({ y: 0, animated: false });
+  }, [step]);
   return (
     <KeyboardAvoidingView
       style={s.root}
@@ -268,14 +287,16 @@ export function MarketplaceShell({
     >
       {focused && <StatusBar style="light" />}
       <ScrollView
+        ref={scroll}
         style={{ flex: 1 }}
         contentContainerStyle={[s.scroll, !showDock && { paddingBottom: 12 }]}
         keyboardShouldPersistTaps="handled"
       >
-      <View style={[s.hero, { paddingTop: insets.top + 14 }]}>
+      <View style={[s.hero, { paddingTop: insets.top + 14 }, profileHeader && s.profileHero]}>
         <View pointerEvents="none" style={s.heroSun} />
         <View pointerEvents="none" style={s.heroRay} />
         <View style={s.heroInner}>
+        {profileHeader || <>
         <View style={s.header}>
         <View style={[s.row, { flex: 1 }]}>
           {back ? (
@@ -326,9 +347,10 @@ export function MarketplaceShell({
             </View>
           )}
           {headerContent}
+        </>}
         </View>
       </View>
-        <View style={s.content}>
+        <View style={[s.content, profileHeader && s.profileContent]}>
           {children}
         </View>
       </ScrollView>
@@ -341,7 +363,7 @@ export function MarketplaceShell({
             ["/home", "home", "Home"],
             ["/search", "search", "Search"],
             ["/post", "add", "Post"],
-            ["/messages", "chat-bubble-outline", "Chats"],
+            contextualTab,
             ["/profile", "person-outline", "Profile"],
           ].map(([url, icon, text]) => {
             const isActive = path === url;
@@ -350,7 +372,10 @@ export function MarketplaceShell({
               <Pressable
                 key={url}
                 accessibilityRole="button"
-                onPress={() => router.push(url as any)}
+                accessibilityLabel={text}
+                onPress={() => {
+                  if (!isActive) router.push(url as any);
+                }}
                 accessibilityState={{ selected: isActive }}
                 style={s.navItem}
               >
@@ -359,11 +384,14 @@ export function MarketplaceShell({
                     <Icon name="add" color={C.ink} size={24} />
                   </View>
                 ) : (
-                  <View style={[s.navGlyph, isActive && s.navItemActive]}><Icon
-                    name={icon}
-                    color={isActive ? C.ink : C.sunSoft}
-                    size={20}
-                  /></View>
+                  <View style={s.navGlyph}>
+                    {isActive && (
+                      <Svg width={48} height={32} viewBox="0 0 48 32" style={StyleSheet.absoluteFill} pointerEvents="none">
+                        <Rect width={48} height={32} rx={16} fill={C.sun} />
+                      </Svg>
+                    )}
+                    <Icon name={icon} color={isActive ? C.ink : "#C7A532"} size={20} />
+                  </View>
                 )}
                 <Text
                   style={[
@@ -779,26 +807,19 @@ export function WishlistScreen() {
   if (sort) rows.sort((a, b) => a.price - b.price);
   return (
     <MarketplaceShell
-      title="Saved Properties"
-      subtitle={`${rows.length} available properties bookmarked`}
+      title="Wishlist"
+      subtitle={feed.data ? `${rows.length}${feed.nextCursor ? "+" : ""} saved properties` : undefined}
+      headerAction={user ? <Button secondary icon="sort" title={sort ? "Newest saved" : "Sort by price"} onPress={() => setSort(!sort)} /> : undefined}
       back
     >
       <Protected>
-        <View style={s.between}>
-          <Tag>Your wishlist</Tag>
-          <Button
-            secondary
-            title={sort ? "Newest saved" : "Sort by price"}
-            icon="sort"
-            onPress={() => setSort(!sort)}
-          />
-        </View>
         <ErrorBox text={feed.error} />
         {feed.loading && <ActivityIndicator />}
         {rows.map((p) => (
           <PropertyCard
             key={p._id}
             property={p}
+            compact
             initiallySaved
             onSaved={feed.refresh}
           />
@@ -828,92 +849,110 @@ export function ProfileScreen() {
     [editing, setEditing] = useState(false),
     [name, setName] = useState(user?.name || ""),
     [email, setEmail] = useState(user?.email || "");
+  const { language, setLanguage } = useLanguageStore();
+  const [openPreference, setOpenPreference] = useState<"language" | "notifications" | null>(null);
+  const notificationSettingsAvailable = Platform.OS !== "web" && !isRunningInExpoGo();
+  const listings = useData(user?.role === "user" ? "/properties/mine" : null, [user?.id]);
+  const wishlist = useData(user ? "/users/wishlist" : null, [user?.id]);
+  const kyc = useData(user ? "/users/kyc" : null, [user?.id]);
+  const initials = user?.name?.trim().split(/\s+/).slice(0, 2).map(word => word[0]).join("").toUpperCase();
+  const listingCount = listings.data ? `${listings.data.length}${listings.nextCursor ? "+" : ""}` : null;
+  const savedCount = wishlist.data ? `${wishlist.data.length}${wishlist.nextCursor ? "+" : ""}` : null;
+  const listingSummary = listings.data && !listings.nextCursor
+    ? `${listings.data.filter((property: any) => property.status === "verified").length} active · ${listings.data.filter((property: any) => ["queued", "pending", "advisor_verified"].includes(property.status)).length} under review`
+    : "Manage properties and track reviews";
+  const kycLabel = approved(user) || kyc.data?.isVerifiedIdentity ? "Verified" :
+    kyc.data?.kycStatus === "pending" ? "In review" :
+      kyc.data?.kycStatus === "correction_required" ? "Action needed" :
+        kyc.data?.kycStatus === "rejected" ? "Rejected" :
+          kyc.data ? "Not submitted" : null;
+
+  const openEditor = () => {
+    if (editing) {
+      setEditing(false);
+      return;
+    }
+    setName(user?.name || "");
+    setEmail(user?.email || "");
+    setEditing(true);
+  };
+  const profileHeader = user ? (
+    <>
+      <View style={s.between}>
+        <Text accessibilityRole="header" style={s.heroTitle}>Profile</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Edit profile"
+          accessibilityState={{ expanded: editing }} onPress={openEditor} style={s.profileEdit}>
+          <Icon name="edit" color={C.sun} />
+        </Pressable>
+      </View>
+      <View style={s.profileIdentity}>
+        <View style={s.profilePortrait}>
+          {initials ? <Text style={s.profileInitials}>{initials}</Text> : <Icon name="person-outline" color={C.sun} size={32} />}
+        </View>
+        <View style={s.profileDetails}>
+          <Text style={s.profileName}>{user.name}</Text>
+          {!!user.mobile && <Text style={s.heroSubtitle}>{/^\d{10}$/.test(user.mobile) ? `+91 ${user.mobile}` : user.mobile}</Text>}
+          {!!user.email && <Text style={s.heroSubtitle}>{user.email}</Text>}
+          <Pressable accessibilityRole="button" accessibilityLabel="Identity verification"
+            style={s.profileVerification} onPress={() => router.push("/kyc")}>
+            <Icon name="verified-user" size={17} color={kycLabel === "Verified" ? C.green : C.ink} />
+            <Text style={[s.cardTitle, { flexShrink: 1 }, kycLabel === "Verified" && { color: C.green }]}>
+              {kycLabel === "Verified" ? "Identity verified" : kycLabel || "Identity verification"}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    </>
+  ) : undefined;
   return (
-    <MarketplaceShell title="Profile">
+    <MarketplaceShell title="Profile" profileHeader={profileHeader}>
       <Protected>
         {user && (
           <>
-            <View style={[s.panel, { alignItems: "center", padding: 20 }]}>
-              <View
-                style={[s.avatar, { width: 60, height: 60, borderRadius: 30 }]}
-              >
-                <Text style={[s.avatarText, { fontSize: 22 }]}>
-                  {user.name[0]}
-                </Text>
-              </View>
-              <View style={{ flex: 1, gap: 5 }}>
-                <Text style={s.h2}>{user.name}</Text>
-                <Text style={s.muted}>{user.mobile || user.email}</Text>
-                <Tag green={approved(user)}>
-                  {approved(user)
-                    ? "✓ Identity approved"
-                    : "Identity verification pending"}
-                </Tag>
-              </View>
+            <View style={s.profileStats}>
+              {[
+                { label: "Listings", value: listingCount, onPress: user.role === "user" ? () => router.push("/my-properties") : undefined },
+                { label: "Saved", value: savedCount, onPress: () => router.push("/saved") },
+                { label: "Rating", value: null, onPress: undefined },
+              ].map(({ label, value, onPress }) => (
+                <Pressable key={label} disabled={!onPress} accessibilityRole={onPress ? "button" : undefined}
+                  accessibilityLabel={value == null ? `${label} unavailable` : `${value} ${label}`}
+                  style={[s.profileStat, label !== "Listings" && s.profileDivider]} onPress={onPress}>
+                  <Text style={s.profileStatValue}>{value ?? "—"}</Text>
+                  <Text style={s.muted}>{label}</Text>
+                </Pressable>
+              ))}
             </View>
-            <Text style={s.h2}>Preferences</Text>
-            {[
-              [
-                "Personal information",
-                "manage-accounts",
-                "Update your name and email",
-                "edit",
-              ],
-              [
-                "My posted properties",
-                "real-estate-agent",
-                "Manage listings and verification",
-                "/my-properties",
-              ],
-              [
-                "Wishlist",
-                "favorite-border",
-                "Your saved properties",
-                "/saved",
-              ],
-              [
-                "Identity verification",
-                "verified-user",
-                "Submit and track KYC",
-                "/kyc",
-              ],
-              [
-                "Conversations",
-                "chat-bubble-outline",
-                "Chat with assigned staff",
-                "/messages",
-              ],
-              ...(user.role !== "user"
-                ? [
-                    [
-                      "Staff dashboard",
-                      "dashboard",
-                      "Assigned work and reviews",
-                      dashboardRoutes[user.role],
-                    ],
-                  ]
-                : []),
-            ].map(([title, icon, sub, url]) => (
-              <Pressable
-                key={title}
-                accessibilityRole="button"
-                style={s.preferenceRow}
-                onPress={() =>
-                  url === "edit"
-                    ? setEditing(!editing)
-                    : router.push(url as any)
-                }
-              >
-                <View style={s.preferenceIcon}><Icon name={icon} /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.cardTitle}>{title}</Text>
-                  <Text style={s.small}>{sub}</Text>
-                </View>
-                <Icon name="chevron-right" />
-              </Pressable>
-            ))}
+            <View style={s.profileMenu}>
+              {[
+                { title: "Profile", icon: "person-outline", sub: "Name, phone and email", onPress: openEditor },
+                ...(user.role === "user" ? [{
+                  title: "My listings", icon: "apartment", sub: listingSummary, badge: listingCount,
+                  onPress: () => router.push("/my-properties"),
+                }] : []),
+                { title: "KYC verification", icon: "badge", sub: "Identity and documents", badge: kycLabel, onPress: () => router.push("/kyc") },
+                { title: "Wishlist", icon: "favorite-border", sub: savedCount == null ? "Your saved properties" : `${savedCount} saved properties`, badge: savedCount, onPress: () => router.push("/saved") },
+              ].map(({ title, icon, sub, badge, onPress }, index) => (
+                <Pressable key={title} accessibilityRole="button" onPress={onPress}
+                  style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
+                  <View style={s.preferenceIcon}><Icon name={icon} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.profileMenuTitle}>{title}</Text>
+                    <Text style={s.muted}>{sub}</Text>
+                  </View>
+                  {badge != null ? (
+                    <View style={[s.profileBadge, title === "KYC verification" && s.profileKycBadge]}>
+                      <Text style={[s.profileBadgeText, title === "KYC verification" && { color: C.ink }]}>{badge}</Text>
+                    </View>
+                  ) : (
+                    <View style={s.profileChevron}><Icon name="chevron-right" size={19} /></View>
+                  )}
+                </Pressable>
+              ))}
+            </View>
             {editing && (
-              <View style={[s.panel, s.row]}>
+              <View style={s.panel}>
+                <Text style={s.h2}>Edit profile</Text>
                 <Field title="Full name" value={name} onChangeText={setName} />
                 <Field title="New email" value={email} onChangeText={setEmail} />
                 <EmailChangeForm email={email} />
@@ -930,6 +969,56 @@ export function ProfileScreen() {
                 />
               </View>
             )}
+            <Text style={s.h2}>Preferences</Text>
+            <View style={s.profileMenu}>
+              {[
+                {
+                  title: "Notifications", subtitle: "Advisor replies & deal updates", icon: "notifications-none",
+                  expanded: notificationSettingsAvailable ? undefined : openPreference === "notifications",
+                  onPress: () => {
+                    if (notificationSettingsAvailable) void action.run(() => Linking.openSettings());
+                    else setOpenPreference(current => current === "notifications" ? null : "notifications");
+                  },
+                },
+                {
+                  title: "Language", subtitle: "English · हिंदी", icon: "language",
+                  expanded: openPreference === "language",
+                  onPress: () => setOpenPreference(current => current === "language" ? null : "language"),
+                },
+                {
+                  title: "Help & support", subtitle: "Talk to the MalikSe team", icon: "help-outline",
+                  onPress: () => void action.run(() => Linking.openURL("mailto:support@malikse.in")),
+                },
+              ].map(({ title, subtitle, icon, expanded, onPress }, index) => (
+                <React.Fragment key={title}>
+                  <Pressable accessibilityRole="button" accessibilityState={{ expanded }}
+                    onPress={onPress} style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
+                    <View style={s.preferenceIcon}><Icon name={icon} /></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.profileMenuTitle}>{title}</Text>
+                      <Text style={s.muted}>{subtitle}</Text>
+                    </View>
+                    <View style={s.profileChevron}><Icon name={expanded ? "expand-less" : "chevron-right"} size={19} /></View>
+                  </Pressable>
+                  {expanded && title === "Notifications" && (
+                    <Text style={[s.muted, s.preferenceDetails]}>Push notifications are available in the installed MalikSe app.</Text>
+                  )}
+                  {expanded && title === "Language" && (
+                    <View style={[s.wrap, s.preferenceDetails]}>
+                      {([{ id: "en", label: "English" }, { id: "hi", label: "हिंदी" }] as const).map(option => (
+                        <Pressable key={option.id} accessibilityRole="radio" accessibilityState={{ checked: language === option.id }}
+                          onPress={() => { setLanguage(option.id); setOpenPreference(null); }}
+                          style={[s.typeChip, language === option.id && { backgroundColor: C.sunSoft }]}>
+                          <Text style={s.cardTitle}>{option.label}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </React.Fragment>
+              ))}
+            </View>
+            <Button title="Conversations" icon="chat-bubble-outline" secondary onPress={() => router.push("/messages")} />
+            {user.role !== "user" && <Button title="Staff dashboard" icon="dashboard" secondary onPress={() => router.push(dashboardRoutes[user.role] as any)} />}
             <Button title="Privacy policy" secondary onPress={() => action.run(() => Linking.openURL("https://malikse.devoxa.in/privacy-policy"))} />
             {user.role === "user" && <Button title="Delete account" secondary onPress={() => router.push("/delete-account" as any)} />}
             <ErrorBox text={action.error} />
@@ -1056,14 +1145,38 @@ export function KycScreen() {
     action = useAction();
   return (
     <MarketplaceShell
-      title="KYC Verification"
+      title="KYC verification"
       subtitle="Verify your identity to sell, make offers and contact staff."
       back
+      showDock={false}
+      footer={user && feed.data && !feed.data.isVerifiedIdentity && feed.data.kycStatus !== "pending" ? (
+        <Button
+          title="Submit KYC for review"
+          disabled={action.busy || !files.length}
+          onPress={() =>
+            action.run(async () => {
+              const form = new FormData();
+              for (const asset of files) {
+                const prepared = await prepareUpload(asset, true);
+                if (Platform.OS === "web")
+                  form.append("files", prepared.file, prepared.name);
+                else form.append("files", prepared.file as any);
+              }
+              await api.post("/users/kyc", form, {
+                headers: { "Content-Type": "multipart/form-data" },
+                timeout: 120000,
+              });
+              setFiles([]);
+              await feed.refresh();
+            })
+          }
+        />
+      ) : undefined}
     >
       <Protected>
-        <View style={s.panel}>
+        <View style={[s.panel, s.kycSummary]}>
           <View style={s.row}>
-            <Icon name="verified-user" size={42} />
+            <View style={s.featureIcon}><Icon name="verified-user" size={26} /></View>
             <View style={{ flex: 1 }}>
               <Text style={s.h2}>Verification status</Text>
               <Tag green={feed.data?.isVerifiedIdentity}>
@@ -1076,7 +1189,7 @@ export function KycScreen() {
               </Tag>
             </View>
           </View>
-          <Text style={s.muted}>
+          <Text style={s.body}>
             Your documents are private and reviewed by authorized staff.
             Submission does not automatically approve your identity.
           </Text>
@@ -1085,18 +1198,17 @@ export function KycScreen() {
           )}
         </View>
         <ErrorBox text={feed.error || action.error} />
-        {!feed.data?.isVerifiedIdentity &&
-          feed.data?.kycStatus !== "pending" && (
+        {feed.loading && <ActivityIndicator color={C.ink} />}
+        {feed.data && !feed.data.isVerifiedIdentity &&
+          feed.data.kycStatus !== "pending" && (
             <View style={s.panel}>
               <Text style={s.h2}>Identity documents</Text>
               <Text style={s.muted}>
                 Upload clear identity documents. JPG, PNG or PDF, up to 5 MB
                 each; maximum 3 files.
               </Text>
-              <Button
-                title="Choose documents"
-                secondary
-                icon="cloud-upload"
+              <Pressable accessibilityRole="button" accessibilityLabel="Choose identity documents"
+                disabled={action.busy} style={s.uploadTarget}
                 onPress={() =>
                   action.run(async () => {
                     const result = await DocumentPicker.getDocumentAsync({
@@ -1107,33 +1219,14 @@ export function KycScreen() {
                     if (!result.canceled) setFiles(result.assets.slice(0, 3));
                   })
                 }
-              />
+              >
+                <View style={s.featureIcon}><Icon name="cloud-upload" size={24} /></View>
+                <Text style={s.cardTitle}>{files.length ? "Replace documents" : "Tap to upload documents"}</Text>
+                <Text style={s.muted}>JPG, PNG or PDF</Text>
+              </Pressable>
               {files.map((f) => (
-                <Text key={f.uri} style={s.muted}>
-                  {f.name}
-                </Text>
+                <View key={f.uri} style={s.documentRow}><Icon name="description" size={18} /><Text style={[s.body, { flex: 1 }]}>{f.name}</Text></View>
               ))}
-              <Button
-                title="Submit KYC for review"
-                disabled={action.busy || !files.length}
-                onPress={() =>
-                  action.run(async () => {
-                    const form = new FormData();
-                    for (const asset of files) {
-                      const prepared = await prepareUpload(asset, true);
-                      if (Platform.OS === "web")
-                        form.append("files", prepared.file, prepared.name);
-                      else form.append("files", prepared.file as any);
-                    }
-                    await api.post("/users/kyc", form, {
-                      headers: { "Content-Type": "multipart/form-data" },
-                      timeout: 120000,
-                    });
-                    setFiles([]);
-                    await feed.refresh();
-                  })
-                }
-              />
             </View>
           )}
         {feed.data?.isVerifiedIdentity && (
@@ -1160,10 +1253,14 @@ export function PropertyDetailScreen() {
     router = useRouter(),
     gate = useGate(),
     feed = useData(id ? `/properties/${id}` : null),
+    [galleryIndex, setGalleryIndex] = useState(0),
     [amount, setAmount] = useState(""),
     [message, setMessage] = useState("I am interested in this property."),
     action = useAction(),
     p = feed.data;
+  const userId = useAuthStore((state) => state.user?.id);
+  const wishlist = useData(userId && id ? `/users/wishlist/${id}` : null, [userId]);
+  const saved = Boolean(wishlist.data?.isWishlisted);
   useEffect(() => {
     if (id)
       void api
@@ -1193,9 +1290,24 @@ export function PropertyDetailScreen() {
         params: { inquiryId: conversation._id },
       } as any);
     });
+  const photos: string[] = p?.media?.photos || [];
+  const activePhoto = Math.min(galleryIndex, Math.max(0, photos.length - 1));
+  const checks = [
+    ["identityVerified", "Owner identity verified"],
+    ["documentsChecked", "Property documents checked"],
+    ["siteVisited", "Site visit completed"],
+    ["lawyerReviewed", "Reviewed by a lawyer"],
+  ].filter(([key]) => p?.badges?.[key]);
   return (
-    <MarketplaceShell title="Property details" back>
-      <ErrorBox text={feed.error || action.error} />
+    <MarketplaceShell title="Property details" back showDock={false}
+      footer={p && (
+        <View style={s.between}>
+          <Text style={s.price}>{money(p.price)}</Text>
+          <Button title="Chat with assigned staff" icon="chat-bubble-outline" disabled={action.busy} onPress={() => contact()} />
+        </View>
+      )}
+    >
+      <ErrorBox text={feed.error || action.error || wishlist.error} />
       {feed.loading && <ActivityIndicator />}
       {p && (
         <>
@@ -1205,9 +1317,9 @@ export function PropertyDetailScreen() {
               { height: 340, borderRadius: 24, overflow: "hidden" },
             ]}
           >
-            {p.media?.photos?.[0] ? (
-              <Image
-                source={{ uri: p.media.photos[0] }}
+            {photos.length ? (
+              <PropertyImage isPublic
+                source={{ uri: photos[activePhoto] }}
                 style={StyleSheet.absoluteFill}
               />
             ) : (
@@ -1215,18 +1327,39 @@ export function PropertyDetailScreen() {
                 <Icon name="home-work" size={70} />
               </View>
             )}
+            {photos.length > 0 && <Text style={s.photoCounter}>{activePhoto + 1} / {photos.length} photos</Text>}
             <View style={s.imageTags}>
               <Tag green>✓ Verified property</Tag>
             </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={saved ? "Remove from wishlist" : "Save property"}
+              accessibilityState={{ selected: saved }}
+              disabled={action.busy || wishlist.loading}
+              style={[s.heartBtn, s.gallerySave, saved && { backgroundColor: C.sun }]}
+              onPress={() => {
+                if (!gate() || typeof id !== "string") return;
+                void action.run(async () => {
+                  const result = await userService.toggleWishlist(id);
+                  wishlist.setData(result);
+                  if (result.isWishlisted) {
+                    void api.post(`/recommendations/${id}/activity`, { kind: "save" }).catch(() => {});
+                  }
+                });
+              }}
+            >
+              <Icon name={saved ? "favorite" : "favorite-border"} size={19} />
+            </Pressable>
           </View>
-          {p.media?.photos?.length > 1 && (
-            <ScrollView horizontal contentContainerStyle={{ gap: 8 }}>
-              {p.media.photos.slice(1).map((uri: string) => (
-                <Image
-                  key={uri}
-                  source={{ uri }}
-                  style={{ width: 180, height: 120, borderRadius: 14 }}
-                />
+          {photos.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {photos.map((uri, index) => (
+                <Pressable key={`${uri}-${index}`} accessibilityRole="button"
+                  accessibilityLabel={`View photo ${index + 1}`}
+                  accessibilityState={{ selected: index === activePhoto }}
+                  onPress={() => setGalleryIndex(index)} style={[s.galleryThumb, index === activePhoto && { borderColor: C.sun }]}>
+                  <PropertyImage isPublic source={{ uri }} style={StyleSheet.absoluteFill} />
+                </Pressable>
               ))}
             </ScrollView>
           )}
@@ -1242,8 +1375,14 @@ export function PropertyDetailScreen() {
               <Tag>{p.negotiable ? "Negotiable" : "Fixed price"}</Tag>
             </View>
           </View>
+          {checks.length > 0 && <View style={[s.panel, s.kycSummary]}>
+            <Text style={s.h2}>Why you can trust this listing</Text>
+            {checks.map(([key, title]) => (
+              <View key={key} style={s.row}><Icon name="check-circle" size={19} color={C.green} /><Text style={s.body}>{title}</Text></View>
+            ))}
+          </View>}
           <View style={s.panel}>
-            <Text style={s.h2}>Overview & specifications</Text>
+            <Text style={s.h2}>About this property</Text>
             <View style={s.wrap}>
               {[
                 ["Total area", `${p.totalArea} sq ft`],
@@ -1279,15 +1418,10 @@ export function PropertyDetailScreen() {
                 </Text>
               </View>
             </View>
-            <Button
-              title="Chat with assigned staff"
-              icon="chat-bubble-outline"
-              disabled={action.busy}
-              onPress={() => contact()}
-            />
           </View>
-          <View style={s.map}>
-            <VerifiedPropertyMap properties={[p]} onSelect={() => {}} />
+          <View style={s.panel}>
+            <Text style={s.h2}>Location</Text>
+            <View style={s.map}><VerifiedPropertyMap properties={[p]} onSelect={() => {}} /></View>
           </View>
           <View style={s.panel}>
             <Text style={s.h2}>Make an offer</Text>
@@ -1324,6 +1458,8 @@ export function ChatsScreen() {
     params = useLocalSearchParams(),
     [selected, setSelected] = useState(String(params.inquiryId || "")),
     [text, setText] = useState(""),
+    [query, setQuery] = useState(""),
+    [unreadOnly, setUnreadOnly] = useState(false),
     feed = useData(user ? "/inquiries" : null, [user?.id]),
     chat = useData(user && selected ? `/inquiries/${selected}` : null, [
       user?.id,
@@ -1357,11 +1493,58 @@ export function ChatsScreen() {
   }, [messages.data, chat.data, selected]);
   const c = chat.data,
     other = c && (identity(c.buyerId) === user?.id ? c.staffId : c.buyerId);
+  const search = query.trim().toLocaleLowerCase();
+  const threads = (feed.data || []).filter((thread: any) => {
+    if (unreadOnly && !thread.unread) return false;
+    const participant = identity(thread.buyerId) === user?.id ? thread.staffId : thread.buyerId;
+    return !search || [participant?.name, thread.propertyId?.title, thread.messages?.at(-1)?.text || thread.message]
+      .some(value => typeof value === "string" && value.toLocaleLowerCase().includes(search));
+  });
   return (
     <MarketplaceShell
-      title={selected ? "Property conversation" : "Conversations"}
-      subtitle="Private conversations with your assigned Advisor or Verifier."
+      title={selected ? other?.name || "Property conversation" : "Messages"}
+      subtitle={selected ? c?.propertyId?.title : undefined}
       back
+      showDock={!selected}
+      headerAction={selected ? <Button secondary title="All messages" onPress={() => {
+        setSelected("");
+        setText("");
+        void feed.refresh();
+      }} /> : undefined}
+      footer={selected && c && c.propertyId?.status !== "sold" ? (
+        <View style={s.row}>
+          <TextInput
+            accessibilityLabel="Message"
+            value={text}
+            onChangeText={setText}
+            style={[s.input, { flex: 1 }]}
+            placeholder="Write a message…"
+            multiline
+          />
+          <Button
+            title="Send"
+            icon="send"
+            disabled={action.busy || !text.trim()}
+            onPress={() =>
+              action.run(async () => {
+                await api.post(`/inquiries/${selected}/message`, {
+                  text,
+                });
+                setText("");
+                await messages.refresh();
+              })
+            }
+          />
+        </View>
+      ) : undefined}
+      headerContent={!selected && user ? (
+        <View style={[s.input, s.row]}>
+          <Icon name="search" size={20} />
+          <TextInput accessibilityLabel="Search chats or properties" placeholder="Search chats or properties"
+            placeholderTextColor={C.muted} value={query} onChangeText={setQuery}
+            style={[s.body, { flex: 1 }]} />
+        </View>
+      ) : undefined}
     >
       <Protected>
         <ErrorBox
@@ -1369,20 +1552,14 @@ export function ChatsScreen() {
         />
         {selected ? (
           <>
-            <Button
-              title="All conversations"
-              secondary
-              onPress={() => setSelected("")}
-            />
+            {!c && !chat.error && <ActivityIndicator color={C.ink} />}
             {c && (
               <>
                 <View style={[s.panel, s.row]}>
-                  <View style={s.avatar}>
-                    <Text style={s.avatarText}>{other?.name?.[0] || "A"}</Text>
-                  </View>
+                  <View style={s.featureIcon}><Icon name="home-work" size={24} /></View>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.h2}>{other?.name || "Assigned staff"}</Text>
-                    <Text style={s.small}>
+                    <Text style={s.small}>Chatting about</Text>
+                    <Text style={s.cardTitle}>
                       {c.propertyId?.title || "Property conversation"}
                     </Text>
                   </View>
@@ -1453,48 +1630,26 @@ export function ChatsScreen() {
                     </View>
                   ))}
                 </View>
-                {c.propertyId?.status === "sold" ? (
-                  <Tag>This property is sold. Conversation is read-only.</Tag>
-                ) : (
-                  <View style={s.row}>
-                    <TextInput
-                      accessibilityLabel="Message"
-                      value={text}
-                      onChangeText={setText}
-                      style={[s.input, { flex: 1 }]}
-                      placeholder="Write a message…"
-                      multiline
-                    />
-                    <Button
-                      title="Send"
-                      icon="send"
-                      disabled={action.busy || !text.trim()}
-                      onPress={() =>
-                        action.run(async () => {
-                          await api.post(`/inquiries/${selected}/message`, {
-                            text,
-                          });
-                          setText("");
-                          await messages.refresh();
-                        })
-                      }
-                    />
-                  </View>
-                )}
+                {c.propertyId?.status === "sold" && <Tag>This property is sold. Conversation is read-only.</Tag>}
               </>
             )}
           </>
         ) : (
           <>
             {feed.loading && <ActivityIndicator />}
-            {feed.data?.map((c: any) => {
+            <View style={s.wrap}>
+              <Button title="All" secondary={unreadOnly} onPress={() => setUnreadOnly(false)} />
+              <Button title="Unread" secondary={!unreadOnly} onPress={() => setUnreadOnly(true)} />
+            </View>
+            {threads.map((c: any) => {
               const staff = identity(c.buyerId) === user?.id,
                 other = staff ? c.staffId : c.buyerId;
               return (
                 <Pressable
                   key={c._id}
-                  onPress={() => setSelected(c._id)}
-                  style={[s.panel, s.row]}
+                  accessibilityRole="button"
+                  onPress={() => { setSelected(c._id); setText(""); }}
+                  style={[s.panel, s.row, c.unread && { borderColor: C.sun }]}
                 >
                   <View style={s.avatar}>
                     <Text style={s.avatarText}>{other?.name?.[0] || "A"}</Text>
@@ -1511,18 +1666,24 @@ export function ChatsScreen() {
                     </Text>
                     <Text style={s.small}>{c.propertyId?.title}</Text>
                   </View>
-                  {c.unread && <View style={s.dot} />}
+                  <View style={{ alignItems: "flex-end", gap: 6 }}>
+                    {c.messages?.at(-1)?.createdAt || c.createdAt ? <Text style={s.small}>
+                      {new Date(c.messages?.at(-1)?.createdAt || c.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    </Text> : null}
+                    {c.unread && <View accessibilityLabel="Unread" style={s.dot} />}
+                  </View>
                 </Pressable>
               );
             })}
             {Boolean(feed.nextCursor) && (
               <Button
-                title="Load more properties"
+                title="Load more conversations"
                 secondary
                 disabled={feed.loading}
                 onPress={feed.loadMore}
               />
             )}
+            {feed.data?.length > 0 && threads.length === 0 && <Empty title="No matching conversations" text="Try another search or filter." />}
             {feed.data?.length === 0 && (
               <Empty
                 title="Start a conversation"
@@ -1674,22 +1835,42 @@ export function DealScreen() {
     </MarketplaceShell>
   );
 }
+function PostSection({ number, title, children }: { number?: number; title: string; children: React.ReactNode }) {
+  return (
+    <View style={[s.panel, s.postSection]}>
+      <View style={s.row}>
+        {number != null && <View style={s.postSectionNumber}><Text style={s.postSectionNumberText}>{number}</Text></View>}
+        <Text accessibilityRole="header" style={[s.h2, { flex: 1 }]}>{title}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
+
+const postDocumentOptions = [
+  { type: "Registry", title: "Sale deed / title document", subtitle: "Optional · PDF, JPG or PNG" },
+  { type: "Utility or Tax Bill", title: "Electricity or tax bill", subtitle: "Optional · Supporting proof" },
+] as const;
+type PostDocumentType = (typeof postDocumentOptions)[number]["type"];
+type PostDocument = { asset: DocumentPicker.DocumentPickerAsset; type: PostDocumentType };
+
 export function PostScreen() {
   const router = useRouter(),
     params = useLocalSearchParams(),
     user = useAuthStore((x) => x.user),
     [draftId, setDraftId] = useState(String(params.id || "")),
+    [showCoordinates, setShowCoordinates] = useState(false),
+    [parcelFocus, setParcelFocus] = useState<MapFocus>(),
     [step, setStep] = useState(1),
     [done, setDone] = useState(false),
     [consent, setConsent] = useState(false),
     [points, setPoints] = useState<LatLngPoint[]>([]),
     [photos, setPhotos] = useState<DocumentPicker.DocumentPickerAsset[]>([]),
-    [documents, setDocuments] = useState<DocumentPicker.DocumentPickerAsset[]>(
-      [],
-    ),
+    [documents, setDocuments] = useState<PostDocument[]>([]),
     [form, setForm] = useState<any>({
       title: "",
       description: "",
+      streetAddress: "",
       type: "flat",
       state: "",
       district: "",
@@ -1716,13 +1897,18 @@ export function PostScreen() {
   const onParcelChange = useCallback((next: LatLngPoint[]) => {
     setPoints(next);
     if (next.length) {
-      setForm((f: any) => ({
+      setForm((f: any) => f.lat && f.lng ? f : ({
         ...f,
         lat: String(next[0].lat),
         lng: String(next[0].lng),
       }));
     }
   }, []);
+  const setPropertyLocation = useCallback((point: MapPoint) => {
+    setForm((current: any) => ({ ...current, lat: String(point.lat), lng: String(point.lng) }));
+  }, []);
+  const formLocation = { lat: Number(form.lat), lng: Number(form.lng) };
+  const selectedLocation = form.lat?.trim() && form.lng?.trim() && validMapPoint(formLocation) ? formLocation : undefined;
 
   const runAction = action.run;
   const editorUserId = user?.id;
@@ -1748,15 +1934,26 @@ export function PostScreen() {
         });
       });
   }, [params.id, editorUserId, runAction]);
-  const pick = async (doc = false) => {
+  const pick = async (documentType?: PostDocumentType) => {
     const result = await DocumentPicker.getDocumentAsync({
-      type: doc
+      type: documentType
         ? ["application/pdf", "image/jpeg", "image/png"]
         : ["image/jpeg", "image/png", "image/webp"],
       multiple: true,
       copyToCacheDirectory: true,
     });
-    if (!result.canceled) { if (doc) setDocuments(result.assets); else setPhotos(result.assets); }
+    if (result.canceled) return;
+    if (documentType) {
+      setDocuments(current => [
+        ...current.filter(document => document.type !== documentType),
+        ...result.assets.map(asset => ({ asset, type: documentType })),
+      ]);
+      return;
+    }
+    setPhotos(current => {
+      const unique = new Map([...current, ...result.assets].map(asset => [asset.uri, asset]));
+      return [...unique.values()].slice(0, Math.max(0, 10 - (form.media?.photos?.length || 0)));
+    });
   };
   const uploadKeys = useRef(new Map<string, string>());
   const uploadKey = (uri: string) => {
@@ -1772,6 +1969,10 @@ export function PostScreen() {
       const payload = {
         title: form.title,
         description: form.description,
+        bedrooms: form.bedrooms,
+        bathrooms: form.bathrooms,
+        furnishing: form.furnishing,
+        streetAddress: form.streetAddress,
         type: form.type,
         location: {
           state: form.state,
@@ -1821,12 +2022,13 @@ export function PostScreen() {
         }));
         setPhotos((current) => current.filter((a) => a.uri !== asset.uri));
       }
-      for (const asset of documents) {
+      for (const document of documents) {
+        const { asset, type } = document;
         const prepared = await prepareUpload(asset, true),
           body = new FormData();
-        body.append("uploadId", uploadKey(asset.uri));
+        body.append("uploadId", uploadKey(`${type}:${asset.uri}`));
         body.append("propertyId", id);
-        body.append("type", "Registry");
+        body.append("type", type);
         if (Platform.OS === "web")
           body.append("file", prepared.file, prepared.name);
         else body.append("file", prepared.file as any);
@@ -1834,7 +2036,7 @@ export function PostScreen() {
           headers: { "Content-Type": "multipart/form-data" },
           timeout: 120000,
         });
-        setDocuments((current) => current.filter((a) => a.uri !== asset.uri));
+        setDocuments(current => current.filter(item => item !== document));
       }
       await api.post(`/properties/${id}/submit`, { consent: true });
       setDone(true);
@@ -1849,6 +2051,7 @@ export function PostScreen() {
       }
       back
       showDock={false}
+      step={step}
       footer={user && approved(user) && !done ? (
       <View style={s.between}>
         <Button
@@ -1872,15 +2075,23 @@ export function PostScreen() {
       ) : undefined}
       headerContent={user && approved(user) && !done ? (
         <View style={s.progress}>
-          {["Basics", "Location", "Details", "Uploads", "Review"].map((label, index) => (
-            <View key={label} style={s.progressStep} accessibilityState={{ selected: step === index + 1 }}>
-              <View style={[s.progressCircle, index < step && { backgroundColor: C.sun }]}>
-                {index + 1 < step ? <Icon name="check" size={17} /> :
-                  <Text style={{ color: index < step ? C.ink : "#fff", fontFamily: "ManropeExtraBold" }}>{index + 1}</Text>}
-              </View>
-              <Text style={[s.progressLabel, index < step && { color: C.sun }]}>{label}</Text>
-            </View>
-          ))}
+          {["Basics", "Location", "Details", "Uploads", "Review"].map((label, index) => {
+            const number = index + 1;
+            const complete = number < step;
+            const reached = number <= step;
+            return (
+              <React.Fragment key={label}>
+                {index > 0 && <View style={[s.progressLine, reached && { backgroundColor: C.sun }]} />}
+                <View style={s.progressStep} accessibilityLabel={complete ? `${label}, completed` : label} accessibilityState={{ selected: step === number }}>
+                  <View style={[s.progressCircle, reached && s.progressReached]}>
+                    {complete ? <Icon name="check" size={17} /> :
+                      <Text style={[s.progressNumber, reached && { color: C.ink }]}>{number}</Text>}
+                  </View>
+                  <Text style={[s.progressLabel, reached && { color: C.sun }]}>{label}</Text>
+                </View>
+              </React.Fragment>
+            );
+          })}
         </View>
       ) : undefined}
     >
@@ -1900,141 +2111,154 @@ export function PostScreen() {
           <>
             <ErrorBox text={action.error} />
             {step === 1 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>What kind of property are you listing?</Text>
-                <View style={s.wrap}>
-                  {types
-                    .filter(([id]) => id)
-                    .map(([id, title, icon]) => (
-                      <Button
-                        key={id}
-                        title={title}
-                        icon={icon}
-                        secondary={form.type !== id}
-                        onPress={() => set("type")(id)}
-                      />
-                    ))}
+              <>
+              <PostSection number={1} title="What are you listing?">
+                <View style={s.postPurpose} accessibilityLabel="Listing purpose">
+                  <View accessible accessibilityLabel="Sell" accessibilityState={{ selected: true }}
+                    style={[s.postPurposeOption, s.postPurposeSelected]}>
+                    <Text style={s.postPurposeText}>Sell</Text>
+                  </View>
+                  <View accessible accessibilityLabel="Rent out, unavailable" accessibilityState={{ disabled: true }}
+                    style={s.postPurposeOption}>
+                    <Text style={s.postPurposeUnavailable}>Rent out</Text>
+                    <Text style={s.small}>Unavailable</Text>
+                  </View>
                 </View>
+                <View style={s.postTypeGrid}>
+                  {[
+                    { id: "flat", title: "Apartment", icon: "apartment" },
+                    { id: "house", title: "House", icon: "home" },
+                    { id: null, title: "Villa", icon: "park" },
+                    { id: "land", title: "Plot", icon: "map" },
+                    { id: "shop", title: "Commercial", icon: "people-outline" },
+                    { id: null, title: "PG / Room", icon: "hotel" },
+                  ].map(({ id, title, icon }) => {
+                      const disabled = id === null;
+                      const selected = !disabled && (form.type === id || (id === "shop" && form.type === "office"));
+                      return <Pressable
+                        key={title}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected, disabled }}
+                        disabled={disabled}
+                        style={[s.postTypeTile, selected && s.postTypeTileSelected]}
+                        onPress={() => {
+                          if (id && !selected) set("type")(id);
+                        }}
+                      >
+                        <Icon name={icon} color={selected ? C.sun : disabled ? C.muted : C.ink} size={26} />
+                        <Text style={[s.postTypeLabel, selected && { color: C.sun }, disabled && { color: C.muted }]}>{title}</Text>
+                        {disabled && <Text style={s.small}>Unavailable</Text>}
+                      </Pressable>;
+                    })}
+                </View>
+                {["shop", "office"].includes(form.type) && (
+                  <View style={s.wrap} accessibilityLabel="Commercial property type">
+                    <Button title="Shop" secondary={form.type !== "shop"} onPress={() => set("type")("shop")} />
+                    <Button title="Office" secondary={form.type !== "office"} onPress={() => set("type")("office")} />
+                  </View>
+                )}
+              </PostSection>
+              <PostSection number={2} title="Property details">
                 <Field
-                  title="Property title"
+                  title="Listing title"
+                  uppercaseLabel
                   value={form.title}
                   onChangeText={set("title")}
                 />
+                <View style={s.row}>
+                  <Field uppercaseLabel numeric title="Expected price (₹)" value={form.price} onChangeText={set("price")} />
+                  <Field uppercaseLabel numeric title="Area (sq ft)" value={form.totalArea} onChangeText={set("totalArea")} />
+                </View>
+                {["flat", "house"].includes(form.type) && <>
+                  {[["bedrooms", "Bedrooms"], ["bathrooms", "Bathrooms"]].map(([key, title]) => (
+                    <View key={key} style={[s.between, s.postCounter]}>
+                      <Text style={s.cardTitle}>{title}</Text>
+                      <View style={s.row}>
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Decrease ${key}`} disabled={!form[key]}
+                          style={s.postCounterButton} onPress={() => set(key)(Math.max(0, Number(form[key]) - 1))}>
+                          <Icon name="remove" size={18} />
+                        </Pressable>
+                        <Text style={s.postCounterValue}>{form[key] ?? "—"}</Text>
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Increase ${key}`} disabled={form[key] >= 99}
+                          style={[s.postCounterButton, s.postPurposeSelected]} onPress={() => set(key)(Math.min(99, (form[key] ?? 0) + 1))}>
+                          <Icon name="add" color={C.sun} size={18} />
+                        </Pressable>
+                      </View>
+                    </View>
+                  ))}
+                  <Text style={[s.fieldLabel, s.postFieldLabel]}>Furnishing</Text>
+                  <View style={s.wrap}>
+                    {["Unfurnished", "Semi-furnished", "Fully furnished"].map(label => {
+                      const value = label.toLowerCase();
+                      const selected = form.furnishing === value;
+                      return <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected }}
+                        onPress={() => set("furnishing")(value)}
+                        style={[s.typeChip, selected && s.postPurposeSelected]}>
+                        <Text style={[s.cardTitle, selected && { color: C.sun }]}>{label}</Text>
+                      </Pressable>;
+                    })}
+                  </View>
+                </>}
                 <Field
                   title="Description"
+                  uppercaseLabel
                   value={form.description}
                   onChangeText={set("description")}
                   multiline
                 />
-              </View>
+              </PostSection>
+              </>
             )}
             {step === 2 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Where is the property located?</Text>
-                {[
-                  ["state", "State"],
-                  ["district", "City / district"],
-                  ["block", "Locality"],
-                  ["pincode", "Pincode"],
-                ].map(([key, title]) => (
-                  <Field
-                    key={key}
-                    title={title}
-                    value={form[key]}
-                    onChangeText={set(key)}
-                  />
-                ))}
-                <Button
-                  secondary
-                  title="Use current location"
-                  icon="my-location"
-                  onPress={() =>
-                    action.run(async () => {
-                      const permission =
-                        await Location.requestForegroundPermissionsAsync();
-                      if (permission.status !== "granted")
-                        throw new Error(
-                          "Location permission denied. Enter coordinates manually.",
-                        );
-                      const location = await Location.getCurrentPositionAsync({
-                        accuracy: Location.Accuracy.High,
-                      });
-                      set("lat")(String(location.coords.latitude));
-                      set("lng")(String(location.coords.longitude));
-                    })
-                  }
-                />
-                <View style={s.row}>
-                  <Field
-                    title="Latitude"
-                    value={form.lat}
-                    onChangeText={set("lat")}
-                    numeric
-                  />
-                  <Field
-                    title="Longitude"
-                    value={form.lng}
-                    onChangeText={set("lng")}
-                    numeric
-                  />
-                </View>
-                <Text style={s.small}>
-                  Enter the property&apos;s coordinates if you are not currently at
-                  the site.
-                </Text>
-
-                <View style={{ marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.line }}>
-                  <Text style={s.h2}>Demarcate Property Boundary</Text>
-                  <Text style={s.muted}>
-                    Draw the boundary outline on the satellite map. Tap points around the plot corners to mark the perimeter.
-                  </Text>
-                  <View
-                    style={{
-                      minHeight: Platform.OS === "web" ? 520 : 440,
-                      borderRadius: 16,
-                      overflow: "hidden",
-                      marginVertical: 12,
-                      borderWidth: 1,
-                      borderColor: C.line,
-                    }}
-                  >
-                    <MapParcelPicker
-                      initialPoints={points}
-                      onParcelChange={onParcelChange}
-                      areaSqFt={form.totalArea}
-                    />
+              <>
+                <PostSection number={3} title="Location">
+                  <Text style={s.muted}>Add the property address and use the map to confirm its location.</Text>
+                  <Field uppercaseLabel title="Society / street address" value={form.streetAddress || ""} onChangeText={set("streetAddress")} />
+                  <View style={s.row}>
+                    <Field uppercaseLabel title="Locality" value={form.block} onChangeText={set("block")} />
+                    <Field uppercaseLabel numeric title="Pincode" value={form.pincode} onChangeText={set("pincode")} />
                   </View>
-                  <Field
-                    title="Boundary description (North / South / East / West)"
-                    value={form.boundary}
-                    onChangeText={set("boundary")}
-                    multiline
+                  <View style={s.row}>
+                    <Field uppercaseLabel title="State" value={form.state} onChangeText={set("state")} />
+                    <Field uppercaseLabel title="City / district" value={form.district} onChangeText={set("district")} />
+                  </View>
+                </PostSection>
+                <PostSection title="Map & boundary">
+                  <Text style={s.muted}>Search for the property area or use GPS if you’re on site.</Text>
+                  <Button secondary title="Use current location" icon="my-location" disabled={action.busy}
+                    onPress={() => action.run(async () => {
+                      const point = await currentMapLocation();
+                      setPropertyLocation(point);
+                      setParcelFocus({ ...point, zoom: 17 });
+                    })}
                   />
-                  <Field
-                    title="Road width in front of plot (feet)"
-                    value={form.roadWidth}
-                    onChangeText={set("roadWidth")}
-                    numeric
-                  />
-                </View>
-              </View>
+                  <MapParcelPicker initialPoints={points} onParcelChange={onParcelChange} areaSqFt={form.totalArea}
+                    locationFocus={parcelFocus} showLocate={false} onLocationSet={setPropertyLocation}
+                    selectedLocation={selectedLocation} initialSearch={form.pincode || form.district || ""} />
+                  {points.length > 0 && <Text style={s.small}>{points.length} {points.length === 1 ? "corner" : "corners"} marked</Text>}
+                  <Pressable accessibilityRole="button" accessibilityState={{ expanded: showCoordinates }}
+                    style={s.postCoordinates} onPress={() => setShowCoordinates(current => !current)}>
+                    <Icon name="place" size={20} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.cardTitle}>GPS coordinates</Text>
+                      <Text style={s.small}>{form.lat && form.lng ? "Location set · edit manually" : "Enter latitude and longitude manually"}</Text>
+                    </View>
+                    <Icon name={showCoordinates ? "expand-less" : "expand-more"} size={20} />
+                  </Pressable>
+                  {showCoordinates && (
+                    <View style={s.row}>
+                      <Field uppercaseLabel title="Latitude" value={form.lat} onChangeText={set("lat")} numeric />
+                      <Field uppercaseLabel title="Longitude" value={form.lng} onChangeText={set("lng")} numeric />
+                    </View>
+                  )}
+                  <Field uppercaseLabel title="Boundary notes (optional)" value={form.boundary} onChangeText={set("boundary")} multiline />
+                  <Field uppercaseLabel title="Road width (ft)" value={form.roadWidth} onChangeText={set("roadWidth")} numeric />
+                </PostSection>
+              </>
             )}
             {step === 3 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Set your price & area</Text>
-                {[
-                  ["price", "Expected price (₹)"],
-                  ["totalArea", "Total area (sq ft)"],
-                  ["sellableArea", "Sellable area (sq ft)"],
-                ].map(([key, title]) => (
-                  <Field
-                    numeric
-                    key={key}
-                    title={title}
-                    value={form[key]}
-                    onChangeText={set(key)}
-                  />
-                ))}
+              <PostSection title="Additional details">
+                <Field uppercaseLabel numeric title="Sellable area (sq ft)" value={form.sellableArea} onChangeText={set("sellableArea")} />
                 {[
                   ["negotiable", "Price is negotiable"],
                   ["hasLoan", "Property has an existing loan"],
@@ -2054,53 +2278,73 @@ export function PostScreen() {
                   </Pressable>
                 ))}
                 <Field
+                  uppercaseLabel
                   title="Possession status"
                   value={form.possessionStatus}
                   onChangeText={set("possessionStatus")}
                 />
-              </View>
+              </PostSection>
             )}
             {step === 4 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Photos & ownership documents</Text>
-                <Text style={s.muted}>
-                  At least one property photo is required. Ownership documents
-                  remain private.
-                </Text>
-                <Button
-                  secondary
-                  title="Add property photos"
-                  icon="add-a-photo"
-                  onPress={() => action.run(() => pick())}
-                />
-                <View style={s.wrap}>
-                  {[...form.media.photos, ...photos.map((p) => p.uri)].map(
-                    (uri: string) => (
-                      <Image
-                        key={uri}
-                        source={{ uri }}
-                        style={{ width: 120, height: 90, borderRadius: 12 }}
-                      />
-                    ),
-                  )}
-                </View>
-                <Button
-                  secondary
-                  title="Add ownership documents (optional)"
-                  icon="upload-file"
-                  onPress={() => action.run(() => pick(true))}
-                />
-                {documents.map((d) => (
-                  <Text key={d.uri} style={s.small}>
-                    {d.name}
-                  </Text>
-                ))}
-              </View>
+              <>
+                <PostSection number={4} title="Photos">
+                  <View style={s.postTypeGrid}>
+                    <Pressable accessibilityRole="button" accessibilityLabel="Add photo"
+                      style={[s.postMediaTile, s.postMediaAdd]} disabled={action.busy || form.media.photos.length + photos.length >= 10}
+                      onPress={() => action.run(() => pick())}>
+                      <Icon name="photo-camera" size={26} />
+                      <Text style={s.cardTitle}>Add photo</Text>
+                    </Pressable>
+                    {form.media.photos.map((uri: string, index: number) => (
+                      <View key={uri} style={s.postMediaTile}>
+                        <PropertyImage source={{ uri }} style={StyleSheet.absoluteFill} />
+                        {index === 0 && <Text style={s.postCover}>Cover</Text>}
+                      </View>
+                    ))}
+                    {photos.map((photo, index) => (
+                      <View key={photo.uri} style={s.postMediaTile}>
+                        <Image source={{ uri: photo.uri }} style={StyleSheet.absoluteFill} />
+                        {index === 0 && !form.media.photos.length && <Text style={s.postCover}>Cover</Text>}
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${photo.name}`}
+                          disabled={action.busy} style={s.postPhotoRemove}
+                          onPress={() => setPhotos(current => current.filter(item => item.uri !== photo.uri))}>
+                          <Icon name="close" color="white" size={18} />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                  <Text style={s.muted}>Add at least one property photo. The first photo is the cover.</Text>
+                </PostSection>
+                <PostSection number={5} title="Documents">
+                  {postDocumentOptions.map(({ type, title, subtitle }) => {
+                    const selected = documents.filter(document => document.type === type);
+                    return (
+                      <View key={type} style={[s.row, s.postCounter]}>
+                        <View style={s.postDocumentIcon}><Icon name="description" size={22} /></View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.cardTitle}>{title}</Text>
+                          {selected.length ? selected.map(({ asset }) => (
+                            <Text key={asset.uri} style={s.small}>
+                              {asset.name}{asset.size != null ? ` · ${(asset.size / 1048576).toFixed(2)} MB` : ""}
+                            </Text>
+                          )) : <Text style={s.muted}>{subtitle}</Text>}
+                          {selected.length > 0 && <Text style={[s.small, { color: C.green }]}>Ready to upload</Text>}
+                        </View>
+                        <Button title={selected.length ? "Replace" : "Upload"} disabled={action.busy} onPress={() => action.run(() => pick(type))} />
+                      </View>
+                    );
+                  })}
+                  <View style={s.row}>
+                    <Icon name="lock-outline" color={C.muted} size={18} />
+                    <Text style={[s.muted, { flex: 1 }]}>Ownership documents are private and used for verification.</Text>
+                  </View>
+                </PostSection>
+              </>
             )}
             {step === 5 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Assign your property team</Text>
+              <PostSection title="Review & submit">
                 <Field
+                  uppercaseLabel
                   title="Advisor ID (optional)"
                   value={form.requestedAdvisorId}
                   onChangeText={set("requestedAdvisorId")}
@@ -2136,7 +2380,7 @@ export function PostScreen() {
                     details and disclosures are accurate.
                   </Text>
                 </Pressable>
-              </View>
+              </PostSection>
             )}
             {Boolean(draftId) && (
               <Text style={s.small}>
@@ -2385,8 +2629,7 @@ const s = StyleSheet.create({
     borderRadius: 18,
   },
   navGlyph: { width: 48, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  navItemActive: { backgroundColor: C.sun },
-  navText: { fontFamily: font, fontSize: 10.5, color: "#F7F4EC" },
+  navText: { fontFamily: "ManropeBold", fontSize: 10.5, color: "#C7A532" },
   postCircle: {
     height: 58,
     width: 58,
@@ -2440,11 +2683,18 @@ const s = StyleSheet.create({
     borderColor: "rgba(10, 69, 181, 0.10)",
     gap: 4,
   },
+  kycSummary: { backgroundColor: C.sunSoft },
+  featureIcon: { width: 46, height: 46, borderRadius: 16, backgroundColor: C.sun, alignItems: "center", justifyContent: "center" },
+  uploadTarget: { alignItems: "center", justifyContent: "center", gap: 8, padding: 22, borderRadius: 18, borderWidth: 2, borderStyle: "dashed", borderColor: C.line, backgroundColor: C.bg },
+  documentRow: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, backgroundColor: C.bg, borderRadius: 12 },
+  photoCounter: { position: "absolute", right: 12, bottom: 12, color: "#fff", backgroundColor: C.ink, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6, fontFamily: "ManropeBold" },
+  galleryThumb: { width: 82, height: 62, borderRadius: 14, borderWidth: 2, borderColor: C.line, overflow: "hidden" },
+  gallerySave: { position: "absolute", top: 12, right: 12, width: 42, height: 42, borderRadius: 21 },
   chatArea: { gap: 14, minHeight: 240 },
   bubble: { maxWidth: "85%", padding: 12, borderRadius: 16, gap: 5 },
   mine: {
     alignSelf: "flex-end",
-    backgroundColor: "#dbe8fd",
+    backgroundColor: C.sunSoft,
     borderWidth: 1,
     borderColor: "rgba(20, 38, 62, 0.18)",
     borderBottomRightRadius: 4,
@@ -2468,19 +2718,62 @@ const s = StyleSheet.create({
     borderColor: C.blue,
     gap: 3,
   },
-  progress: { flexDirection: "row", gap: 4 },
-  progressStep: { flex: 1, alignItems: "center", gap: 5 },
+  progress: { flexDirection: "row", justifyContent: "center", gap: 4 },
+  progressStep: { width: 48, alignItems: "center", gap: 6 },
+  progressLine: { height: 3, flex: 1, maxWidth: 64, marginTop: 18, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)" },
   progressCircle: {
     height: 36, width: 36, borderRadius: 18, alignItems: "center", justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1, borderColor: "rgba(255,255,255,0.22)",
   },
-  progressLabel: { fontFamily: "ManropeBold", fontSize: 11, color: "rgba(255,255,255,0.76)" },
+  progressReached: { backgroundColor: C.sun, borderColor: C.sun },
+  progressNumber: { fontFamily: "ManropeExtraBold", color: "#fff" },
+  progressLabel: { fontFamily: "ManropeBold", fontSize: 11, color: "rgba(255,255,255,0.76)", textAlign: "center" },
+  postSection: { padding: 18, borderRadius: 22, gap: 16 },
+  postSectionNumber: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.sun, alignItems: "center", justifyContent: "center" },
+  postSectionNumberText: { color: C.ink, fontFamily: "ManropeExtraBold", fontSize: 14 },
+  postPurpose: { flexDirection: "row", padding: 4, gap: 4, borderRadius: 16, backgroundColor: C.bg },
+  postPurposeOption: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: 12, paddingVertical: 4 },
+  postPurposeSelected: { backgroundColor: C.ink },
+  postPurposeText: { color: C.sun, fontFamily: "ManropeExtraBold", fontSize: 14 },
+  postPurposeUnavailable: { color: C.muted, fontFamily: "ManropeBold", fontSize: 14 },
+  postTypeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  postTypeTile: { width: "31%", minHeight: 86, borderRadius: 16, borderWidth: 1, borderColor: C.line, alignItems: "center", justifyContent: "center", padding: 5, gap: 6, overflow: "hidden" },
+  postTypeTileSelected: { backgroundColor: C.ink, borderColor: C.ink },
+  postTypeLabel: { color: C.ink, fontFamily: "ManropeBold", fontSize: 13, textAlign: "center" },
+  postFieldLabel: { textTransform: "uppercase", letterSpacing: 0.6, color: C.muted, fontFamily: "ManropeExtraBold" },
+  postCoordinates: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: C.bg, borderRadius: 14 },
+  postCounter: { backgroundColor: C.bg, borderRadius: 16, padding: 12 },
+  postCounterButton: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: C.line, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  postCounterValue: { minWidth: 22, textAlign: "center", color: C.ink, fontFamily: "ManropeExtraBold", fontSize: 16 },
+  postMediaTile: { width: "31%", aspectRatio: 1, borderRadius: 16, overflow: "hidden", backgroundColor: C.bg },
+  postMediaAdd: { borderWidth: 2, borderStyle: "dashed", borderColor: C.line, backgroundColor: "#FFF7DA", alignItems: "center", justifyContent: "center", gap: 6 },
+  postCover: { position: "absolute", left: 5, top: 5, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: C.sun, color: C.ink, fontFamily: "ManropeExtraBold", fontSize: 11 },
+  postPhotoRemove: { position: "absolute", right: 4, top: 4, height: 28, width: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: C.ink },
+  postDocumentIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   footer: { backgroundColor: "#fff", borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 20, paddingTop: 12 },
-  preferenceRow: {
-    minHeight: 64, flexDirection: "row", alignItems: "center", gap: 12, padding: 12,
-    backgroundColor: "#fff", borderRadius: 22, borderWidth: 1, borderColor: C.line,
-  },
-  preferenceIcon: { height: 42, width: 42, borderRadius: 14, backgroundColor: C.sunSoft, alignItems: "center", justifyContent: "center" },
+  profileHero: { paddingBottom: 82 },
+  profileContent: { marginTop: -50 },
+  profileEdit: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: C.ink },
+  profileIdentity: { flexDirection: "row", alignItems: "center", gap: 14, marginTop: 8 },
+  profilePortrait: { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: C.sun, alignItems: "center", justifyContent: "center", backgroundColor: "#244268" },
+  profileInitials: { color: "#fff", fontFamily: fontDisplay, fontSize: 28 },
+  profileDetails: { flex: 1, gap: 3, alignItems: "flex-start" },
+  profileName: { color: "#fff", fontFamily: fontDisplay, fontSize: 28, lineHeight: 34 },
+  profileVerification: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 7, backgroundColor: "#fff", paddingVertical: 6, paddingHorizontal: 11, borderRadius: 22, maxWidth: "100%" },
+  profileStats: { flexDirection: "row", paddingVertical: 16, borderRadius: 22, backgroundColor: "#fff", borderWidth: 1, borderColor: C.line, shadowColor: C.ink, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 3 },
+  profileStat: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 52, gap: 2 },
+  profileDivider: { borderLeftWidth: 1, borderColor: C.line },
+  profileStatValue: { color: C.ink, fontSize: 23, fontFamily: "ManropeExtraBold" },
+  profileMenu: { backgroundColor: "#fff", borderRadius: 22, borderWidth: 1, borderColor: C.line, overflow: "hidden", shadowColor: C.ink, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 14, elevation: 2 },
+  profileMenuTitle: { fontFamily: "ManropeExtraBold", fontSize: 16, color: C.ink, marginBottom: 2 },
+  preferenceRow: { minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
+  preferenceSeparator: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.line },
+  preferenceDetails: { paddingHorizontal: 14, paddingBottom: 14 },
+  preferenceIcon: { height: 44, width: 44, borderRadius: 16, backgroundColor: C.sun, alignItems: "center", justifyContent: "center" },
+  profileBadge: { minWidth: 29, minHeight: 29, borderRadius: 16, backgroundColor: C.ink, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" },
+  profileBadgeText: { color: C.sun, fontFamily: "ManropeExtraBold", fontSize: 12 },
+  profileKycBadge: { backgroundColor: C.sunSoft },
+  profileChevron: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: C.bg },
   stat: { flex: 1, minHeight: 52, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   listingPhoto: { width: 96, height: 104, borderRadius: 16, backgroundColor: C.bg },
 });

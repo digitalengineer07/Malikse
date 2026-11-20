@@ -1,4 +1,5 @@
 import { removeLeafletMap } from "../src/utils/removeLeafletMap";
+import type { MapFocus, MapPoint } from "../src/utils/nativeMapHtml";
 import TextInput from "./FormInput";
 import { addParcelBaseLayer, parcelStyle } from "../src/utils/parcelMap";
 import React, { useEffect, useState, useRef } from "react";
@@ -23,17 +24,28 @@ interface MapParcelPickerProps {
   initialPoints?: LatLngPoint[];
   onParcelChange: (points: LatLngPoint[]) => void;
   areaSqFt?: number | string;
+  locationFocus?: MapFocus;
+  showLocate?: boolean;
+  selectedLocation?: MapPoint;
+  onLocationSet?: (point: MapPoint) => void;
+  initialSearch?: string;
 }
 
 export default function MapParcelPicker({
   initialPoints,
   onParcelChange,
   areaSqFt = "2,400",
+  locationFocus,
 }: MapParcelPickerProps) {
   const { language } = useLanguageStore();
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
+  const locationFocusRef = useRef(locationFocus);
+  useEffect(() => {
+    locationFocusRef.current = locationFocus;
+    if (locationFocus) mapInstanceRef.current?.setView([locationFocus.lat, locationFocus.lng], locationFocus.zoom);
+  }, [locationFocus]);
 
   const polygonLayerRef = useRef<any>(null);
   const markerLayersRef = useRef<any[]>([]);
@@ -594,10 +606,11 @@ export default function MapParcelPicker({
       }
 
       // Initial center
-      const centroid = calculateCentroid(pointsRef.current);
+      const focus = locationFocusRef.current;
+      const centroid = focus ?? calculateCentroid(pointsRef.current);
       const map = L.map(mapContainerRef.current, {
         center: [centroid.lat, centroid.lng],
-        zoom: 17,
+        zoom: focus?.zoom ?? 17,
         zoomControl: false,
         attributionControl: true,
         maxZoom: 20,

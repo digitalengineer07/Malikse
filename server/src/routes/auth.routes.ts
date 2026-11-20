@@ -1,5 +1,5 @@
 import { cookieSession, trustedCookieOrigin, sessionPayload, refreshFromRequest, clearCookieSession } from "../services/browserSession";
-import { randomUUID, randomInt, createHash, createHmac, timingSafeEqual } from "crypto";
+import { randomUUID, randomInt, randomBytes, createHash, createHmac, timingSafeEqual } from "crypto";
 import { rateLimit } from "express-rate-limit";
 import { Registration } from "../models/Registration.model";
 import { PasswordReset } from "../models/PasswordReset.model";
@@ -774,13 +774,20 @@ router.post(
         return res.status(400).json({ message: "Enter a valid 10-digit mobile number or email address" });
       }
 
-      const user = await User.findOne(
-        isMobile
-          ? { $or: [{ mobile: cleanMobile }, { email: input.toLowerCase() }] }
-          : { email: input.toLowerCase() }
-      );
-
-      if (!user || !accountEnabled(user) || !(isEmail ? user.emailVerifiedAt : user.mobileVerifiedAt)) return res.json(resetResponse());
+      const user = await User.findOne(isEmail ? { email: input.toLowerCase() } : { mobile: cleanMobile });
+      const contact = isEmail ? "email address" : "mobile number";
+      if (!user) {
+        return res.status(404).json({
+          code: "RECOVERY_CONTACT_NOT_REGISTERED",
+          message: `No account is registered with this ${contact}.`,
+        });
+      }
+      if (!accountEnabled(user) || !(isEmail ? user.emailVerifiedAt : user.mobileVerifiedAt)) {
+        return res.status(404).json({
+          code: "RECOVERY_CONTACT_UNAVAILABLE",
+          message: `This ${contact} is registered but can't be used for recovery.`,
+        });
+      }
 
       const now = new Date();
       const resetKey = String(user._id);
@@ -812,6 +819,7 @@ router.post(
             expiresAt: now,
             attempts: 0,
           },
+          $unset: { resetGrantHash: "" },
         },
         { new: true }
       );
@@ -881,7 +889,7 @@ router.post(
       const code = stubCode || randomInt(0, 1000000).toString().padStart(6, "0");
       const claimed = await PasswordReset.findOneAndUpdate(
         { _id: existing._id, challengeId: existing.challengeId, resendAt: { $lte: now }, lockUntil: { $lte: now } },
-        { $set: { challengeId: newChallengeId, expiresAt: now, lockUntil: new Date(Date.now() + 30000), resendAt: new Date(Date.now() + 60000) } },
+        { $set: { challengeId: newChallengeId, expiresAt: now, lockUntil: new Date(Date.now() + 30000), resendAt: new Date(Date.now() + 60000) }, $unset: { resetGrantHash: "" } },
         { new: true }
       );
       if (!claimed) return res.json(resetResponse());
@@ -912,6 +920,50 @@ router.post(
   }
 );
 
+const resetGrantDigest = (grant: string) => createHash("sha256").update(grant).digest("hex");
+
+router.post(
+  "/forgot-password/verify",
+  rateLimit({ windowMs: 60000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false, validate: { xForwardedForHeader: false, default: true } }),
+  async (req, res) => {
+    const challengeId = typeof req.body?.challengeId === "string" ? req.body.challengeId.trim() : "";
+    const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
+    if (!challengeId || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({ message: "Enter the 6-digit verification code." });
+    }
+    const now = new Date();
+    const lockUntil = new Date(now.getTime() + 30000);
+    let locked = false;
+    try {
+      const pending = await PasswordReset.findOneAndUpdate(
+        { challengeId, expiresAt: { $gt: now }, lockUntil: { $lte: now }, attempts: { $lt: 5 }, resetGrantHash: { $exists: false } },
+        { $inc: { attempts: 1 }, $set: { lockUntil } },
+        { new: true },
+      );
+      if (!pending) return res.status(400).json({ message: "Code expired or maximum attempts reached. Request a new code." });
+      locked = true;
+      const valid = pending.provider === "twilio-verify" && pending.mobile
+        ? await checkTwilioVerification(pending.mobile, code)
+        : pending.provider === "local" && verifyPasswordResetOtp(challengeId, code, pending.otpHash);
+      if (!valid) return res.status(400).json({ code: "INCORRECT_RESET_CODE", message: "Incorrect code. Please try again." });
+
+      const resetToken = randomBytes(32).toString("base64url");
+      const expiresInSeconds = 300;
+      const update = await PasswordReset.updateOne(
+        { challengeId, lockUntil, expiresAt: { $gt: new Date() } },
+        { $set: { resetGrantHash: resetGrantDigest(resetToken), expiresAt: new Date(Date.now() + expiresInSeconds * 1000), lockUntil: new Date(0) } },
+      );
+      if (!update.matchedCount) return res.status(400).json({ message: "Code expired. Request a new code." });
+      res.setHeader("Cache-Control", "no-store");
+      return res.json({ resetToken, expiresInSeconds });
+    } catch {
+      return res.status(500).json({ message: "Could not verify the code. Please try again." });
+    } finally {
+      if (locked) await PasswordReset.updateOne({ challengeId, lockUntil }, { $set: { lockUntil: new Date(0) } }).catch(() => {});
+    }
+  },
+);
+
 // POST /auth/reset-password
 router.post(
   "/reset-password",
@@ -919,9 +971,10 @@ router.post(
   async (req, res) => {
     const rawChallengeId = String(req.body.challengeId || "").trim();
     const cleanCode = String(req.body.code ?? "").trim();
-    const { newPassword } = req.body;
+    const { newPassword, resetToken } = req.body;
+    const usingGrant = typeof resetToken === "string" && /^[A-Za-z0-9_-]{43}$/.test(resetToken);
 
-    if (!rawChallengeId || !/^\d{6}$/.test(cleanCode)) {
+    if (!rawChallengeId || (resetToken !== undefined ? !usingGrant : !/^\d{6}$/.test(cleanCode))) {
       return res.status(400).json({ message: "Enter the 6-digit verification code sent to your registered mobile/email" });
     }
 
@@ -937,7 +990,8 @@ router.post(
     }
 
     let locked = false;
-    let resetRecordId = "";
+    const lockUntil = new Date(Date.now() + 30000);
+    const credential = usingGrant ? { resetGrantHash: resetGrantDigest(resetToken) } : { resetGrantHash: { $exists: false } };
 
     try {
       const pending = await PasswordReset.findOneAndUpdate(
@@ -945,11 +999,12 @@ router.post(
           challengeId: rawChallengeId,
           expiresAt: { $gt: new Date() },
           lockUntil: { $lte: new Date() },
-          attempts: { $lt: 5 },
+          ...credential,
+          ...(!usingGrant && { attempts: { $lt: 5 } }),
         },
         {
-          $inc: { attempts: 1 },
-          $set: { lockUntil: new Date(Date.now() + 30000) },
+          ...(!usingGrant && { $inc: { attempts: 1 } }),
+          $set: { lockUntil },
         },
         { new: true }
       );
@@ -959,19 +1014,18 @@ router.post(
           .status(400)
           .json({ message: "OTP expired, invalid session, or maximum attempts exceeded. Please request a new OTP." });
       }
+      locked = true;
 
       const mobileWeak = isWeakPassword(newPassword, { mobile: pending.mobile || undefined });
       if (mobileWeak) {
         return res.status(400).json({ message: mobileWeak });
       }
 
-      resetRecordId = pending._id;
-      locked = true;
-      let codeValid = false;
+      let codeValid = usingGrant;
 
-      if (pending.provider === "twilio-verify" && pending.mobile) {
+      if (!usingGrant && pending.provider === "twilio-verify" && pending.mobile) {
         codeValid = await checkTwilioVerification(pending.mobile, cleanCode);
-      } else if (pending.provider === "local") {
+      } else if (!usingGrant && pending.provider === "local") {
         codeValid = verifyPasswordResetOtp(rawChallengeId, cleanCode, pending.otpHash);
       }
 
@@ -981,7 +1035,7 @@ router.post(
 
       // Consume challenge atomically
       const consumed = await PasswordReset.findOneAndUpdate(
-        { challengeId: rawChallengeId, expiresAt: { $gt: new Date() } },
+        { challengeId: rawChallengeId, lockUntil, expiresAt: { $gt: new Date() }, ...credential },
         { $set: { expiresAt: new Date(0) } }
       );
       if (!consumed) {
@@ -1020,8 +1074,8 @@ router.post(
     } catch (error: any) {
       return res.status(500).json({ message: "Password reset service temporarily unavailable. Please try again." });
     } finally {
-      if (locked && resetRecordId) {
-        await PasswordReset.updateOne({ _id: resetRecordId }, { $set: { lockUntil: new Date(0) } }).catch(() => {});
+      if (locked) {
+        await PasswordReset.updateOne({ challengeId: rawChallengeId, lockUntil }, { $set: { lockUntil: new Date(0) } }).catch(() => {});
       }
     }
   }
