@@ -1892,9 +1892,10 @@ export function ChatsScreen() {
       if (saved?._id) {
         setSent(current => ({ conversation: selected,
           messages: [...(current?.conversation === selected ? current.messages : []), saved].slice(-6) }));
+      } else {
+        void refreshMessages();
       }
       setText(current => current === draft ? "" : current);
-      void refreshMessages();
     } catch {
       if (activeConversation.current === selected) setSendErrorConversation(selected);
     } finally {

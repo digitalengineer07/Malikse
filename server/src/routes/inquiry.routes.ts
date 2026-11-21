@@ -25,13 +25,16 @@ router.use("/:id", async (req: any, res, next) => {
     if (["sent", "received"].includes(req.params.id)) return next();
     if (!isValidObjectId(req.params.id))
       return res.status(400).json({ error: "Invalid inquiry ID" });
+    // Message sends authorize against the same snapshot that they update.
+    if (req.method === "POST" && /^\/message\/?$/i.test(req.path)) return next();
     const inquiry = await Inquiry.findOne({
       _id: req.params.id,
       staffId: { $exists: true },
-    });
+    }).select("buyerId staffId propertyId").lean();
     if (!inquiry)
       return res.status(404).json({ error: "Conversation not found" });
-    const property = await Property.findById(inquiry.propertyId);
+    const property = await Property.findById(inquiry.propertyId)
+      .select("status assignedAdvisorId assignedVerifierId").lean();
     if (!property) return res.status(404).json({ error: "Property not found" });
     const staff = await assignedStaff(property);
     if (![String(inquiry.buyerId), String(staff._id)].includes(req.user.id))
@@ -401,22 +404,23 @@ router.post("/:id/message", async (req: AuthRequest, res) => {
     let inquiry: any;
     try {
       await session.withTransaction(async () => {
-        const current = await Inquiry.findById(req.params.id).session(session);
+        const current = await Inquiry.findOne({ _id: req.params.id, staffId: { $exists: true } })
+          .select("propertyId buyerId staffId").session(session).lean();
         if (!current) throw new OfferError(404, "Conversation not found");
-        const property = await Property.findById(current.propertyId).session(
-          session,
-        );
+        const property = await Property.findById(current.propertyId)
+          .select("status __v assignedAdvisorId assignedVerifierId").session(session).lean();
         if (!property || property.status !== "verified")
           throw new OfferError(
             409,
             "Property unavailable. Conversation is read-only",
           );
-        const staff = await assignedStaff(property);
+        const staff = await assignedStaff(property, session);
         const buyer = String(current.buyerId) === req.user!.id;
         if (!buyer && String(staff._id) !== req.user!.id)
           throw new OfferError(403, "Not assigned to this property");
         if (buyer) {
-          const account = await User.findById(req.user!.id).session(session);
+          const account = await User.findById(req.user!.id)
+            .select("isVerifiedIdentity demoKycComplete").session(session).lean();
           if (!account || !identityApproved(account))
             throw new OfferError(
               403,
@@ -435,6 +439,7 @@ router.post("/:id/message", async (req: AuthRequest, res) => {
           { _id: current._id, "messages.999": { $exists: false } },
           {
             $set: { staffId: staff._id },
+            ...(String(current.staffId) !== String(staff._id) ? { $unset: { staffReadAt: 1 } } : {}),
             $push: {
               messages: {
                 _id: messageId,
