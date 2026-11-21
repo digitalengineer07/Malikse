@@ -5,7 +5,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import type { RegionGroup } from "../src/services/regionService";
 import { validMapPoint, type MapFocus } from "../src/utils/nativeMapHtml";
 import { addRegionBoundaries } from "../src/utils/regionBoundaryLayer";
-import { INDIA_STATES_DATA, type IndiaStateInfo } from "../src/data/indiaStatesData";
+import { INDIA_STATES_DATA, type IndiaStateInfo } from "../src/geo-data/indiaStatesData";
 import { currentMapLocation } from "../src/services/currentMapLocation";
 import { hasParcelBoundary } from "../src/utils/parcelMap";
 import type { Property } from "../src/types/property.types";

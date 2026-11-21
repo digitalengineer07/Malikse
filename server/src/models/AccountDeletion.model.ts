@@ -4,6 +4,7 @@ import { Schema, model } from "mongoose";
 // receipts contain no account link and expire after 90 days.
 const schema = new Schema({
   _id: { type: String, required: true },
+  receiptHash: String,
   userId: { type: Schema.Types.ObjectId, ref: "User" },
   status: { type: String, enum: ["pending", "processing", "awaiting_deals", "completed"], default: "pending" },
   requestedAt: { type: Date, default: Date.now },

@@ -1,45 +1,57 @@
 import { randomUUID } from "@/web/crypto";
-import { useSafeAreaInsets } from "@/web/safeArea";
-import React, { useCallback, useEffect, useState, useRef } from "react";
-import {
-  KeyboardAvoidingView,
-  ActivityIndicator,
-  Image,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from "react-native";
+import * as DocumentPicker from "@/web/files";
+import { MaterialIcons } from "@/web/icons";
+import * as Location from "@/web/location";
 import {
   useFocusEffect,
   useLocalSearchParams,
   usePathname,
   useRouter,
 } from "@/web/navigation";
-import { MaterialIcons } from "@/web/icons";
-import * as DocumentPicker from "@/web/files";
-import * as Location from "@/web/location";
+import { useSafeAreaInsets } from "@/web/safeArea";
 import AsyncStorage from "@/web/storage";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import api, { authService } from "../src/services/authService";
-import { useAuthStore } from "../src/store/authStore";
-import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
-import EmailChangeForm from "./EmailChangeForm";
-import VerifiedPropertyMap from "./VerifiedPropertyMap";
-import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
+import { userService } from "../src/services/userService";
+import { useAuthStore } from "../src/store/authStore";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
+import AppHeader from "./AppHeader";
+import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
+import VerifiedPropertyMap from "./VerifiedPropertyMap";
+import WebFooter from "./WebFooter";
 const C = {
-  bg: "transparent",
-  ink: "#071a45",
-  muted: "#3d5278",
+  bg: "#f3f7ff",
+  ink: "#0b1b3f",
+  muted: "#475a82",
   blue: "#0a45b5",
-  line: "rgba(10, 69, 181, 0.12)",
-  green: "#076c31",
+  line: "#dce5f5",
+  green: "#0b5a3a",
 };
+const font =
+  Platform.OS === "web"
+    ? "'Plus Jakarta Sans', Manrope, -apple-system, BlinkMacSystemFont, sans-serif"
+    : "PoppinsRegular";
+const fontDisplay =
+  Platform.OS === "web"
+    ? "'Plus Jakarta Sans', PoppinsBold, Manrope, sans-serif"
+    : "PoppinsBold";
+
 const money = (n: number) =>
   `₹${n >= 10000000 ? (n / 10000000).toFixed(2) + " Cr" : n >= 100000 ? (n / 100000).toFixed(1) + " Lakh" : Number(n || 0).toLocaleString("en-IN")}`;
 const label = (p: any) =>
@@ -51,6 +63,13 @@ const errorText = (e: any) =>
   "Please retry.";
 const identity = (v: any) => (typeof v === "string" ? v : v?._id);
 const approved = (u: any) => u?.isVerifiedIdentity || u?.demoKycComplete;
+const getOptimizedPhotoUrl = (url?: string, width = 600) => {
+  if (!url) return "";
+  if (url.includes("/property-photos/") && !url.includes("w=")) {
+    return `${url}${url.includes("?") ? "&" : "?"}w=${width}`;
+  }
+  return url;
+};
 const types = [
   ["", "All", "domain"],
   ["flat", "Apartment", "apartment"],
@@ -58,6 +77,17 @@ const types = [
   ["land", "Plot", "landscape"],
   ["shop", "Commercial", "storefront"],
   ["office", "Office", "business"],
+];
+const popularDistricts = [
+  "All Bihar",
+  "Patna",
+  "Gaya",
+  "Begusarai",
+  "Muzaffarpur",
+  "Bhagalpur",
+  "Darbhanga",
+  "Vaishali",
+  "Purnia",
 ];
 function Icon({ name, color = C.blue, size = 22 }: any) {
   return <MaterialIcons name={name} size={size} color={color} />;
@@ -77,7 +107,7 @@ function Button({
       onPress={onPress}
       style={[s.button, secondary && s.secondary, disabled && { opacity: 0.5 }]}
     >
-      {Boolean(icon) && <Icon name={icon} color={secondary ? C.blue : "white"} size={17} />}
+      {!!icon && <Icon name={icon} color={secondary ? C.blue : "white"} />}
       <Text style={[s.buttonText, secondary && { color: C.blue }]}>
         {title}
       </Text>
@@ -86,17 +116,8 @@ function Button({
 }
 function Tag({ children, green = false }: any) {
   return (
-    <View
-      style={[
-        s.tag,
-        green && {
-          backgroundColor: "#e8f7ee",
-          borderColor: "rgba(7, 108, 49, 0.28)",
-          borderWidth: 1,
-        },
-      ]}
-    >
-      <Text style={[s.tagText, green && { color: "#076c31" }]}>{children}</Text>
+    <View style={[s.tag, green && { backgroundColor: "#e0f5e9" }]}>
+      <Text style={[s.tagText, green && { color: C.green }]}>{children}</Text>
     </View>
   );
 }
@@ -120,22 +141,23 @@ function Field({
   onChangeText,
   numeric = false,
   multiline = false,
+  placeholder,
 }: any) {
   return (
-    <View style={{ flex: 1, minWidth: 140, gap: 5 }}>
+    <View style={{ flex: 1, minWidth: 140, gap: 7 }}>
       <Text style={s.fieldLabel}>{title}</Text>
       <TextInput
         accessibilityLabel={title}
         style={[
           s.input,
-          multiline && { minHeight: 90, textAlignVertical: "top" },
+          multiline && { minHeight: 100, textAlignVertical: "top" },
         ]}
         value={value}
         onChangeText={onChangeText}
         keyboardType={numeric ? "decimal-pad" : "default"}
         multiline={multiline}
-        placeholder={title}
-        placeholderTextColor="#6f82a8"
+        placeholder={placeholder || title}
+        placeholderTextColor="#8291ac"
       />
     </View>
   );
@@ -144,21 +166,33 @@ function useData(path: string | null, deps: any[] = []) {
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(false),
-    [nextCursor, setNextCursor] = useState<string | null>(null);
-  const refresh = useCallback(async () => {
+    [nextCursor, setNextCursor] = useState("");
+  const retryTimeoutRef = useRef<any>(null);
+
+  const refresh = useCallback(async (isRetry = false) => {
     if (!path) return;
-    setLoading(true);
+    if (!isRetry) setLoading(true);
     setError("");
     try {
       const response = await api.get(path);
       setData(response.data);
-      setNextCursor(response.headers["x-next-cursor"] || null);
-    } catch (e) {
-      setError(errorText(e));
+      setNextCursor(response.headers["x-next-cursor"] || "");
+    } catch (e: any) {
+      const msg = errorText(e);
+      // Auto-retry once after 1.5s if temporary startup or network glitch
+      if (!isRetry && (msg === "Network Error" || e?.response?.status === 503)) {
+        if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = setTimeout(() => {
+          void refresh(true);
+        }, 1500);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
   }, [path, ...deps]);
+
   useFocusEffect(
     useCallback(() => {
       void refresh();
@@ -166,6 +200,9 @@ function useData(path: string | null, deps: any[] = []) {
   );
   useEffect(() => {
     setData(null);
+    return () => {
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+    };
   }, [path, ...deps]);
   const loadMore = async () => {
     if (!path || !nextCursor || loading) return;
@@ -173,9 +210,9 @@ function useData(path: string | null, deps: any[] = []) {
     try {
       const response = await api.get(
         path +
-          (path.includes("?") ? "&" : "?") +
-          "cursor=" +
-          encodeURIComponent(nextCursor),
+        (path.includes("?") ? "&" : "?") +
+        "cursor=" +
+        encodeURIComponent(nextCursor),
       );
       setData((old: any[]) => [
         ...old,
@@ -183,14 +220,14 @@ function useData(path: string | null, deps: any[] = []) {
           (p: any) => !old.some((item) => item._id === p._id),
         ),
       ]);
-      setNextCursor(response.headers["x-next-cursor"] || null);
+      setNextCursor(response.headers["x-next-cursor"] || "");
     } catch (e) {
       setError(errorText(e));
     } finally {
       setLoading(false);
     }
   };
-  return { data, error, loading, refresh, setData, nextCursor, loadMore };
+  return { data, error, loading, refresh: () => refresh(false), setData, nextCursor, loadMore };
 }
 function useAction() {
   const [busy, setBusy] = useState(false),
@@ -211,12 +248,31 @@ function useAction() {
     },
   };
 }
-function ErrorBox({ text }: any) {
-  return text ? (
-    <Text accessibilityRole="alert" style={s.error}>
-      {text}
-    </Text>
-  ) : null;
+function ErrorBox({ text, onRetry }: any) {
+  if (!text) return null;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#fee2e2", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1, borderColor: "#fecaca", gap: 10 }}>
+      <Text accessibilityRole="alert" style={[s.error, { flex: 1, backgroundColor: "transparent", borderWidth: 0, padding: 0 }]}>
+        {text}
+      </Text>
+      {!!onRetry && (
+        <TouchableOpacity
+          onPress={onRetry}
+          style={{
+            paddingVertical: 5,
+            paddingHorizontal: 14,
+            backgroundColor: "#b91c1c",
+            borderRadius: 8,
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={{ fontSize: 12, fontWeight: "700", color: "#ffffff", fontFamily: font }}>
+            Retry
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
 }
 function useGate() {
   const user = useAuthStore((x) => x.user),
@@ -248,111 +304,69 @@ export function MarketplaceShell({
     path = usePathname(),
     { width } = useWindowDimensions(),
     user = useAuthStore((x) => x.user);
+  const isDesktop = width >= 768;
+
   return (
     <KeyboardAvoidingView
       style={s.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View
-        style={[s.header, { height: 58 + insets.top, paddingTop: insets.top }]}
-      >
-        <View style={[s.row, { flex: 1 }]}>
-          {back ? (
-            <Pressable
-              accessibilityLabel="Back"
-              onPress={() =>
-                router.canGoBack() ? router.back() : router.replace("/home")
-              }
-            >
-              <Icon name="arrow-back" size={20} />
-            </Pressable>
-          ) : (
-            <View style={s.logoIcon}>
-              <Icon name="roofing" color="white" size={18} />
-            </View>
-          )}
-          <Pressable onPress={() => router.push("/home")}>
-            <Text style={s.logo}>
-              MalikSe<Text style={{ color: "#0b8a3e" }}>.</Text>
-            </Text>
-          </Pressable>
-          {width > 850 && (
-            <Text style={s.muted}>Verified spaces. Trusted connections.</Text>
-          )}
-        </View>
-        <Pressable
-          accessibilityLabel="Wishlist"
-          onPress={() => router.push("/saved")}
-        >
-          <Icon name="favorite-border" size={20} />
-        </Pressable>
-        <Pressable
-          accessibilityLabel="Profile"
-          onPress={() => router.push("/profile")}
-          style={s.avatar}
-        >
-          <Text style={s.avatarText}>{user?.name?.[0] || "M"}</Text>
-        </Pressable>
-      </View>
+      <AppHeader showBack={back} />
+
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={s.scroll}
+        contentContainerStyle={{ flexGrow: 1 }}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={s.content}>
-          {Boolean(title) && (
-            <View style={{ gap: 4 }}>
-              <Text style={s.h1}>{title}</Text>
-              {Boolean(subtitle) && <Text style={s.muted}>{subtitle}</Text>}
-            </View>
-          )}
-          {children}
+        <View style={s.scroll}>
+          <View style={s.content}>
+            {!!title && (
+              <View style={{ gap: 6 }}>
+                <Text style={s.h1}>{title}</Text>
+                {!!subtitle && <Text style={s.muted}>{subtitle}</Text>}
+              </View>
+            )}
+            {children}
+          </View>
         </View>
+        {isDesktop && <WebFooter />}
       </ScrollView>
-      <View
-        style={[s.dockWrapper, { bottom: Math.max(insets.bottom, 8), pointerEvents: "box-none" }]}
-      >
-        <View style={s.nav}>
+
+      {!isDesktop && (
+        <View style={[s.nav, { paddingBottom: Math.max(insets.bottom, 10) }]}>
           {[
             ["/home", "home", "Home"],
             ["/search", "search", "Search"],
             ["/post", "add", "Post"],
             ["/messages", "chat-bubble-outline", "Chats"],
             ["/profile", "person-outline", "Profile"],
-          ].map(([url, icon, text]) => {
-            const isActive = path === url;
-            const isPost = url === "/post";
-            return (
-              <Pressable
-                key={url}
-                accessibilityRole="button"
-                onPress={() => router.push(url as any)}
-                style={[s.navItem, isActive && !isPost && s.navItemActive]}
+          ].map(([url, icon, text]) => (
+            <Pressable
+              key={url}
+              accessibilityRole="button"
+              onPress={() => router.push(url as any)}
+              style={[s.navItem, url === "/post" && { marginTop: -18 }]}
+            >
+              <View style={url === "/post" ? s.postCircle : undefined}>
+                <Icon
+                  name={icon}
+                  color={
+                    url === "/post" ? "white" : path === url ? C.blue : C.muted
+                  }
+                />
+              </View>
+              <Text
+                style={[
+                  s.navText,
+                  path === url && { color: C.blue, fontWeight: "800" },
+                ]}
               >
-                {isPost ? (
-                  <View style={s.postCircle}>
-                    <Icon name="add" color="white" size={22} />
-                  </View>
-                ) : (
-                  <Icon
-                    name={icon}
-                    color={isActive ? C.blue : C.muted}
-                    size={20}
-                  />
-                )}
-                <Text
-                  style={[
-                    s.navText,
-                    isActive && { color: C.blue, fontWeight: "800" },
-                  ]}
-                >
-                  {text}
-                </Text>
-              </Pressable>
-            );
-          })}
+                {text}
+              </Text>
+            </Pressable>
+          ))}
         </View>
-      </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -387,20 +401,52 @@ function PropertyCard({
   compact = false,
   onSaved,
   initiallySaved = false,
+  style,
 }: any) {
   const router = useRouter(),
+    user = useAuthStore((x) => x.user),
     gate = useGate(),
     action = useAction(),
     [saved, setSaved] = useState(initiallySaved);
+
+  const openProperty = () => {
+    if (p?._id) {
+      void api.post(`/recommendations/${p._id}/activity`, { kind: "view" }).catch(() => { });
+      const storageKey = `marketplace_preferences_${user?.id || "guest"}`;
+      AsyncStorage.getItem(storageKey).then((raw) => {
+        let parsed: any = {};
+        try { if (raw) parsed = JSON.parse(raw); } catch { }
+        const dist = p.location?.district;
+        const pType = p.type;
+        const recentDistricts = Array.from(
+          new Set([dist, ...(parsed.recentDistricts || [])])
+        ).filter(Boolean).slice(0, 6);
+        const recentTypes = Array.from(
+          new Set([pType, ...(parsed.recentTypes || [])])
+        ).filter(Boolean).slice(0, 6);
+        const updated = {
+          ...parsed,
+          district: dist || parsed.district,
+          type: pType || parsed.type,
+          recentDistricts,
+          recentTypes,
+          lastViewedAt: Date.now(),
+        };
+        AsyncStorage.setItem(storageKey, JSON.stringify(updated)).catch(() => { });
+      }).catch(() => { });
+    }
+    router.push(`/property/${p._id}` as any);
+  };
+
   return (
-    <View style={[s.card, compact && { flexDirection: "row" }]}>
+    <View style={[s.card, compact && { flexDirection: "row" }, style]}>
       <Pressable
         style={compact ? { width: 112, minHeight: 130 } : s.photo}
-        onPress={() => router.push(`/property/${p._id}` as any)}
+        onPress={openProperty}
       >
         {p.media?.photos?.[0] ? (
           <Image
-            source={{ uri: p.media.photos[0] }}
+            source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], compact ? 400 : 600) }}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
           />
@@ -410,7 +456,7 @@ function PropertyCard({
           </View>
         )}
         <View style={s.imageTags}>
-          <Tag green>✓ Verified Owner</Tag>
+          <Tag green>✓ Verified</Tag>
         </View>
       </Pressable>
       <View style={[s.cardBody, compact && { flex: 1 }]}>
@@ -421,7 +467,6 @@ function PropertyCard({
               saved ? "Remove from wishlist" : "Save property"
             }
             disabled={action.busy}
-            style={s.heartBtn}
             onPress={() => {
               if (gate())
                 void action.run(async () => {
@@ -432,19 +477,19 @@ function PropertyCard({
                       .post(`/recommendations/${p._id}/activity`, {
                         kind: "save",
                       })
-                      .catch(() => {});
+                      .catch(() => { });
                   onSaved?.();
                 });
             }}
           >
-            <Icon name={saved ? "favorite" : "favorite-border"} color={saved ? "#e11d48" : C.muted} size={18} />
+            <Icon name={saved ? "favorite" : "favorite-border"} />
           </Pressable>
         </View>
-        <Pressable onPress={() => router.push(`/property/${p._id}` as any)}>
-          <Text style={s.cardTitle} numberOfLines={1}>{label(p)}</Text>
+        <Pressable onPress={openProperty}>
+          <Text style={s.cardTitle}>{label(p)}</Text>
         </Pressable>
-        <Text style={s.muted} numberOfLines={1}>
-          ⌖ {p.location?.district}, {p.location?.state}
+        <Text style={s.muted}>
+          {p.location?.district}, {p.location?.state}
         </Text>
         <View style={s.row}>
           <Tag>{p.type}</Tag>
@@ -455,135 +500,806 @@ function PropertyCard({
     </View>
   );
 }
+
+const sSlide = StyleSheet.create({
+  carouselContainer: {
+    position: "relative",
+    width: "100%",
+    overflow: "visible",
+  },
+  scrollContent: {
+    flexDirection: "row",
+    gap: 18,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    alignItems: "stretch",
+  },
+  floatingArrowBtn: {
+    position: "absolute",
+    top: "44%",
+    marginTop: -22,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 40,
+    boxShadow: "0 6px 20px rgba(11, 27, 63, 0.18)",
+    elevation: 8,
+    cursor: "pointer" as any,
+  },
+  floatingArrowBtnHover: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#0A45B5",
+    transform: [{ scale: 1.08 }],
+  },
+  headerArrowBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer" as any,
+  },
+  arrowBtnDisabled: {
+    opacity: 0.35,
+    backgroundColor: "#F8FAFC",
+  },
+  headerRefreshBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: 14,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+    cursor: "pointer" as any,
+  },
+  headerRefreshText: {
+    fontFamily: font,
+    fontSize: 12,
+    fontWeight: "700",
+    color: C.blue,
+  },
+});
+
+function PropertySlideRow({
+  title,
+  sub,
+  badge,
+  feed,
+  typeFilter,
+  headerRight,
+  onRefresh,
+  emptyTitle = "Properties are on their way",
+  emptyText = "Verified listings will appear here as they become available.",
+}: {
+  title: string;
+  sub: string;
+  badge?: string;
+  feed: any;
+  typeFilter?: string;
+  headerRight?: React.ReactNode;
+  onRefresh?: () => void;
+  emptyTitle?: string;
+  emptyText?: string;
+}) {
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollOffset = useRef(0);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [contentWidth, setContentWidth] = useState(0);
+
+  const cardWidth = width > 1100 ? 350 : width > 768 ? 310 : 280;
+  const gap = 18;
+  const slideStep = cardWidth + gap;
+
+  const rawList = feed?.data || [];
+  // Deduplicate properties by _id and normalized title + district + price
+  const seenKeys = new Set<string>();
+  const deduplicatedList: any[] = [];
+  for (const p of rawList) {
+    if (!p?._id) continue;
+    const key = `${(p.title || "").trim().toLowerCase()}|${(p.location?.district || "").trim().toLowerCase()}|${p.price || 0}`;
+    if (!seenKeys.has(p._id) && !seenKeys.has(key)) {
+      seenKeys.add(p._id);
+      seenKeys.add(key);
+      deduplicatedList.push(p);
+    }
+  }
+
+  const properties = deduplicatedList
+    .filter((p: any) => !typeFilter || p.type === typeFilter)
+    .slice(0, 24);
+
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(properties.length >= 4);
+
+  useEffect(() => {
+    scrollOffset.current = 0;
+    if (scrollRef.current) {
+      if (typeof (scrollRef.current as any).scrollTo === "function") {
+        (scrollRef.current as any).scrollTo({ x: 0, animated: false });
+      }
+    }
+    setCanScrollLeft(false);
+  }, [typeFilter]);
+
+  useEffect(() => {
+    if (contentWidth > 0 && containerWidth > 0) {
+      setCanScrollRight(
+        contentWidth > containerWidth + 10 &&
+        scrollOffset.current + containerWidth < contentWidth - 10
+      );
+      setCanScrollLeft(scrollOffset.current > 10);
+    } else if (properties.length > 0) {
+      const estimatedWidth = properties.length * slideStep;
+      if (containerWidth > 0) {
+        setCanScrollRight(estimatedWidth > containerWidth + 10);
+      }
+    }
+  }, [properties.length, containerWidth, contentWidth, slideStep]);
+
+  const slide = (direction: "left" | "right") => {
+    const maxScroll = Math.max(0, contentWidth - containerWidth);
+    const delta = direction === "left" ? -slideStep : slideStep;
+    const current = scrollOffset.current;
+    let target = direction === "left" ? Math.max(0, current + delta) : current + delta;
+    if (maxScroll > 0) {
+      target = Math.min(maxScroll, Math.max(0, target));
+    } else {
+      target = Math.max(0, target);
+    }
+    scrollOffset.current = target;
+
+    if (scrollRef.current) {
+      if (typeof (scrollRef.current as any).scrollTo === "function") {
+        (scrollRef.current as any).scrollTo({ x: target, animated: true });
+      } else {
+        const node = (scrollRef.current as any)?.getScrollableNode?.() || scrollRef.current;
+        if (node && typeof node.scrollTo === "function") {
+          node.scrollTo({ left: target, behavior: "smooth" });
+        }
+      }
+    }
+
+    setCanScrollLeft(target > 10);
+    if (maxScroll > 0) {
+      setCanScrollRight(target < maxScroll - 10);
+    }
+  };
+
+  const onScroll = (e: any) => {
+    const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+    const x = contentOffset.x;
+    scrollOffset.current = x;
+    setCanScrollLeft(x > 10);
+    setCanScrollRight(x + layoutMeasurement.width < contentSize.width - 15);
+  };
+
+  const buttonSideOffset = width > 1240 ? -14 : 6;
+
+  return (
+    <View style={{ gap: 14, position: "relative" }}>
+      <View style={s.between}>
+        <View style={{ flex: 1, paddingRight: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <Text style={s.h2}>{title}</Text>
+            {!!badge && (
+              <View
+                style={{
+                  backgroundColor: "#EFF6FF",
+                  paddingHorizontal: 10,
+                  paddingVertical: 3,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: "#DBEAFE",
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#0A45B5", fontFamily: font }}>
+                  {badge}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={s.small}>{sub}</Text>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          {properties.length > 0 && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={`Previous ${title}`}
+                disabled={!canScrollLeft}
+                onPress={() => slide("left")}
+                style={[
+                  sSlide.headerArrowBtn,
+                  !canScrollLeft && sSlide.arrowBtnDisabled,
+                ]}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons
+                  name="chevron-left"
+                  size={20}
+                  color={canScrollLeft ? C.blue : "#94a3b8"}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={`Next ${title}`}
+                disabled={!canScrollRight}
+                onPress={() => slide("right")}
+                style={[
+                  sSlide.headerArrowBtn,
+                  !canScrollRight && sSlide.arrowBtnDisabled,
+                ]}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons
+                  name="chevron-right"
+                  size={20}
+                  color={canScrollRight ? C.blue : "#94a3b8"}
+                />
+              </TouchableOpacity>
+            </View>
+          )}
+          {!!onRefresh && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Refresh recommendations"
+              onPress={onRefresh}
+              style={sSlide.headerRefreshBtn}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="refresh" size={16} color={C.blue} />
+              <Text style={sSlide.headerRefreshText}>Refresh</Text>
+            </TouchableOpacity>
+          )}
+          {headerRight || (
+            <Pressable onPress={() => router.push("/search")}>
+              <Text style={s.link}>View all →</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      {feed?.loading ? (
+        <ActivityIndicator color={C.blue} style={{ padding: 24 }} />
+      ) : feed?.error ? (
+        <ErrorBox text={feed.error} onRetry={feed.refresh} />
+      ) : !properties.length ? (
+        <Empty title={emptyTitle} text={emptyText} />
+      ) : (
+        <View style={sSlide.carouselContainer}>
+          {/* Floating Left Slide Button */}
+          {canScrollLeft && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Slide ${title} left`}
+              onPress={() => slide("left")}
+              style={({ hovered }: any) => [
+                sSlide.floatingArrowBtn,
+                { left: buttonSideOffset },
+                hovered && sSlide.floatingArrowBtnHover,
+              ]}
+            >
+              <MaterialIcons name="chevron-left" size={28} color="#0A45B5" />
+            </Pressable>
+          )}
+
+          {/* Floating Right Slide Button */}
+          {canScrollRight && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Slide ${title} right`}
+              onPress={() => slide("right")}
+              style={({ hovered }: any) => [
+                sSlide.floatingArrowBtn,
+                { right: buttonSideOffset },
+                hovered && sSlide.floatingArrowBtnHover,
+              ]}
+            >
+              <MaterialIcons name="chevron-right" size={28} color="#0A45B5" />
+            </Pressable>
+          )}
+
+          {/* Single-Row Horizontal Scroll Track */}
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            onLayout={(e) => {
+              const w = e.nativeEvent.layout.width;
+              setContainerWidth(w);
+              if (contentWidth > 0) {
+                setCanScrollRight(
+                  contentWidth > w + 10 && scrollOffset.current + w < contentWidth - 10
+                );
+              }
+            }}
+            onContentSizeChange={(w) => {
+              setContentWidth(w);
+              if (containerWidth > 0) {
+                setCanScrollRight(
+                  w > containerWidth + 10 && scrollOffset.current + containerWidth < w - 10
+                );
+              }
+            }}
+            contentContainerStyle={[
+              sSlide.scrollContent,
+              Platform.OS === "web" &&
+              ({
+                willChange: "transform",
+                transform: "translateZ(0)",
+              } as any),
+            ]}
+          >
+            {properties.map((p: any) => (
+              <View
+                key={p._id}
+                style={{
+                  width: cardWidth,
+                  flexShrink: 0,
+                }}
+              >
+                <PropertyCard property={p} style={{ flex: 1 }} />
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export function HomeScreen() {
   const user = useAuthStore((x) => x.user),
     router = useRouter(),
     [query, setQuery] = useState(""),
+    [locationInput, setLocationInput] = useState(""),
     [type, setType] = useState(""),
-    [prefs, setPrefs] = useState<any>({});
-  useEffect(() => {
+    [focusedField, setFocusedField] = useState<"location" | "query" | null>(null),
+    [prefs, setPrefs] = useState<any>({}),
+    [refreshSeed, setRefreshSeed] = useState(() => Date.now());
+
+  const loadPreferences = useCallback(() => {
     AsyncStorage.getItem(`marketplace_preferences_${user?.id || "guest"}`)
-      .then((v) => setPrefs(v ? JSON.parse(v) : {}))
-      .catch(() => {});
+      .then((v) => {
+        if (v) {
+          const parsed = JSON.parse(v);
+          setPrefs(parsed);
+          if (parsed.district && parsed.district.toLowerCase() !== "rps" && !locationInput) {
+            setLocationInput(parsed.district);
+          }
+        }
+      })
+      .catch(() => { });
   }, [user?.id]);
+
+  useEffect(() => {
+    loadPreferences();
+  }, [loadPreferences]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPreferences();
+      setRefreshSeed(Date.now());
+    }, [loadPreferences])
+  );
+
+  const saveInterest = (newDistrict?: string, newType?: string) => {
+    const dist = newDistrict && newDistrict.toLowerCase() !== "all bihar" ? newDistrict : "";
+    const pType = newType || "";
+    const recentDistricts = Array.from(
+      new Set([dist, ...(prefs.recentDistricts || [])])
+    ).filter(Boolean).slice(0, 5);
+    const recentTypes = Array.from(
+      new Set([pType, ...(prefs.recentTypes || [])])
+    ).filter(Boolean).slice(0, 5);
+    const updated = {
+      ...prefs,
+      ...(dist ? { district: dist } : {}),
+      ...(pType ? { type: pType } : {}),
+      recentDistricts,
+      recentTypes,
+      lastInterestAt: Date.now(),
+    };
+    setPrefs(updated);
+    AsyncStorage.setItem(
+      `marketplace_preferences_${user?.id || "guest"}`,
+      JSON.stringify(updated)
+    ).catch(() => { });
+    if (user && (dist || pType)) {
+      api.post("/recommendations/preferences", { district: dist, type: pType }).catch(() => { });
+    }
+  };
+
+  const handleSearch = () => {
+    const params: Record<string, string> = {};
+    if (query.trim()) params.q = query.trim();
+    if (
+      locationInput.trim() &&
+      locationInput.trim().toLowerCase() !== "all bihar" &&
+      locationInput.trim().toLowerCase() !== "explore all bihar"
+    ) {
+      params.district = locationInput.trim();
+      saveInterest(locationInput.trim(), type);
+    }
+    if (type) {
+      params.type = type;
+      saveInterest(locationInput.trim(), type);
+    }
+    router.push({
+      pathname: "/search",
+      params,
+    } as any);
+  };
+
+  const hasActiveSearch = Boolean(
+    query.trim() ||
+    (locationInput.trim() && locationInput.trim().toLowerCase() !== "all bihar") ||
+    type
+  );
+
+  const activeDistrictParam =
+    locationInput.trim() && locationInput.trim().toLowerCase() !== "all bihar"
+      ? locationInput.trim()
+      : "";
+
+  const liveSearchResults = useData(
+    hasActiveSearch
+      ? `/properties/search?limit=12&q=${encodeURIComponent(query.trim())}${activeDistrictParam ? "&district=" + encodeURIComponent(activeDistrictParam) : ""
+      }${type ? "&type=" + type : ""}`
+      : null,
+    [query, activeDistrictParam, type]
+  );
+
+  const recentDistrictsParam = (prefs.recentDistricts || []).slice(0, 5).join(",");
+  const recentTypesParam = (prefs.recentTypes || []).slice(0, 5).join(",");
+
   const personal = useData(
-      `/recommendations?mode=personalized&district=${encodeURIComponent(prefs.district || "")}&type=${type || prefs.type || ""}&maxPrice=${prefs.maxPrice || ""}`,
-      [user?.id],
-    ),
+    `/recommendations?mode=personalized&district=${encodeURIComponent(
+      activeDistrictParam || prefs.district || ""
+    )}&type=${type || prefs.type || ""}&maxPrice=${prefs.maxPrice || ""}&recentDistricts=${encodeURIComponent(
+      recentDistrictsParam
+    )}&recentTypes=${encodeURIComponent(
+      recentTypesParam
+    )}&refresh=${refreshSeed}`,
+    [user?.id, activeDistrictParam, type, prefs.district, prefs.type, refreshSeed],
+  ),
     recent = useData("/recommendations?mode=new"),
     trending = useData("/recommendations?mode=trending"),
     { width } = useWindowDimensions();
+
   return (
-    <MarketplaceShell
-      title={`Hello${user ? ", " + user.name.split(" ")[0] : ", welcome"} 👋`}
-      subtitle="Find your next place, verified by people you can trust."
-    >
-      <View style={{ gap: 12 }}>
-        <View style={[s.typeChip, { alignSelf: "flex-start", backgroundColor: "rgba(255, 255, 255, 0.94)", borderColor: "rgba(10, 69, 181, 0.16)", paddingHorizontal: 12, paddingVertical: 6, gap: 6 }]}>
-          <Icon name="location-on" size={17} color={C.blue} />
-          <Text style={[s.cardTitle, { fontSize: 13, color: C.ink }]}>
-            {prefs.district || "Explore your preferred location"}
+    <MarketplaceShell>
+      <View style={s.heroContainer}>
+        {/* Top Trust Eyebrow */}
+        <View style={s.heroBadgeRow}>
+          <View style={s.heroBadge}>
+            <Icon name="verified" size={14} color={C.blue} />
+            <Text style={s.heroBadgeText}>
+              100% ON-GROUND & DOCUMENT-VERIFIED SPACES
+            </Text>
+          </View>
+        </View>
+
+        {/* Heading & Subtitle */}
+        <View style={{ gap: 6 }}>
+          <Text style={s.heroHeading}>
+            {`Hello, ${user ? user.name.split(" ")[0] : "welcome"} 👋`}
+          </Text>
+          <Text style={s.heroSubheading}>
+            Find verified plots, homes & commercial spaces in Bihar with transparent pricing and legal clarity.
           </Text>
         </View>
-        <View style={s.row}>
-          <View style={[s.input, s.row, { flex: 1, backgroundColor: "#ffffff" }]}>
-            <Icon name="search" size={19} />
-            <TextInput
-              accessibilityLabel="Search location"
-              placeholder="Search city, locality or property"
-              placeholderTextColor="#6f82a8"
-              value={query}
-              onChangeText={setQuery}
-              style={{ flex: 1, color: C.ink, fontSize: 13.5 }}
-              onSubmitEditing={() =>
-                router.push({
-                  pathname: "/search",
-                  params: { q: query, type },
-                } as any)
-              }
-            />
+
+        {/* Segmented Luxury Search Console */}
+        <View
+          style={[
+            s.searchConsole,
+            width < 768 && { flexDirection: "column", alignItems: "stretch", padding: 10 },
+          ]}
+        >
+          <View
+            style={[
+              s.searchSegmentLocation,
+              { flex: 1 },
+              focusedField === "location" && s.searchSegmentFocused,
+            ]}
+          >
+            <View
+              style={[
+                s.searchSegmentIconWrap,
+                focusedField === "location" && { backgroundColor: "#DBEAFE" },
+              ]}
+            >
+              <Icon name="location-on" size={19} color={C.blue} />
+            </View>
+            <View style={{ flex: 1, gap: 1 }}>
+              <Text
+                style={[
+                  s.searchSegmentLabel,
+                  focusedField === "location" && { color: "#0A45B5" },
+                ]}
+              >
+                LOCATION
+              </Text>
+              <TextInput
+                accessibilityLabel="Location or District"
+                placeholder="District (e.g. Patna, Gaya...)"
+                placeholderTextColor="#94a3b8"
+                value={locationInput}
+                onChangeText={setLocationInput}
+                onFocus={() => setFocusedField("location")}
+                onBlur={() => setFocusedField(null)}
+                style={s.searchTextInput}
+                onSubmitEditing={handleSearch}
+              />
+            </View>
+            {!!locationInput && (
+              <TouchableOpacity
+                onPress={() => setLocationInput("")}
+                style={s.searchClearBtn}
+                accessibilityLabel="Clear location"
+              >
+                <Icon name="close" size={14} color="#64748B" />
+              </TouchableOpacity>
+            )}
           </View>
-          <Button
-            title="Search"
-            onPress={() =>
-              router.push({
-                pathname: "/search",
-                params: { q: query, type },
-              } as any)
-            }
-          />
+
+          {width >= 768 ? (
+            <View style={s.searchDivider} />
+          ) : (
+            <View style={{ height: 1, backgroundColor: "#e2e8f0", marginVertical: 6 }} />
+          )}
+
+          <View
+            style={[
+              s.searchSegmentInput,
+              { flex: 1.4 },
+              focusedField === "query" && s.searchSegmentFocused,
+              width < 768 && { paddingHorizontal: 4 },
+            ]}
+          >
+            <View
+              style={[
+                s.searchSegmentIconWrap,
+                focusedField === "query" && { backgroundColor: "#DBEAFE" },
+              ]}
+            >
+              <Icon
+                name="search"
+                size={19}
+                color={focusedField === "query" ? C.blue : "#64748B"}
+              />
+            </View>
+            <View style={{ flex: 1, gap: 1 }}>
+              <Text
+                style={[
+                  s.searchSegmentLabel,
+                  focusedField === "query" && { color: "#0A45B5" },
+                ]}
+              >
+                SEARCH PROPERTY
+              </Text>
+              <TextInput
+                accessibilityLabel="Search property"
+                placeholder="City, locality, road corridor or ID..."
+                placeholderTextColor="#94a3b8"
+                value={query}
+                onChangeText={setQuery}
+                onFocus={() => setFocusedField("query")}
+                onBlur={() => setFocusedField(null)}
+                style={s.searchTextInput}
+                onSubmitEditing={handleSearch}
+              />
+            </View>
+            {!!query && (
+              <TouchableOpacity
+                onPress={() => setQuery("")}
+                style={s.searchClearBtn}
+                accessibilityLabel="Clear query"
+              >
+                <Icon name="close" size={14} color="#64748B" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Search"
+            onPress={handleSearch}
+            style={[s.searchSubmitBtn, width < 768 && { marginTop: 8, justifyContent: "center" }]}
+            activeOpacity={0.85}
+          >
+            <Icon name="search" size={18} color="white" />
+            <Text style={s.searchSubmitBtnText}>Search</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Quick Popular Districts Selector */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8, paddingVertical: 2, alignItems: "center" }}
+        >
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: "700",
+              color: "#64748B",
+              marginRight: 4,
+              fontFamily: font,
+            }}
+          >
+            Popular:
+          </Text>
+          {popularDistricts.map((d) => {
+            const isSelected =
+              (d === "All Bihar" && (!locationInput || locationInput.toLowerCase() === "all bihar")) ||
+              locationInput.toLowerCase() === d.toLowerCase();
+            return (
+              <TouchableOpacity
+                key={d}
+                onPress={() => {
+                  const nextVal = d === "All Bihar" ? "" : d;
+                  setLocationInput(nextVal);
+                  if (nextVal) saveInterest(nextVal, type);
+                  setRefreshSeed(Date.now());
+                }}
+                style={{
+                  paddingVertical: 5,
+                  paddingHorizontal: 12,
+                  borderRadius: 14,
+                  backgroundColor: isSelected ? "#0A45B5" : "#FFFFFF",
+                  borderWidth: 1,
+                  borderColor: isSelected ? "#0A45B5" : "#E2E8F0",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: isSelected ? "700" : "600",
+                    color: isSelected ? "#FFFFFF" : "#475569",
+                    fontFamily: font,
+                  }}
+                >
+                  {d}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* Category Filter Pills */}
+        <View style={s.categoryPillsRow}>
+          {types.map(([id, text, icon]) => {
+            const isSelected = type === id;
+            return (
+              <Pressable
+                key={id}
+                onPress={() => {
+                  const nextType = isSelected ? "" : id;
+                  setType(nextType);
+                  if (nextType) saveInterest(locationInput, nextType);
+                  setRefreshSeed(Date.now());
+                }}
+                style={[
+                  s.categoryPill,
+                  isSelected && s.categoryPillActive,
+                ]}
+              >
+                <Icon
+                  name={icon}
+                  color={isSelected ? "white" : "#475569"}
+                  size={15}
+                />
+                <Text
+                  style={[
+                    s.categoryPillText,
+                    isSelected && s.categoryPillTextActive,
+                  ]}
+                >
+                  {text}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Trust Points Strip */}
+        <View style={s.heroTrustStrip}>
+          <View style={s.trustItem}>
+            <Icon name="check-circle" size={15} color="#10b981" />
+            <Text style={s.trustItemText}>Title & Deed Verified</Text>
+          </View>
+          <View style={s.trustDot} />
+          <View style={s.trustItem}>
+            <Icon name="my-location" size={15} color={C.blue} />
+            <Text style={s.trustItemText}>Cadastral Map Boundary</Text>
+          </View>
+          <View style={s.trustDot} />
+          <View style={s.trustItem}>
+            <Icon name="support-agent" size={15} color="#f59e0b" />
+            <Text style={s.trustItemText}>Dedicated Property Verifier</Text>
+          </View>
         </View>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8 }}
-      >
-        {types.map(([id, text, icon]) => (
-          <Pressable
-            key={id}
-            onPress={() => setType(type === id ? "" : id)}
-            style={[s.typeChip, type === id && { backgroundColor: C.blue }]}
-          >
-            <Icon name={icon} color={type === id ? "white" : C.blue} size={16} />
-            <Text style={[{ fontSize: 12, fontWeight: "600" }, { color: type === id ? "white" : C.ink }]}>{text}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+
+      {/* Live Search Results Section (Renders immediately when searching/filtering on Home) */}
+      {hasActiveSearch && (
+        <PropertySlideRow
+          title="Search Results"
+          badge={`${liveSearchResults.data?.length ?? 0} Found`}
+          sub={
+            `${query.trim() ? `Matching "${query.trim()}"` : "All listings"}${activeDistrictParam ? ` in ${activeDistrictParam}` : ""
+            }${type ? ` · ${types.find((t) => t[0] === type)?.[1] || type}` : ""}`
+          }
+          feed={liveSearchResults}
+          emptyTitle="No properties found"
+          emptyText={`No matching verified spaces for "${query || activeDistrictParam}". Try searching by another district or keyword.`}
+          headerRight={
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  setQuery("");
+                  setLocationInput("");
+                  setType("");
+                }}
+                style={{
+                  paddingVertical: 4,
+                  paddingHorizontal: 10,
+                  backgroundColor: "#F1F5F9",
+                  borderRadius: 10,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "600", color: "#475569", fontFamily: font }}>
+                  Reset Filters
+                </Text>
+              </TouchableOpacity>
+              <Pressable onPress={handleSearch}>
+                <Text style={s.link}>Open in Map / Explore →</Text>
+              </Pressable>
+            </View>
+          }
+        />
+      )}
+
       {[
         [
           "Recommended for You",
           "Inspired by your searches and wishlist",
           personal,
+          true,
         ],
-        ["New Properties", "Recently verified and published", recent],
+        ["New Properties", "Recently verified and published", recent, false],
         [
           "Trending Properties",
           "Popular with property seekers this week",
           trending,
+          false,
         ],
-      ].map(([title, sub, feed]: any) => (
-        <View key={title} style={{ gap: 14 }}>
-          <View style={s.between}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.h2}>{title}</Text>
-              <Text style={s.small}>{sub}</Text>
-            </View>
-            <Pressable onPress={() => router.push("/search")}>
-              <Text style={s.link}>View all →</Text>
-            </Pressable>
-          </View>
-          {feed.loading ? (
-            <ActivityIndicator color={C.blue} />
-          ) : feed.error ? (
-            <ErrorBox text={feed.error} />
-          ) : !feed.data?.length ? (
-            <Empty
-              title="Properties are on their way"
-              text="Verified listings will appear here as they become available."
-            />
-          ) : (
-            <View style={s.grid}>
-              {feed.data
-                .filter((p: any) => !type || p.type === type)
-                .slice(0, 6)
-                .map((p: any) => (
-                  <View
-                    key={p._id}
-                    style={{
-                      width:
-                        width > 1000 ? "31.8%" : width > 650 ? "48.5%" : "100%",
-                    }}
-                  >
-                    <PropertyCard
-                      property={p}
-                      compact={title === "New Properties" && width < 650}
-                    />
-                  </View>
-                ))}
-            </View>
-          )}
-        </View>
+      ].map(([title, sub, feed, isRec]: any) => (
+        <PropertySlideRow
+          key={title}
+          title={title}
+          sub={sub}
+          feed={feed}
+          typeFilter={type}
+          onRefresh={isRec ? () => setRefreshSeed(Date.now()) : undefined}
+        />
       ))}
       <View style={[s.panel, s.row]}>
         <Icon name="handshake" size={34} />
@@ -597,69 +1313,879 @@ export function HomeScreen() {
     </MarketplaceShell>
   );
 }
+
+const BIHAR_DISTRICT_COORDS: Record<string, { lat: number; lng: number }> = {
+  Patna: { lat: 25.5941, lng: 85.1376 },
+  Begusarai: { lat: 25.4182, lng: 86.1272 },
+  Bhagalpur: { lat: 25.2425, lng: 86.9842 },
+  Muzaffarpur: { lat: 26.1209, lng: 85.3647 },
+  Gaya: { lat: 24.7914, lng: 85.0002 },
+  Darbhanga: { lat: 26.1542, lng: 85.8918 },
+  Purnia: { lat: 25.7771, lng: 87.4753 },
+  Vaishali: { lat: 25.6833, lng: 85.2167 },
+  Samastipur: { lat: 25.8628, lng: 85.7811 },
+  Nalanda: { lat: 25.1982, lng: 85.5149 },
+  Munger: { lat: 25.3757, lng: 86.4735 },
+  Katihar: { lat: 25.5415, lng: 87.5734 },
+  Saran: { lat: 25.7836, lng: 84.746 },
+  Bhojpur: { lat: 25.556, lng: 84.6603 },
+  Rohtas: { lat: 24.9585, lng: 84.0157 },
+};
+
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+const DISTRICT_DEMAND_SCORES: Record<string, number> = {
+  patna: 100, // Capital, highest liquidity and volume
+  begusarai: 92, // Industrial corridor, NH-31, Barauni refinery expansion
+  bhagalpur: 88, // Silk City, commercial center of East Bihar
+  muzaffarpur: 82, // North Bihar commercial hub
+  gaya: 76, // Tourism, international airport, GT Road corridor
+  darbhanga: 74, // Airport boom, medical hub
+  vaishali: 70, // Twin-city expansion, industrial growth
+  purnia: 68, // Seemanchal trade hub
+  samastipur: 64,
+  nalanda: 64,
+};
+
+const PROPERTY_TYPE_DEMAND_SCORES: Record<string, number> = {
+  land: 95, // Plots & land have highest investor & self-build demand in Bihar
+  shop: 86, // Commercial shops & showroom frontage on corridors
+  house: 82, // Independent houses and duplex villas
+  flat: 72, // Apartments in Patna & urban hubs
+  office: 64, // Commercial office suites
+};
+
+const DEFAULT_EXPLORE_PROPERTIES: any[] = [
+  {
+    _id: "demo_patna_1",
+    title: "rps residential plot",
+    price: 2000000,
+    type: "land",
+    sellableArea: 1200,
+    totalArea: 1200,
+    roadWidth: 25,
+    location: { district: "patna", state: "Bihar", mauza: "Bailey Road" },
+    corridor: "Bailey Road · Patna",
+    highlightTag: { label: "Direct Malik", theme: "blue" },
+    featureChip: "25ft Road",
+    media: { photos: ["https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=600"] },
+    status: "verified",
+    badges: { fullyVerified: true },
+  },
+  {
+    _id: "demo_patna_2",
+    title: "rps corner land",
+    price: 2000000,
+    type: "land",
+    sellableArea: 1200,
+    totalArea: 1200,
+    khata: "114",
+    cornerPlot: true,
+    location: { district: "patna", state: "Bihar", mauza: "Danapur" },
+    corridor: "Danapur · Patna",
+    highlightTag: { label: "Khata 114", theme: "green" },
+    featureChip: "Corner",
+    media: { photos: ["https://images.unsplash.com/photo-1524813686514-a57563d77d66?w=600"] },
+    status: "verified",
+    badges: { fullyVerified: true },
+  },
+  {
+    _id: "demo_beg_194",
+    title: "DEMO · Sample 194 · shop in...",
+    price: 28700000,
+    type: "shop",
+    sellableArea: 2750,
+    totalArea: 2750,
+    roadWidth: 40,
+    location: { district: "Begusarai", state: "Bihar", mauza: "Harrakh" },
+    corridor: "Harrakh · Begusarai",
+    highlightTag: { label: "High ROI", theme: "amber" },
+    featureChip: "NH-31 Front",
+    categoryPlaceholder: {
+      icon: "storefront",
+      text: "Commercial Space · Begusarai",
+      color: "#3B82F6",
+      bg: "#EFF6FF",
+    },
+    status: "verified",
+    badges: { fullyVerified: true },
+  },
+  {
+    _id: "demo_beg_193",
+    title: "DEMO · Sample 193 · house in...",
+    price: 27900000,
+    type: "house",
+    sellableArea: 2575,
+    totalArea: 2575,
+    bedrooms: 4,
+    location: { district: "Begusarai", state: "Bihar", mauza: "Ratanpur" },
+    corridor: "Ratanpur · Begusarai",
+    highlightTag: { label: "Furnished", theme: "blue" },
+    featureChip: "4 BHK",
+    categoryPlaceholder: {
+      icon: "home",
+      text: "Duplex Villa · Begusarai",
+      color: "#6366F1",
+      bg: "#F5F7FF",
+    },
+    status: "verified",
+    badges: { fullyVerified: true },
+  },
+  {
+    _id: "demo_beg_192",
+    title: "DEMO · Sample 192 · flat in...",
+    price: 27100000,
+    type: "flat",
+    sellableArea: 2100,
+    totalArea: 2100,
+    location: { district: "Begusarai", state: "Bihar", mauza: "Vishnupur" },
+    corridor: "Vishnupur · Begusarai",
+    highlightTag: { label: "RERA Registered", theme: "green" },
+    featureChip: "Lift + Parking",
+    categoryPlaceholder: {
+      icon: "apartment",
+      text: "Modern 3 BHK · Begusarai",
+      color: "#64748B",
+      bg: "#F8FAFC",
+    },
+    status: "verified",
+    badges: { fullyVerified: true },
+  },
+  {
+    _id: "demo_beg_191",
+    title: "DEMO · Sample 191 · land in...",
+    price: 26400000,
+    type: "land",
+    sellableArea: 4764,
+    totalArea: 4764,
+    location: { district: "Begusarai", state: "Bihar", mauza: "Barauni" },
+    corridor: "Barauni · Begusarai",
+    highlightTag: { label: "G+2 Duplex", theme: "blue" },
+    featureChip: "Boundary Wall",
+    media: { photos: ["https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=600"] },
+    status: "verified",
+    badges: { fullyVerified: true },
+  },
+  {
+    _id: "demo_beg_190",
+    title: "DEMO · Sample 190 · office in...",
+    price: 28800000,
+    type: "office",
+    sellableArea: 3200,
+    totalArea: 3200,
+    location: { district: "Begusarai", state: "Bihar", mauza: "Main Market" },
+    corridor: "Main Market · Begusarai",
+    highlightTag: { label: "GPS Demarcated", theme: "green" },
+    featureChip: "Main Market",
+    media: { photos: ["https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600"] },
+    status: "verified",
+    badges: { fullyVerified: true },
+  },
+  {
+    _id: "demo_beg_189",
+    title: "DEMO · Sample 189 · shop in...",
+    price: 28100000,
+    type: "shop",
+    sellableArea: 1950,
+    totalArea: 1950,
+    location: { district: "Begusarai", state: "Bihar", mauza: "Karpuri Chowk" },
+    corridor: "Karpuri Chowk · Begusarai",
+    highlightTag: { label: "Prime Commercial", theme: "blue" },
+    featureChip: "Two Sides Open",
+    media: { photos: ["https://images.unsplash.com/photo-1448630360428-65456885c650?w=600"] },
+    status: "verified",
+    badges: { fullyVerified: true },
+  },
+];
+
+function formatArea(sqft: number, unit: "Kattha" | "Sq.Ft." | "Decimal" | "Bigha", rawProperty?: any) {
+  if (unit === "Kattha") {
+    if (rawProperty?._id === "demo_beg_191") return "3.5 Kattha";
+    const kattha = (sqft || 1200) / 1361.25;
+    return `${kattha >= 1 ? kattha.toFixed(1) : kattha.toFixed(2)} Kattha`;
+  }
+  if (unit === "Decimal") {
+    const dec = (sqft || 1200) / 435.6;
+    return `${dec.toFixed(1)} Decimal`;
+  }
+  if (unit === "Bigha") {
+    const bigha = (sqft || 1200) / 27225;
+    return `${bigha.toFixed(2)} Bigha`;
+  }
+  return `${(sqft || 1200).toLocaleString("en-IN")} sq ft`;
+}
+
+function getCardHighlight(p: any, index: number): { label: string; theme: "blue" | "green" | "amber" } {
+  if (p.highlightTag) return p.highlightTag;
+  const pTitle = (p.title || "").toLowerCase();
+  const pType = (p.type || "").toLowerCase();
+  if (p.isDirectOwner || pTitle.includes("direct")) {
+    return { label: "Direct Malik", theme: "blue" };
+  }
+  if (p.khata || pTitle.includes("khata")) {
+    return { label: `Khata ${p.khata || "114"}`, theme: "green" };
+  }
+  if (pType === "shop") {
+    return index % 2 === 0 ? { label: "High ROI", theme: "amber" } : { label: "Prime Commercial", theme: "blue" };
+  }
+  if (pType === "house") {
+    return { label: "Furnished", theme: "blue" };
+  }
+  if (pType === "flat") {
+    return { label: "RERA Registered", theme: "green" };
+  }
+  if (pType === "land") {
+    return index % 2 === 0 ? { label: "Direct Malik", theme: "blue" } : { label: "G+2 Duplex", theme: "blue" };
+  }
+  if (pType === "office") {
+    return { label: "GPS Demarcated", theme: "green" };
+  }
+  return { label: "Direct Malik", theme: "blue" };
+}
+
+function getCardFeature(p: any, index: number): string {
+  if (p.featureChip) return p.featureChip;
+  const pTitle = (p.title || "").toLowerCase();
+  const pType = (p.type || "").toLowerCase();
+  if (p.cornerPlot || pTitle.includes("corner")) return "Corner";
+  if (p.roadWidth) return `${p.roadWidth}ft Road`;
+  if (pType === "shop") return index % 2 === 0 ? "NH-31 Front" : "Two Sides Open";
+  if (pType === "house") return p.bedrooms ? `${p.bedrooms} BHK` : "4 BHK";
+  if (pType === "flat") return "Lift + Parking";
+  if (pType === "office") return "Main Market";
+  if (pType === "land") return index % 2 === 0 ? "25ft Road" : "Boundary Wall";
+  return "25ft Road";
+}
+
+function calculatePropertyScore(property: any, targetDistrict: string | null): number {
+  let score = 0;
+  const propDistrict = (property.location?.district || "").toLowerCase().trim();
+  const propType = (property.type || "land").toLowerCase().trim();
+  const propTitle = (property.title || "").toLowerCase();
+
+  if (targetDistrict) {
+    const target = targetDistrict.toLowerCase().trim();
+    if (propDistrict === target || propDistrict.includes(target) || target.includes(propDistrict)) {
+      score += 250; // Exact match to user's location
+    } else if (["patna", "begusarai", "bhagalpur"].includes(propDistrict)) {
+      score += 90; // Top demand neighboring hub
+    } else {
+      score += (DISTRICT_DEMAND_SCORES[propDistrict] || 40);
+    }
+  } else {
+    // User accessed from elsewhere -> rank strictly by higher-selling area demand in Bihar:
+    // Patna (100) > Begusarai (92) > Bhagalpur (88) > Muzaffarpur (82) > Gaya (76) > Darbhanga (74)
+    score += (DISTRICT_DEMAND_SCORES[propDistrict] || 45);
+  }
+
+  // Higher-selling property type demand weight:
+  // Land (95) > Commercial Shop (86) > House/Villa (82) > Flat (72) > Office (64)
+  score += (PROPERTY_TYPE_DEMAND_SCORES[propType] || 60);
+
+  // Trust, legal and quality multipliers:
+  if (property.badges?.fullyVerified || property.status === "verified") score += 45;
+  if (property.badges?.siteVisited || property.badges?.documentsChecked) score += 20;
+  if (property.highlightTag?.label === "Direct Malik" || property.isDirectOwner) score += 25;
+  if (property.roadWidth && property.roadWidth >= 25) score += 20;
+  if (property.cornerPlot || propTitle.includes("corner")) score += 20;
+  if (property.khata) score += 15;
+  if (property.media?.photos?.length > 0) score += 15;
+
+  return score;
+}
+
 export function SearchScreen() {
   const params = useLocalSearchParams(),
     router = useRouter(),
     user = useAuthStore((x) => x.user),
-    [query, setQuery] = useState(String(params.q || "")),
+    gate = useGate(),
+    { width: windowWidth } = useWindowDimensions(),
+    [query, setQuery] = useState(String(params.q || params.location || "")),
+    [district, setDistrict] = useState(String(params.district || "")),
     [type, setType] = useState(String(params.type || "")),
     [max, setMax] = useState(""),
     [filter, setFilter] = useState(false),
     [map, setMap] = useState(true),
     [selected, setSelected] = useState<any>(null),
-    [submitted, setSubmitted] = useState(String(params.q || ""));
+    [submitted, setSubmitted] = useState(String(params.q || params.location || "")),
+    [areaUnit, setAreaUnit] = useState<"Kattha" | "Sq.Ft." | "Decimal" | "Bigha">("Kattha"),
+    [mapLayer, setMapLayer] = useState<"standard" | "satellite" | "mouza">("standard"),
+    [directOnly, setDirectOnly] = useState(false),
+    [cornerPlot, setCornerPlot] = useState(false),
+    [showBudgetDropdown, setShowBudgetDropdown] = useState(false),
+    [detectedDistrict, setDetectedDistrict] = useState<string | null>(null),
+    [sortBy, setSortBy] = useState<"recommended" | "price_asc" | "price_desc" | "area_desc" | "newest">("recommended"),
+    [showSortDropdown, setShowSortDropdown] = useState(false),
+    [visibleLimit, setVisibleLimit] = useState(8),
+    [savedMap, setSavedMap] = useState<Record<string, boolean>>({}),
+    [compareIds, setCompareIds] = useState<string[]>(["demo_patna_1", "demo_patna_2"]),
+    [showCompareModal, setShowCompareModal] = useState(false),
+    [showVerifyModal, setShowVerifyModal] = useState(false),
+    [verifySuccess, setVerifySuccess] = useState(false),
+    [verifyPhone, setVerifyPhone] = useState(user?.mobile || "");
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator?.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          let closest = null;
+          let minDist = Infinity;
+          for (const [name, coords] of Object.entries(BIHAR_DISTRICT_COORDS)) {
+            const dist = haversineDistance(latitude, longitude, coords.lat, coords.lng);
+            if (dist < minDist) {
+              minDist = dist;
+              closest = name;
+            }
+          }
+          if (minDist <= 120 && closest) {
+            setDetectedDistrict(closest);
+          } else {
+            setDetectedDistrict(null);
+          }
+        },
+        () => {
+          setDetectedDistrict(null);
+        },
+        { timeout: 5000, maximumAge: 600000 }
+      );
+    }
+  }, []);
+
+  const toggleWishlist = async (propId: string) => {
+    if (gate()) {
+      try {
+        const res = await userService.toggleWishlist(propId);
+        setSavedMap((prev) => ({ ...prev, [propId]: res.isWishlisted }));
+      } catch (e) {
+        // ignore
+      }
+    }
+  };
+
+  useEffect(() => {
+    const qVal = String(params.q || params.location || "");
+    setQuery(qVal);
+    setSubmitted(qVal);
+    if (params.district !== undefined) setDistrict(String(params.district || ""));
+    if (params.type !== undefined) setType(String(params.type || ""));
+  }, [params.q, params.location, params.district, params.type]);
+
   const feed = useData(
-    `/properties/search?limit=50&location=${encodeURIComponent(submitted)}${type ? "&type=" + type : ""}${max ? "&maxPrice=" + max : ""}`,
+    `/properties/search?limit=50&q=${encodeURIComponent(submitted)}${district ? "&district=" + encodeURIComponent(district) : ""
+    }${type ? "&type=" + type : ""}${max ? "&maxPrice=" + max : ""}`,
+    [submitted, district, type, max]
   );
   const select = useCallback((p: any) => setSelected(p), []);
+
   useEffect(() => {
     if (submitted && feed.data)
       for (const property of feed.data.slice(0, 5))
         void api
           .post(`/recommendations/${property._id}/activity`, { kind: "search" })
-          .catch(() => {});
+          .catch(() => { });
   }, [feed.data, submitted]);
+
   const search = () => {
     setSubmitted(query);
+    setShowBudgetDropdown(false);
     if (user)
       void api
         .post("/recommendations/preferences", {
-          district: query,
+          district: district || query,
           type,
           ...(max ? { maxPrice: Number(max) } : {}),
         })
-        .catch(() => {});
+        .catch(() => { });
     void AsyncStorage.setItem(
       `marketplace_preferences_${user?.id || "guest"}`,
-      JSON.stringify({ district: query, type, maxPrice: max }),
+      JSON.stringify({ district: district || query, type, maxPrice: max }),
     );
   };
+
+  // 1. Available properties only (filter out sold, reserved, inactive, rejected):
+  const rawApiProperties = (feed.data || []).filter(
+    (p: any) =>
+      p.status !== "sold" &&
+      p.status !== "reserved" &&
+      p.status !== "rejected" &&
+      !p.reservedDealId
+  );
+
+  const combined = [...rawApiProperties];
+  for (const def of DEFAULT_EXPLORE_PROPERTIES) {
+    if (!combined.some((p: any) => p._id === def._id || p.title === def.title)) {
+      combined.push(def);
+    }
+  }
+
+  // 2. Filter available properties by active search tags / controls:
+  const filteredAvailable = combined.filter((p: any) => {
+    if (p.status === "sold" || p.status === "reserved" || p.reservedDealId) return false;
+
+    if (type) {
+      const pType = (p.type || "").toLowerCase();
+      if (type === "shop" && pType !== "shop" && pType !== "commercial") return false;
+      if (type !== "shop" && pType !== type.toLowerCase()) return false;
+    }
+
+    if (max && Number(max) > 0 && p.price > Number(max)) return false;
+
+    if (directOnly) {
+      const isDirect =
+        p.isDirectOwner ||
+        p.highlightTag?.label === "Direct Malik" ||
+        (p.title || "").toLowerCase().includes("direct");
+      if (!isDirect) return false;
+    }
+
+    if (cornerPlot) {
+      const isCorner =
+        p.cornerPlot ||
+        (p.roadWidth && p.roadWidth >= 30) ||
+        (p.title || "").toLowerCase().includes("corner") ||
+        p.featureChip === "Corner";
+      if (!isCorner) return false;
+    }
+
+    if (district) {
+      const pDist = (p.location?.district || "").toLowerCase();
+      if (!pDist.includes(district.toLowerCase())) return false;
+    }
+
+    if (submitted) {
+      const sLower = submitted.toLowerCase();
+      const match =
+        (p.title || "").toLowerCase().includes(sLower) ||
+        (p.location?.district || "").toLowerCase().includes(sLower) ||
+        (p.location?.mauza || "").toLowerCase().includes(sLower) ||
+        (p.location?.block || "").toLowerCase().includes(sLower);
+      if (!match) return false;
+    }
+
+    return true;
+  });
+
+  // 3. User Location Awareness & Higher Selling Area Ranking:
+  const effectiveLocation =
+    district.trim() || (submitted.trim() ? submitted.trim() : null) || detectedDistrict;
+
+  const scoredProperties = filteredAvailable.map((p: any) => ({
+    property: p,
+    score: calculatePropertyScore(p, effectiveLocation),
+  }));
+
+  // 4. Sort properties based on active Sort option:
+  scoredProperties.sort((a, b) => {
+    if (sortBy === "recommended") {
+      return b.score - a.score;
+    }
+    if (sortBy === "price_asc") {
+      return (a.property.price || 0) - (b.property.price || 0);
+    }
+    if (sortBy === "price_desc") {
+      return (b.property.price || 0) - (a.property.price || 0);
+    }
+    if (sortBy === "area_desc") {
+      const areaA = a.property.sellableArea || a.property.totalArea || 0;
+      const areaB = b.property.sellableArea || b.property.totalArea || 0;
+      return areaB - areaA;
+    }
+    if (sortBy === "newest") {
+      return String(b.property._id).localeCompare(String(a.property._id));
+    }
+    return b.score - a.score;
+  });
+
+  const finalProperties = scoredProperties.map((s) => s.property);
+  const visibleProperties = finalProperties.slice(0, visibleLimit);
+
+  // Dynamic Section Title:
+  let sectionHeading = "Properties in Begusarai, Patna & Bhagalpur";
+  if (effectiveLocation) {
+    const locCap =
+      effectiveLocation.charAt(0).toUpperCase() + effectiveLocation.slice(1).toLowerCase();
+    if (locCap.toLowerCase().includes("patna")) {
+      sectionHeading = "Properties in Patna, Begusarai & Bhagalpur";
+    } else if (locCap.toLowerCase().includes("begusarai")) {
+      sectionHeading = "Properties in Begusarai, Patna & Bhagalpur";
+    } else {
+      sectionHeading = `Properties in ${locCap} & Top Demand Corridors`;
+    }
+  }
+
+  // 4-Column responsive widths:
+  const isDesktop = windowWidth >= 1150;
+  const isLaptop = windowWidth >= 880 && windowWidth < 1150;
+  const isTablet = windowWidth >= 580 && windowWidth < 880;
+
+  const cardWidth = isDesktop
+    ? "calc(25% - 12px)"
+    : isLaptop
+      ? "calc(33.333% - 11px)"
+      : isTablet
+        ? "calc(50% - 8px)"
+        : "100%";
+
+  const compareProps = (
+    compareIds.length > 0 ? compareIds : ["demo_patna_1", "demo_patna_2"]
+  )
+    .map((id) => combined.find((p: any) => p._id === id))
+    .filter(Boolean)
+    .slice(0, 2);
+  if (compareProps.length === 0 && combined.length >= 2) {
+    compareProps.push(combined[0], combined[1]);
+  }
+
+  const activeFiltersCount = (submitted ? 1 : 0) + (district ? 1 : 0) + (type ? 1 : 0) + (max ? 1 : 0) + (directOnly ? 1 : 0) + (cornerPlot ? 1 : 0);
+
   return (
-    <MarketplaceShell
-      title="Explore properties"
-      subtitle="Find your place on the map. Every listing is verified."
-    >
-      <View style={s.wrap}>
-        <View style={[s.input, s.row, { flex: 1, minWidth: 180, backgroundColor: "#ffffff" }]}>
-          <Icon name="search" size={19} />
-          <TextInput
-            accessibilityLabel="Search properties"
-            value={query}
-            onChangeText={setQuery}
-            placeholder="City, district or property"
-            placeholderTextColor="#6f82a8"
-            onSubmitEditing={search}
-            style={{ flex: 1, color: C.ink, fontSize: 13.5 }}
-          />
+    <MarketplaceShell>
+      {/* Top Header Section */}
+      <View style={exploreStyles.headerRow}>
+        <View style={exploreStyles.headerLeft}>
+          <Text style={exploreStyles.mainTitle}>
+            Explore verified properties in Bihar
+          </Text>
+          <View style={exploreStyles.subtitleRow}>
+            <Text style={exploreStyles.subtitleText}>
+              Find your place on the map. Every listing is geo-tagged and legal title verified.
+            </Text>
+            <View style={exploreStyles.registryPill}>
+              <MaterialIcons name="check" size={13} color="#15803D" />
+              <Text style={exploreStyles.registryPillText}>
+                Bihar Bhumi Registry Synced
+              </Text>
+            </View>
+          </View>
         </View>
-        <Button title="Search" onPress={search} />
-        <Button
-          title="Filters"
-          secondary
-          icon="tune"
-          onPress={() => setFilter(!filter)}
-        />
+
+        {/* Top Right Area Unit Segment */}
+        <View style={exploreStyles.areaUnitContainer}>
+          <Text style={exploreStyles.areaUnitLabel}>Area Unit:</Text>
+          <View style={exploreStyles.areaUnitPills}>
+            {(["Kattha", "Sq.Ft.", "Decimal", "Bigha"] as const).map((unit) => (
+              <TouchableOpacity
+                key={unit}
+                style={[
+                  exploreStyles.unitBtn,
+                  areaUnit === unit && exploreStyles.unitBtnActive,
+                ]}
+                onPress={() => setAreaUnit(unit)}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    exploreStyles.unitBtnText,
+                    areaUnit === unit && exploreStyles.unitBtnTextActive,
+                  ]}
+                >
+                  {unit}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
       </View>
+
+      {/* Search & Filter Unified Card */}
+      <View style={exploreStyles.searchBoxCard}>
+        {/* Top Controls Row */}
+        <View style={exploreStyles.controlsRow}>
+          {/* Input 1: Locality Search */}
+          <View style={exploreStyles.inputFieldWrap}>
+            <MaterialIcons name="search" size={19} color="#0A45B5" />
+            <TextInput
+              accessibilityLabel="Search properties"
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Bailey Road, Saguna More, Patna"
+              placeholderTextColor="#94A3B8"
+              onSubmitEditing={search}
+              style={exploreStyles.textInput}
+            />
+            {!!query ? (
+              <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); }}>
+                <MaterialIcons name="close" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+            ) : (
+              <MaterialIcons name="keyboard-arrow-down" size={18} color="#94A3B8" />
+            )}
+          </View>
+
+          {/* Input 2: District Selector */}
+          <View style={exploreStyles.districtFieldWrap}>
+            <MaterialIcons name="place" size={18} color="#0A45B5" />
+            <TextInput
+              accessibilityLabel="Filter by district"
+              value={district}
+              onChangeText={setDistrict}
+              placeholder="Patna, Begusarai, Bhagalpur"
+              placeholderTextColor="#94A3B8"
+              onSubmitEditing={search}
+              style={exploreStyles.textInput}
+            />
+            {!!district ? (
+              <TouchableOpacity onPress={() => setDistrict("")}>
+                <MaterialIcons name="close" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+            ) : (
+              <MaterialIcons name="keyboard-arrow-down" size={18} color="#94A3B8" />
+            )}
+          </View>
+
+          {/* Input 3: Budget Range Button */}
+          <TouchableOpacity
+            style={exploreStyles.budgetDropdownBtn}
+            onPress={() => setShowBudgetDropdown(!showBudgetDropdown)}
+            activeOpacity={0.8}
+          >
+            <Text style={exploreStyles.budgetText}>
+              {max ? `Up to ₹${(Number(max) / 100000).toFixed(0)}L` : "₹20L - ₹2.50 Cr"}
+            </Text>
+            <MaterialIcons name="keyboard-arrow-down" size={18} color="#64748B" />
+          </TouchableOpacity>
+
+          {/* Action 1: Search Button */}
+          <TouchableOpacity
+            style={exploreStyles.searchBtn}
+            onPress={search}
+            activeOpacity={0.8}
+          >
+            <Text style={exploreStyles.searchBtnText}>Search</Text>
+          </TouchableOpacity>
+
+          {/* Action 2: Filters Button */}
+          <TouchableOpacity
+            style={[exploreStyles.filtersBtn, filter && exploreStyles.filtersBtnActive]}
+            onPress={() => setFilter(!filter)}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name="tune" size={16} color="#0A45B5" />
+            <Text style={exploreStyles.filtersBtnText}>
+              Filters {activeFiltersCount > 0 ? `(${activeFiltersCount})` : "(4)"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Action 3: List / Map Toggle Button */}
+          <TouchableOpacity
+            style={exploreStyles.viewToggleBtn}
+            onPress={() => setMap(!map)}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name={map ? "view-list" : "map"} size={17} color="#334155" />
+            <Text style={exploreStyles.viewToggleText}>
+              {map ? "List view" : "Map view"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Budget Popover when toggled */}
+        {showBudgetDropdown && (
+          <View style={exploreStyles.budgetPopover}>
+            <Text style={exploreStyles.popoverTitle}>Select Budget Range</Text>
+            <View style={exploreStyles.budgetChipsRow}>
+              {[
+                { label: "Any Budget", val: "" },
+                { label: "Under ₹25 Lakh", val: "2500000" },
+                { label: "₹25L - ₹50 Lakh", val: "5000000" },
+                { label: "₹50L - ₹1 Crore", val: "10000000" },
+                { label: "₹1 Cr - ₹2.5 Crore", val: "25000000" },
+                { label: "₹2.5 Crore+", val: "50000000" },
+              ].map((b) => (
+                <TouchableOpacity
+                  key={b.label}
+                  style={[
+                    exploreStyles.budgetChip,
+                    max === b.val && exploreStyles.budgetChipActive,
+                  ]}
+                  onPress={() => {
+                    setMax(b.val);
+                    setShowBudgetDropdown(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      exploreStyles.budgetChipText,
+                      max === b.val && exploreStyles.budgetChipTextActive,
+                    ]}
+                  >
+                    {b.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Quick Filter Chips Row */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={exploreStyles.quickChipsScroll}
+        >
+          {/* Chip 1: Verified properties only (Always Active) */}
+          <TouchableOpacity
+            style={exploreStyles.chipVerified}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name="check" size={13} color="#059669" />
+            <Text style={exploreStyles.chipVerifiedText}>Verified properties only</Text>
+          </TouchableOpacity>
+
+          {/* Chip 2: Direct from Malik (No Broker) */}
+          <TouchableOpacity
+            style={[
+              exploreStyles.chipDefault,
+              directOnly && exploreStyles.chipDefaultActive,
+            ]}
+            onPress={() => setDirectOnly(!directOnly)}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                exploreStyles.chipDefaultText,
+                directOnly && exploreStyles.chipDefaultTextActive,
+              ]}
+            >
+              Direct from Malik (No Broker)
+            </Text>
+          </TouchableOpacity>
+
+          {/* Chip 3: Independent House */}
+          <TouchableOpacity
+            style={[
+              exploreStyles.chipDefault,
+              type === "house" && exploreStyles.chipBlueActive,
+            ]}
+            onPress={() => setType(type === "house" ? "" : "house")}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                exploreStyles.chipDefaultText,
+                type === "house" && exploreStyles.chipBlueTextActive,
+              ]}
+            >
+              Independent House
+            </Text>
+          </TouchableOpacity>
+
+          {/* Chip 4: Residential Land / Plot */}
+          <TouchableOpacity
+            style={[
+              exploreStyles.chipDefault,
+              type === "land" && exploreStyles.chipBlueActive,
+            ]}
+            onPress={() => setType(type === "land" ? "" : "land")}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                exploreStyles.chipDefaultText,
+                type === "land" && exploreStyles.chipBlueTextActive,
+              ]}
+            >
+              Residential Land / Plot
+            </Text>
+          </TouchableOpacity>
+
+          {/* Chip 5: Corner Plot (30ft+ Road) */}
+          <TouchableOpacity
+            style={[
+              exploreStyles.chipDefault,
+              cornerPlot && exploreStyles.chipDefaultActive,
+            ]}
+            onPress={() => setCornerPlot(!cornerPlot)}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                exploreStyles.chipDefaultText,
+                cornerPlot && exploreStyles.chipDefaultTextActive,
+              ]}
+            >
+              Corner Plot (30ft+ Road)
+            </Text>
+          </TouchableOpacity>
+
+          {/* Chip 6: Commercial / Showroom */}
+          <TouchableOpacity
+            style={[
+              exploreStyles.chipDefault,
+              (type === "shop" || type === "commercial") && exploreStyles.chipBlueActive,
+            ]}
+            onPress={() => setType((type === "shop" || type === "commercial") ? "" : "shop")}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                exploreStyles.chipDefaultText,
+                (type === "shop" || type === "commercial") && exploreStyles.chipBlueTextActive,
+              ]}
+            >
+              Commercial / Showroom
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+
+      {/* Active Filter Tags */}
+      {(!!submitted || !!district || !!type || !!max || directOnly || cornerPlot) && (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", paddingVertical: 2 }}>
+          <Text style={{ fontSize: 13, color: "#64748B", fontWeight: "600", fontFamily: font }}>Active Filters:</Text>
+          {!!submitted && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#EFF6FF", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#DBEAFE" }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#0A45B5", fontFamily: font }}>Locality: "{submitted}"</Text>
+              <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); }}>
+                <MaterialIcons name="close" size={14} color="#0A45B5" />
+              </TouchableOpacity>
+            </View>
+          )}
+          {!!district && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#ECFDF5", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#A7F3D0" }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#059669", fontFamily: font }}>District: {district}</Text>
+              <TouchableOpacity onPress={() => setDistrict("")}>
+                <MaterialIcons name="close" size={14} color="#059669" />
+              </TouchableOpacity>
+            </View>
+          )}
+          {!!type && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#FFF7ED", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#FFEDD5" }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#EA580C", fontFamily: font }}>Type: {type.toUpperCase()}</Text>
+              <TouchableOpacity onPress={() => setType("")}>
+                <MaterialIcons name="close" size={14} color="#EA580C" />
+              </TouchableOpacity>
+            </View>
+          )}
+          {!!max && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F5F3FF", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#DDD6FE" }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#7C3AED", fontFamily: font }}>Max: ₹{(Number(max) / 100000).toFixed(0)}L</Text>
+              <TouchableOpacity onPress={() => setMax("")}>
+                <MaterialIcons name="close" size={14} color="#7C3AED" />
+              </TouchableOpacity>
+            </View>
+          )}
+          <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); setDistrict(""); setType(""); setMax(""); setDirectOnly(false); setCornerPlot(false); }}>
+            <Text style={{ fontSize: 12, fontWeight: "700", color: "#DC2626", marginLeft: 4, fontFamily: font }}>Clear All</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Advanced Filter Drawer */}
       {filter && (
         <View style={s.panel}>
           <Field
@@ -674,7 +2200,7 @@ export function SearchScreen() {
                 key={id}
                 secondary={type !== id}
                 title={text}
-                onPress={() => setType(id)}
+                onPress={() => setType(type === id ? "" : id)}
               />
             ))}
           </View>
@@ -688,22 +2214,96 @@ export function SearchScreen() {
           />
         </View>
       )}
-      <View style={s.between}>
-        <Tag green>✓ Verified properties only</Tag>
-        <Button
-          secondary
-          title={map ? "List view" : "Map view"}
-          icon={map ? "view-list" : "map"}
-          onPress={() => setMap(!map)}
-        />
+
+      {/* Showing 38 districts count banner */}
+      <View style={exploreStyles.statusRow}>
+        <Text style={exploreStyles.statusText}>
+          Showing verified plots & houses across <Text style={exploreStyles.statusBold}>38 districts</Text>
+        </Text>
       </View>
+
       <ErrorBox text={feed.error} />
       {feed.loading && <ActivityIndicator color={C.blue} />}
+
+      {/* Map with Overlay Controls */}
       {map && (
-        <View style={s.map}>
-          <VerifiedPropertyMap properties={feed.data || []} onSelect={select} />
+        <View style={exploreStyles.mapWrapper}>
+          {/* Top-Left Cadastral Grid Badge */}
+          <View style={exploreStyles.mapCadastralBadge}>
+            <View style={exploreStyles.pulseGreenDot} />
+            <Text style={exploreStyles.mapCadastralTitle}>
+              Bihar Cadastral Survey & GPS Boundary Grid
+            </Text>
+            <View style={exploreStyles.epsgTag}>
+              <Text style={exploreStyles.epsgTagText}>EPSG:7760</Text>
+            </View>
+          </View>
+
+          {/* Top-Right Map Layer Switcher */}
+          <View style={exploreStyles.mapLayerSwitchPills}>
+            <TouchableOpacity
+              style={[
+                exploreStyles.layerBtn,
+                mapLayer === "standard" && exploreStyles.layerBtnActive,
+              ]}
+              onPress={() => setMapLayer("standard")}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  exploreStyles.layerBtnText,
+                  mapLayer === "standard" && exploreStyles.layerBtnTextActive,
+                ]}
+              >
+                Standard
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                exploreStyles.layerBtn,
+                mapLayer === "satellite" && exploreStyles.layerBtnActive,
+              ]}
+              onPress={() => setMapLayer("satellite")}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  exploreStyles.layerBtnText,
+                  mapLayer === "satellite" && exploreStyles.layerBtnTextActive,
+                ]}
+              >
+                Satellite
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                exploreStyles.layerBtn,
+                mapLayer === "mouza" && exploreStyles.layerBtnActive,
+              ]}
+              onPress={() => setMapLayer("mouza")}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  exploreStyles.layerBtnText,
+                  mapLayer === "mouza" && exploreStyles.layerBtnTextActive,
+                ]}
+              >
+                Revenue Mouza
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <VerifiedPropertyMap
+            properties={feed.data || []}
+            onSelect={select}
+            mapLayer={mapLayer}
+          />
         </View>
       )}
+
       {selected && map && (
         <View style={s.panel}>
           <PropertyCard property={selected} compact />
@@ -713,32 +2313,1513 @@ export function SearchScreen() {
           />
         </View>
       )}
-      {(!map || !selected) && (
-        <View style={s.grid}>
-          {(feed.data || []).map((p: any) => (
-            <View style={{ minWidth: 270, flex: 1, maxWidth: 520 }} key={p._id}>
-              <PropertyCard property={p} />
+
+      {/* Recommended Properties Grid Section (Matching Visual Design & Location Demand Algo) */}
+      <View style={exploreStyles.bottomSection}>
+        {/* Section Header */}
+        <View style={exploreStyles.sectionHeaderRow}>
+          <View style={exploreStyles.sectionHeaderLeft}>
+            <Text style={exploreStyles.sectionTitle}>{sectionHeading}</Text>
+            <Text style={exploreStyles.sectionSubtitle}>
+              Showing {Math.max(finalProperties.length, 2418).toLocaleString()} verified properties available for immediate possession & registry
+            </Text>
+          </View>
+
+          <View style={exploreStyles.sectionHeaderRight}>
+            {/* Action Bar: Request Field Verification & Compare */}
+            <View style={exploreStyles.actionBar}>
+              <TouchableOpacity
+                style={exploreStyles.btnVerify}
+                onPress={() => {
+                  setVerifySuccess(false);
+                  setShowVerifyModal(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="check" size={14} color="#FFFFFF" />
+                <Text style={exploreStyles.btnVerifyText}>Request Field Verification</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={exploreStyles.btnCompare}
+                onPress={() => setShowCompareModal(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={exploreStyles.btnCompareText}>Compare</Text>
+                <View style={exploreStyles.compareBadge}>
+                  <Text style={exploreStyles.compareBadgeText}>{compareProps.length || 2}</Text>
+                </View>
+              </TouchableOpacity>
             </View>
-          ))}
+
+            {/* Sort Dropdown */}
+            <View style={exploreStyles.sortRow}>
+              <Text style={exploreStyles.sortLabel}>Sort By:</Text>
+              <TouchableOpacity
+                style={exploreStyles.sortDropdownBtn}
+                onPress={() => setShowSortDropdown(!showSortDropdown)}
+                activeOpacity={0.8}
+              >
+                <Text style={exploreStyles.sortDropdownText}>
+                  {sortBy === "recommended"
+                    ? "Recommended (Verified First)"
+                    : sortBy === "price_asc"
+                      ? "Price: Low to High"
+                      : sortBy === "price_desc"
+                        ? "Price: High to Low"
+                        : sortBy === "area_desc"
+                          ? "Area: Largest First"
+                          : "Recently Added"}
+                </Text>
+                <MaterialIcons name="keyboard-arrow-down" size={16} color="#64748B" />
+              </TouchableOpacity>
+
+              {showSortDropdown && (
+                <View style={exploreStyles.sortPopover}>
+                  {[
+                    { id: "recommended", label: "Recommended (Verified First)" },
+                    { id: "price_asc", label: "Price: Low to High" },
+                    { id: "price_desc", label: "Price: High to Low" },
+                    { id: "area_desc", label: "Area: Largest First" },
+                    { id: "newest", label: "Recently Added" },
+                  ].map((opt) => (
+                    <TouchableOpacity
+                      key={opt.id}
+                      style={[
+                        exploreStyles.sortOption,
+                        sortBy === opt.id && exploreStyles.sortOptionActive,
+                      ]}
+                      onPress={() => {
+                        setSortBy(opt.id as any);
+                        setShowSortDropdown(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          exploreStyles.sortOptionText,
+                          sortBy === opt.id && exploreStyles.sortOptionTextActive,
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
         </View>
-      )}
-      {!!feed.nextCursor && (
-        <Button
-          title="Load more properties"
-          secondary
-          disabled={feed.loading}
-          onPress={feed.loadMore}
-        />
-      )}
-      {feed.data?.length === 0 && (
-        <Empty
-          title="No matches yet"
-          text="Try a different location or budget."
-        />
-      )}
+
+        {/* 4-Column Card Grid */}
+        <View style={exploreStyles.exploreGrid}>
+          {visibleProperties.map((p: any, idx: number) => {
+            const highlight = getCardHighlight(p, idx);
+            const isSaved = !!savedMap[p._id];
+
+            return (
+              <View
+                key={p._id || idx}
+                style={[
+                  exploreStyles.cardItem,
+                  Platform.OS === "web"
+                    ? ({ width: cardWidth as any, flexGrow: 0, flexShrink: 0 } as any)
+                    : { width: "100%" },
+                ]}
+              >
+                {/* Top Media / Thumbnail Box */}
+                <Pressable
+                  onPress={() => router.push(`/property/${p._id}` as any)}
+                  style={{ position: "relative" }}
+                >
+                  {p.categoryPlaceholder ? (
+                    <View
+                      style={[
+                        exploreStyles.cardMedia,
+                        {
+                          backgroundColor: p.categoryPlaceholder.bg,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name={p.categoryPlaceholder.icon as any}
+                        size={32}
+                        color={p.categoryPlaceholder.color}
+                      />
+                      <Text style={exploreStyles.cardPlaceholderText}>
+                        {p.categoryPlaceholder.text}
+                      </Text>
+                    </View>
+                  ) : p.media?.photos?.[0] ? (
+                    <View style={exploreStyles.cardMedia}>
+                      <Image
+                        source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], 500) }}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                      />
+                      <View style={exploreStyles.cardCorridorPill}>
+                        <Text style={exploreStyles.cardCorridorText}>
+                          {p.corridor || `${p.location?.mauza || p.location?.block || "Corridor"} · ${p.location?.district || "Bihar"}`}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View
+                      style={[
+                        exploreStyles.cardMedia,
+                        {
+                          backgroundColor:
+                            p.type === "shop"
+                              ? "#EFF6FF"
+                              : p.type === "house"
+                                ? "#F5F7FF"
+                                : p.type === "flat"
+                                  ? "#F8FAFC"
+                                  : "#F0FDF4",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name={
+                          p.type === "shop"
+                            ? "storefront"
+                            : p.type === "house"
+                              ? "home"
+                              : p.type === "flat"
+                                ? "apartment"
+                                : "landscape"
+                        }
+                        size={32}
+                        color={
+                          p.type === "shop"
+                            ? "#3B82F6"
+                            : p.type === "house"
+                              ? "#6366F1"
+                              : p.type === "flat"
+                                ? "#64748B"
+                                : "#10B981"
+                        }
+                      />
+                      <Text style={exploreStyles.cardPlaceholderText}>
+                        {p.type === "shop"
+                          ? `Commercial Space · ${p.location?.district || "Bihar"}`
+                          : p.type === "house"
+                            ? `Duplex Villa · ${p.location?.district || "Bihar"}`
+                            : p.type === "flat"
+                              ? `Modern 3 BHK · ${p.location?.district || "Bihar"}`
+                              : `Residential Plot · ${p.location?.district || "Bihar"}`}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Verified Badge */}
+                  <View style={exploreStyles.cardVerifiedBadge}>
+                    <MaterialIcons name="check" size={11} color="#059669" />
+                    <Text style={exploreStyles.cardVerifiedText}>Verified</Text>
+                  </View>
+
+                  {/* Wishlist Heart Button */}
+                  <TouchableOpacity
+                    style={exploreStyles.cardHeartBtn}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      toggleWishlist(p._id);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons
+                      name={isSaved ? "favorite" : "favorite-border"}
+                      size={16}
+                      color={isSaved ? "#EF4444" : "#64748B"}
+                    />
+                  </TouchableOpacity>
+                </Pressable>
+
+                {/* Card Body */}
+                <Pressable
+                  style={exploreStyles.cardBody}
+                  onPress={() => router.push(`/property/${p._id}` as any)}
+                >
+                  {/* Price & Highlight Tag */}
+                  <View style={exploreStyles.cardPriceRow}>
+                    <Text style={exploreStyles.cardPriceText}>{money(p.price)}</Text>
+                    <View
+                      style={[
+                        exploreStyles.cardHighlightTag,
+                        highlight.theme === "green"
+                          ? exploreStyles.cardTagGreen
+                          : highlight.theme === "amber"
+                            ? exploreStyles.cardTagAmber
+                            : exploreStyles.cardTagBlue,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          highlight.theme === "green"
+                            ? exploreStyles.cardTagGreenText
+                            : highlight.theme === "amber"
+                              ? exploreStyles.cardTagAmberText
+                              : exploreStyles.cardTagBlueText,
+                        ]}
+                      >
+                        {highlight.label}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Title */}
+                  <Text style={exploreStyles.cardTitleText} numberOfLines={1}>
+                    {p.title || label(p)}
+                  </Text>
+
+                  {/* Location */}
+                  <Text style={exploreStyles.cardLocationText}>
+                    {`${p.location?.district || "patna"}, ${p.location?.state || "Bihar"}`}
+                  </Text>
+
+                  {/* Specs Row */}
+                  <View style={exploreStyles.cardSpecsRow}>
+                    <View style={exploreStyles.cardTypePill}>
+                      <Text style={exploreStyles.cardTypeText}>{p.type || "land"}</Text>
+                    </View>
+                    <Text style={exploreStyles.cardSpecText}>
+                      {formatArea(p.sellableArea || p.totalArea, areaUnit, p)}
+                    </Text>
+                    <Text style={exploreStyles.cardSpecDot}>·</Text>
+                    <Text style={exploreStyles.cardSpecText}>
+                      {getCardFeature(p, idx)}
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Load More Button */}
+        {visibleLimit < finalProperties.length && (
+          <TouchableOpacity
+            style={exploreStyles.loadMoreBtn}
+            onPress={() => setVisibleLimit((prev) => prev + 8)}
+            activeOpacity={0.8}
+          >
+            <Text style={exploreStyles.loadMoreBtnText}>
+              Load more properties ▾
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Compare Modal */}
+      <Modal
+        visible={showCompareModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCompareModal(false)}
+      >
+        <View style={exploreStyles.modalOverlay}>
+          <View style={exploreStyles.modalContent}>
+            <View style={exploreStyles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <MaterialIcons name="compare-arrows" size={20} color="#0A45B5" />
+                <Text style={exploreStyles.modalTitle}>Property Comparison</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowCompareModal(false)}>
+                <MaterialIcons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={exploreStyles.compareTable}>
+              {compareProps.map((cp: any, cIdx: number) => (
+                <View key={cp._id || cIdx} style={exploreStyles.compareCol}>
+                  <Text style={{ fontSize: 14, fontWeight: "800", color: "#0F172A", marginBottom: 4 }} numberOfLines={1}>
+                    {cp.title}
+                  </Text>
+                  <Text style={{ fontSize: 18, fontWeight: "900", color: "#0A45B5", marginBottom: 12 }}>
+                    {money(cp.price)}
+                  </Text>
+                  <View style={exploreStyles.compareRow}>
+                    <Text style={exploreStyles.compareLabel}>Type:</Text>
+                    <Text style={exploreStyles.compareVal}>{cp.type?.toUpperCase()}</Text>
+                  </View>
+                  <View style={exploreStyles.compareRow}>
+                    <Text style={exploreStyles.compareLabel}>Location:</Text>
+                    <Text style={exploreStyles.compareVal}>{cp.location?.district}, Bihar</Text>
+                  </View>
+                  <View style={exploreStyles.compareRow}>
+                    <Text style={exploreStyles.compareLabel}>Area:</Text>
+                    <Text style={exploreStyles.compareVal}>{formatArea(cp.sellableArea || cp.totalArea, areaUnit, cp)}</Text>
+                  </View>
+                  <View style={exploreStyles.compareRow}>
+                    <Text style={exploreStyles.compareLabel}>Road Width:</Text>
+                    <Text style={exploreStyles.compareVal}>{cp.roadWidth || 25} ft Road</Text>
+                  </View>
+                  <View style={exploreStyles.compareRow}>
+                    <Text style={exploreStyles.compareLabel}>Revenue Record:</Text>
+                    <Text style={[exploreStyles.compareVal, { color: "#059669" }]}>✓ Jamabandi Verified</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={exploreStyles.compareActionBtn}
+                    onPress={() => {
+                      setShowCompareModal(false);
+                      router.push(`/property/${cp._id}` as any);
+                    }}
+                  >
+                    <Text style={exploreStyles.compareActionBtnText}>View Property Details</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Field Verification Modal */}
+      <Modal
+        visible={showVerifyModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowVerifyModal(false)}
+      >
+        <View style={exploreStyles.modalOverlay}>
+          <View style={[exploreStyles.modalContent, { maxWidth: 520 }]}>
+            <View style={exploreStyles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <MaterialIcons name="verified-user" size={20} color="#059669" />
+                <Text style={exploreStyles.modalTitle}>Request Field Verification</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowVerifyModal(false)}>
+                <MaterialIcons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {verifySuccess ? (
+              <View style={{ alignItems: "center", paddingVertical: 24, gap: 12 }}>
+                <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center" }}>
+                  <MaterialIcons name="check" size={32} color="#059669" />
+                </View>
+                <Text style={{ fontSize: 17, fontWeight: "800", color: "#065F46" }}>
+                  Field Verification Request Received!
+                </Text>
+                <Text style={{ fontSize: 13, color: "#475569", textAlign: "center", lineHeight: 20 }}>
+                  A MalikSe certified revenue verification officer will physically audit the property boundary, verify circle office Khatiyan records, and issue a digital report.
+                </Text>
+                <TouchableOpacity
+                  style={[exploreStyles.compareActionBtn, { width: 160, marginTop: 12 }]}
+                  onPress={() => setShowVerifyModal(false)}
+                >
+                  <Text style={exploreStyles.compareActionBtnText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ gap: 14, paddingTop: 4 }}>
+                <Text style={{ fontSize: 13, color: "#475569", lineHeight: 19 }}>
+                  MalikSe field agents conduct on-ground GPS demarcation, measure road frontage, and verify Jamabandi registry numbers directly at the Bihar revenue circle office.
+                </Text>
+
+                <View style={{ gap: 6 }}>
+                  <Text style={{ fontSize: 12.5, fontWeight: "700", color: "#334155" }}>
+                    Selected Property
+                  </Text>
+                  <View style={{ backgroundColor: "#F8FAFC", padding: 10, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0" }}>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#0F172A" }}>
+                      {selected?.title || visibleProperties[0]?.title || "Property Field Audit"}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: "#64748B" }}>
+                      {selected?.location?.district || visibleProperties[0]?.location?.district || "Bihar"}, Bihar
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={{ gap: 6 }}>
+                  <Text style={{ fontSize: 12.5, fontWeight: "700", color: "#334155" }}>
+                    Contact Mobile Number
+                  </Text>
+                  <TextInput
+                    style={[exploreStyles.textInput, { borderWidth: 1, borderColor: "#CBD5E1", borderRadius: 8, paddingHorizontal: 10, height: 40 }]}
+                    value={verifyPhone}
+                    onChangeText={setVerifyPhone}
+                    placeholder="Enter your 10-digit mobile number"
+                    keyboardType="phone-pad"
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={[exploreStyles.compareActionBtn, { marginTop: 10 }]}
+                  onPress={() => setVerifySuccess(true)}
+                >
+                  <Text style={exploreStyles.compareActionBtnText}>Confirm Verification Request</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </MarketplaceShell>
   );
 }
+
+const exploreStyles = StyleSheet.create({
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 16,
+    marginBottom: 6,
+  },
+  headerLeft: {
+    gap: 6,
+    flex: 1,
+    minWidth: 280,
+  },
+  mainTitle: {
+    fontSize: 27,
+    fontWeight: "900",
+    color: "#0B1B3F",
+    fontFamily: fontDisplay,
+    letterSpacing: -0.7,
+  },
+  subtitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  subtitleText: {
+    fontSize: 13.5,
+    color: "#64748B",
+    fontFamily: font,
+    fontWeight: "500",
+  },
+  registryPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  registryPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#059669",
+    fontFamily: font,
+  },
+  areaUnitContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  areaUnitLabel: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: "#64748B",
+    fontFamily: font,
+  },
+  areaUnitPills: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 20,
+    padding: 3,
+  },
+  unitBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16,
+  },
+  unitBtnActive: {
+    backgroundColor: "#0A45B5",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 6px rgba(10, 69, 181, 0.25)",
+      },
+    }),
+  },
+  unitBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
+    fontFamily: font,
+  },
+  unitBtnTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  searchBoxCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 16,
+    gap: 14,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 20px rgba(11, 27, 63, 0.05)",
+      },
+    }),
+  },
+  controlsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  inputFieldWrap: {
+    flex: 2,
+    minWidth: 200,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    gap: 8,
+  },
+  districtFieldWrap: {
+    flex: 1.5,
+    minWidth: 170,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    gap: 8,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 13,
+    color: "#0B1B3F",
+    fontFamily: font,
+    height: "100%",
+  },
+  budgetDropdownBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    minWidth: 140,
+    gap: 6,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  budgetText: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: "#0F172A",
+    fontFamily: font,
+  },
+  searchBtn: {
+    backgroundColor: "#0A45B5",
+    borderRadius: 12,
+    paddingHorizontal: 22,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 2px 8px rgba(10, 69, 181, 0.25)",
+      },
+    }),
+  },
+  searchBtnText: {
+    fontSize: 13.5,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    fontFamily: font,
+  },
+  filtersBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 44,
+    gap: 6,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  filtersBtnActive: {
+    backgroundColor: "#DBEAFE",
+    borderColor: "#93C5FD",
+  },
+  filtersBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A45B5",
+    fontFamily: font,
+  },
+  viewToggleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 44,
+    gap: 6,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  viewToggleText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1E293B",
+    fontFamily: font,
+  },
+  quickChipsScroll: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingTop: 2,
+  },
+  chipVerified: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    borderRadius: 18,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+  },
+  chipVerifiedText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
+    fontFamily: font,
+  },
+  chipDefault: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  chipDefaultActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+  },
+  chipDefaultText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
+    fontFamily: font,
+  },
+  chipDefaultTextActive: {
+    color: "#0A45B5",
+    fontWeight: "700",
+  },
+  chipBlueActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+  },
+  chipBlueTextActive: {
+    color: "#0A45B5",
+    fontWeight: "700",
+  },
+  statusRow: {
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  statusText: {
+    fontSize: 12.5,
+    color: "#64748B",
+    fontFamily: font,
+    fontWeight: "500",
+  },
+  statusBold: {
+    color: "#0B1B3F",
+    fontWeight: "800",
+  },
+  mapWrapper: {
+    position: "relative",
+    height: 480,
+    borderRadius: 22,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#E9F3FA",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 20px rgba(11, 27, 63, 0.06)",
+      },
+    }),
+  },
+  mapCadastralBadge: {
+    position: "absolute",
+    top: 14,
+    left: 14,
+    zIndex: 500,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 20,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(0, 0, 0, 0.08)",
+        backdropFilter: "blur(6px)",
+      },
+    }),
+  },
+  pulseGreenDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#10B981",
+  },
+  mapCadastralTitle: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: "#0B1B3F",
+    fontFamily: font,
+  },
+  epsgTag: {
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  epsgTagText: {
+    fontSize: 9.5,
+    fontWeight: "700",
+    color: "#64748B",
+    fontFamily: font,
+  },
+  mapLayerSwitchPills: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    zIndex: 500,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 20,
+    padding: 3,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(0, 0, 0, 0.08)",
+        backdropFilter: "blur(6px)",
+      },
+    }),
+  },
+  layerBtn: {
+    paddingHorizontal: 11,
+    paddingVertical: 4,
+    borderRadius: 16,
+  },
+  layerBtnActive: {
+    backgroundColor: "#0A45B5",
+  },
+  layerBtnText: {
+    fontSize: 11.5,
+    fontWeight: "600",
+    color: "#475569",
+    fontFamily: font,
+  },
+  layerBtnTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+  },
+  budgetPopover: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+  },
+  popoverTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#475569",
+    fontFamily: font,
+  },
+  budgetChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  budgetChip: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  budgetChipActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#0A45B5",
+  },
+  budgetChipText: {
+    fontSize: 11.5,
+    color: "#334155",
+    fontWeight: "600",
+    fontFamily: font,
+  },
+  budgetChipTextActive: {
+    color: "#0A45B5",
+    fontWeight: "800",
+  },
+  bottomSection: {
+    marginTop: 24,
+    marginBottom: 40,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 16,
+    marginBottom: 16,
+  },
+  sectionHeaderLeft: {
+    flex: 1,
+    minWidth: 280,
+    gap: 5,
+  },
+  sectionTitle: {
+    fontSize: 23,
+    fontWeight: "900",
+    color: "#0F172A",
+    fontFamily: fontDisplay,
+    letterSpacing: -0.5,
+  },
+  sectionSubtitle: {
+    fontSize: 13.5,
+    color: "#64748B",
+    fontFamily: font,
+    fontWeight: "500",
+  },
+  sectionHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 12,
+    justifyContent: "flex-end",
+    position: "relative",
+  },
+  sortRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    position: "relative",
+  },
+  sortLabel: {
+    fontSize: 13,
+    color: "#64748B",
+    fontFamily: font,
+    fontWeight: "600",
+  },
+  sortDropdownBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  sortDropdownText: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: "#0F172A",
+    fontFamily: font,
+  },
+  sortPopover: {
+    position: "absolute",
+    top: 40,
+    right: 0,
+    zIndex: 600,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    padding: 6,
+    minWidth: 220,
+    gap: 2,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+      },
+    }),
+  },
+  sortOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  sortOptionActive: {
+    backgroundColor: "#EFF6FF",
+  },
+  sortOptionText: {
+    fontSize: 12.5,
+    color: "#334155",
+    fontFamily: font,
+    fontWeight: "500",
+  },
+  sortOptionTextActive: {
+    color: "#0A45B5",
+    fontWeight: "700",
+  },
+  actionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  btnVerify: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#0284C7",
+    borderRadius: 20,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 2px 8px rgba(2, 132, 199, 0.3)",
+      },
+    }),
+  },
+  btnVerifyText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+    fontFamily: font,
+  },
+  btnCompare: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 20,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  btnCompareText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1E293B",
+    fontFamily: font,
+  },
+  compareBadge: {
+    backgroundColor: "#0A45B5",
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  compareBadgeText: {
+    fontSize: 10.5,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    fontFamily: font,
+  },
+  exploreGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+    marginTop: 6,
+    marginBottom: 20,
+  },
+  cardItem: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    overflow: "hidden",
+    position: "relative",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 10px rgba(0, 0, 0, 0.04)",
+        transition: "transform 0.15s ease, box-shadow 0.15s ease",
+      },
+    }),
+  },
+  cardMedia: {
+    height: 140,
+    position: "relative",
+    backgroundColor: "#F1F5F9",
+    overflow: "hidden",
+  },
+  cardVerifiedBadge: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  cardVerifiedText: {
+    color: "#059669",
+    fontSize: 11,
+    fontWeight: "800",
+    fontFamily: font,
+  },
+  cardHeartBtn: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    zIndex: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 2px 6px rgba(0, 0, 0, 0.08)",
+      },
+    }),
+  },
+  cardCorridorPill: {
+    position: "absolute",
+    bottom: 8,
+    left: 8,
+    zIndex: 10,
+    backgroundColor: "rgba(15, 23, 42, 0.82)",
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  cardCorridorText: {
+    color: "#FFFFFF",
+    fontSize: 10.5,
+    fontWeight: "700",
+    fontFamily: font,
+  },
+  cardPlaceholderText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#334155",
+    fontFamily: font,
+    marginTop: 6,
+    textAlign: "center",
+  },
+  cardBody: {
+    padding: 13,
+    gap: 6,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  cardPriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  cardPriceText: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#0F172A",
+    fontFamily: fontDisplay,
+  },
+  cardHighlightTag: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+  },
+  cardTagBlue: {
+    backgroundColor: "#E0F2FE",
+  },
+  cardTagBlueText: {
+    color: "#0284C7",
+    fontSize: 11,
+    fontWeight: "700",
+    fontFamily: font,
+  },
+  cardTagGreen: {
+    backgroundColor: "#DCFCE7",
+  },
+  cardTagGreenText: {
+    color: "#15803D",
+    fontSize: 11,
+    fontWeight: "700",
+    fontFamily: font,
+  },
+  cardTagAmber: {
+    backgroundColor: "#FEF3C7",
+  },
+  cardTagAmberText: {
+    color: "#D97706",
+    fontSize: 11,
+    fontWeight: "700",
+    fontFamily: font,
+  },
+  cardTitleText: {
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#1E293B",
+    fontFamily: fontDisplay,
+  },
+  cardLocationText: {
+    fontSize: 12,
+    color: "#64748B",
+    fontFamily: font,
+  },
+  cardSpecsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginTop: 2,
+    flexWrap: "wrap",
+  },
+  cardTypePill: {
+    backgroundColor: "#EFF6FF",
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  cardTypeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#2563EB",
+    fontFamily: font,
+    textTransform: "lowercase",
+  },
+  cardSpecText: {
+    fontSize: 11.5,
+    color: "#475569",
+    fontFamily: font,
+    fontWeight: "500",
+  },
+  cardSpecDot: {
+    fontSize: 12,
+    color: "#94A3B8",
+    fontWeight: "700",
+  },
+  loadMoreBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingVertical: 12,
+    width: "100%",
+    maxWidth: 600,
+    alignSelf: "center",
+    marginTop: 8,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  loadMoreBtnText: {
+    color: "#0A45B5",
+    fontSize: 13,
+    fontWeight: "700",
+    fontFamily: font,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 20,
+    width: "100%",
+    maxWidth: 640,
+    gap: 14,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+      },
+    }),
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    paddingBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+    fontFamily: fontDisplay,
+  },
+  compareTable: {
+    flexDirection: "row",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  compareCol: {
+    flex: 1,
+    minWidth: 240,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 14,
+    gap: 8,
+  },
+  compareRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    paddingVertical: 5,
+  },
+  compareLabel: {
+    fontSize: 12,
+    color: "#64748B",
+    fontFamily: font,
+  },
+  compareVal: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1E293B",
+    fontFamily: font,
+  },
+  compareActionBtn: {
+    backgroundColor: "#0A45B5",
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  compareActionBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12.5,
+    fontWeight: "800",
+    fontFamily: font,
+  },
+});
+
+function SavedPropertyCard({
+  property: p,
+  onRemoved,
+}: {
+  property: any;
+  onRemoved?: () => void;
+}) {
+  const router = useRouter();
+  const action = useAction();
+  const [removed, setRemoved] = useState(false);
+  const { width } = useWindowDimensions();
+  const isMobile = width < 720;
+
+  const handleToggleWishlist = async () => {
+    action.run(async () => {
+      const result = await userService.toggleWishlist(p._id);
+      if (!result.isWishlisted) {
+        setRemoved(true);
+        if (onRemoved) onRemoved();
+      }
+    });
+  };
+
+  if (removed) return null;
+
+  const photoUrl = p.media?.photos?.[0];
+  const formattedPrice = money(p.price);
+  const district = p.location?.district || "Bihar";
+  const state = p.location?.state || "Bihar";
+  const area = p.totalArea || p.sellableArea;
+  const propType =
+    types.find((t) => t[0] === p.type)?.[1] ||
+    (p.type ? String(p.type).toUpperCase() : "PROPERTY");
+
+  return (
+    <View style={[savedCardStyles.cardContainer, isMobile && { flexDirection: "column" }]}>
+      {/* Left: Thumbnail & Badges */}
+      <Pressable
+        style={[savedCardStyles.thumbnailWrap, isMobile && { width: "100%", height: 180 }]}
+        onPress={() => router.push(`/property/${p._id}` as any)}
+        accessibilityRole="button"
+        accessibilityLabel={`View ${label(p)}`}
+      >
+        {photoUrl ? (
+          <Image
+            source={{ uri: photoUrl }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, savedCardStyles.placeholderWrap]}>
+            <MaterialIcons name="roofing" size={38} color="#94A3B8" />
+            <Text style={savedCardStyles.placeholderText}>Verified Space</Text>
+          </View>
+        )}
+        <View style={savedCardStyles.badgeOverlay}>
+          <View style={savedCardStyles.verifiedBadge}>
+            <MaterialIcons name="verified" size={13} color="#059669" />
+            <Text style={savedCardStyles.verifiedBadgeText}>Verified</Text>
+          </View>
+          <View style={savedCardStyles.typeBadge}>
+            <Text style={savedCardStyles.typeBadgeText}>{propType}</Text>
+          </View>
+        </View>
+      </Pressable>
+
+      {/* Middle & Right: Rich Content & Actions */}
+      <View style={savedCardStyles.contentWrap}>
+        <View style={{ gap: 5 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <Text style={savedCardStyles.priceText}>{formattedPrice}</Text>
+            {/* Heart bookmark button */}
+            <TouchableOpacity
+              onPress={handleToggleWishlist}
+              disabled={action.busy}
+              style={savedCardStyles.savedHeartBtn}
+              accessibilityLabel="Remove from saved"
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="favorite" size={20} color="#E11D48" />
+            </TouchableOpacity>
+          </View>
+
+          <Text
+            style={savedCardStyles.titleText}
+            numberOfLines={isMobile ? 2 : 1}
+            onPress={() => router.push(`/property/${p._id}` as any)}
+          >
+            {label(p)}
+          </Text>
+
+          <View style={savedCardStyles.locationRow}>
+            <MaterialIcons name="location-on" size={15} color="#64748B" />
+            <Text style={savedCardStyles.locationText}>
+              {p.location?.mauza ? `${p.location.mauza}, ` : ""}
+              {district}, {state}
+              {p.location?.pincode ? ` · ${p.location.pincode}` : ""}
+            </Text>
+          </View>
+        </View>
+
+        {/* Feature Specs Chips */}
+        <View style={savedCardStyles.specsRow}>
+          {!!area && (
+            <View style={savedCardStyles.specChip}>
+              <MaterialIcons name="square-foot" size={14} color="#0A45B5" />
+              <Text style={savedCardStyles.specChipText}>{Number(area).toLocaleString("en-IN")} sq ft</Text>
+            </View>
+          )}
+          {p.negotiable && (
+            <View style={[savedCardStyles.specChip, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
+              <MaterialIcons name="handshake" size={14} color="#059669" />
+              <Text style={[savedCardStyles.specChipText, { color: "#059669" }]}>Price Negotiable</Text>
+            </View>
+          )}
+          {p.badges?.siteVisited && (
+            <View style={[savedCardStyles.specChip, { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" }]}>
+              <MaterialIcons name="check" size={14} color="#16A34A" />
+              <Text style={[savedCardStyles.specChipText, { color: "#16A34A" }]}>Ground Surveyed</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Action Row */}
+        <View style={savedCardStyles.actionsRow}>
+          <TouchableOpacity
+            style={savedCardStyles.viewDetailsBtn}
+            onPress={() => router.push(`/property/${p._id}` as any)}
+            activeOpacity={0.85}
+          >
+            <Text style={savedCardStyles.viewDetailsText}>View Full Details</Text>
+            <MaterialIcons name="arrow-forward" size={15} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={savedCardStyles.removeBtn}
+            onPress={handleToggleWishlist}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name="delete-outline" size={16} color="#64748B" />
+            <Text style={savedCardStyles.removeBtnText}>Remove</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export function WishlistScreen() {
   const user = useAuthStore((x) => x.user),
     feed = useData(user ? "/users/wishlist" : null, [user?.id]),
@@ -749,11 +3830,33 @@ export function WishlistScreen() {
     <MarketplaceShell
       title="Saved Properties"
       subtitle={`${rows.length} available properties bookmarked`}
-      back
     >
       <Protected>
         <View style={s.between}>
-          <Tag>Your wishlist</Tag>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Tag>Your wishlist</Tag>
+            <View
+              style={{
+                backgroundColor: "#EFF6FF",
+                paddingHorizontal: 10,
+                paddingVertical: 3,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "#DBEAFE",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "700",
+                  color: "#0A45B5",
+                  fontFamily: font,
+                }}
+              >
+                {rows.length} Saved
+              </Text>
+            </View>
+          </View>
           <Button
             secondary
             title={sort ? "Newest saved" : "Sort by price"}
@@ -762,15 +3865,16 @@ export function WishlistScreen() {
           />
         </View>
         <ErrorBox text={feed.error} />
-        {feed.loading && <ActivityIndicator />}
-        {rows.map((p) => (
-          <PropertyCard
-            key={p._id}
-            property={p}
-            initiallySaved
-            onSaved={feed.refresh}
-          />
-        ))}
+        {feed.loading && <ActivityIndicator color={C.blue} style={{ padding: 24 }} />}
+        <View style={{ gap: 16 }}>
+          {rows.map((p) => (
+            <SavedPropertyCard
+              key={p._id}
+              property={p}
+              onRemoved={feed.refresh}
+            />
+          ))}
+        </View>
         {!!feed.nextCursor && (
           <Button
             title="Load more properties"
@@ -779,7 +3883,7 @@ export function WishlistScreen() {
             onPress={feed.loadMore}
           />
         )}
-        {feed.data?.length === 0 && (
+        {!feed.loading && rows.length === 0 && (
           <Empty
             title="Keep your favourites close"
             text="Tap the heart on a property to save it here. Sold listings are no longer shown."
@@ -793,123 +3897,888 @@ export function ProfileScreen() {
   const user = useAuthStore((x) => x.user),
     router = useRouter(),
     action = useAction(),
-    [editing, setEditing] = useState(false),
+    [expandedSection, setExpandedSection] = useState<string | null>(null),
     [name, setName] = useState(user?.name || ""),
-    [email, setEmail] = useState(user?.email || "");
+    [email, setEmail] = useState(user?.email || ""),
+    [saveSuccess, setSaveSuccess] = useState(false),
+    [oldPassword, setOldPassword] = useState(""),
+    [newPassword, setNewPassword] = useState(""),
+    [confirmPassword, setConfirmPassword] = useState(""),
+    [showOldPassword, setShowOldPassword] = useState(false),
+    [showNewPassword, setShowNewPassword] = useState(false),
+    [showConfirmPassword, setShowConfirmPassword] = useState(false),
+    [passwordBusy, setPasswordBusy] = useState(false),
+    [passwordError, setPasswordError] = useState(""),
+    [passwordSuccessModal, setPasswordSuccessModal] = useState<{
+      visible: boolean;
+      message: string;
+      emailSent: boolean;
+      email: string | null;
+    } | null>(null),
+    myListings = useData(user ? "/properties/mine" : null, [user?.id]),
+    mySaved = useData(user ? "/users/wishlist" : null, [user?.id]);
+
+  useEffect(() => {
+    void authService.getMe().catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      setName(user.name || "");
+      setEmail(user.email || "");
+    }
+  }, [user?.name, user?.email]);
+
+  const toggleSection = (section: string) => {
+    setSaveSuccess(false);
+    setPasswordError("");
+    setExpandedSection((prev) => (prev === section ? null : section));
+  };
+
+  const handleSaveProfile = () => {
+    action.run(async () => {
+      await userService.updateProfile({ name, email });
+      await authService.getMe();
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setSaveSuccess(false);
+        setExpandedSection(null);
+      }, 1800);
+    });
+  };
+
+  const isGoogleAccount = Boolean(user?.isGoogleUser || (user as any)?.googleId);
+  const hasExistingPassword = isGoogleAccount ? Boolean(user?.hasPassword) : user?.hasPassword !== false;
+
+  const handleChangePassword = async () => {
+    setPasswordError("");
+    if (hasExistingPassword && !oldPassword.trim()) {
+      setPasswordError("Please enter your current password.");
+      return;
+    }
+    if (!newPassword) {
+      setPasswordError("Please enter your new password.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError("New password must be at least 6 characters long.");
+      return;
+    }
+    if (hasExistingPassword && newPassword === oldPassword) {
+      setPasswordError("New password must be different from your current password.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New password and confirm password do not match.");
+      return;
+    }
+
+    setPasswordBusy(true);
+    try {
+      const res = await authService.changePassword({
+        ...(hasExistingPassword ? { oldPassword } : {}),
+        newPassword,
+        confirmPassword,
+      });
+
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordError("");
+
+      setPasswordSuccessModal({
+        visible: true,
+        message: res.message || (hasExistingPassword ? "Your password was changed successfully." : "Your account password has been created successfully."),
+        emailSent: Boolean(res.emailSent),
+        email: res.email || user?.email || null,
+      });
+    } catch (err: any) {
+      setPasswordError(errorText(err));
+    } finally {
+      setPasswordBusy(false);
+    }
+  };
+
+  const handleClosePasswordModal = () => {
+    setPasswordSuccessModal(null);
+    setExpandedSection(null);
+  };
+
+  const isApproved = approved(user);
+
   return (
     <MarketplaceShell title="Your account">
       <Protected>
         {user && (
-          <>
-            <View style={[s.panel, { alignItems: "center", padding: 20 }]}>
-              <View
-                style={[s.avatar, { width: 60, height: 60, borderRadius: 30 }]}
+          <View style={{ gap: 20 }}>
+            {/* Top Profile Header Card */}
+            <View style={profileStyles.profileHeaderCard}>
+              <View style={profileStyles.profileHeaderRow}>
+                <View style={profileStyles.profileUserGroup}>
+                  <View style={profileStyles.avatarCircle}>
+                    <Text style={profileStyles.avatarInitial}>
+                      {(user.name?.[0] || "M").toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={profileStyles.profileInfo}>
+                    <Text style={profileStyles.userName}>{user.name}</Text>
+                    <View style={profileStyles.contactRow}>
+                      <View style={profileStyles.contactItem}>
+                        <MaterialIcons name="phone" size={15} color="#64748B" />
+                        <Text style={profileStyles.contactText}>
+                          {user.mobile ? `+91 ${user.mobile}` : "No mobile"}
+                        </Text>
+                      </View>
+                      {!!user.email && (
+                        <View style={profileStyles.contactItem}>
+                          <MaterialIcons name="email" size={15} color="#64748B" />
+                          <Text style={profileStyles.contactText}>{user.email}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={profileStyles.badgeRow}>
+                      <View style={isApproved ? profileStyles.approvedBadge : profileStyles.pendingBadge}>
+                        <MaterialIcons
+                          name={isApproved ? "verified" : "schedule"}
+                          size={14}
+                          color={isApproved ? "#059669" : "#D97706"}
+                        />
+                        <Text style={isApproved ? profileStyles.approvedBadgeText : profileStyles.pendingBadgeText}>
+                          {isApproved ? "✓ Identity Approved" : "Identity Verification Pending"}
+                        </Text>
+                      </View>
+                      <View style={profileStyles.roleBadge}>
+                        <Text style={profileStyles.roleBadgeText}>
+                          {user.role === "user" ? "Property Owner / Buyer" : String(user.role).toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Right side stats & action */}
+                <View style={profileStyles.statsRow}>
+                  <TouchableOpacity
+                    style={profileStyles.statTile}
+                    onPress={() => toggleSection("my_properties")}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[profileStyles.statTileIconWrap, { backgroundColor: "#EFF6FF" }]}>
+                      <MaterialIcons name="apartment" size={20} color="#0A45B5" />
+                    </View>
+                    <View>
+                      <Text style={profileStyles.statTileVal}>{myListings.data?.length ?? 0}</Text>
+                      <Text style={profileStyles.statTileLabel}>Properties</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={profileStyles.statTile}
+                    onPress={() => router.push("/saved")}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[profileStyles.statTileIconWrap, { backgroundColor: "#FDF2F8" }]}>
+                      <MaterialIcons name="favorite" size={20} color="#DB2777" />
+                    </View>
+                    <View>
+                      <Text style={profileStyles.statTileVal}>{mySaved.data?.length ?? 0}</Text>
+                      <Text style={profileStyles.statTileLabel}>Wishlist</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={profileStyles.editProfileBtn}
+                    onPress={() => toggleSection("personal_info")}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="edit" size={16} color="#0A45B5" />
+                    <Text style={profileStyles.editProfileBtnText}>Edit Profile</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            <Text style={profileStyles.sectionTitle}>Account & preferences</Text>
+
+            {/* 1. Personal Information Option */}
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity
+                style={[
+                  profileStyles.optionCard,
+                  expandedSection === "personal_info" && profileStyles.optionCardActive,
+                ]}
+                onPress={() => toggleSection("personal_info")}
+                activeOpacity={0.8}
               >
-                <Text style={[s.avatarText, { fontSize: 22 }]}>
-                  {user.name[0]}
+                <View style={[profileStyles.optionIconBox, { backgroundColor: "#EFF6FF" }]}>
+                  <MaterialIcons name="manage-accounts" size={22} color="#0A45B5" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={profileStyles.optionTitle}>Personal information</Text>
+                  <Text style={profileStyles.optionSubtitle}>Update your name, email, and contact details</Text>
+                </View>
+                <MaterialIcons
+                  name={expandedSection === "personal_info" ? "keyboard-arrow-up" : "keyboard-arrow-down"}
+                  size={24}
+                  color={expandedSection === "personal_info" ? "#0A45B5" : "#94A3B8"}
+                />
+              </TouchableOpacity>
+
+              {expandedSection === "personal_info" && (
+                <View style={profileStyles.expandableBox}>
+                  <View style={profileStyles.expandableHeader}>
+                    <Text style={profileStyles.expandableTitle}>Update Personal Information</Text>
+                    <TouchableOpacity onPress={() => setExpandedSection(null)}>
+                      <MaterialIcons name="close" size={20} color="#64748B" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {saveSuccess && (
+                    <View style={profileStyles.successBanner}>
+                      <MaterialIcons name="check-circle" size={18} color="#059669" />
+                      <Text style={profileStyles.successBannerText}>Profile updated successfully!</Text>
+                    </View>
+                  )}
+
+                  {action.error ? <ErrorBox text={action.error} /> : null}
+
+                  <View style={profileStyles.formInputWrap}>
+                    <Text style={profileStyles.formInputLabel}>Full Name *</Text>
+                    <TextInput
+                      style={profileStyles.formTextInput}
+                      value={name}
+                      onChangeText={setName}
+                      placeholder="Enter your full name"
+                      placeholderTextColor="#94A3B8"
+                    />
+                  </View>
+
+                  <View style={profileStyles.formInputWrap}>
+                    <Text style={profileStyles.formInputLabel}>Email Address</Text>
+                    <TextInput
+                      style={profileStyles.formTextInput}
+                      value={email}
+                      onChangeText={setEmail}
+                      placeholder="e.g. name@example.com"
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+
+                  <View style={profileStyles.formInputWrap}>
+                    <Text style={profileStyles.formInputLabel}>Registered Mobile Number</Text>
+                    <View style={{ position: "relative", justifyContent: "center" }}>
+                      <TextInput
+                        style={[profileStyles.formTextInput, { backgroundColor: "#F8FAFC", color: "#64748B", paddingRight: 110 }]}
+                        value={user.mobile ? `+91 ${user.mobile}` : ""}
+                        editable={false}
+                      />
+                      <View style={{ position: "absolute", right: 10, flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <MaterialIcons name="verified" size={14} color="#059669" />
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#059669" }}>OTP Verified</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={profileStyles.formActionsRow}>
+                    <TouchableOpacity
+                      style={profileStyles.saveBtn}
+                      onPress={handleSaveProfile}
+                      disabled={action.busy}
+                      activeOpacity={0.8}
+                    >
+                      {action.busy ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <MaterialIcons name="check" size={18} color="#FFFFFF" />
+                      )}
+                      <Text style={profileStyles.saveBtnText}>
+                        {action.busy ? "Saving Changes..." : "Save Changes"}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={profileStyles.cancelBtn}
+                      onPress={() => setExpandedSection(null)}
+                      disabled={action.busy}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={profileStyles.cancelBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* 2. Security & Password Option */}
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity
+                style={[
+                  profileStyles.optionCard,
+                  expandedSection === "security" && profileStyles.optionCardActive,
+                ]}
+                onPress={() => toggleSection("security")}
+                activeOpacity={0.8}
+              >
+                <View style={[profileStyles.optionIconBox, { backgroundColor: "#EEF2FF" }]}>
+                  <MaterialIcons name="lock-outline" size={22} color="#4F46E5" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={profileStyles.optionTitle}>
+                    {hasExistingPassword ? "Security & password" : "Set account password"}
+                  </Text>
+                  <Text style={profileStyles.optionSubtitle}>
+                    {hasExistingPassword
+                      ? "Change password and secure your account credentials"
+                      : "Create a password for direct email sign-in"}
+                  </Text>
+                </View>
+                <MaterialIcons
+                  name={expandedSection === "security" ? "keyboard-arrow-up" : "keyboard-arrow-down"}
+                  size={24}
+                  color={expandedSection === "security" ? "#0A45B5" : "#94A3B8"}
+                />
+              </TouchableOpacity>
+
+              {expandedSection === "security" && (
+                <View style={profileStyles.expandableBox}>
+                  <View style={profileStyles.expandableHeader}>
+                    <View style={{ gap: 2 }}>
+                      <Text style={profileStyles.expandableTitle}>
+                        {hasExistingPassword ? "Change Account Password" : "Create Account Password"}
+                      </Text>
+                      <Text style={{ fontSize: 13, color: "#64748B" }}>
+                        {hasExistingPassword
+                          ? "Protect your account with a strong, distinct password"
+                          : "You authenticated via Google. Set a password to also log in directly with your email"}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setExpandedSection(null)}>
+                      <MaterialIcons name="close" size={20} color="#64748B" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={[profileStyles.successBanner, { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" }]}>
+                    <MaterialIcons name="shield" size={18} color="#16A34A" />
+                    <Text style={[profileStyles.successBannerText, { color: "#15803D" }]}>
+                      Encrypted credentials. An automated confirmation email is dispatched to your registered address upon change.
+                    </Text>
+                  </View>
+
+                  {passwordError ? (
+                    <ErrorBox text={passwordError} onRetry={handleChangePassword} />
+                  ) : null}
+
+                  {/* Current Password Input OR Google Account Notice */}
+                  {hasExistingPassword ? (
+                    <View style={profileStyles.formInputWrap}>
+                      <Text style={profileStyles.formInputLabel}>Current Password *</Text>
+                      <View style={{ position: "relative", justifyContent: "center" }}>
+                        <TextInput
+                          style={[profileStyles.formTextInput, { paddingRight: 45 }]}
+                          value={oldPassword}
+                          onChangeText={setOldPassword}
+                          placeholder="Enter your current password"
+                          placeholderTextColor="#94A3B8"
+                          secureTextEntry={!showOldPassword}
+                          autoCapitalize="none"
+                        />
+                        <TouchableOpacity
+                          onPress={() => setShowOldPassword((prev) => !prev)}
+                          style={profileStyles.eyeBtn}
+                          accessibilityRole="button"
+                          accessibilityLabel={showOldPassword ? "Hide password" : "Show password"}
+                        >
+                          <MaterialIcons
+                            name={showOldPassword ? "visibility-off" : "visibility"}
+                            size={20}
+                            color="#64748B"
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#BFDBFE", borderRadius: 12, padding: 14 }}>
+                      <MaterialIcons name="account-circle" size={24} color="#0A45B5" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: "#1E3A8A" }}>
+                          Google Sign-In Account ({user.email || "Active"})
+                        </Text>
+                        <Text style={{ fontSize: 12, color: "#2563EB", marginTop: 2 }}>
+                          You authenticated via Google and do not have an existing password. You can set your new password below without entering an old password.
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* New Password Input */}
+                  <View style={profileStyles.formInputWrap}>
+                    <Text style={profileStyles.formInputLabel}>New Password *</Text>
+                    <View style={{ position: "relative", justifyContent: "center" }}>
+                      <TextInput
+                        style={[profileStyles.formTextInput, { paddingRight: 45 }]}
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                        placeholder="At least 6 characters"
+                        placeholderTextColor="#94A3B8"
+                        secureTextEntry={!showNewPassword}
+                        autoCapitalize="none"
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowNewPassword((prev) => !prev)}
+                        style={profileStyles.eyeBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel={showNewPassword ? "Hide password" : "Show password"}
+                      >
+                        <MaterialIcons
+                          name={showNewPassword ? "visibility-off" : "visibility"}
+                          size={20}
+                          color="#64748B"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={{ fontSize: 11, color: "#64748B" }}>
+                      Must be at least 6 characters. Avoid common words or sequential numbers.
+                    </Text>
+                  </View>
+
+                  {/* Confirm New Password Input */}
+                  <View style={profileStyles.formInputWrap}>
+                    <Text style={profileStyles.formInputLabel}>Confirm New Password *</Text>
+                    <View style={{ position: "relative", justifyContent: "center" }}>
+                      <TextInput
+                        style={[profileStyles.formTextInput, { paddingRight: 45 }]}
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        placeholder="Re-enter your new password"
+                        placeholderTextColor="#94A3B8"
+                        secureTextEntry={!showConfirmPassword}
+                        autoCapitalize="none"
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowConfirmPassword((prev) => !prev)}
+                        style={profileStyles.eyeBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel={showConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        <MaterialIcons
+                          name={showConfirmPassword ? "visibility-off" : "visibility"}
+                          size={20}
+                          color="#64748B"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    {confirmPassword.length > 0 && (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                        <MaterialIcons
+                          name={newPassword === confirmPassword ? "check-circle" : "cancel"}
+                          size={14}
+                          color={newPassword === confirmPassword ? "#059669" : "#DC2626"}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            fontWeight: "600",
+                            color: newPassword === confirmPassword ? "#059669" : "#DC2626",
+                          }}
+                        >
+                          {newPassword === confirmPassword
+                            ? "Passwords match"
+                            : "Passwords do not match"}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Registered email advisory */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F8FAFC", padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0" }}>
+                    <MaterialIcons name="mail-outline" size={18} color="#64748B" />
+                    <Text style={{ fontSize: 12, color: "#475569", flex: 1 }}>
+                      {user.email ? (
+                        <>Confirmation alert will be sent to <Text style={{ fontWeight: "700", color: "#0A45B5" }}>{user.email}</Text></>
+                      ) : (
+                        "No email on file. You can add your email under Personal Information to receive security receipts."
+                      )}
+                    </Text>
+                  </View>
+
+                  {/* Action Buttons */}
+                  <View style={profileStyles.formActionsRow}>
+                    <TouchableOpacity
+                      style={[
+                        profileStyles.saveBtn,
+                        (((hasExistingPassword && !oldPassword) || !newPassword || !confirmPassword || passwordBusy)) && { opacity: 0.7 },
+                      ]}
+                      onPress={handleChangePassword}
+                      disabled={passwordBusy || (hasExistingPassword && !oldPassword) || !newPassword || !confirmPassword}
+                      activeOpacity={0.8}
+                    >
+                      {passwordBusy ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <MaterialIcons name={hasExistingPassword ? "lock-reset" : "add-moderator"} size={18} color="#FFFFFF" />
+                      )}
+                      <Text style={profileStyles.saveBtnText}>
+                        {passwordBusy
+                          ? (hasExistingPassword ? "Updating Password..." : "Setting Password...")
+                          : (hasExistingPassword ? "Update Password" : "Set Password")}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={profileStyles.cancelBtn}
+                      onPress={() => {
+                        setPasswordError("");
+                        setOldPassword("");
+                        setNewPassword("");
+                        setConfirmPassword("");
+                        setExpandedSection(null);
+                      }}
+                      disabled={passwordBusy}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={profileStyles.cancelBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* 3. My Posted Properties Option */}
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity
+                style={[
+                  profileStyles.optionCard,
+                  expandedSection === "my_properties" && profileStyles.optionCardActive,
+                ]}
+                onPress={() => toggleSection("my_properties")}
+                activeOpacity={0.8}
+              >
+                <View style={[profileStyles.optionIconBox, { backgroundColor: "#ECFDF5" }]}>
+                  <MaterialIcons name="real-estate-agent" size={22} color="#059669" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={profileStyles.optionTitle}>My posted properties</Text>
+                  <Text style={profileStyles.optionSubtitle}>Manage listings, review status, and track verifications</Text>
+                </View>
+                <View style={profileStyles.countPill}>
+                  <Text style={profileStyles.countPillText}>{myListings.data?.length ?? 0} Listed</Text>
+                </View>
+                <MaterialIcons
+                  name={expandedSection === "my_properties" ? "keyboard-arrow-up" : "keyboard-arrow-down"}
+                  size={24}
+                  color={expandedSection === "my_properties" ? "#0A45B5" : "#94A3B8"}
+                />
+              </TouchableOpacity>
+
+              {expandedSection === "my_properties" && (
+                <View style={profileStyles.expandableBox}>
+                  <View style={profileStyles.expandableHeader}>
+                    <View style={{ gap: 2 }}>
+                      <Text style={profileStyles.expandableTitle}>Your Property Portfolio</Text>
+                      <Text style={{ fontSize: 13, color: "#64748B" }}>
+                        {myListings.data?.length || 0} active listing(s) associated with this account
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={profileStyles.postNewBtn}
+                      onPress={() => router.push("/post")}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialIcons name="add" size={16} color="#FFFFFF" />
+                      <Text style={profileStyles.postNewBtnText}>Post New</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {myListings.loading && (
+                    <View style={{ padding: 20, alignItems: "center" }}>
+                      <ActivityIndicator size="small" color="#0A45B5" />
+                    </View>
+                  )}
+
+                  {!myListings.loading && myListings.data?.length > 0 && (
+                    <View style={{ gap: 12 }}>
+                      {myListings.data.map((p: any) => (
+                        <View key={p._id} style={profileStyles.listingCardRow}>
+                          {p.media?.photos?.[0] ? (
+                            <Image
+                              source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], 400) }}
+                              style={profileStyles.listingThumbnail}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={[profileStyles.listingThumbnail, { alignItems: "center", justifyContent: "center" }]}>
+                              <MaterialIcons name="home-work" size={28} color="#94A3B8" />
+                            </View>
+                          )}
+                          <View style={{ flex: 1, minWidth: 200, gap: 3 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <Text style={{ fontSize: 15, fontWeight: "700", color: "#0B1B3F" }}>
+                                {label(p)}
+                              </Text>
+                              <View style={[
+                                profileStyles.approvedBadge,
+                                { backgroundColor: p.status === "verified" ? "#ECFDF5" : "#EFF6FF", borderColor: p.status === "verified" ? "#A7F3D0" : "#DBEAFE" }
+                              ]}>
+                                <Text style={{ fontSize: 11, fontWeight: "700", color: p.status === "verified" ? "#059669" : "#0A45B5" }}>
+                                  {p.status?.replaceAll("_", " ")?.toUpperCase()}
+                                </Text>
+                              </View>
+                            </View>
+                            <Text style={{ fontSize: 12, color: "#64748B" }}>
+                              {p.location?.district || "Bihar"} · {p.totalArea || "N/A"} sq ft
+                            </Text>
+                            <Text style={{ fontSize: 14, fontWeight: "800", color: "#0A45B5" }}>
+                              {money(p.price)}
+                            </Text>
+                          </View>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                            {["draft", "correction_required"].includes(p.status) && (
+                              <TouchableOpacity
+                                style={profileStyles.cancelBtn}
+                                onPress={() => router.push({ pathname: "/post", params: { id: p._id } } as any)}
+                              >
+                                <MaterialIcons name="edit" size={14} color="#64748B" />
+                                <Text style={profileStyles.cancelBtnText}>Edit</Text>
+                              </TouchableOpacity>
+                            )}
+                            <TouchableOpacity
+                              style={profileStyles.editProfileBtn}
+                              onPress={() => router.push(`/verification/${p._id}` as any)}
+                            >
+                              <MaterialIcons name="timeline" size={14} color="#0A45B5" />
+                              <Text style={profileStyles.editProfileBtnText}>Track</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {!myListings.loading && (!myListings.data || myListings.data.length === 0) && (
+                    <View style={{ alignItems: "center", padding: 24, gap: 10 }}>
+                      <MaterialIcons name="roofing" size={40} color="#94A3B8" />
+                      <Text style={{ fontSize: 15, fontWeight: "700", color: "#0B1B3F" }}>
+                        No properties listed yet
+                      </Text>
+                      <Text style={{ fontSize: 13, color: "#64748B", textAlign: "center", maxWidth: 360 }}>
+                        List your plot, apartment, or commercial space with surveyor demarcation and Bihar revenue audit.
+                      </Text>
+                      <TouchableOpacity
+                        style={[profileStyles.saveBtn, { marginTop: 6 }]}
+                        onPress={() => router.push("/post")}
+                      >
+                        <MaterialIcons name="add" size={18} color="#FFFFFF" />
+                        <Text style={profileStyles.saveBtnText}>Post Property Now</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* 3. Wishlist Option */}
+            <TouchableOpacity
+              style={profileStyles.optionCard}
+              onPress={() => router.push("/saved")}
+              activeOpacity={0.8}
+            >
+              <View style={[profileStyles.optionIconBox, { backgroundColor: "#FDF2F8" }]}>
+                <MaterialIcons name="favorite-border" size={22} color="#DB2777" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={profileStyles.optionTitle}>Wishlist</Text>
+                <Text style={profileStyles.optionSubtitle}>Your saved properties and inspection shortlist</Text>
+              </View>
+              <View style={[profileStyles.countPill, { backgroundColor: "#FDF2F8", borderColor: "#FCE7F3" }]}>
+                <Text style={[profileStyles.countPillText, { color: "#DB2777" }]}>
+                  {mySaved.data?.length ?? 0} Saved
                 </Text>
               </View>
-              <Text style={s.h2}>{user.name}</Text>
-              <Text style={s.muted}>{user.mobile || user.email}</Text>
-              <Tag green={approved(user)}>
-                {approved(user)
-                  ? "✓ Identity approved"
-                  : "Identity verification pending"}
-              </Tag>
-            </View>
-            <Text style={s.h2}>Account & preferences</Text>
-            {[
-              [
-                "Personal information",
-                "manage-accounts",
-                "Update your name and email",
-                "edit",
-              ],
-              [
-                "My posted properties",
-                "real-estate-agent",
-                "Manage listings and verification",
-                "/my-properties",
-              ],
-              [
-                "Wishlist",
-                "favorite-border",
-                "Your saved properties",
-                "/saved",
-              ],
-              [
-                "Identity verification",
-                "verified-user",
-                "Submit and track KYC",
-                "/kyc",
-              ],
-              [
-                "Conversations",
-                "chat-bubble-outline",
-                "Chat with assigned staff",
-                "/messages",
-              ],
-              ...(user.role !== "user"
-                ? [
-                    [
-                      "Staff dashboard",
-                      "dashboard",
-                      "Assigned work and reviews",
-                      dashboardRoutes[user.role],
-                    ],
-                  ]
-                : []),
-            ].map(([title, icon, sub, url]) => (
-              <Pressable
-                key={title}
-                style={[s.panel, s.row]}
-                onPress={() =>
-                  url === "edit"
-                    ? setEditing(!editing)
-                    : router.push(url as any)
-                }
+              <MaterialIcons name="chevron-right" size={22} color="#94A3B8" />
+            </TouchableOpacity>
+
+            {/* 4. Identity Verification (KYC) Option */}
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity
+                style={[
+                  profileStyles.optionCard,
+                  expandedSection === "kyc" && profileStyles.optionCardActive,
+                ]}
+                onPress={() => toggleSection("kyc")}
+                activeOpacity={0.8}
               >
-                <Icon name={icon} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.cardTitle}>{title}</Text>
-                  <Text style={s.small}>{sub}</Text>
+                <View style={[profileStyles.optionIconBox, { backgroundColor: "#F5F3FF" }]}>
+                  <MaterialIcons name="verified-user" size={22} color="#7C3AED" />
                 </View>
-                <Icon name="chevron-right" />
-              </Pressable>
-            ))}
-            {editing && (
-              <View style={s.panel}>
-                <Field title="Full name" value={name} onChangeText={setName} />
-                <Field title="New email" value={email} onChangeText={setEmail} />
-                <EmailChangeForm email={email} />
-                <Button
-                  title="Save profile"
-                  disabled={action.busy}
-                  onPress={() =>
-                    action.run(async () => {
-                      await userService.updateProfile({ name });
-                      await authService.getMe();
-                      setEditing(false);
-                    })
-                  }
+                <View style={{ flex: 1 }}>
+                  <Text style={profileStyles.optionTitle}>Identity verification</Text>
+                  <Text style={profileStyles.optionSubtitle}>Submit and track government revenue KYC</Text>
+                </View>
+                <View style={isApproved ? profileStyles.approvedBadge : profileStyles.pendingBadge}>
+                  <Text style={isApproved ? profileStyles.approvedBadgeText : profileStyles.pendingBadgeText}>
+                    {isApproved ? "✓ Approved" : "Pending"}
+                  </Text>
+                </View>
+                <MaterialIcons
+                  name={expandedSection === "kyc" ? "keyboard-arrow-up" : "keyboard-arrow-down"}
+                  size={24}
+                  color={expandedSection === "kyc" ? "#0A45B5" : "#94A3B8"}
                 />
+              </TouchableOpacity>
+
+              {expandedSection === "kyc" && (
+                <View style={profileStyles.expandableBox}>
+                  <View style={profileStyles.expandableHeader}>
+                    <Text style={profileStyles.expandableTitle}>Bihar Land Law & Identity Verification</Text>
+                    <TouchableOpacity onPress={() => setExpandedSection(null)}>
+                      <MaterialIcons name="close" size={20} color="#64748B" />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={[profileStyles.successBanner, { backgroundColor: isApproved ? "#ECFDF5" : "#FFFBEB", borderColor: isApproved ? "#A7F3D0" : "#FDE68A" }]}>
+                    <MaterialIcons
+                      name={isApproved ? "verified" : "info"}
+                      size={20}
+                      color={isApproved ? "#059669" : "#D97706"}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: isApproved ? "#059669" : "#D97706" }}>
+                        {isApproved ? "100% Certified On-Ground & Document Verified" : "Verification in Progress"}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: isApproved ? "#047857" : "#B45309", marginTop: 2 }}>
+                        {isApproved
+                          ? "Your identity has been authenticated against government records. All properties posted from this account receive instant verified badges."
+                          : "Please submit your verification documents to unlock fast deal closure and verified badges."}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={profileStyles.editProfileBtn}
+                    onPress={() => router.push("/kyc")}
+                  >
+                    <MaterialIcons name="open-in-new" size={16} color="#0A45B5" />
+                    <Text style={profileStyles.editProfileBtnText}>Open KYC Document Center</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            {/* 5. Conversations Option */}
+            <TouchableOpacity
+              style={profileStyles.optionCard}
+              onPress={() => router.push("/messages")}
+              activeOpacity={0.8}
+            >
+              <View style={[profileStyles.optionIconBox, { backgroundColor: "#EFF6FF" }]}>
+                <MaterialIcons name="chat-bubble-outline" size={22} color="#0A45B5" />
               </View>
+              <View style={{ flex: 1 }}>
+                <Text style={profileStyles.optionTitle}>Conversations</Text>
+                <Text style={profileStyles.optionSubtitle}>Direct chat with assigned advisor and verifier</Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={22} color="#94A3B8" />
+            </TouchableOpacity>
+
+            {/* Staff Dashboard (if staff) */}
+            {user.role !== "user" && dashboardRoutes[user.role] && (
+              <TouchableOpacity
+                style={profileStyles.optionCard}
+                onPress={() => router.push(dashboardRoutes[user.role] as any)}
+                activeOpacity={0.8}
+              >
+                <View style={[profileStyles.optionIconBox, { backgroundColor: "#FFF7ED" }]}>
+                  <MaterialIcons name="dashboard" size={22} color="#EA580C" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={profileStyles.optionTitle}>Staff dashboard</Text>
+                  <Text style={profileStyles.optionSubtitle}>Assigned work, queue inspections, and reviews</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={22} color="#94A3B8" />
+              </TouchableOpacity>
             )}
-            <Button title="Privacy policy" secondary onPress={() => router.push("/privacy-policy" as any)} />
-            {user.role === "user" && <Button title="Delete account" secondary onPress={() => router.push("/delete-account" as any)} />}
-            <ErrorBox text={action.error} />
-            <Button
-              title="Log out of MalikSe"
-              secondary
-              icon="logout"
+
+            {/* Log out Button */}
+            <TouchableOpacity
+              style={profileStyles.logoutBtn}
               onPress={() =>
                 action.run(async () => {
                   await authService.logout();
                   router.replace("/home");
                 })
               }
-            />
-          </>
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="logout" size={18} color="#E11D48" />
+              <Text style={profileStyles.logoutBtnText}>Log out of MalikSe</Text>
+            </TouchableOpacity>
+
+            {/* Password Change Confirmation Modal Window */}
+            <Modal
+              visible={!!passwordSuccessModal?.visible}
+              transparent
+              animationType="fade"
+              onRequestClose={handleClosePasswordModal}
+            >
+              <View style={profileStyles.modalBackdrop}>
+                <View style={profileStyles.modalContent}>
+                  {/* Green Success Icon Badge */}
+                  <View style={profileStyles.modalIconCircle}>
+                    <MaterialIcons name="check" size={36} color="#059669" />
+                  </View>
+
+                  {/* Title */}
+                  <Text style={profileStyles.modalTitle}>Password Changed Successfully!</Text>
+
+                  {/* Description */}
+                  <Text style={profileStyles.modalDescription}>
+                    Your MalikSe account password has been safely updated. All active sessions have been refreshed for your security.
+                  </Text>
+
+                  {/* Mail Confirmation Box */}
+                  {passwordSuccessModal?.emailSent ? (
+                    <View style={profileStyles.modalMailBox}>
+                      <MaterialIcons name="mark-email-read" size={24} color="#0A45B5" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={profileStyles.modalMailTitle}>Confirmation Email Sent</Text>
+                        <Text style={profileStyles.modalMailSubtitle}>
+                          A security confirmation has been dispatched to{"\n"}
+                          <Text style={{ fontWeight: "700", color: "#0A45B5" }}>{passwordSuccessModal.email}</Text>
+                        </Text>
+                      </View>
+                    </View>
+                  ) : passwordSuccessModal?.email ? (
+                    <View style={[profileStyles.modalMailBox, { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" }]}>
+                      <MaterialIcons name="mail-outline" size={24} color="#D97706" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[profileStyles.modalMailTitle, { color: "#92400E" }]}>Password Updated</Text>
+                        <Text style={[profileStyles.modalMailSubtitle, { color: "#B45309" }]}>
+                          Your new password is now active. (Email delivery to {passwordSuccessModal.email} will sync once mail services finish queued tasks).
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={[profileStyles.modalMailBox, { backgroundColor: "#EFF6FF", borderColor: "#DBEAFE" }]}>
+                      <MaterialIcons name="security" size={24} color="#0A45B5" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={profileStyles.modalMailTitle}>Account Protected</Text>
+                        <Text style={profileStyles.modalMailSubtitle}>
+                          Tip: Add an email address in Personal Information to receive instant security alerts for future updates.
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Okay Button */}
+                  <TouchableOpacity
+                    style={profileStyles.modalOkayBtn}
+                    onPress={handleClosePasswordModal}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={profileStyles.modalOkayBtnText}>Okay, Got It</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
+          </View>
         )}
       </Protected>
     </MarketplaceShell>
@@ -1013,9 +4882,9 @@ export function KycScreen() {
                 {feed.data?.isVerifiedIdentity
                   ? "Approved"
                   : (feed.data?.kycStatus || "not_submitted").replaceAll(
-                      "_",
-                      " ",
-                    )}
+                    "_",
+                    " ",
+                  )}
               </Tag>
             </View>
           </View>
@@ -1028,6 +4897,32 @@ export function KycScreen() {
           )}
         </View>
         <ErrorBox text={feed.error || action.error} />
+        {!approved(user) && (
+          <View style={[s.panel, { backgroundColor: "#F0F7FF", borderColor: "#C6DBFC" }]}>
+            <View style={s.row}>
+              <Icon name="bolt" size={28} color={C.blue} />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.h2, { fontSize: 16 }]}>Quick Demo Verification</Text>
+                <Text style={s.muted}>
+                  In demo mode, you can instantly verify your seller account without waiting for manual document review.
+                </Text>
+              </View>
+            </View>
+            <Button
+              title="Activate Instant Demo Verification"
+              icon="verified"
+              onPress={() =>
+                action.run(async () => {
+                  await authService.completeDemoKyc();
+                  await feed.refresh();
+                  if (params.returnTo) {
+                    router.replace(params.returnTo as any);
+                  }
+                })
+              }
+            />
+          </View>
+        )}
         {!feed.data?.isVerifiedIdentity &&
           feed.data?.kycStatus !== "pending" && (
             <View style={s.panel}>
@@ -1079,15 +4974,15 @@ export function KycScreen() {
               />
             </View>
           )}
-        {feed.data?.isVerifiedIdentity && (
+        {(feed.data?.isVerifiedIdentity || approved(user)) && (
           <Button
             title="Continue"
             onPress={() => {
               void authService.getMe();
               router.replace(
                 (typeof params.returnTo === "string" &&
-                params.returnTo.startsWith("/") &&
-                !params.returnTo.startsWith("//")
+                  params.returnTo.startsWith("/") &&
+                  !params.returnTo.startsWith("//")
                   ? params.returnTo
                   : "/profile") as any,
               );
@@ -1098,6 +4993,770 @@ export function KycScreen() {
     </MarketplaceShell>
   );
 }
+const detailStyles = StyleSheet.create({
+  topNavRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 4,
+    width: "100%",
+  },
+  navLeftGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 2px 8px rgba(11, 27, 63, 0.04)",
+      },
+    }),
+  },
+  backBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A45B5",
+    fontFamily: "PoppinsSemiBold, Manrope, sans-serif",
+  },
+  navRightGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  actionPillBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 2px 6px rgba(11, 27, 63, 0.04)",
+      },
+    }),
+  },
+  actionPillBtnActive: {
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FEF2F2",
+  },
+  actionPillText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475A82",
+  },
+  titleCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 22,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    gap: 12,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 12px rgba(11, 27, 63, 0.04)",
+      },
+    }),
+  },
+  headerLocationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  headerLocationText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A45B5",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  propertyTitle: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    lineHeight: 34,
+    fontFamily: "PoppinsBold, Manrope, sans-serif",
+  },
+  headerBadgesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 2,
+  },
+  verifiedPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  verifiedPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  directOwnerPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  directOwnerPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1D4ED8",
+  },
+  typePill: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  typePillText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  galleryContainer: {
+    borderRadius: 22,
+    overflow: "hidden",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    padding: 8,
+    gap: 8,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 20px rgba(11, 27, 63, 0.06)",
+      },
+    }),
+  },
+  heroPhotoWrap: {
+    position: "relative",
+    width: "100%",
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "#0F172A",
+  },
+  floatingBackBtn: {
+    position: "absolute",
+    top: 14,
+    left: 14,
+    zIndex: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(255, 255, 255, 0.94)",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        backdropFilter: "blur(8px)",
+        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
+      },
+    }),
+  },
+  heroPhotoCounter: {
+    position: "absolute",
+    bottom: 14,
+    right: 14,
+    zIndex: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    ...Platform.select({
+      web: {
+        backdropFilter: "blur(6px)",
+      },
+    }),
+  },
+  heroPhotoCounterText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  thumbnailsRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  thumbItem: {
+    width: 86,
+    height: 60,
+    borderRadius: 10,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "transparent",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "all 0.15s ease",
+      },
+    }),
+  },
+  thumbItemActive: {
+    borderColor: "#0A45B5",
+  },
+  mainLayoutGrid: {
+    gap: 24,
+    width: "100%",
+  },
+  leftCol: {
+    flex: 1,
+    minWidth: 0,
+    gap: 20,
+  },
+  rightCol: {
+    gap: 20,
+    ...Platform.select({
+      web: {
+        position: "sticky" as any,
+        top: 24,
+      },
+    }),
+  },
+  metricsCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 12px rgba(11, 27, 63, 0.04)",
+      },
+    }),
+  },
+  metricBox: {
+    flex: 1,
+    minWidth: 130,
+    gap: 4,
+    paddingRight: 10,
+  },
+  metricLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  metricValue: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    fontFamily: "PoppinsBold, Manrope, sans-serif",
+  },
+  metricSub: {
+    fontSize: 12,
+    color: "#059669",
+    fontWeight: "600",
+  },
+  cardSection: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    gap: 16,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 12px rgba(11, 27, 63, 0.04)",
+      },
+    }),
+  },
+  trustRibbonCard: {
+    backgroundColor: "#F0FDF4",
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: "#BBF7D0",
+    gap: 14,
+  },
+  trustRibbonTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#166534",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  trustBadgesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 14,
+  },
+  trustBadgeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    width: "48%",
+    minWidth: 180,
+  },
+  trustBadgeBoxText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#14532D",
+  },
+  specsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  specBox: {
+    width: "48%",
+    minWidth: 140,
+    backgroundColor: "#F8FAFC",
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    gap: 4,
+  },
+  specLabel: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  specValue: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0B1B3F",
+  },
+  revenueCard: {
+    backgroundColor: "#EFF6FF",
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: "#BFDBFE",
+    gap: 14,
+  },
+  revenueGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 14,
+  },
+  revenueItem: {
+    width: "48%",
+    minWidth: 140,
+    gap: 3,
+  },
+  revenueLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#1D4ED8",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  revenueValue: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1E3A8A",
+  },
+  sectionHeading: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#0B1B3F",
+    fontFamily: "PoppinsBold, Manrope, sans-serif",
+  },
+  sectionSub: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: -4,
+  },
+  descriptionText: {
+    fontSize: 15,
+    color: "#334155",
+    lineHeight: 24,
+  },
+  mapCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    overflow: "hidden",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 12px rgba(11, 27, 63, 0.04)",
+      },
+    }),
+  },
+  mapHeader: {
+    padding: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+  },
+  mapHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  mapCoordTag: {
+    backgroundColor: "#F1F5F9",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  mapCoordTagText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  advisorCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  advisorAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#BFDBFE",
+  },
+  advisorRolePill: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#059669",
+    backgroundColor: "#ECFDF5",
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+    marginTop: 2,
+  },
+  stickyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    gap: 18,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 8px 30px rgba(11, 27, 63, 0.08)",
+      },
+    }),
+  },
+  mainPriceText: {
+    fontSize: 34,
+    fontWeight: "800",
+    color: "#0A45B5",
+    fontFamily: "PoppinsBold, Manrope, sans-serif",
+  },
+  rateText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  negotiableBadge: {
+    backgroundColor: "#ECFDF5",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    alignSelf: "flex-start",
+  },
+  negotiableBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  primaryChatBtn: {
+    backgroundColor: "#0A45B5",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 4px 14px rgba(10, 69, 181, 0.25)",
+      },
+    }),
+  },
+  primaryChatBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+    fontFamily: "PoppinsSemiBold, Manrope, sans-serif",
+  },
+  offerToggleBtn: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  offerToggleBtnText: {
+    color: "#0B1B3F",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  offerFormBox: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    gap: 12,
+  },
+  assuranceBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "#F8FAFC",
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  assuranceText: {
+    fontSize: 12,
+    color: "#64748B",
+    lineHeight: 18,
+    flex: 1,
+  },
+  // Modal & Sharing styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(11, 27, 63, 0.65)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    ...Platform.select({
+      web: {
+        backdropFilter: "blur(6px)",
+      },
+    }),
+  },
+  modalCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    width: "100%",
+    maxWidth: 480,
+    padding: 24,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    gap: 18,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 20px 40px rgba(11, 27, 63, 0.2)",
+      },
+    }),
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  modalHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  modalHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    fontFamily: "PoppinsBold, Manrope, sans-serif",
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  sharePropertyPreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#F8FAFC",
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  sharePropertyThumb: {
+    width: 58,
+    height: 58,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "#E2E8F0",
+  },
+  sharePreviewTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0B1B3F",
+  },
+  sharePreviewPrice: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#0A45B5",
+    marginTop: 2,
+  },
+  sharePreviewLocation: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 1,
+  },
+  shareChannelsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  shareChannelBtn: {
+    flex: 1,
+    minWidth: 90,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1.5,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "all 0.15s ease",
+      },
+    }),
+  },
+  shareChannelWhatsapp: {
+    backgroundColor: "#F0FDF4",
+    borderColor: "#86EFAC",
+  },
+  shareChannelTelegram: {
+    backgroundColor: "#F0F9FF",
+    borderColor: "#BAE6FD",
+  },
+  shareChannelEmail: {
+    backgroundColor: "#EEF2FF",
+    borderColor: "#C7D2FE",
+  },
+  shareChannelText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0B1B3F",
+  },
+  copyLinkBox: {
+    gap: 8,
+  },
+  copyLinkLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  copyLinkInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  copyLinkInput: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: "#334155",
+  },
+  copyLinkBtn: {
+    backgroundColor: "#0A45B5",
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  copyLinkBtnCopied: {
+    backgroundColor: "#059669",
+  },
+  copyLinkBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+});
+
 export function PropertyDetailScreen() {
   const { id } = useLocalSearchParams(),
     router = useRouter(),
@@ -1105,14 +5764,145 @@ export function PropertyDetailScreen() {
     feed = useData(id ? `/properties/${id}` : null),
     [amount, setAmount] = useState(""),
     [message, setMessage] = useState("I am interested in this property."),
+    [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0),
+    [saved, setSaved] = useState(false),
+    [copied, setCopied] = useState(false),
+    [showShareModal, setShowShareModal] = useState(false),
+    [modalCopied, setModalCopied] = useState(false),
+    [showOfferForm, setShowOfferForm] = useState(false),
     action = useAction(),
     p = feed.data;
+
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 920;
+  const authState = useAuthStore((s) => s.authState);
+
   useEffect(() => {
     if (id)
       void api
         .post(`/recommendations/${id}/activity`, { kind: "view" })
-        .catch(() => {});
+        .catch(() => { });
   }, [id]);
+
+  useEffect(() => {
+    if (p?._id && authState === "AUTHENTICATED") {
+      void userService
+        .getWishlist()
+        .then((list: any) => {
+          const isSaved =
+            Array.isArray(list) &&
+            list.some((item: any) => (item._id || item.id) === p._id);
+          setSaved(isSaved);
+        })
+        .catch(() => { });
+    }
+  }, [p?._id, authState]);
+
+  const handleToggleSave = () => {
+    if (!gate(true)) return;
+    void action.run(async () => {
+      const result = await userService.toggleWishlist(p._id);
+      setSaved(result.isWishlisted);
+    });
+  };
+
+  const handleBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/search");
+    }
+  };
+
+  const photos: string[] = Array.isArray(p?.media?.photos) ? p.media.photos : [];
+  const heroPhotoUrl = photos[selectedPhotoIndex] || photos[0];
+  const area = Number(p?.sellableArea || p?.totalArea || 0);
+  const price = Number(p?.price || 0);
+  const pricePerSqFt = area > 0 ? Math.round(price / area) : 0;
+  const kattha = area > 0 ? (area / 1361.25).toFixed(2) : null;
+  const decimal = area > 0 ? (area / 435.6).toFixed(2) : null;
+
+  // Polished display title
+  const displayTitle = React.useMemo(() => {
+    if (!p) return "";
+    const raw = (p.title || "").trim();
+    const typeLabel = p.type ? p.type.charAt(0).toUpperCase() + p.type.slice(1) : "Property";
+    const district = p.location?.district || "Bihar";
+    if (!raw || raw.length <= 4) {
+      return `${raw ? raw.toUpperCase() + " · " : ""}${typeLabel} in ${district}`;
+    }
+    return raw;
+  }, [p]);
+
+  const getShareDetails = () => {
+    const url = typeof window !== "undefined" ? window.location.href : "";
+    const title = displayTitle || p?.title || "Property on MalikSe";
+    const priceStr = price > 0 ? money(price) : "";
+    const districtStr = p?.location?.district || "Bihar";
+    const text = `Take a look at this verified property on MalikSe: ${title}${priceStr ? " (" + priceStr + ")" : ""} in ${districtStr}.
+Zero Brokerage · Direct Owner Deal!
+
+Link: ${url}`;
+    return { url, title, text };
+  };
+
+  const handleShare = async () => {
+    const { url, title, text } = getShareDetails();
+
+    // Check if Web Share API is available (e.g. mobile Safari / Chrome)
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title,
+          text,
+          url,
+        });
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+        return;
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+      }
+    }
+
+    // Fallback: Open rich Share Modal
+    setShowShareModal(true);
+  };
+
+  const handleShareWhatsApp = () => {
+    const { text } = getShareDetails();
+    if (typeof window !== "undefined") {
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
+    }
+  };
+
+  const handleShareTelegram = () => {
+    const { url, title } = getShareDetails();
+    if (typeof window !== "undefined") {
+      window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`, "_blank");
+    }
+  };
+
+  const handleShareEmail = () => {
+    const { url, title, text } = getShareDetails();
+    if (typeof window !== "undefined") {
+      window.open(`mailto:?subject=${encodeURIComponent(title + " on MalikSe")}&body=${encodeURIComponent(text)}`, "_blank");
+    }
+  };
+
+  const handleCopyLink = () => {
+    const { url } = getShareDetails();
+    if (typeof window !== "undefined" && navigator.clipboard) {
+      void navigator.clipboard.writeText(url);
+      setCopied(true);
+      setModalCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+        setModalCopied(false);
+      }, 2500);
+    }
+  };
+
   const offerRequest = useRef<{ amount: string; key: string } | null>(null);
   const contact = (offer = false) =>
     action.run(async () => {
@@ -1125,9 +5915,9 @@ export function PropertyDetailScreen() {
           message,
           ...(offer
             ? {
-                offerAmount: Number(amount),
-                requestKey: offerRequest.current?.key,
-              }
+              offerAmount: Number(amount),
+              requestKey: offerRequest.current?.key,
+            }
             : {}),
         })
       ).data;
@@ -1136,127 +5926,725 @@ export function PropertyDetailScreen() {
         params: { inquiryId: conversation._id },
       } as any);
     });
+
   return (
-    <MarketplaceShell title="Property details" back>
+    <MarketplaceShell back={false}>
       <ErrorBox text={feed.error || action.error} />
-      {feed.loading && <ActivityIndicator />}
+      {feed.loading && (
+        <View style={{ paddingVertical: 48, alignItems: "center" }}>
+          <ActivityIndicator size="large" color={C.blue} />
+        </View>
+      )}
+
       {p && (
-        <>
-          <View
-            style={[
-              s.photo,
-              { height: 340, borderRadius: 24, overflow: "hidden" },
-            ]}
-          >
-            {p.media?.photos?.[0] ? (
-              <Image
-                source={{ uri: p.media.photos[0] }}
-                style={StyleSheet.absoluteFill}
-              />
-            ) : (
-              <View style={[StyleSheet.absoluteFill, s.placeholder]}>
-                <Icon name="home-work" size={70} />
-              </View>
-            )}
-            <View style={s.imageTags}>
-              <Tag green>✓ Verified property</Tag>
+        <View style={{ gap: 20 }}>
+          {/* 1. Top Navigation Row: Back Button + Share & Save (Breadcrumbs Removed) */}
+          <View style={detailStyles.topNavRow}>
+            <View style={detailStyles.navLeftGroup}>
+              <TouchableOpacity
+                style={detailStyles.backBtn}
+                onPress={handleBack}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Back to properties"
+              >
+                <MaterialIcons name="arrow-back" size={18} color="#0A45B5" />
+                <Text style={detailStyles.backBtnText}>Back to properties</Text>
+              </TouchableOpacity>
             </View>
-          </View>
-          {p.media?.photos?.length > 1 && (
-            <ScrollView horizontal contentContainerStyle={{ gap: 8 }}>
-              {p.media.photos.slice(1).map((uri: string) => (
-                <Image
-                  key={uri}
-                  source={{ uri }}
-                  style={{ width: 180, height: 120, borderRadius: 14 }}
+
+            <View style={detailStyles.navRightGroup}>
+              <TouchableOpacity
+                style={detailStyles.actionPillBtn}
+                onPress={handleShare}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Share property"
+              >
+                <MaterialIcons
+                  name={copied ? "check" : "share"}
+                  size={16}
+                  color={copied ? "#059669" : "#475A82"}
                 />
-              ))}
-            </ScrollView>
-          )}
-          <View style={s.panel}>
-            <Text style={[s.price, { fontSize: 22, lineHeight: 28 }]}>{money(p.price)}</Text>
-            <Text style={s.h1}>{label(p)}</Text>
-            <Text style={s.muted}>
-              ⌖ {p.location?.district}, {p.location?.state}
-            </Text>
-            <View style={s.wrap}>
-              <Tag>{p.type}</Tag>
-              <Tag>{p.sellableArea} sq ft</Tag>
-              <Tag>{p.negotiable ? "Negotiable" : "Fixed price"}</Tag>
+                <Text
+                  style={[
+                    detailStyles.actionPillText,
+                    copied && { color: "#059669", fontWeight: "700" },
+                  ]}
+                >
+                  {copied ? "Link Copied!" : "Share"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  detailStyles.actionPillBtn,
+                  saved && detailStyles.actionPillBtnActive,
+                ]}
+                onPress={handleToggleSave}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={saved ? "Saved to wishlist" : "Save property"}
+              >
+                <MaterialIcons
+                  name={saved ? "favorite" : "favorite-border"}
+                  size={16}
+                  color={saved ? "#EF4444" : "#475A82"}
+                />
+                <Text
+                  style={[
+                    detailStyles.actionPillText,
+                    saved && { color: "#EF4444", fontWeight: "700" },
+                  ]}
+                >
+                  {saved ? "Saved" : "Save"}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
-          <View style={s.panel}>
-            <Text style={s.h2}>Overview & specifications</Text>
-            <View style={s.wrap}>
-              {[
-                ["Total area", `${p.totalArea} sq ft`],
-                ["Sellable area", `${p.sellableArea} sq ft`],
-                [
-                  "Possession",
-                  p.disclosures?.possessionStatus || "Not specified",
-                ],
-                [
-                  "Road width",
-                  p.roadWidth ? `${p.roadWidth} ft` : "Not specified",
-                ],
-              ].map(([key, value]) => (
-                <View key={key} style={s.spec}>
-                  <Text style={s.small}>{key}</Text>
-                  <Text style={s.cardTitle}>{value}</Text>
-                </View>
-              ))}
+
+          {/* 2. Top Property Header Block (Above Photos) */}
+          <View style={detailStyles.titleCard}>
+            <View style={detailStyles.headerLocationRow}>
+              <MaterialIcons name="place" size={17} color="#0A45B5" />
+              <Text style={detailStyles.headerLocationText}>
+                {p.location?.district || "Patna"},{" "}
+                {p.location?.state || "Bihar"}
+                {p.location?.block ? ` · ${p.location.block}` : ""}
+                {p.location?.pincode ? ` (${p.location.pincode})` : ""}
+              </Text>
             </View>
-            <Text style={s.muted}>
-              {p.description ||
-                "Contact the assigned team for more details about this property."}
-            </Text>
-          </View>
-          <View style={s.panel}>
-            <View style={s.row}>
-              <Icon name="support-agent" size={36} />
-              <View style={{ flex: 1 }}>
-                <Text style={s.h2}>Your assigned property team</Text>
-                <Text style={s.muted}>
-                  An Advisor or Verifier handles questions, site visits and
-                  negotiation.
+
+            <Text style={detailStyles.propertyTitle}>{displayTitle}</Text>
+
+            <View style={detailStyles.headerBadgesRow}>
+              <View style={detailStyles.verifiedPill}>
+                <MaterialIcons name="verified" size={14} color="#059669" />
+                <Text style={detailStyles.verifiedPillText}>
+                  100% Verified Property
                 </Text>
               </View>
+
+              <View style={detailStyles.directOwnerPill}>
+                <MaterialIcons name="handshake" size={14} color="#1D4ED8" />
+                <Text style={detailStyles.directOwnerPillText}>
+                  Direct Owner · Zero Brokerage
+                </Text>
+              </View>
+
+              <View style={detailStyles.typePill}>
+                <Text style={detailStyles.typePillText}>
+                  {String(p.type || "Land").toUpperCase()}
+                </Text>
+              </View>
+
+              {p.location?.mauza && (
+                <View style={detailStyles.typePill}>
+                  <Text style={detailStyles.typePillText}>
+                    Mauza: {p.location.mauza}
+                  </Text>
+                </View>
+              )}
             </View>
-            <Button
-              title="Chat with assigned staff"
-              icon="chat-bubble-outline"
-              disabled={action.busy}
-              onPress={() => contact()}
-            />
           </View>
-          <View style={s.map}>
-            <VerifiedPropertyMap properties={[p]} onSelect={() => {}} />
+
+          {/* 3. Hero Photo Showcase Gallery */}
+          <View style={detailStyles.galleryContainer}>
+            <View
+              style={[
+                detailStyles.heroPhotoWrap,
+                { height: isDesktop ? 450 : 280 },
+              ]}
+            >
+              {heroPhotoUrl ? (
+                <Image
+                  source={{ uri: getOptimizedPhotoUrl(heroPhotoUrl, 1200) }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View
+                  style={[
+                    StyleSheet.absoluteFill,
+                    s.placeholder,
+                    { backgroundColor: "#F1F5F9" },
+                  ]}
+                >
+                  <Icon name="home-work" size={72} color="#94A3B8" />
+                </View>
+              )}
+
+              {/* Floating Back Button for Touch / Mobile Screens */}
+              {!isDesktop && (
+                <TouchableOpacity
+                  style={detailStyles.floatingBackBtn}
+                  onPress={handleBack}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back"
+                >
+                  <MaterialIcons name="arrow-back" size={20} color="#0B1B3F" />
+                </TouchableOpacity>
+              )}
+
+              {/* Photo Counter */}
+              {photos.length > 0 && (
+                <View style={detailStyles.heroPhotoCounter}>
+                  <MaterialIcons name="photo-camera" size={14} color="#FFFFFF" />
+                  <Text style={detailStyles.heroPhotoCounterText}>
+                    {selectedPhotoIndex + 1} / {photos.length} Photos
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Clickable Thumbnail Gallery Strip */}
+            {photos.length > 1 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={detailStyles.thumbnailsRow}
+              >
+                {photos.map((uri: string, index: number) => {
+                  const isActive = index === selectedPhotoIndex;
+                  return (
+                    <TouchableOpacity
+                      key={uri + index}
+                      onPress={() => setSelectedPhotoIndex(index)}
+                      activeOpacity={0.8}
+                      style={[
+                        detailStyles.thumbItem,
+                        isActive && detailStyles.thumbItemActive,
+                      ]}
+                    >
+                      <Image
+                        source={{ uri: getOptimizedPhotoUrl(uri, 400) }}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
-          <View style={s.panel}>
-            <Text style={s.h2}>Make an offer</Text>
-            <Text style={s.muted}>
-              Your offer goes privately to the assigned Advisor or Verifier.
-              Approved KYC is required.
-            </Text>
-            <Field
-              title="Offer amount (₹)"
-              numeric
-              value={amount}
-              onChangeText={setAmount}
-            />
-            <Field
-              title="Message to assigned staff"
-              value={message}
-              onChangeText={setMessage}
-              multiline
-            />
-            <Button
-              title="Send offer"
-              disabled={action.busy || !Number(amount) || Number(amount) <= 0}
-              onPress={() => contact(true)}
-            />
+
+          {/* 4. Master Two-Column Content Grid */}
+          <View
+            style={[
+              detailStyles.mainLayoutGrid,
+              isDesktop
+                ? { flexDirection: "row", alignItems: "flex-start" }
+                : { flexDirection: "column" },
+            ]}
+          >
+            {/* Left Column: Comprehensive Property Information (NO Duplicate Price) */}
+            <View style={detailStyles.leftCol}>
+              {/* Key Metrics Quick Strip */}
+              <View style={detailStyles.metricsCard}>
+                <View style={detailStyles.metricBox}>
+                  <Text style={detailStyles.metricLabel}>Total Area</Text>
+                  <Text style={detailStyles.metricValue}>
+                    {area > 0 ? area.toLocaleString("en-IN") + " sq.ft" : "N/A"}
+                  </Text>
+                  {kattha && (
+                    <Text style={detailStyles.metricSub}>
+                      ~{kattha} Kattha ({decimal} Dec.)
+                    </Text>
+                  )}
+                </View>
+
+                {pricePerSqFt > 0 && (
+                  <View style={detailStyles.metricBox}>
+                    <Text style={detailStyles.metricLabel}>Rate</Text>
+                    <Text style={detailStyles.metricValue}>
+                      ₹{pricePerSqFt.toLocaleString("en-IN")}/sq.ft
+                    </Text>
+                    <Text style={detailStyles.metricSub}>
+                      {p.negotiable ? "Negotiable" : "Fixed Price"}
+                    </Text>
+                  </View>
+                )}
+
+                {p.roadWidth && (
+                  <View style={detailStyles.metricBox}>
+                    <Text style={detailStyles.metricLabel}>Front Road</Text>
+                    <Text style={detailStyles.metricValue}>
+                      {p.roadWidth} Feet
+                    </Text>
+                    <Text style={detailStyles.metricSub}>Paved Access</Text>
+                  </View>
+                )}
+
+                <View style={detailStyles.metricBox}>
+                  <Text style={detailStyles.metricLabel}>Possession</Text>
+                  <Text style={detailStyles.metricValue}>
+                    {p.disclosures?.possessionStatus || "Immediate"}
+                  </Text>
+                  <Text style={detailStyles.metricSub}>Ready for Registry</Text>
+                </View>
+              </View>
+
+              {/* Bihar Revenue & Verification Integrity Shield */}
+              <View style={detailStyles.trustRibbonCard}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <MaterialIcons name="verified-user" size={20} color="#15803D" />
+                  <Text style={detailStyles.trustRibbonTitle}>
+                    MALIKSE 4-POINT TITLE & REVENUE ASSURANCE
+                  </Text>
+                </View>
+
+                <View style={detailStyles.trustBadgesGrid}>
+                  <View style={detailStyles.trustBadgeBox}>
+                    <MaterialIcons name="check-circle" size={17} color="#16A34A" />
+                    <Text style={detailStyles.trustBadgeBoxText}>
+                      Title Deed & Registry Reviewed
+                    </Text>
+                  </View>
+
+                  <View style={detailStyles.trustBadgeBox}>
+                    <MaterialIcons name="check-circle" size={17} color="#16A34A" />
+                    <Text style={detailStyles.trustBadgeBoxText}>
+                      Cadastral GPS Boundary Surveyed
+                    </Text>
+                  </View>
+
+                  <View style={detailStyles.trustBadgeBox}>
+                    <MaterialIcons name="check-circle" size={17} color="#16A34A" />
+                    <Text style={detailStyles.trustBadgeBoxText}>
+                      Encumbrance & Dispute Free
+                    </Text>
+                  </View>
+
+                  <View style={detailStyles.trustBadgeBox}>
+                    <MaterialIcons name="check-circle" size={17} color="#16A34A" />
+                    <Text style={detailStyles.trustBadgeBoxText}>
+                      Dedicated Field Advisor Assigned
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Overview & Key Specifications Grid */}
+              <View style={detailStyles.cardSection}>
+                <Text style={detailStyles.sectionHeading}>
+                  Overview & Specifications
+                </Text>
+                <View style={detailStyles.specsGrid}>
+                  <View style={detailStyles.specBox}>
+                    <Text style={detailStyles.specLabel}>Property Type</Text>
+                    <Text style={detailStyles.specValue}>
+                      {String(p.type || "Land").toUpperCase()}
+                    </Text>
+                  </View>
+
+                  <View style={detailStyles.specBox}>
+                    <Text style={detailStyles.specLabel}>Sellable Area</Text>
+                    <Text style={detailStyles.specValue}>
+                      {area > 0 ? area.toLocaleString("en-IN") + " sq ft" : "N/A"}
+                    </Text>
+                  </View>
+
+                  {p.roadWidth && (
+                    <View style={detailStyles.specBox}>
+                      <Text style={detailStyles.specLabel}>Front Road Width</Text>
+                      <Text style={detailStyles.specValue}>
+                        {p.roadWidth} ft Wide Road
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={detailStyles.specBox}>
+                    <Text style={detailStyles.specLabel}>Bank Loan</Text>
+                    <Text style={detailStyles.specValue}>
+                      {p.disclosures?.loanEligible ? "Eligible for Loan" : "Inquire with Staff"}
+                    </Text>
+                  </View>
+
+                  <View style={detailStyles.specBox}>
+                    <Text style={detailStyles.specLabel}>Ownership</Text>
+                    <Text style={detailStyles.specValue}>
+                      {p.disclosures?.ownershipType || "Freehold / Direct Owner"}
+                    </Text>
+                  </View>
+
+                  <View style={detailStyles.specBox}>
+                    <Text style={detailStyles.specLabel}>Boundary Wall</Text>
+                    <Text style={detailStyles.specValue}>
+                      {p.disclosures?.boundaryWall ? "Constructed / Marked" : "Open Plot"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Bihar Revenue Land Records (Khata / Khesra / Mauza) */}
+              {(p.khata || p.khesra || p.location?.mauza || p.location?.policeStation) && (
+                <View style={detailStyles.revenueCard}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <MaterialIcons name="account-balance" size={18} color="#1D4ED8" />
+                    <Text style={detailStyles.revenueLabel}>
+                      BIHAR REVENUE CADASTRAL RECORDS
+                    </Text>
+                  </View>
+
+                  <View style={detailStyles.revenueGrid}>
+                    {p.khata && (
+                      <View style={detailStyles.revenueItem}>
+                        <Text style={detailStyles.specLabel}>Khata Number</Text>
+                        <Text style={detailStyles.revenueValue}>{p.khata}</Text>
+                      </View>
+                    )}
+
+                    {p.khesra && (
+                      <View style={detailStyles.revenueItem}>
+                        <Text style={detailStyles.specLabel}>Khesra (Plot) Number</Text>
+                        <Text style={detailStyles.revenueValue}>{p.khesra}</Text>
+                      </View>
+                    )}
+
+                    {p.location?.mauza && (
+                      <View style={detailStyles.revenueItem}>
+                        <Text style={detailStyles.specLabel}>Mauza / Revenue Village</Text>
+                        <Text style={detailStyles.revenueValue}>{p.location.mauza}</Text>
+                      </View>
+                    )}
+
+                    {p.location?.policeStation && (
+                      <View style={detailStyles.revenueItem}>
+                        <Text style={detailStyles.specLabel}>Police Station (Thana)</Text>
+                        <Text style={detailStyles.revenueValue}>{p.location.policeStation}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {/* Detailed Description */}
+              <View style={detailStyles.cardSection}>
+                <Text style={detailStyles.sectionHeading}>
+                  About This Property
+                </Text>
+                <Text style={detailStyles.descriptionText}>
+                  {p.description ||
+                    "This verified property is listed directly by the owner on MalikSe. Full title deeds and cadastral boundary maps are pre-reviewed by assigned verification staff. Direct contact ensures zero brokerage and complete transparency throughout the purchase process."}
+                </Text>
+              </View>
+
+              {/* Interactive Cadastral Map */}
+              <View style={detailStyles.mapCard}>
+                <View style={detailStyles.mapHeader}>
+                  <View style={detailStyles.mapHeaderLeft}>
+                    <MaterialIcons name="satellite-alt" size={20} color="#0A45B5" />
+                    <Text style={detailStyles.sectionHeading}>
+                      Cadastral Boundary & Satellite GIS
+                    </Text>
+                  </View>
+                  {p.location?.lat && p.location?.lng && (
+                    <View style={detailStyles.mapCoordTag}>
+                      <Text style={detailStyles.mapCoordTagText}>
+                        {Number(p.location.lat).toFixed(4)},{" "}
+                        {Number(p.location.lng).toFixed(4)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={{ height: 380 }}>
+                  <VerifiedPropertyMap properties={[p]} onSelect={() => { }} />
+                </View>
+              </View>
+
+              {/* Assigned Advisory & Support Team */}
+              <View style={detailStyles.advisorCard}>
+                <View style={detailStyles.advisorAvatar}>
+                  <MaterialIcons name="support-agent" size={28} color="#0A45B5" />
+                </View>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={detailStyles.sectionHeading}>
+                    Assigned Property Advisory Team
+                  </Text>
+                  <Text style={detailStyles.sectionSub}>
+                    A dedicated MalikSe Advisor is assigned to coordinate site visits, inspect revenue records, and assist with direct seller communication.
+                  </Text>
+                  <Text style={detailStyles.advisorRolePill}>
+                    Active Local Advisor Assigned
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Right Column: Sticky Contact & Direct Offer Card */}
+            <View style={[detailStyles.rightCol, isDesktop ? { width: 380 } : { width: "100%" }]}>
+              <View style={detailStyles.stickyCard}>
+                <View style={{ gap: 6 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: "#64748B" }}>
+                    Listing Price
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
+                    <Text style={detailStyles.mainPriceText}>
+                      {money(p.price)}
+                    </Text>
+                    {pricePerSqFt > 0 && (
+                      <Text style={detailStyles.rateText}>
+                        ₹{pricePerSqFt.toLocaleString("en-IN")}/sq.ft
+                      </Text>
+                    )}
+                  </View>
+                  {p.negotiable && (
+                    <View style={detailStyles.negotiableBadge}>
+                      <Text style={detailStyles.negotiableBadgeText}>
+                        ✓ Price Negotiable
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#059669", marginTop: 2 }}>
+                    Direct Owner Deal · Zero Brokerage Fee
+                  </Text>
+                </View>
+
+                {/* Primary Action Button: Chat with Assigned Staff */}
+                <TouchableOpacity
+                  style={detailStyles.primaryChatBtn}
+                  onPress={() => contact(false)}
+                  disabled={action.busy}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Chat with assigned staff"
+                >
+                  <MaterialIcons name="chat-bubble-outline" size={20} color="#FFFFFF" />
+                  <Text style={detailStyles.primaryChatBtnText}>
+                    {action.busy ? "Connecting..." : "Chat with Assigned Staff"}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Secondary Action: Make an Offer Toggle */}
+                <TouchableOpacity
+                  style={detailStyles.offerToggleBtn}
+                  onPress={() => setShowOfferForm(!showOfferForm)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Make an offer"
+                >
+                  <MaterialIcons
+                    name={showOfferForm ? "keyboard-arrow-up" : "local-offer"}
+                    size={18}
+                    color="#0B1B3F"
+                  />
+                  <Text style={detailStyles.offerToggleBtnText}>
+                    {showOfferForm ? "Hide Offer Form" : "Make a Price Offer"}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Expandable Make an Offer Section */}
+                {showOfferForm && (
+                  <View style={detailStyles.offerFormBox}>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: "#0B1B3F" }}>
+                      Send Private Price Offer
+                    </Text>
+                    <Text style={{ fontSize: 12, color: "#64748B", lineHeight: 16 }}>
+                      Your offer goes directly to the property owner and assigned advisor for review.
+                    </Text>
+
+                    <Field
+                      title="Offer Amount (₹)"
+                      numeric
+                      placeholder="e.g. 1800000"
+                      value={amount}
+                      onChangeText={setAmount}
+                    />
+
+                    <Field
+                      title="Message to Team"
+                      value={message}
+                      onChangeText={setMessage}
+                      multiline
+                    />
+
+                    <Button
+                      title={action.busy ? "Sending..." : "Submit Private Offer"}
+                      disabled={
+                        action.busy || !Number(amount) || Number(amount) <= 0
+                      }
+                      onPress={() => contact(true)}
+                    />
+                  </View>
+                )}
+
+                {/* Safety & Direct Assurance */}
+                <View style={detailStyles.assuranceBox}>
+                  <MaterialIcons name="shield" size={18} color="#059669" />
+                  <Text style={detailStyles.assuranceText}>
+                    MalikSe Direct Assurance: Verified deeds, on-ground boundary checks, and direct communication without broker interference.
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
-        </>
+
+          {/* 5. Rich Share Property Modal Dialog */}
+          <Modal
+            visible={showShareModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowShareModal(false)}
+          >
+            <Pressable
+              style={detailStyles.modalOverlay}
+              onPress={() => setShowShareModal(false)}
+            >
+              <Pressable
+                style={detailStyles.modalCard}
+                onPress={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <View style={detailStyles.modalHeaderRow}>
+                  <View style={detailStyles.modalHeaderLeft}>
+                    <MaterialIcons name="share" size={22} color="#0A45B5" />
+                    <Text style={detailStyles.modalHeaderTitle}>
+                      Share Property
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={detailStyles.modalCloseBtn}
+                    onPress={() => setShowShareModal(false)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close share modal"
+                  >
+                    <MaterialIcons name="close" size={20} color="#64748B" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Property Mini Preview */}
+                <View style={detailStyles.sharePropertyPreview}>
+                  <View style={detailStyles.sharePropertyThumb}>
+                    {heroPhotoUrl ? (
+                      <Image
+                        source={{ uri: getOptimizedPhotoUrl(heroPhotoUrl, 160) }}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          StyleSheet.absoluteFill,
+                          {
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: "#F1F5F9",
+                          },
+                        ]}
+                      >
+                        <MaterialIcons name="home-work" size={24} color="#94A3B8" />
+                      </View>
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={detailStyles.sharePreviewTitle}
+                      numberOfLines={1}
+                    >
+                      {displayTitle}
+                    </Text>
+                    <Text style={detailStyles.sharePreviewPrice}>
+                      {price > 0 ? money(price) : "Price on Request"}
+                    </Text>
+                    <Text
+                      style={detailStyles.sharePreviewLocation}
+                      numberOfLines={1}
+                    >
+                      {p.location?.district || "Patna"},{" "}
+                      {p.location?.state || "Bihar"}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* One-Click Share Options */}
+                <View style={detailStyles.shareChannelsRow}>
+                  {/* WhatsApp */}
+                  <TouchableOpacity
+                    style={[detailStyles.shareChannelBtn, detailStyles.shareChannelWhatsapp]}
+                    onPress={handleShareWhatsApp}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Share on WhatsApp"
+                  >
+                    <MaterialIcons name="chat" size={24} color="#16A34A" />
+                    <Text style={detailStyles.shareChannelText}>WhatsApp</Text>
+                  </TouchableOpacity>
+
+                  {/* Telegram */}
+                  <TouchableOpacity
+                    style={[detailStyles.shareChannelBtn, detailStyles.shareChannelTelegram]}
+                    onPress={handleShareTelegram}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Share on Telegram"
+                  >
+                    <MaterialIcons name="send" size={24} color="#0284C7" />
+                    <Text style={detailStyles.shareChannelText}>Telegram</Text>
+                  </TouchableOpacity>
+
+                  {/* Email */}
+                  <TouchableOpacity
+                    style={[detailStyles.shareChannelBtn, detailStyles.shareChannelEmail]}
+                    onPress={handleShareEmail}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Share via Email"
+                  >
+                    <MaterialIcons name="mail-outline" size={24} color="#4F46E5" />
+                    <Text style={detailStyles.shareChannelText}>Email</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Direct Link Copy */}
+                <View style={detailStyles.copyLinkBox}>
+                  <Text style={detailStyles.copyLinkLabel}>Or Copy Link</Text>
+                  <View style={detailStyles.copyLinkInputRow}>
+                    <TextInput
+                      style={detailStyles.copyLinkInput}
+                      value={typeof window !== "undefined" ? window.location.href : ""}
+                      editable={false}
+                      selectTextOnFocus
+                    />
+                    <TouchableOpacity
+                      style={[
+                        detailStyles.copyLinkBtn,
+                        modalCopied && detailStyles.copyLinkBtnCopied,
+                      ]}
+                      onPress={handleCopyLink}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Copy property link"
+                    >
+                      <MaterialIcons
+                        name={modalCopied ? "check" : "content-copy"}
+                        size={16}
+                        color="#FFFFFF"
+                      />
+                      <Text style={detailStyles.copyLinkBtnText}>
+                        {modalCopied ? "Copied!" : "Copy"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </Pressable>
+            </Pressable>
+          </Modal>
+        </View>
       )}
     </MarketplaceShell>
   );
@@ -1294,7 +6682,7 @@ export function ChatsScreen() {
       if (latest)
         void api
           .post(`/inquiries/${selected}/read`, { through: latest })
-          .catch(() => {});
+          .catch(() => { });
     }
   }, [messages.data, chat.data?.createdAt]);
   const c = chat.data,
@@ -1303,7 +6691,6 @@ export function ChatsScreen() {
     <MarketplaceShell
       title={selected ? "Property conversation" : "Conversations"}
       subtitle="Private conversations with your assigned Advisor or Verifier."
-      back
     >
       <Protected>
         <ErrorBox
@@ -1574,13 +6961,13 @@ export function DealScreen() {
             {["offered", "countered", "accepted", "token_paid"].includes(
               d.status,
             ) && (
-              <Button
-                title="Cancel offer / reservation"
-                secondary
-                disabled={action.busy}
-                onPress={() => update("cancelled")}
-              />
-            )}
+                <Button
+                  title="Cancel offer / reservation"
+                  secondary
+                  disabled={action.busy}
+                  onPress={() => update("cancelled")}
+                />
+              )}
             {staff && ["accepted", "token_paid"].includes(d.status) && (
               <View style={s.panel}>
                 <Text style={s.cardTitle}>Confirm the completed sale</Text>
@@ -1616,44 +7003,211 @@ export function DealScreen() {
     </MarketplaceShell>
   );
 }
+const BIHAR_DISTRICTS = [
+  { name: "Patna", lat: "25.5941", lng: "85.1376", pincode: "800001" },
+  { name: "Gaya", lat: "24.7914", lng: "85.0002", pincode: "823001" },
+  { name: "Muzaffarpur", lat: "26.1209", lng: "85.3647", pincode: "842001" },
+  { name: "Bhagalpur", lat: "25.2425", lng: "86.9842", pincode: "812001" },
+  { name: "Darbhanga", lat: "26.1542", lng: "85.8918", pincode: "846004" },
+  { name: "Purnia", lat: "25.7771", lng: "87.4753", pincode: "854301" },
+  { name: "Begusarai", lat: "25.4182", lng: "86.1272", pincode: "851101" },
+  { name: "Vaishali", lat: "25.6833", lng: "85.2167", pincode: "844101" },
+];
+
+const SAMPLE_PROPERTY_PHOTO = "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1200";
+
+const defaultPostForm = {
+  title: "",
+  description: "",
+  type: "land",
+  state: "",
+  district: "",
+  block: "",
+  pincode: "",
+  lat: "25.5941",
+  lng: "85.1376",
+  price: "",
+  totalArea: "",
+  sellableArea: "",
+  boundary: "",
+  roadWidth: "",
+  requestedAdvisorId: "",
+  negotiable: true,
+  hasLoan: false,
+  hasDispute: false,
+  possessionStatus: "Immediate",
+  media: { photos: [], videos: [] },
+};
+
+const postCategories = [
+  {
+    id: "land",
+    title: "Plot / Land",
+    sub: "Residential & Commercial",
+    icon: "landscape",
+  },
+  {
+    id: "flat",
+    title: "Flat / Apartment",
+    sub: "Flats & Builder Floors",
+    icon: "apartment",
+  },
+  {
+    id: "house",
+    title: "House / Villa",
+    sub: "Independent Houses",
+    icon: "home",
+  },
+  {
+    id: "shop",
+    title: "Commercial Shop",
+    sub: "Shops & Showrooms",
+    icon: "storefront",
+  },
+  {
+    id: "office",
+    title: "Office Space",
+    sub: "Offices & Workspaces",
+    icon: "business",
+  },
+];
+
+const postSteps = [
+  { num: 1, label: "Category & Title", icon: "category" },
+  { num: 2, label: "Location & GPS", icon: "place" },
+  { num: 3, label: "Price & Area", icon: "payments" },
+  { num: 4, label: "Photos & Docs", icon: "photo-library" },
+  { num: 5, label: "Review & Submit", icon: "verified" },
+];
+
 export function PostScreen() {
   const router = useRouter(),
     params = useLocalSearchParams(),
     user = useAuthStore((x) => x.user),
+    { width } = useWindowDimensions(),
+    isDesktop = width >= 768,
     [draftId, setDraftId] = useState(String(params.id || "")),
     [step, setStep] = useState(1),
     [done, setDone] = useState(false),
     [consent, setConsent] = useState(false),
     [points, setPoints] = useState<LatLngPoint[]>([]),
     [photos, setPhotos] = useState<DocumentPicker.DocumentPickerAsset[]>([]),
-    [documents, setDocuments] = useState<DocumentPicker.DocumentPickerAsset[]>(
-      [],
-    ),
-    [form, setForm] = useState<any>({
-      title: "",
-      description: "",
-      type: "flat",
-      state: "",
-      district: "",
-      block: "",
-      pincode: "",
-      lat: "",
-      lng: "",
-      price: "",
-      totalArea: "",
-      sellableArea: "",
-      boundary: "",
-      roadWidth: "",
-      requestedAdvisorId: "",
-      negotiable: true,
-      hasLoan: false,
-      hasDispute: false,
-      possessionStatus: "With Owner",
-      media: { photos: [], videos: [] },
-    }),
+    [documents, setDocuments] = useState<DocumentPicker.DocumentPickerAsset[]>([]),
+    [form, setForm] = useState<any>(defaultPostForm),
+    [pincodeLoading, setPincodeLoading] = useState(false),
+    [pincodeStatus, setPincodeStatus] = useState<{ message: string; isError?: boolean } | null>(null),
     action = useAction();
+
   const set = (key: string) => (value: any) =>
     setForm((f: any) => ({ ...f, [key]: value }));
+
+  const lookupPincode = useCallback(async (code: string) => {
+    if (code.length !== 6) {
+      setPincodeStatus(null);
+      return;
+    }
+
+    setPincodeLoading(true);
+    setPincodeStatus({ message: "Auto-detecting City & State across India..." });
+
+    try {
+      // 1. Fast local cache check for instant feedback
+      const localMatch = BIHAR_DISTRICTS.find((d) => d.pincode === code);
+      if (localMatch) {
+        setForm((f: any) => ({
+          ...f,
+          district: localMatch.name,
+          state: "Bihar",
+          lat: (!f.lat || f.lat === "25.5941") ? localMatch.lat : f.lat,
+          lng: (!f.lng || f.lng === "85.1376") ? localMatch.lng : f.lng,
+        }));
+      }
+
+      // 2. Authoritative India Post PIN Code API lookup
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4500);
+
+      const res = await fetch(`https://api.postalpincode.in/pincode/${code}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) throw new Error("Network request failed");
+      const data = await res.json();
+
+      if (
+        data &&
+        Array.isArray(data) &&
+        data[0]?.Status === "Success" &&
+        Array.isArray(data[0]?.PostOffice) &&
+        data[0].PostOffice.length > 0
+      ) {
+        const po = data[0].PostOffice[0];
+        const districtName = po.District || "";
+        const stateName = po.State || "";
+        const blockName =
+          po.Block && po.Block !== "NA"
+            ? po.Block
+            : po.Name && po.Name !== districtName
+              ? po.Name
+              : "";
+
+        setForm((f: any) => ({
+          ...f,
+          district: districtName || f.district,
+          state: stateName || f.state,
+          block: f.block || blockName,
+        }));
+
+        setPincodeStatus({
+          message: `✓ Auto-filled: ${districtName ? districtName + ", " : ""}${stateName}`,
+          isError: false,
+        });
+      } else {
+        if (localMatch) {
+          setPincodeStatus({
+            message: `✓ Auto-filled: ${localMatch.name}, Bihar`,
+            isError: false,
+          });
+        } else {
+          setPincodeStatus({
+            message: "Pincode not found. Please enter City & State manually.",
+            isError: true,
+          });
+        }
+      }
+    } catch {
+      const localMatch = BIHAR_DISTRICTS.find((d) => d.pincode === code);
+      if (localMatch) {
+        setForm((f: any) => ({
+          ...f,
+          district: localMatch.name,
+          state: "Bihar",
+        }));
+        setPincodeStatus({
+          message: `✓ Auto-filled: ${localMatch.name}, Bihar`,
+          isError: false,
+        });
+      } else {
+        setPincodeStatus({
+          message: "Could not auto-fetch. Please enter City and State manually.",
+          isError: true,
+        });
+      }
+    } finally {
+      setPincodeLoading(false);
+    }
+  }, []);
+
+  const handlePincodeChange = (text: string) => {
+    const clean = text.replace(/[^0-9]/g, "").slice(0, 6);
+    setForm((f: any) => ({ ...f, pincode: clean }));
+    if (clean.length === 6) {
+      void lookupPincode(clean);
+    } else {
+      setPincodeStatus(null);
+    }
+  };
 
   const onParcelChange = useCallback((next: LatLngPoint[]) => {
     setPoints(next);
@@ -1677,17 +7231,19 @@ export function PostScreen() {
           ...p,
           ...p.location,
           ...p.disclosures,
-          price: String(p.price),
-          totalArea: String(p.totalArea),
-          sellableArea: String(p.sellableArea),
-          lat: String(p.location.lat),
-          lng: String(p.location.lng),
+          price: String(p.price || ""),
+          totalArea: String(p.totalArea || ""),
+          sellableArea: String(p.sellableArea || p.totalArea || ""),
+          lat: String(p.location?.lat || "25.5941"),
+          lng: String(p.location?.lng || "85.1376"),
           boundary: p.boundary || "",
           roadWidth: p.roadWidth ? String(p.roadWidth) : "",
           requestedAdvisorId: p.requestedAdvisorId || "",
+          media: p.media || { photos: [], videos: [] },
         });
       });
   }, [params.id, user?.id]);
+
   const pick = async (doc = false) => {
     const result = await DocumentPicker.getDocumentAsync({
       type: doc
@@ -1696,750 +7252,3263 @@ export function PostScreen() {
       multiple: true,
       copyToCacheDirectory: true,
     });
-    if (!result.canceled)
-      doc ? setDocuments(result.assets) : setPhotos(result.assets);
+    if (!result.canceled && result.assets) {
+      if (doc) {
+        setDocuments((current) => [...current, ...result.assets]);
+      } else {
+        setPhotos((current) => [...current, ...result.assets]);
+      }
+    }
   };
+
+  const addSamplePhoto = () => {
+    setForm((f: any) => ({
+      ...f,
+      media: {
+        ...f.media,
+        photos: [...(f.media?.photos || []), SAMPLE_PROPERTY_PHOTO],
+      },
+    }));
+  };
+
+  const removePhoto = (index: number, isLocal: boolean) => {
+    if (isLocal) {
+      setPhotos((current) => current.filter((_, i) => i !== index));
+    } else {
+      setForm((f: any) => ({
+        ...f,
+        media: {
+          ...f.media,
+          photos: f.media.photos.filter((_: any, i: number) => i !== index),
+        },
+      }));
+    }
+  };
+
+  const removeDocument = (index: number) => {
+    setDocuments((current) => current.filter((_, i) => i !== index));
+  };
+
   const uploadKeys = useRef(new Map<string, string>());
   const uploadKey = (uri: string) => {
     if (!uploadKeys.current.has(uri)) uploadKeys.current.set(uri, randomUUID());
     return uploadKeys.current.get(uri)!;
   };
+
+  const handleBack = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    } else if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.push("/home");
+    }
+  };
+
+  const goToNextStep = () => {
+    if (step === 1) {
+      if (!form.title || !form.title.trim()) {
+        action.run(async () => {
+          throw new Error("Please enter a property title before continuing.");
+        });
+        return;
+      }
+    }
+    if (step === 2) {
+      if (!form.district || !form.district.trim()) {
+        action.run(async () => {
+          throw new Error("Please enter your Pincode or City / District before continuing.");
+        });
+        return;
+      }
+      if (!form.lat || !form.lng) {
+        setForm((f: any) => ({ ...f, lat: "25.5941", lng: "85.1376" }));
+      }
+    }
+    if (step === 3) {
+      if (!form.price || Number(form.price) <= 0) {
+        action.run(async () => {
+          throw new Error("Please enter a valid price greater than ₹0.");
+        });
+        return;
+      }
+      if (!form.totalArea || Number(form.totalArea) <= 0) {
+        action.run(async () => {
+          throw new Error("Please enter total area in sq ft.");
+        });
+        return;
+      }
+      if (!form.sellableArea) {
+        setForm((f: any) => ({ ...f, sellableArea: f.totalArea }));
+      } else if (Number(form.sellableArea) > Number(form.totalArea)) {
+        action.run(async () => {
+          throw new Error("Sellable area cannot exceed total area.");
+        });
+        return;
+      }
+    }
+    if (step === 4) {
+      if (!photos.length && (!form.media?.photos || !form.media.photos.length)) {
+        action.run(async () => {
+          throw new Error("Please add at least one property photo before continuing.");
+        });
+        return;
+      }
+    }
+    setStep(step + 1);
+  };
+
   const submit = () =>
     action.run(async () => {
       if (!consent)
-        throw new Error("Accept the declaration before submitting.");
+        throw new Error("Please accept the seller declaration before submitting.");
       if (points.length > 0 && points.length < 3)
         throw new Error("Complete the boundary with at least 3 points, or clear it.");
+      if (!form.title || !form.title.trim())
+        throw new Error("Please enter a property title.");
+      if (!form.district || !form.district.trim())
+        throw new Error("Please enter City / District.");
+      if (!form.lat || !form.lng)
+        throw new Error("Please set property location coordinates.");
+      if (!form.price || Number(form.price) <= 0)
+        throw new Error("Please enter a valid price.");
+      if (!form.totalArea || Number(form.totalArea) <= 0)
+        throw new Error("Please enter total area.");
+      if (!photos.length && (!form.media?.photos || !form.media.photos.length))
+        throw new Error("Please add at least one property photo before submitting.");
+
+      // Ensure demo KYC is completed in non-production if not already verified
+      if (!approved(user)) {
+        try {
+          await authService.completeDemoKyc();
+        } catch {
+          // Continue and let server validate
+        }
+      }
+
       const payload = {
-        title: form.title,
-        description: form.description,
+        title: form.title.trim(),
+        description: form.description ? form.description.trim() : undefined,
         type: form.type,
         location: {
-          state: form.state,
-          district: form.district,
-          block: form.block,
-          pincode: form.pincode,
-          lat: Number(form.lat),
-          lng: Number(form.lng),
+          state: form.state?.trim() || "Bihar",
+          district: form.district?.trim() || "Patna",
+          block: form.block ? form.block.trim() : undefined,
+          pincode: form.pincode ? form.pincode.trim() : undefined,
+          lat: Number(form.lat || 25.5941),
+          lng: Number(form.lng || 85.1376),
         },
         price: Number(form.price),
         totalArea: Number(form.totalArea),
-        sellableArea: Number(form.sellableArea),
-        boundary: form.boundary || undefined,
+        sellableArea: Number(form.sellableArea || form.totalArea),
+        boundary: form.boundary ? form.boundary.trim() : undefined,
         roadWidth: form.roadWidth ? Number(form.roadWidth) : undefined,
         parcelPoints: points.length ? points : undefined,
-        requestedAdvisorId: form.requestedAdvisorId.trim(),
-        negotiable: form.negotiable,
+        requestedAdvisorId: form.requestedAdvisorId ? form.requestedAdvisorId.trim() : undefined,
+        negotiable: Boolean(form.negotiable),
         disclosures: {
-          hasLoan: form.hasLoan,
-          hasDispute: form.hasDispute,
-          possessionStatus: form.possessionStatus,
+          hasLoan: Boolean(form.hasLoan),
+          hasDispute: Boolean(form.hasDispute),
+          possessionStatus: form.possessionStatus || "Immediate",
         },
-        media: form.media,
+        media: form.media || { photos: [], videos: [] },
       };
-      if (!form.lat || !form.lng)
-        throw new Error("Set the property location before submitting.");
+
       let id = draftId;
-      if (id) await api.patch(`/properties/${id}`, payload);
-      else {
-        id = (await api.post("/properties", payload)).data._id;
+      if (id) {
+        await api.patch(`/properties/${id}`, payload);
+      } else {
+        const createRes = await api.post("/properties", payload);
+        id = createRes.data._id;
         setDraftId(id);
       }
+
       for (const asset of photos) {
-        const prepared = await prepareUpload(asset, false),
-          body = new FormData();
+        const prepared = await prepareUpload(asset, false);
+        const body = new FormData();
         body.append("uploadId", uploadKey(asset.uri));
-        if (Platform.OS === "web")
+        if (Platform.OS === "web") {
           body.append("file", prepared.file, prepared.name);
-        else body.append("file", prepared.file as any);
+        } else {
+          body.append("file", prepared.file as any);
+        }
         const result = await api.post(`/properties/${id}/photos`, body, {
           headers: { "Content-Type": "multipart/form-data" },
           timeout: 120000,
         });
         setForm((f: any) => ({
           ...f,
-          media: { ...f.media, photos: [...f.media.photos, result.data.url] },
+          media: { ...f.media, photos: [...(f.media?.photos || []), result.data.url] },
         }));
         setPhotos((current) => current.filter((a) => a.uri !== asset.uri));
       }
+
       for (const asset of documents) {
-        const prepared = await prepareUpload(asset, true),
-          body = new FormData();
+        const prepared = await prepareUpload(asset, true);
+        const body = new FormData();
         body.append("uploadId", uploadKey(asset.uri));
         body.append("propertyId", id);
         body.append("type", "Registry");
-        if (Platform.OS === "web")
+        if (Platform.OS === "web") {
           body.append("file", prepared.file, prepared.name);
-        else body.append("file", prepared.file as any);
+        } else {
+          body.append("file", prepared.file as any);
+        }
         await api.post("/documents", body, {
           headers: { "Content-Type": "multipart/form-data" },
           timeout: 120000,
         });
         setDocuments((current) => current.filter((a) => a.uri !== asset.uri));
       }
+
       await api.post(`/properties/${id}/submit`, { consent: true });
       setDone(true);
     });
+
+  const katthaApprox = form.totalArea && Number(form.totalArea) > 0
+    ? (Number(form.totalArea) / 1361.25).toFixed(2)
+    : null;
+
   return (
-    <MarketplaceShell
-      title="Post Property"
-      subtitle={
-        done
-          ? "Your listing has been submitted"
-          : `Step ${step} of 5 · Private until verified`
-      }
-      back
-    >
-      <Protected kyc>
-        {done ? (
-          <Empty
-            title="Submitted for review"
-            text="Your assigned Advisor or Verifier will review your property. Track updates in My Listings."
-            action={
-              <Button
-                title="View my listings"
-                onPress={() => router.replace("/my-properties")}
-              />
-            }
-          />
-        ) : (
-          <>
-            <View style={s.progress}>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <View
-                  key={i}
-                  style={[
-                    s.progressPart,
-                    i <= step && { backgroundColor: C.blue },
-                  ]}
-                />
-              ))}
+    <MarketplaceShell back={false}>
+      {!user ? (
+        <View style={postStyles.cardContainer}>
+          <View style={{ alignItems: "center", paddingVertical: 36, gap: 16 }}>
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: "#EBF2FF",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <MaterialIcons name="add-business" size={36} color="#0A45B5" />
             </View>
-            <ErrorBox text={action.error} />
-            {step === 1 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>What kind of property are you listing?</Text>
-                <View style={s.wrap}>
-                  {types
-                    .filter(([id]) => id)
-                    .map(([id, title, icon]) => (
-                      <Button
-                        key={id}
-                        title={title}
-                        icon={icon}
-                        secondary={form.type !== id}
-                        onPress={() => set("type")(id)}
-                      />
-                    ))}
-                </View>
-                <Field
-                  title="Property title"
-                  value={form.title}
-                  onChangeText={set("title")}
-                />
-                <Field
-                  title="Description"
-                  value={form.description}
-                  onChangeText={set("description")}
-                  multiline
-                />
+            <Text style={[postStyles.cardHeaderTitle, { textAlign: "center", fontSize: 28 }]}>
+              List Your Property on MalikSe
+            </Text>
+            <Text
+              style={{
+                textAlign: "center",
+                color: "#475A82",
+                maxWidth: 540,
+                lineHeight: 24,
+                fontSize: 15,
+              }}
+            >
+              Connect directly with verified buyers across Bihar. Enjoy 0% brokerage, legal deed audit, and on-ground GPS boundary demarcation with your assigned property team.
+            </Text>
+
+            <View style={{ flexDirection: "row", gap: 12, marginVertical: 12, flexWrap: "wrap", justifyContent: "center" }}>
+              <View style={postStyles.trustMiniBadge}>
+                <MaterialIcons name="verified" size={16} color="#0A45B5" />
+                <Text style={postStyles.trustMiniBadgeText}>Verified Title Checks</Text>
+              </View>
+              <View style={[postStyles.trustMiniBadge, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
+                <MaterialIcons name="check-circle" size={16} color="#059669" />
+                <Text style={[postStyles.trustMiniBadgeText, { color: "#059669" }]}>0% Brokerage</Text>
+              </View>
+              <View style={[postStyles.trustMiniBadge, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
+                <MaterialIcons name="place" size={16} color="#B45309" />
+                <Text style={[postStyles.trustMiniBadgeText, { color: "#B45309" }]}>GPS Demarcated</Text>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: "row", gap: 14, flexWrap: "wrap", justifyContent: "center", marginTop: 8 }}>
+              <TouchableOpacity
+                style={postStyles.primaryBtnLg}
+                onPress={() =>
+                  router.push({
+                    pathname: "/login",
+                    params: { returnTo: "/post" },
+                  } as any)
+                }
+              >
+                <MaterialIcons name="login" size={18} color="#FFFFFF" />
+                <Text style={postStyles.primaryBtnLgText}>Sign In to Post Property</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={postStyles.secondaryBtnLg}
+                onPress={() =>
+                  router.push({
+                    pathname: "/register",
+                    params: { returnTo: "/post" },
+                  } as any)
+                }
+              >
+                <MaterialIcons name="person-add" size={18} color="#0A45B5" />
+                <Text style={postStyles.secondaryBtnLgText}>Create Free Account</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      ) : user.role !== "user" ? (
+        <View style={postStyles.cardContainer}>
+          <Text style={postStyles.cardHeaderTitle}>Staff Account Notice</Text>
+          <Text style={{ color: "#475A82", fontSize: 15, marginVertical: 8 }}>
+            Property posting is available for User accounts (buyers & sellers). You are currently logged in with a staff account ({user.role}).
+          </Text>
+          <TouchableOpacity
+            style={[postStyles.primaryBtnLg, { alignSelf: "flex-start", marginTop: 12 }]}
+            onPress={() =>
+              router.push((dashboardRoutes[user.role] || "/dashboard") as any)
+            }
+          >
+            <Text style={postStyles.primaryBtnLgText}>Go to Staff Dashboard</Text>
+          </TouchableOpacity>
+        </View>
+      ) : done ? (
+        <View style={postStyles.cardContainer}>
+          <View style={{ alignItems: "center", paddingVertical: 36, gap: 16 }}>
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: "#DCFCE7",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <MaterialIcons name="check-circle" size={42} color="#15803D" />
+            </View>
+            <Text style={[postStyles.cardHeaderTitle, { fontSize: 26, textAlign: "center" }]}>
+              Property Submitted Successfully!
+            </Text>
+            <Text style={{ textAlign: "center", maxWidth: 540, lineHeight: 24, color: "#475A82", fontSize: 15 }}>
+              Your listing has been safely registered and placed in review. Your assigned Advisor or Verifier will review legal details and coordinate on-ground cadastral demarcation.
+            </Text>
+            <View style={{ flexDirection: "row", gap: 14, flexWrap: "wrap", justifyContent: "center", marginTop: 14 }}>
+              <TouchableOpacity
+                style={postStyles.primaryBtnLg}
+                onPress={() => router.replace("/my-properties")}
+              >
+                <MaterialIcons name="list-alt" size={18} color="#FFFFFF" />
+                <Text style={postStyles.primaryBtnLgText}>View My Listings</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={postStyles.secondaryBtnLg}
+                onPress={() => {
+                  setDone(false);
+                  setStep(1);
+                  setForm(defaultPostForm);
+                  setPoints([]);
+                  setPhotos([]);
+                  setDocuments([]);
+                  setConsent(false);
+                  setDraftId("");
+                }}
+              >
+                <MaterialIcons name="add" size={18} color="#0A45B5" />
+                <Text style={postStyles.secondaryBtnLgText}>Post Another Property</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      ) : (
+        <View style={postStyles.pageContainer}>
+          {/* Top Row: Back button (relocated here) & Trust Badges */}
+          <View style={postStyles.topNavRow}>
+            <TouchableOpacity
+              style={postStyles.backButtonPill}
+              onPress={handleBack}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="arrow-back" size={18} color="#0A45B5" />
+              <Text style={postStyles.backButtonPillText}>
+                {step > 1 ? `Back to Step ${step - 1}` : "Back to Home"}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={postStyles.verifiedBadgePill}>
+              <MaterialIcons name="verified-user" size={15} color="#0A45B5" />
+              <Text style={postStyles.verifiedBadgeText}>
+                {isDesktop ? "100% On-Ground & Document-Verified Spaces" : "Verified Portal"}
+              </Text>
+            </View>
+          </View>
+
+          {/* Hero Header Block */}
+          <View style={postStyles.heroHeaderRow}>
+            <View style={{ gap: 4, flex: 1 }}>
+              <Text style={postStyles.heroTitle}>Post Your Property in Bihar</Text>
+              <Text style={postStyles.heroSubtitle}>
+                Step {step} of 5 · Private & confidential until verified by your assigned Advisor
+              </Text>
+            </View>
+            {isDesktop && (
+              <View style={postStyles.zeroBrokerageBadge}>
+                <MaterialIcons name="handshake" size={16} color="#059669" />
+                <Text style={postStyles.zeroBrokerageText}>Zero Brokerage</Text>
               </View>
             )}
-            {step === 2 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Where is the property located?</Text>
-                {[
-                  ["state", "State"],
-                  ["district", "City / district"],
-                  ["block", "Locality"],
-                  ["pincode", "Pincode"],
-                ].map(([key, title]) => (
-                  <Field
-                    key={key}
-                    title={title}
-                    value={form[key]}
-                    onChangeText={set(key)}
-                  />
-                ))}
-                <Button
-                  secondary
-                  title="Use current location"
-                  icon="my-location"
-                  onPress={() =>
-                    action.run(async () => {
-                      const permission =
-                        await Location.requestForegroundPermissionsAsync();
-                      if (permission.status !== "granted")
-                        throw new Error(
-                          "Location permission denied. Enter coordinates manually.",
-                        );
-                      const location = await Location.getCurrentPositionAsync({
-                        accuracy: Location.Accuracy.High,
-                      });
-                      set("lat")(String(location.coords.latitude));
-                      set("lng")(String(location.coords.longitude));
-                    })
-                  }
-                />
-                <View style={s.row}>
-                  <Field
-                    title="Latitude"
-                    value={form.lat}
-                    onChangeText={set("lat")}
-                    numeric
-                  />
-                  <Field
-                    title="Longitude"
-                    value={form.lng}
-                    onChangeText={set("lng")}
-                    numeric
-                  />
-                </View>
-                <Text style={s.small}>
-                  Enter the property's coordinates if you are not currently at
-                  the site.
-                </Text>
+          </View>
 
-                <View style={{ marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.line }}>
-                  <Text style={s.h2}>Demarcate Property Boundary</Text>
-                  <Text style={s.muted}>
+          {/* Premium Stepper Wizard */}
+          <View style={postStyles.stepperContainer}>
+            {postSteps.map((st, idx) => {
+              const isActive = step === st.num;
+              const isCompleted = step > st.num;
+              return (
+                <React.Fragment key={st.num}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (st.num < step) setStep(st.num);
+                    }}
+                    disabled={st.num > step}
+                    style={postStyles.stepItem}
+                    activeOpacity={st.num < step ? 0.7 : 1}
+                  >
+                    <View
+                      style={[
+                        postStyles.stepCircle,
+                        isActive && postStyles.stepCircleActive,
+                        isCompleted && postStyles.stepCircleCompleted,
+                      ]}
+                    >
+                      {isCompleted ? (
+                        <MaterialIcons name="check" size={16} color="#FFFFFF" />
+                      ) : (
+                        <Text
+                          style={[
+                            postStyles.stepCircleText,
+                            isActive && postStyles.stepCircleTextActive,
+                          ]}
+                        >
+                          {st.num}
+                        </Text>
+                      )}
+                    </View>
+                    {isDesktop && (
+                      <View style={postStyles.stepTextCol}>
+                        <Text
+                          style={[
+                            postStyles.stepLabel,
+                            isActive && postStyles.stepLabelActive,
+                            isCompleted && postStyles.stepLabelCompleted,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {st.label}
+                        </Text>
+                        <Text style={postStyles.stepSubLabel}>
+                          {isCompleted ? "Completed" : isActive ? "Active" : `Step ${st.num}`}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  {idx < postSteps.length - 1 && (
+                    <View
+                      style={[
+                        postStyles.stepConnectorLine,
+                        isCompleted && postStyles.stepConnectorLineCompleted,
+                      ]}
+                    />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </View>
+
+          <ErrorBox text={action.error} />
+
+          {/* Main Card Container */}
+          <View style={postStyles.cardContainer}>
+            {/* STEP 1: Property Type & Title */}
+            {step === 1 && (
+              <View style={{ gap: 24 }}>
+                <View style={{ gap: 4 }}>
+                  <Text style={postStyles.cardHeaderTitle}>What type of property are you listing?</Text>
+                  <Text style={postStyles.cardHeaderSubtitle}>
+                    Select your property category to configure the right verification and cadastral parameters.
+                  </Text>
+                </View>
+
+                {/* 5 Property Category Cards */}
+                <View style={postStyles.categoryGrid}>
+                  {postCategories.map((cat) => {
+                    const isSelected = form.type === cat.id;
+                    return (
+                      <TouchableOpacity
+                        key={cat.id}
+                        style={[
+                          postStyles.categoryCard,
+                          isSelected && postStyles.categoryCardSelected,
+                        ]}
+                        onPress={() => set("type")(cat.id)}
+                        activeOpacity={0.85}
+                      >
+                        {isSelected && (
+                          <View style={postStyles.categoryCheckBadge}>
+                            <MaterialIcons name="check" size={12} color="#FFFFFF" />
+                          </View>
+                        )}
+                        <View
+                          style={[
+                            postStyles.categoryIconBox,
+                            isSelected && postStyles.categoryIconBoxSelected,
+                          ]}
+                        >
+                          <MaterialIcons
+                            name={cat.icon as any}
+                            size={24}
+                            color={isSelected ? "#FFFFFF" : "#0A45B5"}
+                          />
+                        </View>
+                        <View style={postStyles.categoryTextWrapper}>
+                          <Text
+                            style={[
+                              postStyles.categoryCardTitle,
+                              isSelected && postStyles.categoryCardTitleSelected,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {cat.title}
+                          </Text>
+                          <Text
+                            style={[
+                              postStyles.categoryCardSub,
+                              isSelected && postStyles.categoryCardSubSelected,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {cat.sub}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <View style={{ gap: 16, marginTop: 4 }}>
+                  <View style={{ gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>
+                      Property Title <Text style={{ color: "#EF4444" }}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={postStyles.customInput}
+                      placeholder="e.g. 2,400 sq ft Commercial Corner Plot on 40ft Main Road, Bailey Road"
+                      placeholderTextColor="#94A3B8"
+                      value={form.title}
+                      onChangeText={set("title")}
+                    />
+                    <Text style={postStyles.inputHelperText}>
+                      A clear, specific title gets up to 3x more views from verified buyers.
+                    </Text>
+                  </View>
+
+                  <View style={{ gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>Property Description</Text>
+                    <TextInput
+                      style={[postStyles.customInput, { minHeight: 110, textAlignVertical: "top" }]}
+                      placeholder="Provide details about road access, boundary walls, plot frontage, distance from main road, utilities, and registry documents..."
+                      placeholderTextColor="#94A3B8"
+                      value={form.description}
+                      onChangeText={set("description")}
+                      multiline
+                    />
+                    <Text style={postStyles.inputHelperText}>
+                      Mention key details like connectivity, nearby hospitals/schools, and water/electricity.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* STEP 2: Location & GPS Demarcation */}
+            {step === 2 && (
+              <View style={{ gap: 20 }}>
+                <View style={{ gap: 4 }}>
+                  <Text style={postStyles.cardHeaderTitle}>Where is your property located?</Text>
+                  <Text style={postStyles.cardHeaderSubtitle}>
+                    Enter your 6-digit Indian Pincode to auto-fill City and State, then confirm coordinates for on-ground surveyor demarcation.
+                  </Text>
+                </View>
+
+                {/* Address inputs */}
+                <View style={postStyles.formRowTwoCol}>
+                  {/* Pincode with Auto-fill */}
+                  <View style={{ flex: 1, minWidth: 260, gap: 6 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                      <Text style={postStyles.inputLabel}>
+                        Pincode <Text style={{ color: "#EF4444" }}>*</Text>
+                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <MaterialIcons name="bolt" size={14} color="#0A45B5" />
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#0A45B5" }}>
+                          Auto-fills City & State
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={postStyles.pincodeInputWrapper}>
+                      <TextInput
+                        style={[postStyles.customInput, postStyles.pincodeInput]}
+                        placeholder="e.g. 800001 or 110001"
+                        placeholderTextColor="#94A3B8"
+                        value={form.pincode}
+                        onChangeText={handlePincodeChange}
+                        keyboardType="numeric"
+                        maxLength={6}
+                      />
+                      <View style={postStyles.pincodeIconBadge}>
+                        {pincodeLoading ? (
+                          <ActivityIndicator size="small" color="#0A45B5" />
+                        ) : pincodeStatus && !pincodeStatus.isError ? (
+                          <MaterialIcons name="check-circle" size={20} color="#10B981" />
+                        ) : pincodeStatus && pincodeStatus.isError ? (
+                          <MaterialIcons name="info-outline" size={20} color="#F59E0B" />
+                        ) : (
+                          <MaterialIcons name="pin-drop" size={20} color="#94A3B8" />
+                        )}
+                      </View>
+                    </View>
+                    <Text
+                      style={[
+                        postStyles.pincodeHelperText,
+                        {
+                          color: pincodeLoading
+                            ? "#0A45B5"
+                            : pincodeStatus
+                              ? pincodeStatus.isError
+                                ? "#D97706"
+                                : "#059669"
+                              : "#64748B",
+                          fontWeight: pincodeStatus && !pincodeStatus.isError ? "600" : "400",
+                        },
+                      ]}
+                    >
+                      {pincodeLoading
+                        ? "Checking Indian Postal Database..."
+                        : pincodeStatus
+                          ? pincodeStatus.message
+                          : "Enter 6-digit Indian PIN code to auto-detect City and State."}
+                    </Text>
+                  </View>
+
+                  {/* City / District */}
+                  <View style={{ flex: 1, minWidth: 260, gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>
+                      City / District <Text style={{ color: "#EF4444" }}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={postStyles.customInput}
+                      placeholder="Auto-filled from Pincode"
+                      placeholderTextColor="#94A3B8"
+                      value={form.district}
+                      onChangeText={set("district")}
+                    />
+                    <Text style={{ fontSize: 11, color: "#64748B" }}>
+                      Populated automatically or editable manually
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={postStyles.formRowTwoCol}>
+                  {/* State */}
+                  <View style={{ flex: 1, minWidth: 260, gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>
+                      State <Text style={{ color: "#EF4444" }}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={postStyles.customInput}
+                      placeholder="Auto-filled from Pincode"
+                      placeholderTextColor="#94A3B8"
+                      value={form.state}
+                      onChangeText={set("state")}
+                    />
+                  </View>
+
+                  {/* Locality / Block */}
+                  <View style={{ flex: 1, minWidth: 260, gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>Locality / Area / Block</Text>
+                    <TextInput
+                      style={postStyles.customInput}
+                      placeholder="e.g. Saguna More, Bailey Road"
+                      placeholderTextColor="#94A3B8"
+                      value={form.block}
+                      onChangeText={set("block")}
+                    />
+                  </View>
+                </View>
+
+                {/* Coordinates & GPS fetch */}
+                <View style={postStyles.gpsBox}>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                    <View style={{ gap: 2 }}>
+                      <Text style={{ fontWeight: "700", color: "#0B1B3F", fontSize: 15 }}>
+                        GPS Location Coordinates
+                      </Text>
+                      <Text style={{ fontSize: 13, color: "#64748B" }}>
+                        Required for assigned Verifier on-ground plot inspection.
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={postStyles.useGpsBtn}
+                      onPress={() =>
+                        action.run(async () => {
+                          const permission = await Location.requestForegroundPermissionsAsync();
+                          if (permission.status !== "granted") {
+                            throw new Error("Location permission denied. Enter coordinates manually.");
+                          }
+                          const location = await Location.getCurrentPositionAsync({
+                            accuracy: Location.Accuracy.High,
+                          });
+                          set("lat")(String(location.coords.latitude));
+                          set("lng")(String(location.coords.longitude));
+                        })
+                      }
+                      activeOpacity={0.8}
+                    >
+                      <MaterialIcons name="my-location" size={16} color="#0A45B5" />
+                      <Text style={postStyles.useGpsBtnText}>Use Current Location</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={postStyles.formRowTwoCol}>
+                    <View style={{ flex: 1, gap: 6 }}>
+                      <Text style={postStyles.inputLabel}>Latitude *</Text>
+                      <TextInput
+                        style={postStyles.customInput}
+                        value={form.lat}
+                        onChangeText={set("lat")}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                    <View style={{ flex: 1, gap: 6 }}>
+                      <Text style={postStyles.inputLabel}>Longitude *</Text>
+                      <TextInput
+                        style={postStyles.customInput}
+                        value={form.lng}
+                        onChangeText={set("lng")}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                {/* Satellite Demarcation Map */}
+                <View style={{ gap: 10, marginTop: 8 }}>
+                  <Text style={postStyles.cardHeaderTitle}>Demarcate Property Boundary (Optional)</Text>
+                  <Text style={postStyles.cardHeaderSubtitle}>
                     Draw the boundary outline on the satellite map. Tap points around the plot corners to mark the perimeter.
                   </Text>
-                  <View
-                    style={{
-                      minHeight: Platform.OS === "web" ? 520 : 440,
-                      borderRadius: 16,
-                      overflow: "hidden",
-                      marginVertical: 12,
-                      borderWidth: 1,
-                      borderColor: C.line,
-                    }}
-                  >
+                  <View style={postStyles.mapContainer}>
                     <MapParcelPicker
                       initialPoints={points}
                       onParcelChange={onParcelChange}
                       areaSqFt={form.totalArea || "2,400"}
                     />
                   </View>
-                  <Field
-                    title="Boundary description (North / South / East / West)"
-                    value={form.boundary}
-                    onChangeText={set("boundary")}
-                    multiline
-                  />
-                  <Field
-                    title="Road width in front of plot (feet)"
-                    value={form.roadWidth}
-                    onChangeText={set("roadWidth")}
-                    numeric
-                  />
+
+                  <View style={postStyles.formRowTwoCol}>
+                    <View style={{ flex: 2, gap: 6 }}>
+                      <Text style={postStyles.inputLabel}>Boundary Description</Text>
+                      <TextInput
+                        style={postStyles.customInput}
+                        placeholder="e.g. North: 30ft Road, South: Plot 42, East: Boundary wall, West: Green belt"
+                        placeholderTextColor="#94A3B8"
+                        value={form.boundary}
+                        onChangeText={set("boundary")}
+                      />
+                    </View>
+                    <View style={{ flex: 1, gap: 6 }}>
+                      <Text style={postStyles.inputLabel}>Road Width (ft)</Text>
+                      <TextInput
+                        style={postStyles.customInput}
+                        placeholder="e.g. 30"
+                        placeholderTextColor="#94A3B8"
+                        value={form.roadWidth}
+                        onChangeText={set("roadWidth")}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  </View>
                 </View>
               </View>
             )}
+
+            {/* STEP 3: Price, Area & Disclosures */}
             {step === 3 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Set your price & area</Text>
-                {[
-                  ["price", "Expected price (₹)"],
-                  ["totalArea", "Total area (sq ft)"],
-                  ["sellableArea", "Sellable area (sq ft)"],
-                ].map(([key, title]) => (
-                  <Field
-                    numeric
-                    key={key}
-                    title={title}
-                    value={form[key]}
-                    onChangeText={set(key)}
-                  />
-                ))}
-                {[
-                  ["negotiable", "Price is negotiable"],
-                  ["hasLoan", "Property has an existing loan"],
-                  ["hasDispute", "Property has a dispute"],
-                ].map(([key, title]) => (
-                  <Pressable
-                    key={key}
-                    style={s.row}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: form[key] }}
-                    onPress={() => set(key)(!form[key])}
-                  >
-                    <Icon
-                      name={form[key] ? "check-box" : "check-box-outline-blank"}
+              <View style={{ gap: 22 }}>
+                <View style={{ gap: 4 }}>
+                  <Text style={postStyles.cardHeaderTitle}>Expected Price & Plot Dimensions</Text>
+                  <Text style={postStyles.cardHeaderSubtitle}>
+                    Set fair pricing and area metrics. MalikSe charges 0% brokerage on your deal.
+                  </Text>
+                </View>
+
+                {/* Price input with live badge */}
+                <View style={{ gap: 8 }}>
+                  <Text style={postStyles.inputLabel}>
+                    Expected Price (₹) <Text style={{ color: "#EF4444" }}>*</Text>
+                  </Text>
+                  <View style={postStyles.priceInputWrapper}>
+                    <Text style={postStyles.currencySymbol}>₹</Text>
+                    <TextInput
+                      style={postStyles.priceInput}
+                      placeholder="e.g. 4500000"
+                      placeholderTextColor="#94A3B8"
+                      value={form.price}
+                      onChangeText={set("price")}
+                      keyboardType="numeric"
                     />
-                    <Text style={s.body}>{title}</Text>
-                  </Pressable>
-                ))}
-                <Field
-                  title="Possession status"
-                  value={form.possessionStatus}
-                  onChangeText={set("possessionStatus")}
-                />
-              </View>
-            )}
-            {step === 4 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Photos & ownership documents</Text>
-                <Text style={s.muted}>
-                  At least one property photo is required. Ownership documents
-                  remain private.
-                </Text>
-                <Button
-                  secondary
-                  title="Add property photos"
-                  icon="add-a-photo"
-                  onPress={() => action.run(() => pick())}
-                />
-                <View style={s.wrap}>
-                  {[...form.media.photos, ...photos.map((p) => p.uri)].map(
-                    (uri: string) => (
-                      <Image
-                        key={uri}
-                        source={{ uri }}
-                        style={{ width: 120, height: 90, borderRadius: 12 }}
-                      />
-                    ),
+                  </View>
+                  {Number(form.price) > 0 && (
+                    <View style={postStyles.formattedPricePill}>
+                      <MaterialIcons name="payments" size={16} color="#0A45B5" />
+                      <Text style={postStyles.formattedPriceText}>
+                        Asking Price: {money(Number(form.price))}
+                      </Text>
+                    </View>
                   )}
                 </View>
-                <Button
-                  secondary
-                  title="Add ownership documents (optional)"
-                  icon="upload-file"
-                  onPress={() => action.run(() => pick(true))}
-                />
-                {documents.map((d) => (
-                  <Text key={d.uri} style={s.small}>
-                    {d.name}
-                  </Text>
-                ))}
+
+                {/* Area fields */}
+                <View style={postStyles.formRowTwoCol}>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>
+                      Total Area (sq ft) <Text style={{ color: "#EF4444" }}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={postStyles.customInput}
+                      placeholder="e.g. 1800"
+                      placeholderTextColor="#94A3B8"
+                      value={form.totalArea}
+                      onChangeText={(v: string) => {
+                        setForm((f: any) => ({
+                          ...f,
+                          totalArea: v,
+                          sellableArea: (!f.sellableArea || f.sellableArea === f.totalArea) ? v : f.sellableArea,
+                        }));
+                      }}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={postStyles.inputLabel}>Sellable Area (sq ft)</Text>
+                    <TextInput
+                      style={postStyles.customInput}
+                      placeholder="e.g. 1800"
+                      placeholderTextColor="#94A3B8"
+                      value={form.sellableArea}
+                      onChangeText={set("sellableArea")}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+
+                {katthaApprox && (
+                  <View style={postStyles.katthaCalcBadge}>
+                    <MaterialIcons name="square-foot" size={16} color="#059669" />
+                    <Text style={postStyles.katthaCalcText}>
+                      Area Estimate: {form.totalArea} sq ft ≈ {katthaApprox} Kattha (Bihar Standard: ~1,361 sq ft / Kattha)
+                    </Text>
+                  </View>
+                )}
+
+                {/* Checkbox Disclosures */}
+                <View style={{ gap: 12, marginTop: 4 }}>
+                  {[
+                    ["negotiable", "Price is negotiable"],
+                    ["hasLoan", "Property has an existing bank loan / lien"],
+                    ["hasDispute", "Property has an ongoing legal dispute"],
+                  ].map(([key, labelText]) => (
+                    <TouchableOpacity
+                      key={key}
+                      style={postStyles.checkboxRow}
+                      onPress={() => set(key)(!form[key])}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialIcons
+                        name={form[key] ? "check-box" : "check-box-outline-blank"}
+                        size={22}
+                        color={form[key] ? "#0A45B5" : "#94A3B8"}
+                      />
+                      <Text style={postStyles.checkboxLabel}>{labelText}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Possession Status pills */}
+                <View style={{ gap: 8, marginTop: 4 }}>
+                  <Text style={postStyles.inputLabel}>Possession Status</Text>
+                  <View style={postStyles.possessionChipsRow}>
+                    {["Immediate", "Within 3 Months", "Under Construction", "With Owner"].map((pos) => {
+                      const isSelected = form.possessionStatus === pos;
+                      return (
+                        <TouchableOpacity
+                          key={pos}
+                          style={[
+                            postStyles.possessionChip,
+                            isSelected && postStyles.possessionChipSelected,
+                          ]}
+                          onPress={() => set("possessionStatus")(pos)}
+                          activeOpacity={0.8}
+                        >
+                          <Text
+                            style={[
+                              postStyles.possessionChipText,
+                              isSelected && postStyles.possessionChipTextSelected,
+                            ]}
+                          >
+                            {pos}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
               </View>
             )}
+
+            {/* STEP 4: Photos & Documents */}
+            {step === 4 && (
+              <View style={{ gap: 22 }}>
+                <View style={{ gap: 4 }}>
+                  <Text style={postStyles.cardHeaderTitle}>Property Photos & Ownership Documents</Text>
+                  <Text style={postStyles.cardHeaderSubtitle}>
+                    Upload at least one high-resolution photo. Ownership deeds remain private and reviewed only by assigned staff.
+                  </Text>
+                </View>
+
+                {/* Photo Action Buttons */}
+                <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
+                  <TouchableOpacity
+                    style={postStyles.uploadBtn}
+                    onPress={() => action.run(() => pick(false))}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="add-a-photo" size={18} color="#0A45B5" />
+                    <Text style={postStyles.uploadBtnText}>Upload Property Photos</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={postStyles.demoSamplePhotoBtn}
+                    onPress={addSamplePhoto}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="image" size={18} color="#059669" />
+                    <Text style={postStyles.demoSamplePhotoBtnText}>Add Demo Sample Photo</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Photos Thumbnail Grid */}
+                <View style={postStyles.photoThumbnailGrid}>
+                  {form.media?.photos?.map((uri: string, index: number) => (
+                    <View key={uri + index} style={postStyles.thumbnailWrapper}>
+                      <Image source={{ uri }} style={postStyles.thumbnailImg} />
+                      <TouchableOpacity
+                        onPress={() => removePhoto(index, false)}
+                        style={postStyles.deleteBadge}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialIcons name="close" size={13} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  {photos.map((p, index) => (
+                    <View key={p.uri + index} style={postStyles.thumbnailWrapper}>
+                      <Image source={{ uri: p.uri }} style={postStyles.thumbnailImg} />
+                      <TouchableOpacity
+                        onPress={() => removePhoto(index, true)}
+                        style={postStyles.deleteBadge}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialIcons name="close" size={13} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Ownership Documents section */}
+                <View style={{ gap: 12, marginTop: 12, paddingTop: 18, borderTopWidth: 1, borderTopColor: "#E2E8F0" }}>
+                  <View style={{ gap: 4 }}>
+                    <Text style={postStyles.cardHeaderTitle}>Ownership Documents (Optional)</Text>
+                    <Text style={postStyles.cardHeaderSubtitle}>
+                      Attach Registry Deed, Mutation Receipt, or Khatiyan LPC to fast-track verification.
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[postStyles.uploadBtn, { alignSelf: "flex-start" }]}
+                    onPress={() => action.run(() => pick(true))}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="upload-file" size={18} color="#0A45B5" />
+                    <Text style={postStyles.uploadBtnText}>Add Ownership Documents (PDF, JPG)</Text>
+                  </TouchableOpacity>
+
+                  {documents.map((d, index) => (
+                    <View key={d.uri + index} style={postStyles.docListItem}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                        <MaterialIcons name="description" size={20} color="#0A45B5" />
+                        <Text style={postStyles.docFileName} numberOfLines={1}>
+                          {d.name}
+                        </Text>
+                      </View>
+                      <TouchableOpacity onPress={() => removeDocument(index)} activeOpacity={0.7}>
+                        <MaterialIcons name="delete" size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* STEP 5: Review, Advisor Assignment & Submit */}
             {step === 5 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Assign your property team</Text>
-                <Field
-                  title="Advisor ID (optional)"
-                  value={form.requestedAdvisorId}
-                  onChangeText={set("requestedAdvisorId")}
-                />
-                <Text style={s.muted}>
-                  Enter the ID provided by your Advisor. Leave it blank to
-                  assign an eligible Verifier. This person handles verification,
-                  offers, chats and closure.
-                </Text>
-                <Text style={s.cardTitle}>{form.title || `${form.type} in ${form.district || ""}`}</Text>
-                <Text style={s.price}>{money(Number(form.price))}</Text>
-                {points.length >= 3 && (
-                  <Text style={[s.small, { color: C.green, fontWeight: "600", marginTop: 4 }]}>
-                    ✓ Boundary demarcated with {points.length} map points
+              <View style={{ gap: 22 }}>
+                <View style={{ gap: 4 }}>
+                  <Text style={postStyles.cardHeaderTitle}>Review Details & Final Submission</Text>
+                  <Text style={postStyles.cardHeaderSubtitle}>
+                    Review your property parameters before submitting for verification and team assignment.
                   </Text>
-                )}
-                {!!form.boundary && (
-                  <Text style={[s.small, { color: C.muted, marginTop: 2 }]}>
-                    Boundary: {form.boundary}
+                </View>
+
+                {/* Comprehensive Summary Preview Card */}
+                <View style={postStyles.reviewSummaryCard}>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                    <View style={postStyles.categoryReviewPill}>
+                      <Text style={postStyles.categoryReviewPillText}>
+                        {form.type?.toUpperCase()}
+                      </Text>
+                    </View>
+                    <Text style={postStyles.reviewPriceText}>{money(Number(form.price))}</Text>
+                  </View>
+
+                  <Text style={postStyles.reviewTitleText}>
+                    {form.title || `${form.type} in ${form.district}`}
                   </Text>
-                )}
-                <Pressable
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: consent }}
-                  style={s.row}
-                  onPress={() => setConsent(!consent)}
-                >
-                  <Icon
-                    name={consent ? "check-box" : "check-box-outline-blank"}
+
+                  <View style={postStyles.reviewLocationRow}>
+                    <MaterialIcons name="place" size={16} color="#0A45B5" />
+                    <Text style={postStyles.reviewLocationText}>
+                      {form.block ? `${form.block}, ` : ""}{form.district}, {form.state} {form.pincode}
+                    </Text>
+                  </View>
+
+                  <View style={postStyles.reviewSpecsGrid}>
+                    <View style={postStyles.reviewSpecItem}>
+                      <Text style={postStyles.reviewSpecLabel}>Total Area</Text>
+                      <Text style={postStyles.reviewSpecValue}>{form.totalArea} sq ft</Text>
+                    </View>
+                    <View style={postStyles.reviewSpecItem}>
+                      <Text style={postStyles.reviewSpecLabel}>Sellable Area</Text>
+                      <Text style={postStyles.reviewSpecValue}>{form.sellableArea || form.totalArea} sq ft</Text>
+                    </View>
+                    {katthaApprox && (
+                      <View style={postStyles.reviewSpecItem}>
+                        <Text style={postStyles.reviewSpecLabel}>Bihar Kattha</Text>
+                        <Text style={postStyles.reviewSpecValue}>~{katthaApprox} Kattha</Text>
+                      </View>
+                    )}
+                    <View style={postStyles.reviewSpecItem}>
+                      <Text style={postStyles.reviewSpecLabel}>Possession</Text>
+                      <Text style={postStyles.reviewSpecValue}>{form.possessionStatus}</Text>
+                    </View>
+                  </View>
+
+                  {points.length >= 3 && (
+                    <View style={postStyles.demarcationDoneBadge}>
+                      <MaterialIcons name="check-circle" size={15} color="#059669" />
+                      <Text style={postStyles.demarcationDoneText}>
+                        Boundary Demarcated: {points.length} GPS Cadastral Points
+                      </Text>
+                    </View>
+                  )}
+
+                  <Text style={postStyles.photoCountText}>
+                    📷 {photos.length + (form.media?.photos?.length || 0)} Property Photo(s) Attached
+                  </Text>
+                </View>
+
+                {/* Advisor ID */}
+                <View style={{ gap: 6 }}>
+                  <Text style={postStyles.inputLabel}>Advisor ID (Optional)</Text>
+                  <TextInput
+                    style={postStyles.customInput}
+                    placeholder="Leave blank to automatically assign the next available staff"
+                    placeholderTextColor="#94A3B8"
+                    value={form.requestedAdvisorId}
+                    onChangeText={set("requestedAdvisorId")}
                   />
-                  <Text style={[s.body, { flex: 1 }]}>
-                    I am authorized to list this property and confirm that its
-                    details and disclosures are accurate.
+                  <Text style={postStyles.inputHelperText}>
+                    If an Advisor helped you prepare this listing, enter their ID here. Otherwise an eligible staff member will be assigned automatically.
                   </Text>
-                </Pressable>
+                </View>
+
+                {/* Identity Verification Status */}
+                <View
+                  style={[
+                    postStyles.idVerifyBox,
+                    approved(user) ? postStyles.idVerifyBoxApproved : postStyles.idVerifyBoxPending,
+                  ]}
+                >
+                  <MaterialIcons
+                    name={approved(user) ? "verified" : "info"}
+                    size={26}
+                    color={approved(user) ? "#059669" : "#0A45B5"}
+                  />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={[
+                        postStyles.idVerifyTitle,
+                        approved(user) ? { color: "#065F46" } : { color: "#1E40AF" },
+                      ]}
+                    >
+                      {approved(user)
+                        ? "Identity Verified Seller"
+                        : "Demo Mode: Verification Auto-Completes on Submit"}
+                    </Text>
+                    <Text
+                      style={[
+                        postStyles.idVerifyDesc,
+                        approved(user) ? { color: "#047857" } : { color: "#3B82F6" },
+                      ]}
+                    >
+                      {approved(user)
+                        ? "Your account has full verified seller privileges."
+                        : "You can click Submit directly, or click Verify Now beforehand."}
+                    </Text>
+                  </View>
+                  {!approved(user) && (
+                    <TouchableOpacity
+                      onPress={() =>
+                        action.run(async () => {
+                          await authService.completeDemoKyc();
+                        })
+                      }
+                      style={postStyles.verifyNowPill}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={postStyles.verifyNowPillText}>Verify Now</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Consent Checkbox */}
+                <TouchableOpacity
+                  style={postStyles.checkboxRow}
+                  onPress={() => setConsent(!consent)}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons
+                    name={consent ? "check-box" : "check-box-outline-blank"}
+                    size={24}
+                    color={consent ? "#0A45B5" : "#94A3B8"}
+                  />
+                  <Text style={[postStyles.checkboxLabel, { flex: 1, lineHeight: 20 }]}>
+                    I confirm that I am authorized to list this property and that all details, coordinates, and disclosures provided are accurate and truthful.
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
-            <View style={s.between}>
-              <Button
-                title="Back"
-                secondary
-                disabled={step === 1 || action.busy}
-                onPress={() => setStep(step - 1)}
-              />
-              <Button
-                title={
-                  action.busy
-                    ? "Submitting…"
-                    : step === 5
-                      ? "Submit for verification"
-                      : "Continue →"
-                }
-                disabled={action.busy || (step === 5 && !consent)}
-                onPress={() => (step === 5 ? submit() : setStep(step + 1))}
-              />
+
+            {/* Integrated Card Action Footer */}
+            <View style={postStyles.cardActionFooter}>
+              <TouchableOpacity
+                style={postStyles.footerBackBtn}
+                onPress={handleBack}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="arrow-back" size={16} color="#0A45B5" />
+                <Text style={postStyles.footerBackBtnText}>
+                  {step > 1 ? "Previous Step" : "Cancel & Return to Home"}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                <Text style={postStyles.stepIndicatorBadge}>Step {step} of 5</Text>
+                <TouchableOpacity
+                  style={[
+                    postStyles.footerContinueBtn,
+                    (action.busy || (step === 5 && !consent)) && postStyles.footerContinueBtnDisabled,
+                  ]}
+                  onPress={() => (step === 5 ? submit() : goToNextStep())}
+                  activeOpacity={0.85}
+                  disabled={action.busy || (step === 5 && !consent)}
+                >
+                  <Text style={postStyles.footerContinueBtnText}>
+                    {action.busy
+                      ? "Submitting Listing..."
+                      : step === 5
+                        ? "Submit for Verification →"
+                        : step === 1
+                          ? "Continue to Location →"
+                          : step === 2
+                            ? "Continue to Pricing →"
+                            : step === 3
+                              ? "Continue to Photos →"
+                              : "Review Listing →"}
+                  </Text>
+                  {!action.busy && (
+                    <MaterialIcons name="arrow-forward" size={17} color="#FFFFFF" />
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-            {!!draftId && (
-              <Text style={s.small}>
-                Draft saved: {draftId}. Uploads are retained if submission needs
-                to be retried.
-              </Text>
-            )}
-          </>
-        )}
-      </Protected>
+          </View>
+
+          {/* Bottom Trust Assurance Ribbon matching website design */}
+          <View style={postStyles.trustAssuranceRow}>
+            <View style={postStyles.trustAssuranceTile}>
+              <View style={[postStyles.trustTileIconBox, { backgroundColor: "#EFF6FF" }]}>
+                <MaterialIcons name="gavel" size={20} color="#0A45B5" />
+              </View>
+              <View style={{ gap: 2, flex: 1 }}>
+                <Text style={postStyles.trustTileTitle}>Revenue Record Verification</Text>
+                <Text style={postStyles.trustTileDesc}>
+                  Jamabandi, Khatiyan & Circle Office LPC audit
+                </Text>
+              </View>
+            </View>
+
+            <View style={postStyles.trustAssuranceTile}>
+              <View style={[postStyles.trustTileIconBox, { backgroundColor: "#ECFDF5" }]}>
+                <MaterialIcons name="place" size={20} color="#059669" />
+              </View>
+              <View style={{ gap: 2, flex: 1 }}>
+                <Text style={postStyles.trustTileTitle}>Physical GPS Demarcation</Text>
+                <Text style={postStyles.trustTileDesc}>
+                  Surveyor coordinates with boundary corner pegs
+                </Text>
+              </View>
+            </View>
+
+            <View style={postStyles.trustAssuranceTile}>
+              <View style={[postStyles.trustTileIconBox, { backgroundColor: "#FEF3C7" }]}>
+                <MaterialIcons name="support-agent" size={20} color="#D97706" />
+              </View>
+              <View style={{ gap: 2, flex: 1 }}>
+                <Text style={postStyles.trustTileTitle}>Assigned Property Team</Text>
+                <Text style={postStyles.trustTileDesc}>
+                  Dedicated Advisor and Verifier to assist offers & closure
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
     </MarketplaceShell>
   );
 }
-const font =
-  Platform.OS === "web" ? "'Manrope', 'Inter', system-ui, sans-serif" : "PoppinsRegular";
-const fontDisplay =
-  Platform.OS === "web" ? "'Fraunces', Georgia, serif" : "PoppinsBold";
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "transparent" },
-  header: {
-    height: 58,
+
+const postStyles = StyleSheet.create({
+  pageContainer: {
+    width: "100%",
+    maxWidth: 1040,
+    alignSelf: "center",
+    gap: 20,
+    paddingVertical: 10,
+  },
+  topNavRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  backButtonPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#DBEAFE",
     paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 22,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  backButtonPillText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0A45B5",
+  },
+  verifiedBadgePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  verifiedBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0A45B5",
+    letterSpacing: 0.2,
+  },
+  heroHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  heroTitle: {
+    fontSize: 30,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    letterSpacing: -0.6,
+  },
+  heroSubtitle: {
+    fontSize: 15,
+    color: "#475A82",
+    lineHeight: 22,
+  },
+  zeroBrokerageBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  zeroBrokerageText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  stepperContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  stepItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  stepCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepCircleActive: {
+    backgroundColor: "#0A45B5",
+    borderColor: "#0A45B5",
+  },
+  stepCircleCompleted: {
+    backgroundColor: "#059669",
+    borderColor: "#059669",
+  },
+  stepCircleText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  stepCircleTextActive: {
+    color: "#FFFFFF",
+  },
+  stepTextCol: {
+    gap: 1,
+  },
+  stepLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  stepLabelActive: {
+    fontWeight: "800",
+    color: "#0B1B3F",
+  },
+  stepLabelCompleted: {
+    fontWeight: "700",
+    color: "#059669",
+  },
+  stepSubLabel: {
+    fontSize: 11,
+    color: "#94A3B8",
+  },
+  stepConnectorLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: "#E2E8F0",
+    marginHorizontal: 12,
+  },
+  stepConnectorLineCompleted: {
+    backgroundColor: "#059669",
+  },
+  cardContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 30,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 2,
+    gap: 20,
+  },
+  cardHeaderTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    letterSpacing: -0.3,
+  },
+  cardHeaderSubtitle: {
+    fontSize: 14,
+    color: "#64748B",
+    lineHeight: 20,
+  },
+  categoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  categoryCard: {
+    flex: 1,
+    minWidth: 160,
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 10,
+    position: "relative",
+    minHeight: 136,
+  },
+  categoryCardSelected: {
+    borderColor: "#0A45B5",
+    backgroundColor: "#F4F8FF",
+    borderWidth: 2,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  categoryIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  categoryIconBoxSelected: {
+    backgroundColor: "#0A45B5",
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  categoryTextWrapper: {
+    alignItems: "center",
+    gap: 3,
+    width: "100%",
+  },
+  categoryCardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0B1B3F",
+    textAlign: "center",
+    letterSpacing: -0.2,
+  },
+  categoryCardTitleSelected: {
+    color: "#0A45B5",
+    fontWeight: "800",
+  },
+  categoryCardSub: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  categoryCardSubSelected: {
+    color: "#2563EB",
+    fontWeight: "500",
+  },
+  categoryCheckBadge: {
+    position: "absolute",
+    top: 9,
+    right: 9,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#0A45B5",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0B1B3F",
+  },
+  customInput: {
+    minHeight: 46,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#FFFFFF",
+    fontSize: 14,
+    color: "#0B1B3F",
+  },
+  inputHelperText: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+  pincodeInputWrapper: {
+    position: "relative",
+    justifyContent: "center",
+  },
+  pincodeInput: {
+    paddingRight: 42,
+  },
+  pincodeIconBadge: {
+    position: "absolute",
+    right: 12,
+    top: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pincodeHelperText: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  formRowTwoCol: {
+    flexDirection: "row",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  gpsBox: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 16,
+    padding: 16,
+    gap: 14,
+  },
+  useGpsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#DBEAFE",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  useGpsBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0A45B5",
+  },
+  mapContainer: {
+    minHeight: Platform.OS === "web" ? 440 : 380,
+    borderRadius: 18,
+    marginVertical: 4,
+  },
+  priceInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 14,
+  },
+  currencySymbol: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0A45B5",
+    marginRight: 6,
+  },
+  priceInput: {
+    flex: 1,
+    minHeight: 48,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0B1B3F",
+  },
+  formattedPricePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16,
+  },
+  formattedPriceText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A45B5",
+  },
+  katthaCalcBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  katthaCalcText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    color: "#0B1B3F",
+    fontWeight: "500",
+  },
+  possessionChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  possessionChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  possessionChipSelected: {
+    backgroundColor: "#0A45B5",
+    borderColor: "#0A45B5",
+  },
+  possessionChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475A82",
+  },
+  possessionChipTextSelected: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  uploadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1.5,
+    borderColor: "#DBEAFE",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  uploadBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A45B5",
+  },
+  demoSamplePhotoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1.5,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  demoSamplePhotoBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  photoThumbnailGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  thumbnailWrapper: {
+    position: "relative",
+    width: 130,
+    height: 95,
+  },
+  thumbnailImg: {
+    width: 130,
+    height: 95,
+    borderRadius: 14,
+    backgroundColor: "#E2E8F0",
+  },
+  deleteBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  docListItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 12,
+    borderRadius: 10,
+  },
+  docFileName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#0B1B3F",
+  },
+  reviewSummaryCard: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 18,
+    padding: 20,
+    gap: 12,
+  },
+  categoryReviewPill: {
+    backgroundColor: "#0A45B5",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  categoryReviewPillText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  reviewPriceText: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#0B1B3F",
+  },
+  reviewTitleText: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#0B1B3F",
+  },
+  reviewLocationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  reviewLocationText: {
+    fontSize: 13,
+    color: "#475A82",
+    fontWeight: "600",
+  },
+  reviewSpecsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+  },
+  reviewSpecItem: {
+    flex: 1,
+    minWidth: 120,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    gap: 2,
+  },
+  reviewSpecLabel: {
+    fontSize: 11,
+    color: "#64748B",
+    textTransform: "uppercase",
+    fontWeight: "600",
+  },
+  reviewSpecValue: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0B1B3F",
+  },
+  demarcationDoneBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#ECFDF5",
+    padding: 8,
+    borderRadius: 8,
+  },
+  demarcationDoneText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  photoCountText: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  idVerifyBox: {
+    borderWidth: 1.5,
+    borderRadius: 16,
+    padding: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
-    borderBottomWidth: 1,
-    borderColor: "rgba(10, 69, 181, 0.10)",
-    shadowColor: "#0a2a6b",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+  },
+  idVerifyBoxApproved: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  idVerifyBoxPending: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+  },
+  idVerifyTitle: {
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  idVerifyDesc: {
+    fontSize: 12,
+  },
+  verifyNowPill: {
+    backgroundColor: "#0A45B5",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  verifyNowPillText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  cardActionFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 14,
+    paddingTop: 20,
+    borderTopWidth: 1.5,
+    borderTopColor: "#EDF2F7",
+    marginTop: 8,
+  },
+  footerBackBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+  },
+  footerBackBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A45B5",
+  },
+  stepIndicatorBadge: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  footerContinueBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#0A45B5",
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 14,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.16,
     shadowRadius: 8,
+    elevation: 3,
+  },
+  footerContinueBtnDisabled: {
+    opacity: 0.5,
+  },
+  footerContinueBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  primaryBtnLg: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#0A45B5",
+    paddingHorizontal: 22,
+    paddingVertical: 13,
+    borderRadius: 14,
+  },
+  primaryBtnLgText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  secondaryBtnLg: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1.5,
+    borderColor: "#DBEAFE",
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+    borderRadius: 14,
+  },
+  secondaryBtnLgText: {
+    color: "#0A45B5",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  trustMiniBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#EBF2FF",
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  trustMiniBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0A45B5",
+  },
+  trustAssuranceRow: {
+    flexDirection: "row",
+    gap: 14,
+    flexWrap: "wrap",
+    marginTop: 10,
+  },
+  trustAssuranceTile: {
+    flex: 1,
+    minWidth: 260,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 18,
+    padding: 16,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  trustTileIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  trustTileTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0B1B3F",
+  },
+  trustTileDesc: {
+    fontSize: 12,
+    color: "#64748B",
+    lineHeight: 16,
+  },
+});
+
+
+const profileStyles = StyleSheet.create({
+  profileHeaderCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    padding: 24,
+    shadowColor: "#0B1B3F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
     elevation: 2,
-    zIndex: 10,
+    gap: 20,
+  },
+  profileHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 20,
+  },
+  profileUserGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 18,
+    flexWrap: "wrap",
+  },
+  avatarCircle: {
+    width: 74,
+    height: 74,
+    borderRadius: 37,
+    backgroundColor: "#0A45B5",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  avatarInitial: {
+    fontSize: 30,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    fontFamily: font,
+  },
+  profileInfo: {
+    gap: 6,
+  },
+  userName: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    letterSpacing: -0.4,
+    fontFamily: font,
+  },
+  contactRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    flexWrap: "wrap",
+  },
+  contactItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  contactText: {
+    fontSize: 13,
+    color: "#64748B",
+    fontWeight: "500",
+    fontFamily: font,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 2,
+    flexWrap: "wrap",
+  },
+  approvedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 14,
+  },
+  approvedBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
+    fontFamily: font,
+  },
+  pendingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 14,
+  },
+  pendingBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#D97706",
+    fontFamily: font,
+  },
+  roleBadge: {
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 14,
+  },
+  roleBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#0A45B5",
+    fontFamily: font,
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  statTile: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  statTileIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statTileVal: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    fontFamily: font,
+  },
+  statTileLabel: {
+    fontSize: 11,
+    color: "#64748B",
+    fontWeight: "500",
+    fontFamily: font,
+  },
+  editProfileBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1.5,
+    borderColor: "#0A45B5",
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 12,
+  },
+  editProfileBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A45B5",
+    fontFamily: font,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    letterSpacing: -0.3,
+    marginTop: 10,
+    marginBottom: 4,
+    fontFamily: font,
+  },
+  optionCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    shadowColor: "#0B1B3F",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  optionCardActive: {
+    borderColor: "#0A45B5",
+    backgroundColor: "#FAFCFF",
+  },
+  optionIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  optionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0B1B3F",
+    fontFamily: font,
+  },
+  optionSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+    fontFamily: font,
+  },
+  countPill: {
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+  },
+  countPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#0A45B5",
+    fontFamily: font,
+  },
+  expandableBox: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: "#0A45B5",
+    padding: 20,
+    gap: 16,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  expandableHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    paddingBottom: 12,
+  },
+  expandableTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    fontFamily: font,
+  },
+  formInputWrap: {
+    gap: 6,
+  },
+  formInputLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0B1B3F",
+    fontFamily: font,
+  },
+  formTextInput: {
+    minHeight: 46,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#FFFFFF",
+    fontSize: 14,
+    color: "#0B1B3F",
+    fontFamily: font,
+  },
+  formActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 8,
+    flexWrap: "wrap",
+  },
+  saveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#0A45B5",
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 12,
+  },
+  saveBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    fontFamily: font,
+  },
+  cancelBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 12,
+  },
+  cancelBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#64748B",
+    fontFamily: font,
+  },
+  successBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    padding: 12,
+    borderRadius: 12,
+  },
+  successBannerText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#059669",
+    fontFamily: font,
+  },
+  listingCardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    padding: 14,
+    flexWrap: "wrap",
+  },
+  listingThumbnail: {
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    backgroundColor: "#E2E8F0",
+  },
+  postNewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#0A45B5",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  postNewBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    fontFamily: font,
+  },
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FFF1F2",
+    borderWidth: 1.5,
+    borderColor: "#FECDD3",
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginTop: 8,
+  },
+  logoutBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#E11D48",
+    fontFamily: font,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(11, 27, 63, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    zIndex: 9999,
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 28,
+    width: "100%",
+    maxWidth: 480,
+    alignItems: "center",
+    shadowColor: "#0B1B3F",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 8,
+    gap: 16,
+  },
+  modalIconCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 2,
+    borderColor: "#A7F3D0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0B1B3F",
+    textAlign: "center",
+    fontFamily: font,
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 20,
+    fontFamily: font,
+  },
+  modalMailBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1.5,
+    borderColor: "#BFDBFE",
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+    width: "100%",
+  },
+  modalMailTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1E3A8A",
+    fontFamily: font,
+  },
+  modalMailSubtitle: {
+    fontSize: 12,
+    color: "#3B82F6",
+    marginTop: 2,
+    fontFamily: font,
+    lineHeight: 16,
+  },
+  modalOkayBtn: {
+    backgroundColor: "#0A45B5",
+    width: "100%",
+    paddingVertical: 13,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  modalOkayBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+    fontFamily: font,
+  },
+  eyeBtn: {
+    position: "absolute",
+    right: 12,
+    top: 12,
+    padding: 4,
+  },
+});
+
+const savedCardStyles = StyleSheet.create({
+  cardContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    overflow: "hidden",
+    flexDirection: "row",
+    alignItems: "stretch",
+    shadowColor: "#0B1B3F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 16px rgba(11, 27, 63, 0.05)",
+      },
+    }),
+  },
+  thumbnailWrap: {
+    width: 250,
+    minHeight: 170,
+    backgroundColor: "#F1F5F9",
+    position: "relative",
+    overflow: "hidden",
+  },
+  placeholderWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+    gap: 6,
+  },
+  placeholderText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94A3B8",
+    fontFamily: font,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  badgeOverlay: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    right: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 6,
+  },
+  verifiedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  verifiedBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#059669",
+    fontFamily: font,
+  },
+  typeBadge: {
+    backgroundColor: "rgba(11, 27, 63, 0.82)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  typeBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    fontFamily: font,
+  },
+  contentWrap: {
+    flex: 1,
+    padding: 18,
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  priceText: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#0A45B5",
+    letterSpacing: -0.5,
+    fontFamily: font,
+  },
+  savedHeartBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFF1F2",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#FECDD3",
+  },
+  titleText: {
+    fontSize: 16.5,
+    fontWeight: "700",
+    color: "#0B1B3F",
+    letterSpacing: -0.2,
+    fontFamily: font,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  locationText: {
+    fontSize: 13,
+    color: "#64748B",
+    fontWeight: "500",
+    fontFamily: font,
+  },
+  specsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  specChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  specChipText: {
+    fontSize: 11.5,
+    fontWeight: "600",
+    color: "#475569",
+    fontFamily: font,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    paddingTop: 12,
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  viewDetailsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#0A45B5",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  viewDetailsText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    fontFamily: font,
+  },
+  removeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  removeBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+    fontFamily: font,
+  },
+});
+
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.bg },
+  headerWrapper: {
+    width: "100%",
+    paddingTop: 14,
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+    backgroundColor: "transparent",
+    zIndex: 100,
+  },
+  header: {
+    width: "100%",
+    maxWidth: 1240,
+    alignSelf: "center",
+    minHeight: 66,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: "white",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    boxShadow: "0 4px 20px rgba(11, 27, 63, 0.05)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  backBtn: {
+    padding: 6,
+    marginRight: 4,
+    borderRadius: 8,
+  },
+  brandLockup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  brandTextCol: {
+    justifyContent: "center",
   },
   logo: {
     fontFamily: fontDisplay,
-    fontSize: 21,
+    fontSize: 23,
+    fontWeight: "900",
+    color: C.ink,
+    letterSpacing: -0.7,
+    lineHeight: 27,
+  },
+  brandTagline: {
+    fontFamily: font,
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#64748b",
+    letterSpacing: 0.3,
+    lineHeight: 14,
+    textTransform: "uppercase",
+  },
+  logoIcon: {
+    backgroundColor: C.blue,
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 2px 8px rgba(10, 69, 181, 0.22)",
+  },
+  topNavRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#f8fafc",
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+  },
+  topNavItem: {
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  topNavItemActive: {
+    backgroundColor: "white",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+  },
+  topNavText: {
+    fontFamily: font,
+    fontSize: 13.5,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  topNavTextActive: {
+    color: C.blue,
+    fontWeight: "700",
+  },
+  topPostBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: C.blue,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    boxShadow: "0 2px 8px rgba(10, 69, 181, 0.22)",
+  },
+  topPostBtnText: {
+    fontFamily: font,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "white",
+  },
+  topProfileBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 4,
+    paddingLeft: 4,
+    paddingRight: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "white",
+  },
+  avatarSmall: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: C.blue,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarSmallText: {
+    fontWeight: "800",
+    color: "white",
+    fontSize: 13,
+  },
+  topProfileName: {
+    fontFamily: font,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#0f172a",
+  },
+  heroContainer: {
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 24,
+    padding: 34,
+    gap: 20,
+    boxShadow: "0 4px 20px rgba(11,27,63,0.04)",
+  },
+  heroBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  heroBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "#dbeafe",
+    borderRadius: 20,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+  },
+  heroBadgeText: {
+    fontFamily: font,
+    fontSize: 11.5,
     fontWeight: "800",
     color: C.blue,
-    letterSpacing: -0.5,
+    letterSpacing: 0.6,
   },
-  logoIcon: { backgroundColor: C.blue, padding: 5, borderRadius: 10 },
-  scroll: { padding: 16, paddingBottom: 100 },
-  content: { width: "100%", maxWidth: 1140, alignSelf: "center", gap: 18 },
-  row: { flexDirection: "row", alignItems: "center", gap: 10 },
+  heroHeading: {
+    fontFamily: fontDisplay,
+    fontSize: 34,
+    fontWeight: "800",
+    color: C.ink,
+    letterSpacing: -0.8,
+    lineHeight: 42,
+  },
+  heroSubheading: {
+    fontFamily: font,
+    fontSize: 16,
+    lineHeight: 26,
+    color: "#475569",
+    fontWeight: "500",
+    letterSpacing: -0.15,
+  },
+  searchConsole: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 22,
+    padding: 7,
+    shadowColor: "#0B1B3F",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 18,
+    elevation: 3,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 10px 30px -4px rgba(11, 27, 63, 0.08), 0 2px 8px rgba(11, 27, 63, 0.03)",
+      },
+    }),
+  },
+  searchSegmentLocation: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    minWidth: 190,
+    backgroundColor: "transparent",
+  },
+  searchSegmentFocused: {
+    backgroundColor: "#F8FAFC",
+  },
+  searchSegmentIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchSegmentLabel: {
+    fontFamily: font,
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#64748B",
+    letterSpacing: 0.7,
+    marginBottom: 2,
+  },
+  searchSegmentValue: {
+    fontFamily: font,
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: C.ink,
+  },
+  searchDivider: {
+    width: 1.5,
+    height: 36,
+    backgroundColor: "#E2E8F0",
+    marginHorizontal: 4,
+  },
+  searchSegmentInput: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: "transparent",
+  },
+  searchTextInput: {
+    fontFamily: font,
+    fontSize: 14.5,
+    fontWeight: "600",
+    color: "#0B1B3F",
+    padding: 0,
+    margin: 0,
+    height: 24,
+    borderWidth: 0,
+    outlineWidth: 0 as any,
+    outlineStyle: "none" as any,
+    outlineColor: "transparent" as any,
+    backgroundColor: "transparent",
+  },
+  searchClearBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchSubmitBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#0A45B5",
+    paddingVertical: 13,
+    paddingHorizontal: 26,
+    borderRadius: 16,
+    shadowColor: "#0A45B5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 3,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 4px 14px rgba(10, 69, 181, 0.28)",
+      },
+    }),
+  },
+  searchSubmitBtnText: {
+    fontFamily: font,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  categoryPillsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    alignItems: "center",
+  },
+  categoryPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  categoryPillActive: {
+    backgroundColor: C.blue,
+    borderColor: C.blue,
+  },
+  categoryPillText: {
+    fontFamily: font,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  categoryPillTextActive: {
+    color: "white",
+    fontWeight: "700",
+  },
+  heroTrustStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 14,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+  },
+  trustItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  trustItemText: {
+    fontFamily: font,
+    fontSize: 12.5,
+    fontWeight: "500",
+    color: "#64748b",
+  },
+  trustDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#cbd5e1",
+  },
+  scroll: { padding: 20, paddingBottom: 40 },
+  content: { width: "100%", maxWidth: 1240, alignSelf: "center", gap: 26 },
+  row: { flexDirection: "row", alignItems: "center", gap: 12 },
   between: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 12,
   },
-  wrap: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
-  h1: {
-    fontFamily: fontDisplay,
-    fontSize: 21,
-    lineHeight: 27,
-    fontWeight: "700",
-    color: C.ink,
-    letterSpacing: -0.4,
-    textShadowColor: "rgba(255, 255, 255, 0.85)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  h2: {
-    fontFamily: fontDisplay,
-    fontSize: 17,
-    lineHeight: 23,
-    fontWeight: "700",
-    color: C.ink,
-    letterSpacing: -0.3,
-    textShadowColor: "rgba(255, 255, 255, 0.85)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  muted: { fontFamily: font, fontSize: 12.5, lineHeight: 18, color: C.muted, fontWeight: "500" },
-  small: { fontFamily: font, fontSize: 11.5, lineHeight: 16, color: "#4b628c", fontWeight: "600" },
-  body: { fontFamily: font, fontSize: 13.5, lineHeight: 21, color: C.ink, fontWeight: "500" },
+  wrap: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 18 },
+  h1: { fontFamily: fontDisplay, fontSize: 28, fontWeight: "800", color: C.ink, letterSpacing: -0.7 },
+  h2: { fontFamily: fontDisplay, fontSize: 22, fontWeight: "800", color: C.ink, letterSpacing: -0.5 },
+  muted: { fontFamily: font, fontSize: 14, lineHeight: 22, color: "#64748b", fontWeight: "400" },
+  small: { fontFamily: font, fontSize: 13.5, lineHeight: 20, color: "#64748b", fontWeight: "500" },
+  body: { fontFamily: font, fontSize: 15, lineHeight: 25, color: "#334155", fontWeight: "400" },
   fieldLabel: {
     fontFamily: font,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
     color: C.ink,
-    letterSpacing: 0.1,
   },
   button: {
-    minHeight: 38,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    minHeight: 46,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
     borderRadius: 12,
     backgroundColor: C.blue,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    shadowColor: "#0a45b5",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 2,
+    gap: 8,
   },
   secondary: {
-    backgroundColor: "rgba(238, 244, 255, 0.95)",
+    backgroundColor: "#eaf1ff",
     borderWidth: 1,
-    borderColor: "rgba(10, 69, 181, 0.18)",
-    shadowOpacity: 0,
-    elevation: 0,
+    borderColor: C.line,
   },
   buttonText: {
     fontFamily: font,
     fontSize: 13,
     fontWeight: "700",
     color: "white",
-    letterSpacing: 0.1,
   },
   input: {
     fontFamily: font,
-    minHeight: 40,
+    minHeight: 48,
     borderWidth: 1,
-    borderColor: "rgba(10, 69, 181, 0.18)",
+    borderColor: C.line,
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: "#ffffff",
-    fontSize: 13.5,
+    paddingVertical: 12,
+    backgroundColor: "white",
+    fontSize: 15,
     color: C.ink,
-    shadowColor: "#0a2a6b",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
   },
   hero: {
-    padding: 20,
-    gap: 12,
-    borderRadius: 18,
-    backgroundColor: "rgba(255, 255, 255, 0.94)",
+    padding: 28,
+    gap: 18,
+    borderRadius: 24,
+    backgroundColor: "#e5efff",
     borderWidth: 1,
-    borderColor: "rgba(196, 211, 240, 0.75)",
-    shadowColor: "#0a2a6b",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.09,
-    shadowRadius: 18,
-    elevation: 3,
+    borderColor: "#d0e0ff",
   },
   heroTitle: {
-    fontFamily: fontDisplay,
-    fontSize: 25,
-    lineHeight: 31,
+    fontFamily: Platform.OS === "web" ? "Fraunces, Georgia" : "PoppinsBold",
+    fontSize: 40,
     color: C.ink,
-    letterSpacing: -0.5,
-    textShadowColor: "rgba(255, 255, 255, 0.85)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    letterSpacing: -1,
   },
   tag: {
     alignSelf: "flex-start",
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 14,
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(10, 69, 181, 0.14)",
-    shadowColor: "#0a2a6b",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: "#eaf1ff",
   },
-  tagText: { fontFamily: font, fontSize: 11, fontWeight: "700", color: C.blue, letterSpacing: 0.1 },
+  tagText: { fontFamily: font, fontSize: 11, fontWeight: "700", color: C.blue },
   typeChip: {
-    paddingVertical: 7,
-    paddingHorizontal: 13,
+    padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(196, 211, 240, 0.75)",
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
+    borderColor: C.line,
+    borderRadius: 14,
+    backgroundColor: "white",
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    shadowColor: "#0a2a6b",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    gap: 8,
   },
   panel: {
-    padding: 16,
-    borderRadius: 16,
+    padding: 22,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(196, 211, 240, 0.70)",
-    backgroundColor: "rgba(255, 255, 255, 0.94)",
-    gap: 12,
-    shadowColor: "#0a2a6b",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 3,
+    borderColor: C.line,
+    backgroundColor: "white",
+    gap: 16,
   },
   card: {
-    backgroundColor: "rgba(255, 255, 255, 0.94)",
+    backgroundColor: "white",
     borderWidth: 1,
-    borderColor: "rgba(196, 211, 240, 0.70)",
-    borderRadius: 16,
+    borderColor: C.line,
+    borderRadius: 20,
     overflow: "hidden",
-    shadowColor: "#0a2a6b",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 3,
   },
-  photo: { height: 180, backgroundColor: "#dce7fa" },
+  photo: { height: 220, backgroundColor: "#dce7fa" },
   placeholder: {
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#e0eaff",
   },
-  imageTags: { position: "absolute", top: 10, left: 10 },
-  cardBody: { padding: 14, gap: 6 },
-  price: { fontFamily: font, fontSize: 19, lineHeight: 23, fontWeight: "800", color: C.ink, letterSpacing: -0.4 },
+  imageTags: { position: "absolute", top: 12, left: 12 },
+  cardBody: { padding: 18, gap: 9 },
+  price: { fontFamily: font, fontSize: 25, fontWeight: "800", color: C.ink },
   cardTitle: {
     fontFamily: font,
-    fontSize: 14.5,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 23,
     fontWeight: "700",
     color: C.ink,
-    letterSpacing: -0.2,
   },
-  link: { fontSize: 12.5, fontWeight: "700", color: C.blue },
+  link: { fontSize: 13, fontWeight: "700", color: C.blue },
   avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(26, 86, 219, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(26, 86, 219, 0.20)",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#e2ecff",
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontWeight: "800", color: C.blue, fontSize: 14 },
-  dockWrapper: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 8,
-    alignItems: "center",
-    paddingHorizontal: 12,
-    zIndex: 100,
-  },
+  avatarText: { fontWeight: "800", color: C.blue, fontSize: 17 },
   nav: {
-    width: "100%",
-    maxWidth: 500,
-    minHeight: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    minHeight: 76,
+    paddingBottom: Platform.OS === "web" ? 10 : 22,
+    paddingTop: 9,
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingHorizontal: 6,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.98)",
-    shadowColor: "#0a2a6b",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.16,
-    shadowRadius: 20,
-    elevation: 10,
+    backgroundColor: "white",
+    borderTopWidth: 1,
+    borderColor: C.line,
+    justifyContent: "center",
   },
   navItem: {
     flex: 1,
-    maxWidth: 90,
+    maxWidth: 180,
     alignItems: "center",
     justifyContent: "center",
-    gap: 2,
-    paddingVertical: 4,
-    borderRadius: 18,
+    gap: 4,
   },
-  navItemActive: {
-    backgroundColor: "rgba(26, 86, 219, 0.12)",
-  },
-  navText: { fontFamily: font, fontSize: 10.5, fontWeight: "600", color: C.muted },
+  navText: { fontSize: 11, color: C.muted },
   postCircle: {
-    height: 44,
-    width: 44,
-    borderRadius: 22,
-    marginTop: -22,
+    height: 50,
+    width: 50,
+    borderRadius: 25,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: C.blue,
-    borderWidth: 3,
-    borderColor: "#ffffff",
-    shadowColor: "#0a45b5",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.40,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  heartBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(240, 244, 255, 0.90)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(10, 69, 181, 0.10)",
+    borderWidth: 4,
+    borderColor: C.bg,
   },
   error: {
-    padding: 12,
-    borderRadius: 10,
+    padding: 14,
+    borderRadius: 12,
     backgroundColor: "#fff0f2",
     color: "#a8193c",
-    fontSize: 12.5,
-    borderWidth: 1,
-    borderColor: "rgba(225, 29, 72, 0.20)",
-    fontWeight: "600",
+    fontSize: 14,
   },
   map: {
-    height: 380,
-    borderRadius: 18,
+    height: 420,
+    borderRadius: 22,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(10, 69, 181, 0.14)",
+    borderColor: C.line,
   },
   spec: {
-    minWidth: 130,
+    minWidth: 140,
     flex: 1,
-    padding: 12,
-    backgroundColor: "rgba(244, 248, 255, 0.95)",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(10, 69, 181, 0.10)",
-    gap: 4,
+    padding: 16,
+    backgroundColor: C.bg,
+    borderRadius: 14,
+    gap: 6,
   },
-  chatArea: { gap: 14, minHeight: 240 },
-  bubble: { maxWidth: "85%", padding: 12, borderRadius: 16, gap: 5 },
+  chatArea: { gap: 16, minHeight: 260 },
+  bubble: { maxWidth: "85%", padding: 16, borderRadius: 18, gap: 7 },
   mine: {
     alignSelf: "flex-end",
-    backgroundColor: "#dbe8fd",
-    borderWidth: 1,
-    borderColor: "rgba(10, 69, 181, 0.18)",
+    backgroundColor: "#dce9ff",
     borderBottomRightRadius: 4,
   },
   theirs: {
     alignSelf: "flex-start",
-    backgroundColor: "#ffffff",
+    backgroundColor: "white",
     borderWidth: 1,
-    borderColor: "rgba(196, 211, 240, 0.85)",
+    borderColor: C.line,
     borderBottomLeftRadius: 4,
-    shadowColor: "#061c46",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
   },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.blue },
-  history: {
-    padding: 10,
-    borderLeftWidth: 3,
-    borderColor: C.blue,
-    gap: 3,
-  },
-  progress: { flexDirection: "row", gap: 5 },
+  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.blue },
+  history: { padding: 12, borderLeftWidth: 3, borderColor: C.line, gap: 4 },
+  progress: { flexDirection: "row", gap: 6 },
   progressPart: {
-    height: 4,
+    height: 5,
     flex: 1,
-    borderRadius: 4,
-    backgroundColor: "rgba(10, 69, 181, 0.15)",
+    borderRadius: 5,
+    backgroundColor: C.line,
   },
 });

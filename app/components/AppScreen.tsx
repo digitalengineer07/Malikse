@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
 import { GlassBackdrop } from "./GlassSurface";
+import { marketplaceBackground } from "../constants/theme";
 
 // Each navigation scene owns an opaque backdrop, including during transitions.
 export default function AppScreen({ children }: { children: ReactNode }) {
@@ -16,6 +17,6 @@ export function renderAppScreen({ children }: { children: ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, position: "relative", overflow: "hidden", backgroundColor: "#f4f5f7" },
+  screen: { flex: 1, position: "relative", overflow: "hidden", backgroundColor: marketplaceBackground },
   content: { flex: 1, position: "relative", backgroundColor: "transparent" },
 });

@@ -29,8 +29,11 @@ export async function authenticateRequest(header: string | undefined) {
     return { status: 401, message: "Session expired or invalid. Please sign in again." };
   }
   try {
-    const user = await User.findById(decoded.id).select("sessionVersion role passwordHash isSuspended isActive name mobile email isVerifiedIdentity demoKycComplete createdAt").lean();
-    if (!user?.passwordHash) {
+    const user = await User.findById(decoded.id).select("sessionVersion role passwordHash googleId isSuspended isActive name mobile email isVerifiedIdentity demoKycComplete createdAt").lean();
+    if (!user) {
+      return { status: 401, message: "Account session not found. Please sign in again." };
+    }
+    if (!user.passwordHash && !user.googleId) {
       return { status: 401, message: "Please sign in with your account credentials" };
     }
     if (decoded.sessionVersion !== (user.sessionVersion ?? 0)) return { status: 401, message: "Session revoked. Please sign in again." };

@@ -8,7 +8,7 @@ import { useLanguageStore } from "../src/store/languageStore";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 import BiharHeritageWatermark from "./BiharHeritageWatermark";
 
-export default function BottomNav() {
+export default function BottomNav({ themedStaff = false }: { themedStaff?: boolean } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const { width } = useWindowDimensions();
@@ -27,6 +27,22 @@ export default function BottomNav() {
   const isProfileActive = pathname === "/profile";
 
   if (authState === "AUTHENTICATED" && user && user.role !== "user") {
+    if (themedStaff) {
+      const dashboard = dashboardRoutes[user.role] as never;
+      return <View style={[styles.themedStaffWrapper, { paddingBottom: bottomInset }]}>
+        <View style={styles.themedStaffDock}>
+          <TouchableOpacity accessibilityRole="button" style={styles.themedStaffItem} onPress={() => router.replace("/home")}>
+            <MaterialIcons name="home" size={21} color="#FCC61C" />
+            <Text style={styles.themedStaffLabel}>Marketplace</Text>
+          </TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityState={{ selected: pathname === dashboard }}
+            style={[styles.themedStaffItem, styles.themedStaffActive]} onPress={() => { if (pathname !== dashboard) router.push(dashboard); }}>
+            <MaterialIcons name="space-dashboard" size={20} color="#14263E" />
+            <Text style={[styles.themedStaffLabel, styles.themedStaffActiveLabel]}>Profile / Dashboard</Text>
+          </TouchableOpacity>
+        </View>
+      </View>;
+    }
     return (
       <View style={[styles.staffBar, { paddingBottom: bottomInset }]}>
         <TouchableOpacity accessibilityRole="button" onPress={() => router.replace("/home")}>
@@ -348,6 +364,12 @@ const styles = StyleSheet.create({
     color: "#0A192F",
     fontWeight: "700",
   },
+  themedStaffWrapper: { alignItems: "center", paddingHorizontal: 12, paddingTop: 4 },
+  themedStaffDock: { width: "100%", maxWidth: 440, flexDirection: "row", borderRadius: 28, backgroundColor: "#14263E", padding: 5, gap: 5 },
+  themedStaffItem: { flex: 1, minHeight: 46, alignItems: "center", justifyContent: "center", gap: 2, borderRadius: 24 },
+  themedStaffActive: { backgroundColor: "#FCC61C" },
+  themedStaffLabel: { color: "#FCC61C", fontFamily: "ManropeBold", fontSize: 12, textAlign: "center" },
+  themedStaffActiveLabel: { color: "#14263E" },
   staffBar: {
     flexDirection: "row",
     justifyContent: "space-around",

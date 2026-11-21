@@ -6,7 +6,22 @@ export type MapPoint = { lat: number; lng: number };
 export type NativeMapAssets = { leafletJs: string; leafletCss: string; vectorGridJs: string };
 export type MapPin = MapPoint & { id: string; label: string; title: string; photo?: string; area?: string; location?: string };
 export type MapFocus = MapPoint & { zoom: number };
-export type NativeMapOptions = { pins?: MapPin[]; points?: MapPoint[]; parcels?: { id: string; points: MapPoint[] }[]; satellite?: boolean; editable?: boolean; marketplace?: boolean; focus?: MapFocus; regions?: RegionBoundaryOptions };
+export const propertyZoomStyles = `
+.property-zoom-map .leaflet-control-zoom {
+  display: flex; flex-direction: column; gap: 5px;
+  border: 0; background: transparent; box-shadow: none;
+}
+.property-zoom-map .leaflet-control-zoom a {
+  display: grid; place-items: center; width: 44px; height: 44px;
+  border: 0; border-radius: 11px; color: #14263E; background: #fff;
+  box-shadow: 0 2px 5px rgba(20,38,62,.15);
+  font: 700 24px/1 system-ui, sans-serif;
+}
+.property-zoom-map .leaflet-control-zoom a:hover,
+.property-zoom-map .leaflet-control-zoom a:focus-visible { background: #FCC61C; }
+.property-zoom-map .leaflet-control-zoom a.leaflet-disabled { color: #536174; background: #E8EAF0; }
+`;
+export type NativeMapOptions = { pins?: MapPin[]; points?: MapPoint[]; parcels?: { id: string; points: MapPoint[] }[]; satellite?: boolean; editable?: boolean; marketplace?: boolean; zoomControls?: boolean; twoFingerPan?: boolean; focus?: MapFocus; regions?: RegionBoundaryOptions };
 
 export function validMapPoint(point: MapPoint): boolean {
   return !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
@@ -20,14 +35,17 @@ export function nativeMapHtml(options: NativeMapOptions, assets?: NativeMapAsset
   const leaflet = assets ? inlineScript(assets.leafletJs) : '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onerror="send(\'error\')"></script>';
   const vectorGrid = !options.regions ? "" : assets ? inlineScript(assets.vectorGridJs) : '<script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.min.js" onerror="send(\'boundaryError\')"></script>';
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">${css}<style>
-html,body,#map{height:100%;width:100%;margin:0}body{background:#E9F3FA;font-family:Arial,sans-serif}.price{display:inline-block;background:#1A365D;color:white;padding:8px 12px;border:2px solid white;border-radius:22px;font-size:13px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 5px #0003}.vertex{background:#fff;border:3px solid #059669;border-radius:50%;box-sizing:border-box}.tools{position:absolute;bottom:25px;left:10px;right:10px;z-index:1000;display:flex;gap:8px;justify-content:center}.tools button{min-height:44px;padding:8px 16px;background:white;border:1px solid #cbd5e1;border-radius:12px;color:#19334a;font-weight:bold}.tools button:disabled{opacity:.5}.leaflet-control-attribution{font-size:9px}
-</style></head><body><div id="map" aria-label="Property map"></div><script>
+html,body,#map{height:100%;width:100%;margin:0}body{background:#F7F4EC;font-family:Arial,sans-serif}.price{display:inline-block;background:#14263E;color:#FCC61C;padding:8px 12px;border:2px solid white;border-radius:22px;font-size:13px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 5px #0003}.price.selected{background:#FCC61C;color:#14263E;border-color:#14263E}.vertex{background:#fff;border:3px solid #059669;border-radius:50%;box-sizing:border-box}.tools{position:absolute;bottom:25px;left:10px;right:10px;z-index:1000;display:flex;gap:8px;justify-content:center}.tools button{min-height:44px;padding:8px 16px;background:white;border:1px solid #cbd5e1;border-radius:12px;color:#19334a;font-weight:bold}.tools button:disabled{opacity:.5}.leaflet-control-attribution{font-size:9px}
+${options.zoomControls ? propertyZoomStyles : ""}
+</style></head><body><div id="map" class="${options.zoomControls ? "property-zoom-map" : ""}" aria-label="Property map"></div><script>
 function send(type,payload){window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({type,payload}));}
 </script>${leaflet}${vectorGrid}<script>
 try {
 const data=${data};
-const map=L.map('map',{scrollWheelZoom:false,zoomControl:false,...(data.marketplace?{minZoom:3.8,maxZoom:18,maxBounds:[[4,64],[39,101]]}:{})}).setView([25.6,85.1],7);
+if(data.twoFingerPan)document.getElementById('map').style.touchAction='pan-y';
+const map=L.map('map',{scrollWheelZoom:false,zoomControl:!!data.zoomControls,...(data.editable?{touchZoom:false,doubleClickZoom:false,boxZoom:false}:{}),...(data.twoFingerPan?{dragging:false,touchZoom:true,doubleClickZoom:false,boxZoom:false}:{}),...(data.marketplace?{minZoom:3.8,maxZoom:18,maxBounds:[[4,64],[39,101]]}:{})}).setView([25.6,85.1],7);
 window.focusMap=(lat,lng,zoom)=>map.setView([lat,lng],zoom);
+window.zoomParcelMap=(delta)=>map.setZoom(map.getZoom()+delta);
 let tiles;
 function setLayer(satellite){
  if(tiles)map.removeLayer(tiles);
@@ -50,8 +68,14 @@ function draw(){
 }
 const bounds=[];
 const propertyLayer=L.layerGroup().addTo(map);
+const propertyLabels=new Map();
+window.selectPropertyPin=id=>{
+ map.getContainer().querySelector('.price.selected')?.classList.remove('selected');
+ propertyLabels.get(id)?.classList.add('selected');
+};
 function updateProperties(pins,parcels){
 propertyLayer.clearLayers();
+propertyLabels.clear();
 bounds.length=0;
 (parcels || []).forEach(parcel=>{
  const coordinates=parcel.points.filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&Math.abs(p.lat)<=90&&Math.abs(p.lng)<=180).map(p=>[p.lat,p.lng]);
@@ -61,12 +85,27 @@ bounds.length=0;
 });
 pins.forEach(pin=>{
  const label=document.createElement('div');label.className='price';label.textContent=pin.label;
+ propertyLabels.set(pin.id,label);
  const marker=L.marker([pin.lat,pin.lng],{title:pin.title,icon:L.divIcon({html:label,className:'',iconSize:[90,40],iconAnchor:[45,40]})}).addTo(propertyLayer);
- marker.on('click',()=>send('select',pin.id));
+ marker.on('click',()=>{
+  window.selectPropertyPin(pin.id);
+  send('select',pin.id);
+ });
  bounds.push([pin.lat,pin.lng]);
 });
 }
-window.updatePropertyData=(pins,parcels)=>updateProperties(pins,parcels);
+function fitPropertyBounds(){
+ if(!bounds.length)return;
+ map.invalidateSize({pan:false});
+ const size=map.getSize();
+ if(size.x<=0||size.y<=0)return;
+ const padding=Math.min(50,Math.floor(Math.min(size.x,size.y)/5));
+ map.fitBounds(bounds,{padding:[padding,padding],maxZoom:18,animate:false});
+}
+window.updatePropertyData=(pins,parcels,fit)=>{
+ updateProperties(pins,parcels);
+ if(fit)requestAnimationFrame(fitPropertyBounds);
+};
 updateProperties(data.pins,data.parcels);
 ${options.regions ? `let removeRegions;
 window.updateRegions = regions => {
@@ -96,17 +135,34 @@ if(data.focus && Number.isFinite(data.focus.lat) && Number.isFinite(data.focus.l
 else if(bounds.length)map.fitBounds(bounds,{padding:[50,50],maxZoom:points.length || data.parcels?.length ?18:14});
 if(data.editable){
  const tools=document.createElement('div');tools.className='tools';
+ let editMode='boundary', pin;
+ window.setParcelEditMode=(mode)=>{
+  editMode=mode;
+  tools.style.display=mode==='boundary'?'flex':'none';
+  finishButton.style.display='none';
+  closed=mode!=='boundary'&&points.length>=3;
+  draw();
+ };
  function button(label,action){const b=document.createElement('button');b.textContent=label;b.onclick=action;tools.appendChild(b);return b;}
  undoButton=button('Undo',()=>{points.pop();closed=false;draw();send('points',points);});
  clearButton=button('Clear',()=>{points=[];closed=false;draw();send('points',points);});
  finishButton=button('Finish',()=>{closed=true;draw();send('points',points);});
  document.body.appendChild(tools);
- map.on('click',e=>{if(closed)return;points.push({lat:e.latlng.lat,lng:e.latlng.lng});draw();send('points',points);});
+ map.on('click',e=>{
+  if(editMode==='pin'){
+   if(pin)pin.remove();
+   pin=L.circleMarker(e.latlng,{radius:8,color:'#14263E',fillColor:'#FCC61C',fillOpacity:1}).addTo(map);
+   send('parcelPin',{lat:e.latlng.lat,lng:e.latlng.lng});
+   return;
+  }
+  if(editMode!=='boundary'||closed||points.length>=500)return;
+  points.push({lat:e.latlng.lat,lng:e.latlng.lng});draw();send('points',points);
+ });
 }
 draw();
 // The controls are usable before slow tile servers deliver their first image.
 send('ready');
-window.addEventListener('resize',()=>map.invalidateSize());
+window.addEventListener('resize',()=>{if(data.twoFingerPan)fitPropertyBounds();else map.invalidateSize();});
 } catch(error){send('error');}
 </script></body></html>`;
 }

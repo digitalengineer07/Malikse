@@ -64,6 +64,7 @@ export function installRuntimeMiddleware(app: Express) {
   }));
   for (const [path, name, limit] of [
     ["/auth/login", "AUTH_LOGIN_LIMIT", 20],
+    ["/auth/google", "AUTH_LOGIN_LIMIT", 20],
     ["/auth/register", "AUTH_REGISTER_LIMIT", 10],
     ["/auth/refresh", "AUTH_REFRESH_LIMIT", 60],
   ] as const) {

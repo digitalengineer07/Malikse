@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { ScrollView, Text, TouchableOpacity, View, StyleSheet, type ScrollViewInstance } from "react-native";
 import type { PropertyType } from "../src/types/property.types";
 
 const choices: { value: PropertyType | undefined; label: string }[] = [
@@ -18,7 +18,7 @@ export default function PropertyTypeTabs({
   value?: PropertyType;
   onChange: (value?: PropertyType) => void;
 }) {
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ScrollViewInstance>(null);
 
   return (
     <View style={styles.container}>

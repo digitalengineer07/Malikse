@@ -234,6 +234,19 @@ export const authService = {
     return user;
   },
 
+  async loginWithGoogle(credential: string): Promise<UserProfile> {
+    const res = await api.post("/auth/google", { credential });
+    const { accessToken, refreshToken, user } = res.data;
+    if (accessToken && refreshToken) {
+      useAuthStore.getState().setTokens({ accessToken, refreshToken });
+    }
+    if (user) {
+      useAuthStore.getState().setUser(user);
+      useAuthStore.getState().setAuthState("AUTHENTICATED");
+    }
+    return user;
+  },
+
   async completeDemoKyc() {
     const { accessToken, user } = useAuthStore.getState();
     if (!user || user.role !== "user" || !accessToken) throw new Error("Sign in as a User first");
@@ -248,6 +261,28 @@ export const authService = {
       useAuthStore.getState().setAuthState("AUTHENTICATED");
       return res.data;
     } catch (e) { throw e; }
+  },
+
+  async changePassword(payload: {
+    oldPassword?: string;
+    newPassword: string;
+    confirmPassword?: string;
+  }): Promise<{
+    message: string;
+    emailSent: boolean;
+    email: string | null;
+    user: UserProfile;
+  }> {
+    const res = await api.post("/auth/change-password", payload);
+    const { accessToken, refreshToken, user } = res.data;
+    if (accessToken && refreshToken) {
+      useAuthStore.getState().setTokens({ accessToken, refreshToken });
+    }
+    if (user) {
+      useAuthStore.getState().setUser(user);
+      useAuthStore.getState().setAuthState("AUTHENTICATED");
+    }
+    return res.data;
   },
 
   async logout() {

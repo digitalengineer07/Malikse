@@ -6,6 +6,10 @@ export interface IProperty extends Document {
   __v: number;
   title?: string;
   description?: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  furnishing?: "unfurnished" | "semi-furnished" | "fully furnished";
+  streetAddress?: string;
   ownerId: mongoose.Types.ObjectId;
   jointOwnerIds: mongoose.Types.ObjectId[];
   type: "land" | "flat" | "house" | "shop" | "office";
@@ -98,6 +102,10 @@ const PropertySchema = new Schema<IProperty>(
       default: [],
     },
     khata: String,
+    bedrooms: { type: Number, min: 0, max: 99, validate: Number.isInteger },
+    bathrooms: { type: Number, min: 0, max: 99, validate: Number.isInteger },
+    furnishing: { type: String, enum: ["unfurnished", "semi-furnished", "fully furnished"] },
+    streetAddress: { type: String, trim: true, maxlength: 500 },
     khesra: String,
     holdingNumber: String,
     totalArea: { type: Number, required: true },

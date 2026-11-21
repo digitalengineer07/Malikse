@@ -21,7 +21,7 @@ tasks.withType(com.facebook.react.tasks.BundleHermesCTask).configureEach {
 }
 `;
 
-// Persist release optimizations when EAS regenerates the ignored android folder.
+// Persist release packaging settings when EAS regenerates the Android project.
 module.exports = config => {
   config = withProjectBuildGradle(config, config => {
     config.modResults.contents = config.modResults.contents.replace(
@@ -42,8 +42,10 @@ module.exports = config => {
   });
   return withGradleProperties(config, config => {
   const settings = {
-    'android.enableMinifyInReleaseBuilds': 'true',
-    'android.enableShrinkResourcesInReleaseBuilds': 'true',
+    // R8 minification broke WorkManager's Room database initialization on the
+    // signed preview APK. Resource shrinking also requires minification.
+    'android.enableMinifyInReleaseBuilds': 'false',
+    'android.enableShrinkResourcesInReleaseBuilds': 'false',
     'android.enableBundleCompression': 'true',
     'expo.useLegacyPackaging': 'true',
   };

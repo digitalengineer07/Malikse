@@ -12,9 +12,7 @@ export default function BiharHeritageWatermark({
   height = 44,
   opacity = 0.55,
 }: BiharHeritageWatermarkProps) {
-  if (Platform.OS !== "web") return null;
-
-  return (
+  return Platform.OS === "web" ? (
     <svg
       viewBox="0 0 240 64"
       width={width}
@@ -103,5 +101,5 @@ export default function BiharHeritageWatermark({
         <circle cx="223.25" cy="11.5" r="1.2" />
       </g>
     </svg>
-  );
+  ) : null;
 }

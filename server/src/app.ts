@@ -3,6 +3,7 @@ import kycRoutes from "./routes/kyc.routes";
 import accountDeletionRoutes from "./routes/accountDeletion.routes";
 import recommendationRoutes from "./routes/recommendation.routes";
 import express from "express";
+import parcelPlacesRoutes from "./routes/parcelPlaces.routes";
 import mongoose from "mongoose";
 import authRoutes from "./routes/auth.routes";
 import propertyRoutes from "./routes/property.routes";
@@ -34,6 +35,7 @@ export function createApp(isReady = () => mongoose.connection.readyState === 1) 
   app.use("/account-deletion", accountDeletionRoutes);
   app.use("/recommendations", recommendationRoutes);
   app.use("/properties", propertyRoutes);
+  app.use("/parcel-places", parcelPlacesRoutes);
   app.use("/documents", documentRoutes);
   app.use("/deals", dealRoutes);
   app.use("/verification", advisorRoutes);

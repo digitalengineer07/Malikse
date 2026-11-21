@@ -1,5 +1,6 @@
+import { OAuth2Client } from "google-auth-library";
 import { cookieSession, trustedCookieOrigin, sessionPayload, refreshFromRequest, clearCookieSession } from "../services/browserSession";
-import { randomUUID, randomInt, createHash, createHmac, timingSafeEqual } from "crypto";
+import { randomUUID, randomInt, randomBytes, createHash, createHmac, timingSafeEqual } from "crypto";
 import { rateLimit } from "express-rate-limit";
 import { Registration } from "../models/Registration.model";
 import { PasswordReset } from "../models/PasswordReset.model";
@@ -11,7 +12,7 @@ import { authGuard } from "../middleware/auth.middleware";
 import { User } from "../models/User.model";
 
 import { REFRESH_SECRET, accountEnabled, generateTokens, publicUser, tokenDigest, refreshExpiry } from "../services/security";
-import { sendEmailOtp } from "../services/mailer";
+import { sendEmailOtp, sendPasswordChangeConfirmationEmail } from "../services/mailer";
 
 const router = Router();
 router.use((req, res, next) => {
@@ -142,7 +143,7 @@ function isWeakPassword(password: string, context?: { name?: string; mobile?: st
 }
 
 // POST /auth/register
-router.post("/register", async (req, res) => {
+router.post("/register", rateLimit({ windowMs: 60000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false, validate: { xForwardedForHeader: false, default: true } }), async (req, res) => {
   try {
     const { name, fullName, mobile, email, password, method } = req.body;
     const rawName = name || fullName;
@@ -204,7 +205,31 @@ router.post("/register", async (req, res) => {
       $and: [{ $or: [{ resendAt: { $lte: now } }, { resendAt: { $exists: false } }] },
         { $or: [{ lockUntil: { $lte: now } }, { lockUntil: { $exists: false } }] }],
     }, { $set: { challengeId, lockUntil: new Date(Date.now() + 30000), resendAt: new Date(Date.now() + 60000), expiresAt: now, attempts: 0 } }, { new: true });
-    if (!pending) return res.status(429).json({ message: "Please wait before requesting another OTP", retryAfterSeconds: 60 });
+    if (!pending) {
+      const existing = await Registration.findById(challengeKey).lean();
+      const retryAfterSeconds = Math.max(1, Math.ceil(
+        (Math.max(existing?.resendAt?.getTime() ?? 0, existing?.lockUntil?.getTime() ?? 0) - Date.now()) / 1000,
+      ));
+      // A reload can lose the response after delivery. Resume only the same registration.
+      if (existing?.challengeId && existing.otpHash && existing.passwordHash
+        && existing.channel === channel && existing.name === cleanName
+        && (existing.mobile || "") === cleanMobile && (existing.email || "") === cleanEmail
+        && (existing.attempts ?? 0) < 5 && (existing.lockUntil?.getTime() ?? 0) <= Date.now()
+        && existing.expiresAt && existing.expiresAt.getTime() > Date.now()
+        && await bcrypt.compare(password, existing.passwordHash)) {
+        const expiresInSeconds = Math.ceil((existing.expiresAt.getTime() - Date.now()) / 1000);
+        if (expiresInSeconds > 0) {
+          return res.status(202).json({
+            challengeId: existing.challengeId,
+            channel,
+            expiresInSeconds,
+            resendAfterSeconds: Math.max(0, Math.ceil(((existing.resendAt?.getTime() ?? 0) - Date.now()) / 1000)),
+            resumed: true,
+          });
+        }
+      }
+      return res.status(429).json({ message: "Please wait before requesting another OTP", retryAfterSeconds });
+    }
 
     try {
       if (channel === "mobile" && process.env.TWILIO_SMS_TEST_MODE === "true" && process.env.NODE_ENV === "test") {
@@ -267,8 +292,8 @@ router.post("/register", async (req, res) => {
       await Registration.updateOne({ _id: challengeKey, challengeId }, { $set: {
         channel,
         name: cleanName,
-        mobile: cleanMobile || undefined,
-        email: cleanEmail || undefined,
+        mobile: cleanMobile,
+        email: cleanEmail,
         passwordHash,
         otpHash: otpDigest(challengeId, code),
         expiresAt,
@@ -497,6 +522,50 @@ router.post("/login", async (req, res) => {
   }
 });
 
+const googleVerifier = new OAuth2Client();
+router.post("/google", async (req, res) => {
+  const token = req.body?.credential ?? req.body?.idToken;
+  if (typeof token !== "string" || !token || token.length > 8192) {
+    return res.status(400).json({ message: "A Google ID token is required." });
+  }
+  const audience = process.env.GOOGLE_SIGN_IN_CLIENT_ID?.trim();
+  if (!audience) return res.status(503).json({ message: "Google sign-in is not configured." });
+
+  let profile;
+  try {
+    profile = (await googleVerifier.verifyIdToken({ idToken: token, audience })).getPayload();
+  } catch {
+    return res.status(401).json({ message: "Google sign-in could not be verified." });
+  }
+  const email = profile?.email?.trim().toLowerCase();
+  if (!email || !profile?.sub || profile.email_verified !== true || (!email.endsWith("@gmail.com") && !profile.hd)) {
+    return res.status(401).json({ message: "Google could not verify ownership of this email address." });
+  }
+
+  try {
+    let user = await User.findOne({ googleId: profile.sub });
+    if (user && (user.role !== "user" || !accountEnabled(user) || user.deletionRequestedAt)) {
+      return res.status(403).json({ message: "This account cannot sign in with Google." });
+    }
+    if (!user) {
+      if (await User.exists({ email })) return res.status(409).json({ message: "Sign in with your existing MalikSe credentials." });
+      user = new User({
+        name: (profile.name?.trim() || email.split("@")[0]).slice(0, 120),
+        email, googleId: profile.sub, role: "user", emailVerifiedAt: new Date(),
+      });
+    }
+
+    const { accessToken, refreshToken } = generateTokens(user);
+    user.refreshTokenHash = tokenDigest(refreshToken);
+    user.refreshTokenExpiresAt = refreshExpiry(refreshToken);
+    await user.save();
+    res.json(sessionPayload(req, res, { accessToken, refreshToken }, user));
+  } catch (error: any) {
+    if (error?.code === 11000) return res.status(409).json({ message: "This account already exists. Please sign in again." });
+    res.status(500).json({ message: "Google sign-in is temporarily unavailable." });
+  }
+});
+
 // POST /auth/kyc/demo — a UI prototype toggle, not identity verification.
 router.post("/kyc/demo", authGuard, async (req: any, res) => {
   if (process.env.NODE_ENV === "production") return res.status(403).json({ message: "Identity verification requires staff review" });
@@ -556,6 +625,124 @@ router.get("/me", authGuard, async (req: any, res) => {
   }
 });
 
+// POST /auth/change-password
+router.post(
+  "/change-password",
+  authGuard,
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 15,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    validate: { xForwardedForHeader: false, default: true },
+  }),
+  async (req: any, res) => {
+    try {
+      const { oldPassword, newPassword, confirmPassword } = req.body;
+
+      if (!req.user?.id) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const user = await User.findById(req.user.id);
+      if (!user) {
+        return res.status(404).json({ message: "User account not found" });
+      }
+
+      if (user.isSuspended) {
+        return res.status(403).json({ message: "Your account has been suspended by the administrator." });
+      }
+      if (user.isActive === false) {
+        return res.status(403).json({ message: "Your staff account has been deactivated." });
+      }
+
+      // If user has a real current password, oldPassword is required and verified
+      const hasRealPassword = Boolean(
+        user.passwordHash &&
+        typeof user.passwordHash === "string" &&
+        !user.passwordHash.startsWith("google_oauth") &&
+        /^\$2[aby]\$/.test(user.passwordHash)
+      );
+
+      if (hasRealPassword) {
+        if (!oldPassword || typeof oldPassword !== "string") {
+          return res.status(400).json({ message: "Please enter your current password." });
+        }
+        const isMatch = await bcrypt.compare(oldPassword, user.passwordHash!);
+        if (!isMatch) {
+          return res.status(400).json({ message: "The current password you entered is incorrect." });
+        }
+      }
+
+      // Validate new password format and length
+      if (typeof newPassword !== "string" || newPassword.length < 6 || Buffer.byteLength(newPassword, "utf8") > 72) {
+        return res.status(400).json({ message: "New password must contain at least 6 characters and at most 72 UTF-8 bytes." });
+      }
+
+      // Check confirm password if provided
+      if (confirmPassword !== undefined && confirmPassword !== newPassword) {
+        return res.status(400).json({ message: "New password and confirm password do not match." });
+      }
+
+      // If user had an existing password, ensure new password is not identical to current password
+      if (hasRealPassword) {
+        const isSame = await bcrypt.compare(newPassword, user.passwordHash!);
+        if (isSame) {
+          return res.status(400).json({ message: "New password must be different from your current password." });
+        }
+      }
+
+      // Weak password checks (common strings, sequential digits, personal info)
+      const weakReason = isWeakPassword(newPassword, {
+        name: user.name,
+        mobile: user.mobile,
+        email: user.email,
+      });
+      if (weakReason) {
+        return res.status(400).json({ message: weakReason });
+      }
+
+      // Hash new password and update user
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+      user.passwordHash = passwordHash;
+      user.sessionVersion = (user.sessionVersion ?? 0) + 1;
+
+      // Invalidate old refresh tokens and issue fresh login tokens
+      const { accessToken, refreshToken } = generateTokens(user);
+      user.refreshTokenHash = tokenDigest(refreshToken);
+      user.refreshTokenExpiresAt = refreshExpiry(refreshToken);
+      await user.save();
+
+      // Dispatch confirmation email if user has a registered email address
+      let emailSent = false;
+      const targetEmail = user.email?.trim().toLowerCase();
+      if (targetEmail) {
+        try {
+          const mailResult = await sendPasswordChangeConfirmationEmail(
+            targetEmail,
+            user.name
+          );
+          emailSent = Boolean(mailResult.success);
+        } catch (mailError: any) {
+          console.error("[Auth] Confirmation email delivery failed:", mailError?.message || mailError);
+        }
+      }
+
+      return res.status(200).json({
+        message: "Password changed successfully.",
+        emailSent,
+        email: targetEmail || null,
+        ...sessionPayload(req, res, { accessToken, refreshToken }, user),
+      });
+    } catch (error: any) {
+      console.error("[Auth] Change password failed:", error?.message || error);
+      res.status(error?.status === 503 ? 503 : 500).json({
+        message: error?.status === 503 ? error.message : "Password change service temporarily unavailable. Please try again.",
+      });
+    }
+  }
+);
+
 // POST /auth/forgot-password
 router.post(
   "/forgot-password",
@@ -576,13 +763,20 @@ router.post(
         return res.status(400).json({ message: "Enter a valid 10-digit mobile number or email address" });
       }
 
-      const user = await User.findOne(
-        isMobile
-          ? { $or: [{ mobile: cleanMobile }, { email: input.toLowerCase() }] }
-          : { email: input.toLowerCase() }
-      );
-
-      if (!user || !accountEnabled(user) || !(isEmail ? user.emailVerifiedAt : user.mobileVerifiedAt)) return res.json(resetResponse());
+      const user = await User.findOne(isEmail ? { email: input.toLowerCase() } : { mobile: cleanMobile });
+      const contact = isEmail ? "email address" : "mobile number";
+      if (!user) {
+        return res.status(404).json({
+          code: "RECOVERY_CONTACT_NOT_REGISTERED",
+          message: `No account is registered with this ${contact}.`,
+        });
+      }
+      if (!accountEnabled(user) || !(isEmail ? user.emailVerifiedAt : user.mobileVerifiedAt)) {
+        return res.status(404).json({
+          code: "RECOVERY_CONTACT_UNAVAILABLE",
+          message: `This ${contact} is registered but can't be used for recovery.`,
+        });
+      }
 
       const now = new Date();
       const resetKey = String(user._id);
@@ -614,6 +808,7 @@ router.post(
             expiresAt: now,
             attempts: 0,
           },
+          $unset: { resetGrantHash: "" },
         },
         { new: true }
       );
@@ -683,7 +878,7 @@ router.post(
       const code = stubCode || randomInt(0, 1000000).toString().padStart(6, "0");
       const claimed = await PasswordReset.findOneAndUpdate(
         { _id: existing._id, challengeId: existing.challengeId, resendAt: { $lte: now }, lockUntil: { $lte: now } },
-        { $set: { challengeId: newChallengeId, expiresAt: now, lockUntil: new Date(Date.now() + 30000), resendAt: new Date(Date.now() + 60000) } },
+        { $set: { challengeId: newChallengeId, expiresAt: now, lockUntil: new Date(Date.now() + 30000), resendAt: new Date(Date.now() + 60000) }, $unset: { resetGrantHash: "" } },
         { new: true }
       );
       if (!claimed) return res.json(resetResponse());
@@ -714,6 +909,50 @@ router.post(
   }
 );
 
+const resetGrantDigest = (grant: string) => createHash("sha256").update(grant).digest("hex");
+
+router.post(
+  "/forgot-password/verify",
+  rateLimit({ windowMs: 60000, limit: 15, standardHeaders: "draft-8", legacyHeaders: false, validate: { xForwardedForHeader: false, default: true } }),
+  async (req, res) => {
+    const challengeId = typeof req.body?.challengeId === "string" ? req.body.challengeId.trim() : "";
+    const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
+    if (!challengeId || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({ message: "Enter the 6-digit verification code." });
+    }
+    const now = new Date();
+    const lockUntil = new Date(now.getTime() + 30000);
+    let locked = false;
+    try {
+      const pending = await PasswordReset.findOneAndUpdate(
+        { challengeId, expiresAt: { $gt: now }, lockUntil: { $lte: now }, attempts: { $lt: 5 }, resetGrantHash: { $exists: false } },
+        { $inc: { attempts: 1 }, $set: { lockUntil } },
+        { new: true },
+      );
+      if (!pending) return res.status(400).json({ message: "Code expired or maximum attempts reached. Request a new code." });
+      locked = true;
+      const valid = pending.provider === "twilio-verify" && pending.mobile
+        ? await checkTwilioVerification(pending.mobile, code)
+        : pending.provider === "local" && verifyPasswordResetOtp(challengeId, code, pending.otpHash);
+      if (!valid) return res.status(400).json({ code: "INCORRECT_RESET_CODE", message: "Incorrect code. Please try again." });
+
+      const resetToken = randomBytes(32).toString("base64url");
+      const expiresInSeconds = 300;
+      const update = await PasswordReset.updateOne(
+        { challengeId, lockUntil, expiresAt: { $gt: new Date() } },
+        { $set: { resetGrantHash: resetGrantDigest(resetToken), expiresAt: new Date(Date.now() + expiresInSeconds * 1000), lockUntil: new Date(0) } },
+      );
+      if (!update.matchedCount) return res.status(400).json({ message: "Code expired. Request a new code." });
+      res.setHeader("Cache-Control", "no-store");
+      return res.json({ resetToken, expiresInSeconds });
+    } catch {
+      return res.status(500).json({ message: "Could not verify the code. Please try again." });
+    } finally {
+      if (locked) await PasswordReset.updateOne({ challengeId, lockUntil }, { $set: { lockUntil: new Date(0) } }).catch(() => {});
+    }
+  },
+);
+
 // POST /auth/reset-password
 router.post(
   "/reset-password",
@@ -721,9 +960,10 @@ router.post(
   async (req, res) => {
     const rawChallengeId = String(req.body.challengeId || "").trim();
     const cleanCode = String(req.body.code ?? "").trim();
-    const { newPassword } = req.body;
+    const { newPassword, resetToken } = req.body;
+    const usingGrant = typeof resetToken === "string" && /^[A-Za-z0-9_-]{43}$/.test(resetToken);
 
-    if (!rawChallengeId || !/^\d{6}$/.test(cleanCode)) {
+    if (!rawChallengeId || (resetToken !== undefined ? !usingGrant : !/^\d{6}$/.test(cleanCode))) {
       return res.status(400).json({ message: "Enter the 6-digit verification code sent to your registered mobile/email" });
     }
 
@@ -739,7 +979,8 @@ router.post(
     }
 
     let locked = false;
-    let resetRecordId = "";
+    const lockUntil = new Date(Date.now() + 30000);
+    const credential = usingGrant ? { resetGrantHash: resetGrantDigest(resetToken) } : { resetGrantHash: { $exists: false } };
 
     try {
       const pending = await PasswordReset.findOneAndUpdate(
@@ -747,11 +988,12 @@ router.post(
           challengeId: rawChallengeId,
           expiresAt: { $gt: new Date() },
           lockUntil: { $lte: new Date() },
-          attempts: { $lt: 5 },
+          ...credential,
+          ...(!usingGrant && { attempts: { $lt: 5 } }),
         },
         {
-          $inc: { attempts: 1 },
-          $set: { lockUntil: new Date(Date.now() + 30000) },
+          ...(!usingGrant && { $inc: { attempts: 1 } }),
+          $set: { lockUntil },
         },
         { new: true }
       );
@@ -761,19 +1003,18 @@ router.post(
           .status(400)
           .json({ message: "OTP expired, invalid session, or maximum attempts exceeded. Please request a new OTP." });
       }
+      locked = true;
 
       const mobileWeak = isWeakPassword(newPassword, { mobile: pending.mobile || undefined });
       if (mobileWeak) {
         return res.status(400).json({ message: mobileWeak });
       }
 
-      resetRecordId = pending._id;
-      locked = true;
-      let codeValid = false;
+      let codeValid = usingGrant;
 
-      if (pending.provider === "twilio-verify" && pending.mobile) {
+      if (!usingGrant && pending.provider === "twilio-verify" && pending.mobile) {
         codeValid = await checkTwilioVerification(pending.mobile, cleanCode);
-      } else if (pending.provider === "local") {
+      } else if (!usingGrant && pending.provider === "local") {
         codeValid = verifyPasswordResetOtp(rawChallengeId, cleanCode, pending.otpHash);
       }
 
@@ -783,7 +1024,7 @@ router.post(
 
       // Consume challenge atomically
       const consumed = await PasswordReset.findOneAndUpdate(
-        { challengeId: rawChallengeId, expiresAt: { $gt: new Date() } },
+        { challengeId: rawChallengeId, lockUntil, expiresAt: { $gt: new Date() }, ...credential },
         { $set: { expiresAt: new Date(0) } }
       );
       if (!consumed) {
@@ -822,8 +1063,8 @@ router.post(
     } catch (error: any) {
       return res.status(500).json({ message: "Password reset service temporarily unavailable. Please try again." });
     } finally {
-      if (locked && resetRecordId) {
-        await PasswordReset.updateOne({ _id: resetRecordId }, { $set: { lockUntil: new Date(0) } }).catch(() => {});
+      if (locked) {
+        await PasswordReset.updateOne({ challengeId: rawChallengeId, lockUntil }, { $set: { lockUntil: new Date(0) } }).catch(() => {});
       }
     }
   }

@@ -79,22 +79,30 @@ async function main() {
   const app = express(); app.set('trust proxy', 'loopback'); app.use(express.json()); app.use('/account-deletion', require('../dist/routes/accountDeletion.routes').default);
   server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
   let count = 0;
-  async function call(route, body, ip) {
-    const response = await fetch(`http://127.0.0.1:${server.address().port}/account-deletion${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-forwarded-for': ip || `192.0.2.${++count}` }, body: JSON.stringify(body) });
+  async function call(route, body, ip, token = access) {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/account-deletion${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-forwarded-for': ip || `192.0.2.${++count}`, ...(token && { Authorization: 'Bearer ' + token }) }, body: JSON.stringify(body) });
     return { status: response.status, data: await response.json() };
   }
   const payload = { identifier: owner.email, password, confirmation: 'DELETE', userId: buyer._id };
+  assert.equal((await call('', payload, undefined, null)).status, 401);
+  assert.equal((await call('', { ...payload, identifier: buyer.email })).status, 403);
+  assert.equal(await AccountDeletion.countDocuments(), 0);
   assert.equal((await call('', { ...payload, password: 'wrong' })).status, 401);
   assert.equal((await call('', { ...payload, confirmation: 'NO' })).status, 400);
   assert.equal((await call('', { ...payload, identifier: admin.email })).status, 403);
-  const [first, duplicate] = await Promise.all([call('', payload), call('', payload)]);
-  assert.equal(first.status, 202); assert.equal(duplicate.status, 202);
-  assert.equal(first.data.reference, duplicate.data.reference);
+  const first = await call('', payload);
+  assert.equal(first.status, 202);
+  assert.match(first.data.reference, /^DEL(?:-[A-F0-9]{4}){5}$/);
+  assert.match(first.data.receipt, /^PRV(?:-[A-F0-9]{8}){4}$/);
+  assert.equal((await AccountDeletion.findById(first.data.reference)).receiptHash,
+    require('node:crypto').createHash('sha256').update(first.data.receipt).digest('hex'));
+  assert.ok([401, 403].includes((await call('', payload)).status));
   assert.equal(await AccountDeletion.countDocuments({ userId: owner._id }), 1);
   assert.equal((await authenticateRequest('Bearer ' + access)).status, 403);
   assert.equal((await User.findById(buyer._id)).isActive, true);
   assert.equal((await call('/status', { ...first.data, receipt: '0'.repeat(64) })).status, 404);
   assert.equal((await call('/status', first.data)).data.status, 'pending');
+  assert.equal((await call('/status', { reference: first.data.reference.toLowerCase(), receipt: first.data.receipt.toLowerCase() })).status, 200);
   if (replica) {
     const staff = await User.create({ name: 'Assigned staff', role: 'advisor', passwordHash: hash });
     await Property.updateOne({ _id: prop._id }, { $set: { assignedAdvisorId: staff._id } });

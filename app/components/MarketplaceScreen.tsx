@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
+  type ScrollViewInstance,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,7 +24,7 @@ import PremiumIndiaMap from "./PremiumIndiaMap";
 import BiharLandIntelligenceCard from "./BiharLandIntelligenceCard";
 import BiharDistrictExplorerPanel from "./BiharDistrictExplorerPanel";
 import PropertyCard from "./PropertyCard";
-import { BIHAR_DISTRICTS_DATA, type BiharDistrictInfo } from "../src/data/biharDistrictsData";
+import { BIHAR_DISTRICTS_DATA, type BiharDistrictInfo } from "../src/geo-data/biharDistrictsData";
 
 import {
   cachedRegionCounts,
@@ -148,7 +149,7 @@ export default function MarketplaceScreen() {
   const isDesktop = width >= 980;
 
   // Scroll ref for smooth navigation
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const [heroEntrance] = useState(() => new Animated.Value(0));
   useEffect(() => {
     const animation = Animated.timing(heroEntrance, {

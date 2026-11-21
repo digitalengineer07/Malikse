@@ -1,5 +1,8 @@
 import { processFileCleanup } from "./services/fileCleanup";
-import "dotenv/config";
+import path from "path";
+import dotenv from "dotenv";
+dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 import { createRequiredIndexes, verifyRequiredIndexes } from "./services/requiredIndexes";
 import { startAccountDeletionWorker } from "./services/accountDeletion";
 import { deliverNotifications } from "./services/notificationQueue";
@@ -12,6 +15,8 @@ import { closeRedis } from "./services/redis";
 import { startRegionCounts, stopRegionCounts } from "./services/regionCountStore";
 import { startSubmissionWorker } from "./services/submissionQueue";
 import { checkPushReceipts } from "./services/pushNotifications";
+import { freePort } from "./services/freePort";
+import { User } from "./models/User.model";
 
 let stopping = false;
 let initialized = false;
@@ -19,9 +24,24 @@ const app = createFastifyApp(() => initialized && !stopping && mongoose.connecti
 const PORT = positiveInteger("PORT", 5000, 65535);
 mongoose.set("bufferCommands", false);
 
+async function startListening(port: number): Promise<void> {
+  try {
+    await app.listen({ port, host: "0.0.0.0" });
+  } catch (err: any) {
+    if (err?.code === "EADDRINUSE" && process.env.NODE_ENV !== "production") {
+      console.warn(`[MalikSe] Port ${port} is currently busy. Reclaiming port...`);
+      freePort(port);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await app.listen({ port, host: "0.0.0.0" });
+      return;
+    }
+    throw err;
+  }
+}
+
 let startupStage = `listening on port ${PORT}`;
 // Bind before any remote database or region-count work to meet hosting startup deadlines.
-app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
+startListening(PORT).then(() => {
   console.log(`[MalikSe] Fastify server running on http://localhost:${PORT}`);
   startupStage = "MongoDB connection";
   return mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/malikse", {
@@ -38,6 +58,7 @@ app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
   }
   startupStage = "required index verification";
   if (process.env.NODE_ENV !== "production") await createRequiredIndexes();
+  else await User.collection.createIndex({ googleId: 1 }, { unique: true, sparse: true });
   await verifyRequiredIndexes();
   startupStage = "region count initialization";
   await startRegionCounts();
@@ -69,6 +90,7 @@ app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
   };
   process.once("SIGTERM", () => { void shutdown(); });
   process.once("SIGINT", () => { void shutdown(); });
+  process.once("SIGUSR2", () => { void shutdown(); });
 }).catch(async (error: unknown) => {
   const cause = error as { name?: string; code?: string; message?: string };
   const message = String(cause?.message || "Unknown error").replace(/mongodb(?:\+srv)?:\/\/[^\s]+/gi, "[redacted MongoDB URI]");

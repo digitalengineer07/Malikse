@@ -50,7 +50,7 @@ export default function PropertyCard({ property, onSave, isSaved }: PropertyCard
       {/* Property Image Header */}
       <View style={styles.imageContainer}>
         {property.media?.photos?.[0] ? (
-          <Image source={{ uri: property.media.photos[0] }} accessibilityLabel="Property photo" style={styles.image} resizeMode="cover" />
+          <Image source={{ uri: property.media.photos[0] }} accessibilityLabel="Property photo" style={styles.image} resizeMode="cover" isPublic thumbnailWidth={600} />
         ) : (
           <View style={[styles.image, { backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" }]}>
             <MaterialIcons name="landscape" size={42} color="#94A3B8" />

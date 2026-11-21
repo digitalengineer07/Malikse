@@ -3,13 +3,13 @@
   "version": "1.0.0",
   "scripts": {
     "start": "node server.js",
-    "dev": "vite --host 127.0.0.1 --port 8082",
+    "dev": "vite --host localhost --port 8082",
     "web": "npm run dev",
     "build": "vite build",
     "postinstall": "npm run build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "preview": "vite preview --host 127.0.0.1 --port 8082"
+    "preview": "vite preview --host localhost --port 8082"
   },
   "dependencies": {
     "@types/leaflet": "^1.9.21",
