@@ -65,7 +65,7 @@ router.param("id", (_req, res, next, id) =>
 );
 
 // Submit an offer or contact the assigned staff member
-router.post("/", authGuard, async (req: AuthRequest, res) => {
+router.post("/", async (req: AuthRequest, res) => {
   try {
     const { propertyId, message, offerAmount } = req.body;
 
@@ -133,7 +133,7 @@ for (const [route, party, other] of [
   ["/sent", "buyerId", "staffId"],
   ["/received", "staffId", "buyerId"],
 ]) {
-  router.get(route, authGuard, async (req: AuthRequest, res) => {
+  router.get(route, async (req: AuthRequest, res) => {
     try {
       const sortField = req.query.sort === "activity" ? "updatedAt" : "createdAt";
       const sort = { [sortField]: -1, _id: -1 } as const;
@@ -243,7 +243,7 @@ for (const [route, party, other] of [
   });
 }
 
-router.get("/:id", authGuard, async (req: AuthRequest, res) => {
+router.get("/:id", async (req: AuthRequest, res) => {
   try {
     const inquiry = await Inquiry.findOne({
       _id: req.params.id,
@@ -263,7 +263,7 @@ router.get("/:id", authGuard, async (req: AuthRequest, res) => {
   }
 });
 
-router.get("/:id/messages", authGuard, async (req: AuthRequest, res) => {
+router.get("/:id/messages", async (req: AuthRequest, res) => {
   try {
     const before =
       req.query.before === undefined ? undefined : Number(req.query.before);
@@ -336,7 +336,7 @@ router.get("/:id/messages", authGuard, async (req: AuthRequest, res) => {
 });
 
 // Reply/update inquiry status (Seller view)
-router.put("/:id/status", authGuard, async (req: AuthRequest, res) => {
+router.put("/:id/status", async (req: AuthRequest, res) => {
   try {
     const { status } = req.body;
     if (!["pending", "accepted", "rejected", "countered"].includes(status)) {
@@ -389,7 +389,7 @@ router.put("/:id/status", authGuard, async (req: AuthRequest, res) => {
 });
 
 // Send a message on an inquiry
-router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
+router.post("/:id/message", async (req: AuthRequest, res) => {
   try {
     const { text } = req.body;
     if (typeof text !== "string" || !text.trim() || text.length > 5000)
@@ -477,7 +477,7 @@ router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
 });
 
 // A client acknowledges only the activity it has actually displayed.
-router.post("/:id/read", authGuard, async (req: AuthRequest, res) => {
+router.post("/:id/read", async (req: AuthRequest, res) => {
   try {
     const through = new Date(req.body.through);
     if (
