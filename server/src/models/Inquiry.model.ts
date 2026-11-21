@@ -53,4 +53,6 @@ InquirySchema.index({ staffId: 1, createdAt: -1 }, { name: "inquiry_staff_newest
 
 InquirySchema.index({ buyerId: 1, createdAt: -1, _id: -1 }, { name: "inquiry_buyer_cursor" });
 InquirySchema.index({ staffId: 1, createdAt: -1, _id: -1 }, { name: "inquiry_staff_cursor" });
+InquirySchema.index({ buyerId: 1, updatedAt: -1, _id: -1 });
+InquirySchema.index({ propertyId: 1, updatedAt: -1, _id: -1 });
 export const Inquiry = mongoose.model<IInquiry>("Inquiry", InquirySchema);

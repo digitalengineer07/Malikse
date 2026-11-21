@@ -16,17 +16,22 @@ router.get("/notifications", authGuard, async (req: AuthRequest, res, next) => {
   res.set("Cache-Control", "private, no-store");
   const limit = 20;
   try {
-    const notifications = await Notification.find({ recipient, ...(before ? { _id: { $lt: before } } : {}) })
+    const notifications = await Notification.find({
+      recipient,
+      listingBroadcast: { $ne: true },
+      ...(req.query.unread === "true" ? { readAt: null } : {}),
+      ...(before ? { _id: { $lt: before } } : {}),
+    })
       .sort({ _id: -1 }).limit(limit + 1)
       .select("title body data messageId readAt createdAt").lean();
     const items = await Promise.all(notifications.slice(0, limit).map(async item => {
       const { kind, id } = item.data || {};
-      const target = (kind === "inquiry" || kind === "deal") && typeof id === "string" && isObjectIdOrHexString(id)
+      const target = (kind === "inquiry" || kind === "deal" || kind === "property" || kind === "listings") && typeof id === "string" && isObjectIdOrHexString(id)
         ? { kind, id } : null;
       const message = await findNotificationMessage(recipient, target ?? undefined, item.messageId);
-      const body = message?.text ?? item.body;
       const title = item.messageId && !message ? genericChatTitle : item.title;
-      return { id: String(item._id), title, body, target, readAt: item.readAt, createdAt: item.createdAt };
+      const senderName = message && title !== genericChatTitle ? title : undefined;
+      return { id: String(item._id), title, senderName, body: message?.text ?? item.body, target, readAt: item.readAt, createdAt: item.createdAt };
     }));
     res.json({ items, nextCursor: notifications.length > limit ? items[limit - 1].id : null });
   } catch (error) {
@@ -37,7 +42,7 @@ router.get("/notifications", authGuard, async (req: AuthRequest, res, next) => {
 router.get("/notifications/unread", authGuard, async (req: AuthRequest, res, next) => {
   res.set("Cache-Control", "private, no-store");
   try {
-    res.json({ unread: await Notification.countDocuments({ recipient: req.user!.id, readAt: null }) });
+    res.json({ unread: await Notification.countDocuments({ recipient: req.user!.id, readAt: null, listingBroadcast: { $ne: true } }) });
   } catch (error) {
     next(error);
   }
@@ -47,7 +52,7 @@ router.patch("/notifications/:id/read", authGuard, async (req: AuthRequest, res,
   if (!isObjectIdOrHexString(req.params.id)) return res.sendStatus(404);
   try {
     await Notification.updateOne(
-      { _id: new Types.ObjectId(req.params.id), recipient: req.user!.id, readAt: null },
+      { _id: new Types.ObjectId(req.params.id), recipient: req.user!.id, readAt: null, listingBroadcast: { $ne: true } },
       { $set: { readAt: new Date() } },
     );
     res.sendStatus(204);

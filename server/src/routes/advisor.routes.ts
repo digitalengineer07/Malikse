@@ -1,7 +1,8 @@
 import { enabledOwnerStages } from "../services/marketplace";
 import { readAggregatePage, listFields } from "../services/pagination";
 import { Router } from "express";
-import { isValidObjectId, Types } from "mongoose";
+import mongoose, { isValidObjectId, Types } from "mongoose";
+import { Notification } from "../models/Notification.model";
 import { Property } from "../models/Property.model";
 import { authGuard, roleGuard } from "../middleware/auth.middleware";
 import { availableStaff, historyEvent, transition } from "../services/propertyWorkflow";
@@ -63,7 +64,28 @@ router.post("/:propertyId/report", async (req: any, res) => {
       changes["badges.documentsChecked"] = property.documents.length > 0 && checklist.documentsReviewed === true;
       changes["badges.siteVisited"] = !!gpsCheckIn;
     }
-    const updated = await transition(property, changes, historyEvent(req.user, property.status, status, decision, { report }));
+    const id = String(property._id);
+    const session = await mongoose.startSession();
+    let updated;
+    try {
+      updated = await session.withTransaction(async () => {
+        const result = await transition(property, changes, historyEvent(req.user, property.status, status, decision, { report }), session);
+        if (!result) return null;
+        const name = Array.from(property.title || "Your property").slice(0, 140).join("");
+        const title = status === "verified" ? "Property verified" : status === "rejected" ? "Property review declined" : "Updates needed on your property";
+        await Notification.create([{
+          recipient: property.ownerId, title,
+          body: status === "verified" ? `${name} is verified and published.` : `Review the latest feedback for ${name} in My Properties.`,
+          data: { kind: status === "verified" ? "property" : "listings", id },
+        }, ...(status === "verified" && !property.firstPublishedAt ? [{
+          recipient: property.ownerId, title: property.type === "land" ? "New plot listed" : "New property listed",
+          body: name, data: { kind: "property", id }, listingBroadcast: true,
+        }] : [])], { session, ordered: true });
+        return result;
+      });
+    } finally {
+      await session.endSession();
+    }
     if (!updated) return res.status(409).json({ message: "Another update was saved. Reload this property" });
     res.json(updated);
   } catch (error: any) { res.status(400).json({ message: error.message }); }

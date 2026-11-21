@@ -94,13 +94,21 @@ export async function createOffer(
           ],
           { session, ordered: true },
         );
+      const listingName = Array.from(property.title || "the listing").slice(0, 140).join("");
+      const offerBody = `A buyer made an offer on ${listingName}.`;
       await Notification.create(
         [
           {
             recipient: staff._id,
             title: "New offer",
-            body: "A buyer sent an offer on your assigned property.",
+            body: offerBody,
             data: { kind: "deal", id: String(deal._id) },
+          },
+          {
+            recipient: property.ownerId,
+            title: "New offer on your property",
+            body: offerBody,
+            data: { kind: "listings", id: String(property._id) },
           },
         ],
         { session, ordered: true },

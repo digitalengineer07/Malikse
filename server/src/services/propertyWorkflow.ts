@@ -72,10 +72,10 @@ export function historyEvent(actor: { id: string; role: string }, from: string, 
 }
 
 // Version checks prevent simultaneous reviewers or edits from overwriting decisions.
-export async function transition(property: IProperty, changes: object, event: object) {
+export async function transition(property: IProperty, changes: object, event: object, session?: import("mongoose").ClientSession) {
   const updated = await Property.findOneAndUpdate({ _id: property._id, __v: property.__v, status: property.status }, {
     $set: changes, $inc: { __v: 1 }, $push: { verificationHistory: event },
-  }, { new: true, runValidators: true });
+  }, { new: true, runValidators: true, session });
   return updated;
 }
 

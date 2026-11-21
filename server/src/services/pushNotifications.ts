@@ -3,7 +3,7 @@ import { PushDevice } from "../models/PushDevice.model";
 import { PushReceipt } from "../models/PushReceipt.model";
 import { User } from "../models/User.model";
 
-type PushData = { kind: "inquiry" | "deal"; id: string };
+type PushData = { kind: "inquiry" | "deal" | "property" | "listings"; id: string };
 type PushTicket = { status: "ok" | "error"; id?: string; details?: { error?: string }; message?: string };
 
 export async function notifyUser(userId: string, title: string, body: string, data: PushData, job?: any) {
