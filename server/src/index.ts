@@ -58,11 +58,20 @@ startListening(PORT).then(() => {
   startupStage = "required index verification";
   if (process.env.NODE_ENV !== "production") await createRequiredIndexes();
   await verifyRequiredIndexes();
-  startupStage = "region count initialization";
-  await startRegionCounts();
   initialized = true;
   const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => {} : startSubmissionWorker();
   const stopDeletionWorker = startAccountDeletionWorker();
+  let regionStartup: Promise<void> | undefined;
+  let regionRetry: NodeJS.Timeout | undefined;
+  const initializeRegions = () => {
+    regionStartup = startRegionCounts().catch(() => {
+      console.error("[RegionCounts] Initialization failed; retrying in 30 seconds");
+      if (!stopping) {
+        regionRetry = setTimeout(initializeRegions, 30_000);
+        regionRetry.unref();
+      }
+    });
+  };
   const startTask = (task: () => Promise<unknown>, interval: number) => {
     let pending: Promise<unknown> | undefined;
     const timer = setInterval(() => { if (!pending) pending = task().catch(() => console.error("Background delivery deferred")).finally(() => { pending = undefined; }); }, interval);
@@ -73,14 +82,17 @@ startListening(PORT).then(() => {
   const stopNotifications = startTask(deliverNotifications, 10000);
   const stopReceipts = startTask(checkPushReceipts, 5 * 60_000);
   console.log("[MalikSe] API ready");
+  initializeRegions();
   const server = app.server;
   const shutdown = async () => {
     if (stopping) return;
     stopping = true;
+    clearTimeout(regionRetry);
 
     const deadline = setTimeout(() => { server.closeAllConnections(); process.exit(1); }, 15_000);
     deadline.unref();
     await Promise.all([app.close(), stopWorker(), stopDeletionWorker(), stopNotifications(), stopReceipts(), stopFileCleanup()]);
+    await regionStartup;
     await stopRegionCounts();
     await mongoose.disconnect();
     closeRedis();
