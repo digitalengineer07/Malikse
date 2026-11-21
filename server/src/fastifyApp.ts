@@ -58,13 +58,21 @@ export function createFastifyApp(isReady?: () => boolean) {
   // receive the original, unread request stream.
   app.addHook("onRequest", (request, reply, done) => {
     const path = (request.raw.url || "").split("?")[0].replace(/\/$/, "").toLowerCase();
-    if (isReady && !isReady() && path !== "/health" && path !== "/ready") {
+    if (request.method !== "OPTIONS" && isReady && !isReady() && path !== "/health" && path !== "/ready") {
       const origin = request.headers.origin;
       if (origin && (origins.includes(origin) || (!production && !origins.length))) {
         reply.header("Access-Control-Allow-Origin", origin);
         reply.header("Access-Control-Allow-Credentials", "true");
       }
-      reply.code(503).header("Retry-After", "1").send({ message: "Service is initializing. Please try again shortly." });
+      performanceMetrics.requests++;
+      performanceMetrics.completed++;
+      performanceMetrics.serverErrors++;
+      if (process.env.REQUEST_LOGS === "true" || (production && process.env.REQUEST_LOGS !== "false")) {
+        console.warn(JSON.stringify({ event: "api_not_ready", requestId: request.id, method: request.method, status: 503 }));
+      }
+      reply.code(503).header("Retry-After", "2").header("Cache-Control", "no-store")
+        .header("Vary", "Origin").header("Access-Control-Expose-Headers", "X-Request-Id, Retry-After")
+        .header("X-Request-Id", request.id).send({ message: "Service is temporarily unavailable. Please try again shortly." });
       done();
       return;
     }
