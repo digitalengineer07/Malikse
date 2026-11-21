@@ -48,12 +48,15 @@ export async function createRequiredIndexes() {
   }
 }
 export async function verifyRequiredIndexes() {
-  for (const model of indexedModels) {
-    const actual = await mongoose.connection.collection(model.collection.name).indexes();
-    for (const [keys, options] of model.schema.indexes()) {
-      if (!actual.some(index => matchesIndex(model, index, keys, options))) {
-        throw new Error(`Required index missing on ${model.modelName}; run npm run db:indexes:prod before traffic`);
+  const concurrency = 4;
+  for (let offset = 0; offset < indexedModels.length; offset += concurrency) {
+    await Promise.all(indexedModels.slice(offset, offset + concurrency).map(async model => {
+      const actual = await mongoose.connection.collection(model.collection.name).indexes();
+      for (const [keys, options] of model.schema.indexes()) {
+        if (!actual.some(index => matchesIndex(model, index, keys, options))) {
+          throw new Error(`Required index missing on ${model.modelName}; run npm run db:indexes:prod before traffic`);
+        }
       }
-    }
+    }));
   }
 }

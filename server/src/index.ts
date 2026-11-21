@@ -20,7 +20,14 @@ import { User } from "./models/User.model";
 
 let stopping = false;
 let initialized = false;
-const app = createFastifyApp(() => initialized && !stopping && mongoose.connection.readyState === 1);
+let finishStartup!: () => void;
+const startupWait = new Promise<void>(resolve => { finishStartup = resolve; });
+const startupDeadline = setTimeout(finishStartup, 8_000);
+startupDeadline.unref();
+const app = createFastifyApp(
+  () => initialized && !stopping && mongoose.connection.readyState === 1,
+  () => !initialized && !stopping ? startupWait : Promise.resolve(),
+);
 const PORT = positiveInteger("PORT", 5000, 65535);
 mongoose.set("bufferCommands", false);
 
@@ -61,6 +68,8 @@ startListening(PORT).then(() => {
   else await User.collection.createIndex({ googleId: 1 }, { unique: true, sparse: true });
   await verifyRequiredIndexes();
   initialized = true;
+  clearTimeout(startupDeadline);
+  finishStartup();
   const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => {} : startSubmissionWorker();
   const stopDeletionWorker = startAccountDeletionWorker();
   let regionStartup: Promise<void> | undefined;
@@ -104,6 +113,8 @@ startListening(PORT).then(() => {
   process.once("SIGINT", () => { void shutdown(); });
   process.once("SIGUSR2", () => { void shutdown(); });
 }).catch(async (error: unknown) => {
+  clearTimeout(startupDeadline);
+  finishStartup();
   const cause = error as { name?: string; code?: string; message?: string };
   const message = String(cause?.message || "Unknown error").replace(/mongodb(?:\+srv)?:\/\/[^\s]+/gi, "[redacted MongoDB URI]");
   console.error("[MalikSe] Server startup failed", { stage: startupStage, name: cause?.name, code: cause?.code, message });
