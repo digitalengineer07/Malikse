@@ -443,12 +443,14 @@ router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
         );
         if (!locked.modifiedCount)
           throw new OfferError(409, "Property assignment changed; retry");
+        const messageId = new Types.ObjectId();
         inquiry = await Inquiry.findOneAndUpdate(
           { _id: current._id, "messages.999": { $exists: false } },
           {
             $set: { staffId: staff._id },
             $push: {
               messages: {
+                _id: messageId,
                 senderId: req.user!.id,
                 text: text.trim(),
                 createdAt: new Date(),
@@ -467,6 +469,7 @@ router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
               recipient: buyer ? staff._id : current.buyerId,
               title: "New message",
               body: "You have a new property message.",
+              messageId,
               data: { kind: "inquiry", id: String(current._id) },
             },
           ],

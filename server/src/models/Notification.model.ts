@@ -5,6 +5,8 @@ const schema = new Schema(
     title: String,
     body: String,
     data: Schema.Types.Mixed,
+    messageId: Schema.Types.ObjectId,
+    readAt: Date,
     deliveredAt: Date,
     failedAt: Date,
     lastError: String,
@@ -17,4 +19,6 @@ const schema = new Schema(
   { timestamps: true },
 );
 schema.index({ deliveredAt: 1, nextAttemptAt: 1, leaseUntil: 1 });
+schema.index({ recipient: 1, _id: -1 });
+schema.index({ recipient: 1, readAt: 1 });
 export const Notification = mongoose.model("Notification", schema);
