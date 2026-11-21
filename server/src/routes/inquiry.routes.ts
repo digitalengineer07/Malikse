@@ -284,17 +284,24 @@ router.get("/:id/messages", authGuard, async (req: AuthRequest, res) => {
         $project: {
           total: { $size: "$messages" },
           messages: { $slice: ["$messages", -6] },
+          buyerId: 1,
+          buyerReadAt: 1,
+          staffReadAt: 1,
         },
       },
     ]).option({ maxTimeMS: 5000 });
     if (!latest.length)
       return res.status(404).json({ error: "Inquiry not found" });
     const total = latest[0].total as number;
-    if (before === undefined)
+    if (before === undefined) {
+      const viewingAsBuyer = String(latest[0].buyerId) === req.user!.id;
       return res.json({
         messages: latest[0].messages,
         nextBefore: total > 6 ? total - 6 : null,
+        recipientReadAt: (viewingAsBuyer ? latest[0].staffReadAt : latest[0].buyerReadAt) ?? null,
+        ownReadAt: (viewingAsBuyer ? latest[0].buyerReadAt : latest[0].staffReadAt) ?? null,
       });
+    }
     const end = Math.min(before, Math.max(0, total - 6));
     const start = Math.max(0, end - 50);
     const rows = await Inquiry.aggregate([

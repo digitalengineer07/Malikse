@@ -43,7 +43,7 @@ import { homeFeedBusyMessage, loadHomeRecommendations } from "../src/services/ho
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
 import NotificationBell from "./NotificationBell";
-import { readChat } from "../src/services/chatRequests";
+import { chatBusyMessage, readChat } from "../src/services/chatRequests";
 import { useNotificationStore } from "../src/store/notificationStore";
 import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
@@ -1778,7 +1778,7 @@ export function ChatsScreen() {
   }, [selected, scrollToLatest]);
   const [previousInquiry, setPreviousInquiry] = useState(params.inquiryId);
   if (params.inquiryId !== previousInquiry) { setPreviousInquiry(params.inquiryId); if (params.inquiryId) setSelected(String(params.inquiryId)); }
-  const refreshMessages = messages.refresh, refreshChat = chat.refresh;
+  const refreshMessages = messages.refresh;
   const refreshFeed = feed.refresh;
   const userId = user?.id;
   const chatFocused = useIsFocused();
@@ -1797,27 +1797,25 @@ export function ChatsScreen() {
     if (handledChatRevision.current === chatRevision) return;
     handledChatRevision.current = chatRevision;
     if (!userId || !chatFocused || !appActive) return;
-    if (selected) {
-      void refreshMessages();
-      void refreshChat();
-    } else void refreshFeed();
-  }, [chatRevision, userId, chatFocused, appActive, selected, refreshMessages, refreshChat, refreshFeed]);
+    const timer = setTimeout(selected ? refreshMessages : refreshFeed, 750);
+    return () => clearTimeout(timer);
+  }, [chatRevision, userId, chatFocused, appActive, selected, refreshMessages, refreshFeed]);
   useEffect(() => {
     if (!userId || !chatFocused || !appActive) return;
     const timer = setInterval(() => {
-      if (selected) {
-        void refreshMessages();
-        void refreshChat();
-      } else void refreshFeed();
-    }, selected ? 12_000 : 25_000);
+      void (selected ? refreshMessages() : refreshFeed());
+    }, (selected ? 15_000 : 30_000) + Math.round(Math.random() * 4_000));
     return () => clearInterval(timer);
-  }, [selected, userId, chatFocused, appActive, refreshMessages, refreshChat, refreshFeed]);
+  }, [selected, userId, chatFocused, appActive, refreshMessages, refreshFeed]);
   useEffect(() => {
     if (selected && userId && chatFocused && appActive && chat.data && messages.data) {
-      const latest =
-        messages.data.messages?.at(-1)?.createdAt || chat.data.createdAt;
+      const viewingAsBuyer = identity(chat.data.buyerId) === userId;
+      const incoming = messages.data.messages?.slice().reverse().find((message: any) => identity(message.senderId) !== userId);
+      const latest = incoming?.createdAt || (!viewingAsBuyer ? chat.data.createdAt : undefined);
+      const ownReadAt = messages.data.ownReadAt;
+      if (!latest || (ownReadAt && Date.parse(ownReadAt) >= Date.parse(latest))) return;
       const receipt = `${userId}:${selected}:${latest}`;
-      if (!latest || acknowledgedReceipt.current === receipt) return;
+      if (acknowledgedReceipt.current === receipt) return;
       acknowledgedReceipt.current = receipt;
       void api.post(`/inquiries/${selected}/read`, { through: latest }).catch(() => {
         if (acknowledgedReceipt.current === receipt) acknowledgedReceipt.current = "";
@@ -1826,7 +1824,11 @@ export function ChatsScreen() {
   }, [messages.data, chat.data, selected, userId, chatFocused, appActive]);
   const c = chat.data,
     other = c && (identity(c.buyerId) === user?.id ? c.staffId : c.buyerId);
-  const recipientReadAt = c && (identity(c.buyerId) === userId ? c.staffReadAt : c.buyerReadAt);
+  const recipientReadAt = messages.data?.recipientReadAt !== undefined
+    ? messages.data.recipientReadAt : c && (identity(c.buyerId) === userId ? c.staffReadAt : c.buyerReadAt);
+  const visibleChatError = selected
+    ? [chat, messages].find(request => request.error && (request.error !== chatBusyMessage || !request.data))?.error || action.error
+    : feed.error === chatBusyMessage && feed.data ? "" : feed.error;
   const participantName = other?.name?.trim();
   const isOffer = Boolean(c?.dealId) || typeof c?.offerAmount === "number";
   const propertyTitle = formatChatLocationPart(c?.propertyId?.title);
@@ -2059,7 +2061,7 @@ export function ChatsScreen() {
         icon: "chat-bubble-outline",
       }}>
         <ErrorBox
-          text={feed.error || chat.error || messages.error || action.error}
+          text={visibleChatError}
         />
         {selected ? (
           <>
