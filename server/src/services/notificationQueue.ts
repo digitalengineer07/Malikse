@@ -1,5 +1,7 @@
 import { Notification } from "../models/Notification.model";
 import { notifyUser } from "./pushNotifications";
+import { findNotificationMessage } from "./notificationMessage";
+
 export async function deliverNotifications() {
   for (let i = 0; i < 20; i++) {
     const now = new Date();
@@ -18,10 +20,14 @@ export async function deliverNotifications() {
     );
     if (!job) return;
     try {
+      const message = await findNotificationMessage(String(job.recipient), job.data, job.messageId);
+      // Bound the push payload while keeping complete Unicode code points.
+      const characters = message ? Array.from(message) : [];
+      const body = characters.length > 240 ? characters.slice(0, 240).join("") + "…" : message ?? job.body!;
       await notifyUser(
         String(job.recipient),
         job.title!,
-        job.body!,
+        body,
         job.data as any,
         job,
       );

@@ -16,6 +16,7 @@ import { hydrateResume, resumeTabs, useResumeStore } from "../src/store/resumeSt
 import { preloadStartupResources } from "../src/services/startupPreload";
 import { cachedMapAssets, preloadMapAssets } from "../src/services/mapAssets";
 import { observePushOpens, registerPushDevice } from "../src/services/pushNotifications";
+import { refreshNotificationCount } from "../src/store/notificationStore";
 
 LogBox.ignoreLogs([
   '"shadow*" style props are deprecated. Use "boxShadow".',
@@ -76,6 +77,16 @@ export default function RootLayout() {
   const [resumeReady, setResumeReady] = useState(Platform.OS === "web");
   useEffect(() => { hydrateResume().finally(() => setResumeReady(true)); }, []);
   useEffect(() => {
+    if (!hydrated) return;
+    void refreshNotificationCount();
+    if (!userId || !accessToken) return;
+    const subscription = AppState.addEventListener("change", state => {
+      if (state === "active") void refreshNotificationCount();
+    });
+    return () => subscription.remove();
+  }, [hydrated, userId, accessToken]);
+
+  useEffect(() => {
     if (Platform.OS === "web") return;
     void preloadStartupResources();
     const subscription = AppState.addEventListener("change", state => {
@@ -103,7 +114,7 @@ export default function RootLayout() {
     void observePushOpens((kind, id) => {
       if (kind === "inquiry") router.push({ pathname: "/(tabs)/messages", params: { inquiryId: id } });
       else router.push(`/deal/${id}` as Href);
-    }).then(stop => { if (active) dispose = stop; else stop(); })
+    }, () => { if (active) void refreshNotificationCount(); }).then(stop => { if (active) dispose = stop; else stop(); })
       .catch(error => console.warn("Could not observe push notifications", error));
     return () => { active = false; dispose?.(); };
   }, [hydrated, userId, accessToken, router]);

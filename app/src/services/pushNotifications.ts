@@ -62,18 +62,20 @@ export async function unregisterPushDevice() {
   await api.delete("/push/devices", { data: { token } });
 }
 
-export async function observePushOpens(onOpen: (kind: "inquiry" | "deal", id: string) => void) {
+export async function observePushOpens(onOpen: (kind: "inquiry" | "deal", id: string) => void, onReceipt: () => void) {
   const Notifications = await notificationsModule();
   if (!Notifications) return () => {};
   const open = (response: import("expo-notifications").NotificationResponse) => {
+    onReceipt();
     const { kind, id } = response.notification.request.content.data || {};
     if ((kind === "inquiry" || kind === "deal") && typeof id === "string") onOpen(kind, id);
   };
   const subscription = Notifications.addNotificationResponseReceivedListener(open);
+  const receipts = Notifications.addNotificationReceivedListener(onReceipt);
   const last = Notifications.getLastNotificationResponse();
   if (last) {
     open(last);
     void Notifications.clearLastNotificationResponseAsync().catch(() => {});
   }
-  return () => subscription.remove();
+  return () => { subscription.remove(); receipts.remove(); };
 }

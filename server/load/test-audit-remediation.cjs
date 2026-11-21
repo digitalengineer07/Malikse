@@ -12,6 +12,7 @@ const { ContactChange } = require('../dist/models/ContactChange.model');
 const { PasswordReset } = require('../dist/models/PasswordReset.model');
 const { Property } = require('../dist/models/Property.model');
 const { Notification } = require('../dist/models/Notification.model');
+const { Inquiry } = require('../dist/models/Inquiry.model');
 const { PushDevice } = require('../dist/models/PushDevice.model');
 const { PushReceipt } = require('../dist/models/PushReceipt.model');
 const { createRequiredIndexes, verifyRequiredIndexes } = require('../dist/services/requiredIndexes');
@@ -115,6 +116,26 @@ const { stopRegionCounts } = require('../dist/services/regionCountStore');
   await checkPushReceipts();
   assert.equal(await PushReceipt.countDocuments(), 0);
   assert.equal((await Notification.findById(job._id)).lastError, 'ReceiptTimeout');
+  // The Android banner uses the body sent to Expo, so assert the provider payload.
+  const buyerId = new mongoose.Types.ObjectId();
+  const chatText = 'Can I visit tomorrow? 🏠';
+  const inquiry = await Inquiry.create({
+   propertyId: new mongoose.Types.ObjectId(), buyerId, staffId: owner._id,
+   message: 'I am interested in this property.',
+   messages: [{ senderId: buyerId, text: chatText }],
+  });
+  await Notification.create({
+   recipient: owner._id, title: 'New message', body: 'You have a new property message.',
+   messageId: inquiry.messages[0]._id, data: { kind: 'inquiry', id: String(inquiry._id) },
+  });
+  const pushBodies = [];
+  global.fetch = async (_url, options) => {
+   const batch = JSON.parse(options.body);
+   pushBodies.push(...batch.map(item => item.body));
+   return Response.json({ data: batch.map(() => ({ status: 'ok', id: randomUUID() })) });
+  };
+  await deliverNotifications();
+  assert.deepEqual(pushBodies, [chatText, chatText]);
   const { scanDocumentBytes } = require('../dist/services/documentScanner');
   const previousScanner = process.env.DOCUMENT_SCAN_URL;
   try {

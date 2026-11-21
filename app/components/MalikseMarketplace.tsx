@@ -37,6 +37,7 @@ import api, { authService } from "../src/services/authService";
 import { homeFeedBusyMessage, loadHomeRecommendations } from "../src/services/homeRecommendations";
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
+import NotificationBell from "./NotificationBell";
 import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
 import EmailChangeForm from "./EmailChangeForm";
@@ -327,8 +328,8 @@ export function MarketplaceShell({
         <View pointerEvents="none" style={s.heroRay} />
         <View style={[s.heroInner, compactHeader && s.compactHeroInner]}>
         {profileHeader || <>
-        <View style={s.header}>
-        <View style={[s.row, { flex: 1 }]}>
+        <View style={[s.header, Boolean(user) && width < 390 && { gap: 6 }]}>
+        <View style={[s.row, { flex: 1, minWidth: 0 }]}>
           {back ? (
             <Pressable
               accessibilityLabel="Back"
@@ -345,8 +346,8 @@ export function MarketplaceShell({
               <Icon name="roofing" size={18} />
             </View>
           )}
-          <Pressable onPress={() => router.push("/home")}>
-            <Text style={s.logo}>
+          <Pressable style={{ flexShrink: 1 }} onPress={() => router.push("/home")}>
+            <Text style={s.logo} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
               MalikSe<Text style={{ color: C.sun }}>.</Text>
             </Text>
           </Pressable>
@@ -369,6 +370,7 @@ export function MarketplaceShell({
           {user?.name?.[0] ? <Text style={s.avatarText}>{user.name[0]}</Text> : <Icon name="person-outline" size={19} />}
         </Pressable>
         </>}
+        {path !== "/notifications" && <NotificationBell />}
         </View>
           {Boolean(title) && (
             <View style={{ gap: 4 }}>
@@ -1064,10 +1066,13 @@ export function ProfileScreen() {
     <>
       <View style={s.between}>
         <Text accessibilityRole="header" style={s.heroTitle}>Profile</Text>
+        <View style={s.row}>
         <Pressable accessibilityRole="button" accessibilityLabel="Edit profile"
           accessibilityState={{ expanded: editing }} onPress={openEditor} style={s.profileEdit}>
           <Icon name="edit" color={C.sun} />
         </Pressable>
+        <NotificationBell />
+        </View>
       </View>
       <View style={s.profileIdentity}>
         <View style={s.profilePortrait}>
