@@ -5,6 +5,8 @@ import { isRunningInExpoGo } from "expo";
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
   Linking,
+  AppState,
+  Keyboard,
   KeyboardAvoidingView,
   ActivityIndicator,
   BackHandler,
@@ -13,10 +15,13 @@ import {
   Pressable,
   ScrollView,
   type ScrollViewInstance,
+  type ScrollViewProps,
+  type StyleProp,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type ViewStyle,
   useWindowDimensions,
 } from "react-native";
 import {
@@ -38,6 +43,7 @@ import { homeFeedBusyMessage, loadHomeRecommendations } from "../src/services/ho
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
 import NotificationBell from "./NotificationBell";
+import { useNotificationStore } from "../src/store/notificationStore";
 import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
 import EmailChangeForm from "./EmailChangeForm";
@@ -157,32 +163,43 @@ function Field({
     </View>
   );
 }
-function useData(path: string | null, deps: any[] = [], homeScope?: string) {
+function useData(path: string | null, deps: any[] = [], homeScope?: string, keepLoadedPages = false) {
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(false),
     [nextCursor, setNextCursor] = useState<string | null>(null);
   const requestKey = JSON.stringify([path, deps, homeScope]);
   const latestRequest = useRef(requestKey);
+  const refreshSequence = useRef(0);
+  const loadedPagesKey = useRef<string | null>(null);
   useEffect(() => { latestRequest.current = requestKey; }, [requestKey]);
   const [resultKey, setResultKey] = useState(requestKey);
   const refresh = useCallback(async () => {
     const [path, , homeScope] = JSON.parse(requestKey);
     if (!path) return;
+    const sequence = ++refreshSequence.current;
     setLoading(true);
     setError("");
     try {
       const response = homeScope ? await loadHomeRecommendations(path, homeScope) : await api.get(path);
-      if (latestRequest.current !== requestKey) return;
+      if (latestRequest.current !== requestKey || sequence !== refreshSequence.current) return;
       setResultKey(requestKey);
-      setData(response.data);
-      setNextCursor(response.headers["x-next-cursor"] || null);
+      if (keepLoadedPages && loadedPagesKey.current === requestKey) {
+        setData((previous: any[]) => {
+          const fresh: any[] = response.data;
+          const ids = new Set(fresh.map(item => item._id));
+          return [...fresh, ...(previous || []).filter(item => !ids.has(item._id))];
+        });
+      } else {
+        setData(response.data);
+        setNextCursor(response.headers["x-next-cursor"] || null);
+      }
     } catch (e) {
-      if (latestRequest.current === requestKey) setError(errorText(e));
+      if (latestRequest.current === requestKey && sequence === refreshSequence.current) setError(errorText(e));
     } finally {
-      if (latestRequest.current === requestKey) setLoading(false);
+      if (latestRequest.current === requestKey && sequence === refreshSequence.current) setLoading(false);
     }
-  }, [requestKey]);
+  }, [requestKey, keepLoadedPages]);
   useFocusEffect(
     useCallback(() => {
       void refresh();
@@ -205,7 +222,15 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string) {
         cursor = response.headers["x-next-cursor"] || null;
         if (!all) break;
       }
-      setData([...items.values()]);
+      if (keepLoadedPages) {
+        loadedPagesKey.current = requestKey;
+        setData((current: any[]) => {
+          const merged = new Map(items);
+          for (const item of current || []) merged.set(item._id, item);
+          return [...merged.values()].sort((a, b) =>
+            Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt));
+        });
+      } else setData([...items.values()]);
       setNextCursor(cursor);
     } catch (e) {
       if (latestRequest.current === requestKey) setError(errorText(e));
@@ -259,13 +284,19 @@ export function MarketplaceShell({
   title,
   subtitle,
   compactHeader = false,
+  matchedHero = false,
   children,
   back = false,
   onBack,
   headerContent,
   headerAction,
+  backgroundArtwork,
+  fixedHeader,
+  transcriptRef,
+  transcriptEvents,
   showDock = true,
   footer,
+  footerStyle,
   profileHeader,
   scrollFooter,
   dockArtwork = false,
@@ -275,13 +306,19 @@ export function MarketplaceShell({
   title?: React.ReactNode;
   subtitle?: string;
   compactHeader?: boolean;
+  matchedHero?: boolean;
   children: React.ReactNode;
   back?: boolean;
   onBack?: () => void;
   headerContent?: React.ReactNode;
   headerAction?: React.ReactNode;
+  backgroundArtwork?: React.ReactNode;
+  fixedHeader?: React.ReactNode;
+  transcriptRef?: React.RefObject<ScrollViewInstance | null>;
+  transcriptEvents?: Pick<ScrollViewProps, "onLayout" | "onScroll" | "onScrollBeginDrag" | "onContentSizeChange">;
   showDock?: boolean;
   footer?: React.ReactNode;
+  footerStyle?: StyleProp<ViewStyle>;
   profileHeader?: React.ReactElement;
   scrollFooter?: (dockClearance: number) => React.ReactElement;
   dockArtwork?: boolean;
@@ -289,7 +326,8 @@ export function MarketplaceShell({
   step?: number;
 }) {
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { width, height, fontScale } = useWindowDimensions();
+  const sharedHeroHeight = insets.top + (width < 376 ? 252 : 232) + Math.ceil(145 * Math.max(0, fontScale - 1));
   const smallHeader = compactHeader && (width < 370 || height - insets.top - insets.bottom < 620);
   const dockBottom = Math.max(insets.bottom, 8);
   const dockClearance = dockBottom - insets.bottom + dockHeight;
@@ -312,8 +350,13 @@ export function MarketplaceShell({
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       {focused && <StatusBar style="light" />}
+      {fixedHeader}
+      <View style={s.scrollViewport}>
+      {backgroundArtwork}
       <ScrollView
-        ref={scroll}
+        ref={transcriptRef ?? scroll}
+        {...transcriptEvents}
+        scrollEventThrottle={transcriptEvents ? 16 : undefined}
         scrollEnabled={scrollEnabled}
         style={{ flex: 1 }}
         contentContainerStyle={[s.scroll, !showDock && { paddingBottom: 12 }, scrollFooter && s.scrollWithArtwork,
@@ -322,11 +365,11 @@ export function MarketplaceShell({
           showDock && dockArtwork && { paddingBottom: dockBottom + dockHeight + 54 }]}
         keyboardShouldPersistTaps="handled"
       >
-      <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
-        smallHeader && s.smallHero, profileHeader && s.profileHero]}>
+      {!fixedHeader && <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
+        smallHeader && s.smallHero, profileHeader && s.profileHero, matchedHero && { height: sharedHeroHeight }]}>
         <View pointerEvents="none" style={s.heroSun} />
         <View pointerEvents="none" style={s.heroRay} />
-        <View style={[s.heroInner, compactHeader && s.compactHeroInner]}>
+        <View style={[s.heroInner, compactHeader && s.compactHeroInner, matchedHero && s.matchedHeroInner]}>
         {profileHeader || <>
         <View style={[s.header, Boolean(user) && width < 390 && { gap: 6 }]}>
         <View style={[s.row, { flex: 1, minWidth: 0 }]}>
@@ -352,7 +395,7 @@ export function MarketplaceShell({
             </Text>
           </Pressable>
         </View>
-        {headerAction || <>
+        {headerAction || (
         <Pressable
           accessibilityLabel="Wishlist"
           accessibilityRole="button"
@@ -361,15 +404,7 @@ export function MarketplaceShell({
         >
           <Icon name="favorite-border" color="white" size={20} />
         </Pressable>
-        <Pressable
-          accessibilityLabel="Profile"
-          accessibilityRole="button"
-          onPress={() => router.push("/profile")}
-          style={s.avatar}
-        >
-          {user?.name?.[0] ? <Text style={s.avatarText}>{user.name[0]}</Text> : <Icon name="person-outline" size={19} />}
-        </Pressable>
-        </>}
+        )}
         <NotificationBell />
         </View>
           {Boolean(title) && (
@@ -383,13 +418,14 @@ export function MarketplaceShell({
           {headerContent}
         </>}
         </View>
-      </View>
+      </View>}
         <View style={[s.content, profileHeader && s.profileContent]}>
           {children}
         </View>
         {scrollFooter?.(showDock ? dockClearance : 0)}
       </ScrollView>
-      {footer && <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>{footer}</View>}
+      </View>
+      {footer && <View style={[s.footer, footerStyle, { paddingBottom: Math.max(insets.bottom, 12) }]}>{footer}</View>}
       {showDock && dockArtwork && <View pointerEvents="none" style={s.dockArtwork}>
         <AccountArtworkFooter wavesOnly bottomExtension={dockClearance} hideWhileTyping={false} />
       </View>}
@@ -578,11 +614,11 @@ export function HomeScreen() {
   const homeBusy = [personal, recent, trending].some(feed => feed.error === homeFeedBusyMessage);
   return (
     <MarketplaceShell
-      title={<>Find a home,{"\n"}<Text style={{ color: C.sun }}>direct from the owner.</Text></>}
+      matchedHero
+      title={<>Find your next home.{"\n"}<Text style={{ color: C.sun }}>Direct from owners.</Text></>}
       headerContent={
-        <View style={[s.row, { alignSelf: "flex-start" }]}>
-          <Icon name="location-on" size={18} color={C.sun} />
-          <Text style={s.heroSubtitle}>{prefs.district || "Explore properties near you"}</Text>
+        <View style={s.homeHeroDetails}>
+          <Text style={s.heroSubtitle}>Explore homes and plots by locality, property type, and budget.</Text>
         </View>
       }
     >
@@ -615,6 +651,14 @@ export function HomeScreen() {
             }
           />
         </View>
+        {prefs.district ? (
+          <Pressable accessibilityRole="button" style={s.homeDistrict}
+            onPress={() => router.push({ pathname: "/search", params: { q: prefs.district } })}>
+            <Icon name="location-on" size={17} color={C.ink} />
+            <Text style={s.homeDistrictLabel}>Browse {prefs.district}</Text>
+            <Icon name="arrow-forward" size={15} color={C.ink} />
+          </Pressable>
+        ) : null}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -1642,7 +1686,34 @@ export function PropertyDetailScreen() {
     </MarketplaceShell>
   );
 }
+function formatChatLocationPart(value: unknown) {
+  return typeof value === "string"
+    ? value.trim().toLocaleLowerCase().replace(/(^|[\s-])\p{L}/gu, start => start.toLocaleUpperCase())
+    : "";
+}
+
+function ChatBubble({ mine, text, createdAt, offer, sending, recipientReadAt }: {
+  mine: boolean; text: string; createdAt?: string; offer?: number; sending?: boolean; recipientReadAt?: string;
+}) {
+  const read = Boolean(createdAt && recipientReadAt &&
+    Date.parse(recipientReadAt) >= Date.parse(createdAt));
+  return <View style={[s.bubble, mine ? s.mine : s.theirs]}>
+    <Text style={s.chatMessage} selectable>{text}</Text>
+    {Boolean(offer) && <Text style={s.cardTitle}>Offer: {money(offer!)}</Text>}
+    {(sending || createdAt) && <View style={s.chatMetadata}>
+      <Text style={s.chatTime}>
+        {sending ? "Sending…" : new Date(createdAt!).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+      </Text>
+      {mine && !sending && <View accessible accessibilityLabel={read ? "Read" : "Sent"}>
+        <Icon name={read ? "done-all" : "done"} size={15} color={read ? "#1766C2" : C.muted} />
+      </View>}
+    </View>}
+  </View>;
+}
+
 export function ChatsScreen() {
+  const { width } = useWindowDimensions();
+  const houseWidth = Math.min(194, Math.max(0, width - 40) * 0.42);
   const user = useAuthStore((x) => x.user),
     router = useRouter(),
     params = useLocalSearchParams(),
@@ -1651,7 +1722,7 @@ export function ChatsScreen() {
     [text, setText] = useState(""),
     [query, setQuery] = useState(""),
     [unreadOnly, setUnreadOnly] = useState(false),
-    feed = useData(user ? "/inquiries" : null, [user?.id]),
+    feed = useData(user ? "/inquiries?sort=activity" : null, [user?.id], undefined, true),
     chat = useData(user && selected ? `/inquiries/${selected}` : null, [
       user?.id,
     ]),
@@ -1660,30 +1731,173 @@ export function ChatsScreen() {
       [user?.id],
     ),
     action = useAction();
+  const insets = useSafeAreaInsets();
+  const transcript = useRef<ScrollViewInstance>(null);
+  const scrollState = useRef({ nearEnd: true, height: 0, viewport: 0, offset: 0, restore: 0, restoring: false, dragging: false });
+  const scrollFrame = useRef<number | null>(null);
+  const userScrolling = useRef(false);
+  const composerFocused = useRef(false);
+  const historyRequest = useRef<string | null>(null);
+  const activeConversation = useRef(selected);
+  const sendLock = useRef(false);
+  const [pending, setPending] = useState<{ conversation: string; text: string }>();
+  const [sent, setSent] = useState<{ conversation: string; messages: any[] }>();
+  const [history, setHistory] = useState<{ conversation: string; messages: any[]; nextBefore: number | null }>();
+  const [sendErrorConversation, setSendErrorConversation] = useState<string>();
+  const scrollToLatest = useCallback(() => {
+    scrollState.current.nearEnd = true;
+    scrollState.current.restoring = false;
+    userScrolling.current = false;
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = null;
+      const { height, viewport } = scrollState.current;
+      if (viewport > 0) {
+        transcript.current?.scrollTo({ y: Math.max(0, height - viewport), animated: false });
+      }
+    });
+  }, []);
+  useEffect(() => {
+    activeConversation.current = selected;
+    scrollState.current = { nearEnd: true, height: 0, viewport: 0, offset: 0, restore: 0, restoring: false, dragging: false };
+    composerFocused.current = false;
+    if (selected) scrollToLatest();
+    return () => {
+      if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+      scrollFrame.current = null;
+    };
+  }, [selected, scrollToLatest]);
+  useEffect(() => {
+    if (!selected) return;
+    const shown = Keyboard.addListener("keyboardDidShow", () => {
+      if (composerFocused.current) scrollToLatest();
+    });
+    return () => shown.remove();
+  }, [selected, scrollToLatest]);
   const [previousInquiry, setPreviousInquiry] = useState(params.inquiryId);
   if (params.inquiryId !== previousInquiry) { setPreviousInquiry(params.inquiryId); if (params.inquiryId) setSelected(String(params.inquiryId)); }
   const refreshMessages = messages.refresh, refreshChat = chat.refresh;
+  const refreshFeed = feed.refresh;
   const userId = user?.id;
+  const chatFocused = useIsFocused();
+  const chatRevision = useNotificationStore(state => state.chatRevision);
+  const handledChatRevision = useRef(chatRevision);
+  const [appActive, setAppActive] = useState(() => AppState.currentState === "active" || AppState.currentState == null);
+  const acknowledgedReceipt = useRef("");
   useEffect(() => {
-    if (!selected || !userId) return;
-    const timer = setInterval(() => {
+    const subscription = AppState.addEventListener("change", state => {
+      setAppActive(state === "active");
+      if (state === "active" && userId && chatFocused && !selected) void refreshFeed();
+    });
+    return () => subscription.remove();
+  }, [userId, chatFocused, selected, refreshFeed]);
+  useEffect(() => {
+    if (handledChatRevision.current === chatRevision) return;
+    handledChatRevision.current = chatRevision;
+    if (!userId || !chatFocused || !appActive) return;
+    if (selected) {
       void refreshMessages();
       void refreshChat();
+    } else void refreshFeed();
+  }, [chatRevision, userId, chatFocused, appActive, selected, refreshMessages, refreshChat, refreshFeed]);
+  useEffect(() => {
+    if (!userId || !chatFocused || !appActive) return;
+    const timer = setInterval(() => {
+      if (selected) {
+        void refreshMessages();
+        void refreshChat();
+      } else void refreshFeed();
     }, 7000);
     return () => clearInterval(timer);
-  }, [selected, userId, refreshMessages, refreshChat]);
+  }, [selected, userId, chatFocused, appActive, refreshMessages, refreshChat, refreshFeed]);
   useEffect(() => {
-    if (chat.data && messages.data) {
+    if (selected && userId && chatFocused && appActive && chat.data && messages.data) {
       const latest =
         messages.data.messages?.at(-1)?.createdAt || chat.data.createdAt;
-      if (latest)
-        void api
-          .post(`/inquiries/${selected}/read`, { through: latest })
-          .catch(() => {});
+      const receipt = `${userId}:${selected}:${latest}`;
+      if (!latest || acknowledgedReceipt.current === receipt) return;
+      acknowledgedReceipt.current = receipt;
+      void api.post(`/inquiries/${selected}/read`, { through: latest }).catch(() => {
+        if (acknowledgedReceipt.current === receipt) acknowledgedReceipt.current = "";
+      });
     }
-  }, [messages.data, chat.data, selected]);
+  }, [messages.data, chat.data, selected, userId, chatFocused, appActive]);
   const c = chat.data,
     other = c && (identity(c.buyerId) === user?.id ? c.staffId : c.buyerId);
+  const recipientReadAt = c && (identity(c.buyerId) === userId ? c.staffReadAt : c.buyerReadAt);
+  const participantName = other?.name?.trim();
+  const isOffer = Boolean(c?.dealId) || typeof c?.offerAmount === "number";
+  const propertyTitle = formatChatLocationPart(c?.propertyId?.title);
+  const participantInitials = participantName?.split(/\s+/).slice(0, 2)
+    .map((part: string) => Array.from(part)[0]).join("").toLocaleUpperCase();
+  const sending = pending?.conversation === selected;
+  const sendFailed = sendErrorConversation === selected;
+  const cannotSend = Boolean(pending) || !text.trim();
+  const sentInConversation = sent?.conversation === selected ? sent?.messages ?? [] : [];
+  const serverMessages = messages.data?.messages ?? [];
+  const recentMessages = [...serverMessages, ...sentInConversation.filter(message =>
+    !serverMessages.some((row: any) => row._id === message._id) &&
+    (!serverMessages.length || message.createdAt >= serverMessages[serverMessages.length - 1].createdAt))];
+  const loadedHistory = history?.conversation === selected ? history : undefined;
+  const nextBefore = loadedHistory ? loadedHistory.nextBefore : messages.data?.nextBefore;
+  const displayedMessages = loadedHistory
+    ? Array.from(new Map([...loadedHistory.messages, ...recentMessages].map(message => [message._id, message])).values())
+    : recentMessages;
+  async function loadEarlier() {
+    if (!selected || nextBefore == null || historyRequest.current) return;
+    const request = `${selected}:${nextBefore}`;
+    historyRequest.current = request;
+    try {
+      await action.run(async () => {
+        const { data: older } = await api.get(`/inquiries/${selected}/messages`, { params: { before: nextBefore } });
+        if (activeConversation.current !== selected) return;
+        const state = scrollState.current;
+        if (!state.nearEnd) {
+          state.restore = state.offset;
+          state.restoring = true;
+        }
+        setHistory({
+          conversation: selected,
+          messages: [...older.messages, ...displayedMessages],
+          nextBefore: older.nextBefore === nextBefore ? null : older.nextBefore,
+        });
+      });
+    } finally {
+      if (historyRequest.current === request) historyRequest.current = null;
+    }
+  }
+  function closeConversation() {
+    setSelected("");
+    setText("");
+    setHistory(undefined);
+    setSendErrorConversation(undefined);
+    void feed.refresh();
+  }
+  async function sendMessage() {
+    const draft = text;
+    const content = draft.trim();
+    if (!selected || !content || sendLock.current) return;
+    sendLock.current = true;
+    setSendErrorConversation(undefined);
+    setPending({ conversation: selected, text: content });
+    scrollToLatest();
+    try {
+      const { data } = await api.post(`/inquiries/${selected}/message`, { text: content });
+      if (activeConversation.current !== selected) return;
+      const saved = data.messages?.at(-1);
+      if (saved?._id) {
+        setSent(current => ({ conversation: selected,
+          messages: [...(current?.conversation === selected ? current.messages : []), saved].slice(-6) }));
+      }
+      setText(current => current === draft ? "" : current);
+      void refreshMessages();
+    } catch {
+      if (activeConversation.current === selected) setSendErrorConversation(selected);
+    } finally {
+      sendLock.current = false;
+      setPending(undefined);
+    }
+  }
   const search = query.trim().toLocaleLowerCase();
   const threads = (feed.data || []).filter((thread: any) => {
     if (unreadOnly && !thread.unread) return false;
@@ -1693,12 +1907,88 @@ export function ChatsScreen() {
   });
   return (
     <MarketplaceShell
-      title={selected ? other?.name || "Property conversation" : "Messages"}
-      compactHeader={!selected}
-      subtitle={selected ? c?.propertyId?.title : "Follow your property enquiries and replies."}
+      matchedHero={!selected}
       back
       showDock={!selected}
       dockArtwork={Boolean(user)}
+      fixedHeader={selected ? (
+        <View style={[s.conversationHeader, { paddingTop: insets.top + 6 }]}>
+          <View style={s.conversationHeaderRow}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Back to messages" style={s.conversationBack} onPress={closeConversation}>
+              <Icon name="arrow-back" size={20} color="#fff" />
+            </Pressable>
+            <View style={s.chatIdentityCard}>
+              <View style={s.chatIdentityIcon} accessible={false}>
+                {participantInitials ? <Text style={s.chatIdentityInitials}>{participantInitials}</Text> :
+                  <Icon name="chat-bubble-outline" size={18} color={C.ink} />}
+              </View>
+              <View style={s.chatIdentityDetails}>
+                <View style={s.chatIdentityNameRow}>
+                  <Text accessibilityRole="header" style={s.chatIdentityName} numberOfLines={1} ellipsizeMode="tail">
+                    {participantName || "Property conversation"}
+                  </Text>
+                  {c && <View style={[s.chatCategory, isOffer && s.chatOffer]}>
+                    <Text style={[s.chatCategoryText, isOffer && s.chatOfferText]}>{isOffer ? "Offer" : "Enquiry"}</Text>
+                  </View>}
+                </View>
+                {propertyTitle ? (
+                  <View style={s.chatIdentityListing}>
+                    <Icon name="home-work" size={13} color={C.sun} />
+                    <Text style={s.chatIdentityProperty} numberOfLines={1}>{propertyTitle}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+            <NotificationBell />
+          </View>
+        </View>
+      ) : undefined}
+      transcriptRef={selected ? transcript : undefined}
+      transcriptEvents={selected ? {
+        onLayout: ({ nativeEvent }) => {
+          const state = scrollState.current;
+          const viewport = nativeEvent.layout.height;
+          const shrankWhileTyping = composerFocused.current && viewport < state.viewport;
+          state.viewport = viewport;
+          if (state.nearEnd || shrankWhileTyping) scrollToLatest();
+          if (state.height > 0 && state.height <= viewport) void loadEarlier();
+        },
+        onScrollBeginDrag: () => {
+          userScrolling.current = true;
+          if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+          scrollFrame.current = null;
+          scrollState.current.dragging = true;
+          if (scrollState.current.offset < 48) void loadEarlier();
+        },
+        onScroll: ({ nativeEvent }) => {
+          const state = scrollState.current;
+          state.offset = nativeEvent.contentOffset.y;
+          if (userScrolling.current) {
+            state.nearEnd = nativeEvent.contentSize.height - nativeEvent.layoutMeasurement.height - state.offset < 56;
+          }
+          if (state.dragging && state.offset < 48) {
+            state.dragging = false;
+            void loadEarlier();
+          }
+        },
+        onContentSizeChange: (_width, height) => {
+          const state = scrollState.current;
+          const previousHeight = state.height;
+          state.height = height;
+          if (state.restoring) {
+            transcript.current?.scrollTo({ y: state.restore + Math.max(0, height - previousHeight), animated: false });
+            state.restoring = false;
+          } else if (state.nearEnd) scrollToLatest();
+          if (state.viewport > 0 && height <= state.viewport) void loadEarlier();
+        },
+      } : undefined}
+      backgroundArtwork={selected && c ? (
+        <View pointerEvents="none" accessible={false} accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants" style={s.conversationWatermark}>
+          <Image source={require("../assets/images/conversation_watermark.png")}
+            resizeMode="contain" style={s.conversationWatermarkImage} />
+        </View>
+      ) : undefined}
       scrollFooter={!user ? bottomExtension => (
         <AccountArtworkFooter wavesOnly bottomExtension={bottomExtension} hideWhileTyping={false}
           illustration={<View style={s.watermarkFrame} aria-hidden pointerEvents="none">
@@ -1707,44 +1997,58 @@ export function ChatsScreen() {
           </View>}
         />
       ) : undefined}
-      headerAction={selected ? <Button secondary title="All messages" onPress={() => {
-        setSelected("");
-        setText("");
-        void feed.refresh();
-      }} /> : undefined}
+      footerStyle={selected ? s.chatFooter : undefined}
       footer={selected && c && c.propertyId?.status !== "sold" ? (
-        <View style={s.row}>
+        <View style={s.chatComposerArea}>
+          {sendFailed && <Text accessibilityRole="alert" style={s.chatSendError}>Couldn’t send your message. Your draft is still here.</Text>}
+          <View style={[s.row, s.chatComposer]}>
           <TextInput
             accessibilityLabel="Message"
             value={text}
-            onChangeText={setText}
-            style={[s.input, { flex: 1 }]}
+            onChangeText={value => { setText(value); if (sendFailed) setSendErrorConversation(undefined); }}
+            onFocus={() => {
+              composerFocused.current = true;
+              scrollToLatest();
+            }}
+            onBlur={() => {
+              composerFocused.current = false;
+            }}
+            style={s.chatInput}
             placeholder="Write a message…"
+            placeholderTextColor={C.muted}
             multiline
           />
-          <Button
-            title="Send"
-            icon="send"
-            disabled={action.busy || !text.trim()}
-            onPress={() =>
-              action.run(async () => {
-                await api.post(`/inquiries/${selected}/message`, {
-                  text,
-                });
-                setText("");
-                await messages.refresh();
-              })
-            }
-          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
+            accessibilityState={{ disabled: cannotSend, busy: sending }}
+            disabled={cannotSend}
+            style={({ pressed }) => [s.chatSend, (cannotSend || pressed) && s.chatSendDimmed]}
+            onPress={() => void sendMessage()}
+          >
+            {sending ? <ActivityIndicator size="small" color={C.ink} /> : <Icon name="send" size={20} color={C.ink} />}
+          </Pressable>
+          </View>
         </View>
       ) : undefined}
-      headerContent={!selected && user ? (
-        <View style={[s.input, s.row]}>
-          <Icon name="search" size={20} />
-          <TextInput accessibilityLabel="Search chats or properties" placeholder="Search chats or properties"
-            placeholderTextColor={C.muted} value={query} onChangeText={setQuery}
-            style={[s.body, { flex: 1 }]} />
-        </View>
+      headerContent={!selected ? (
+        <>
+          <View style={s.messagesHeroIntro}>
+            <View style={s.messagesHeroCopy}>
+              <Text accessibilityRole="header" style={s.heroTitle}>Messages</Text>
+              <Text style={s.messagesHeroSubtitle} numberOfLines={2}>Track property enquiries and replies.</Text>
+            </View>
+            <Image source={require("../assets/images/messages_header_house.png")}
+              resizeMode="contain" accessible={false}
+              style={[s.messagesHeroHouse, { width: houseWidth, height: houseWidth * (897 / 1754) }]} />
+          </View>
+          {user && <View style={s.messagesHeroSearch}>
+            <Icon name="search" size={20} color={C.ink} />
+            <TextInput accessibilityLabel="Search chats, people or properties" placeholder="Search chats, people or properties"
+              placeholderTextColor={C.muted} value={query} onChangeText={setQuery}
+              style={s.messagesHeroSearchInput} />
+          </View>}
+        </>
       ) : undefined}
     >
       <Protected guest={{
@@ -1760,18 +2064,6 @@ export function ChatsScreen() {
             {!c && !chat.error && <ActivityIndicator color={C.ink} />}
             {c && (
               <>
-                <View style={[s.panel, s.row]}>
-                  <View style={s.featureIcon}><Icon name="home-work" size={24} /></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.small}>Chatting about</Text>
-                    <Text style={s.cardTitle}>
-                      {c.propertyId?.title || "Property conversation"}
-                    </Text>
-                  </View>
-                  <Tag green>
-                    {c.propertyId?.status === "sold" ? "Sold" : c.status}
-                  </Tag>
-                </View>
                 {c.dealId && (
                   <Button
                     title="View offer & deal"
@@ -1782,58 +2074,13 @@ export function ChatsScreen() {
                   />
                 )}
                 <View style={s.chatArea}>
-                  <View
-                    style={[
-                      s.bubble,
-                      identity(c.buyerId) === user?.id ? s.mine : s.theirs,
-                    ]}
-                  >
-                    <Text style={s.body}>{c.message}</Text>
-                    {Boolean(c.offerAmount) && (
-                      <Text style={s.cardTitle}>
-                        Offer: {money(c.offerAmount)}
-                      </Text>
-                    )}
-                  </View>
-                  {messages.data?.nextBefore != null && (
-                    <Button
-                      secondary
-                      title="Load earlier messages"
-                      onPress={() =>
-                        action.run(async () => {
-                          const older = (
-                            await api.get(`/inquiries/${selected}/messages`, {
-                              params: { before: messages.data.nextBefore },
-                            })
-                          ).data;
-                          messages.setData({
-                            messages: [
-                              ...older.messages,
-                              ...messages.data.messages,
-                            ],
-                            nextBefore: older.nextBefore,
-                          });
-                        })
-                      }
-                    />
-                  )}
-                  {messages.data?.messages?.map((m: any, i: number) => (
-                    <View
-                      key={m._id || i}
-                      style={[
-                        s.bubble,
-                        identity(m.senderId) === user?.id ? s.mine : s.theirs,
-                      ]}
-                    >
-                      <Text style={s.body}>{m.text}</Text>
-                      <Text style={s.small}>
-                        {new Date(m.createdAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </Text>
-                    </View>
+                  {messages.data && nextBefore == null && <ChatBubble mine={identity(c.buyerId) === user?.id} text={c.message}
+                    createdAt={c.createdAt} offer={c.offerAmount} recipientReadAt={recipientReadAt} />}
+                  {displayedMessages.map((m: any, i: number) => (
+                    <ChatBubble key={m._id || i} mine={identity(m.senderId) === user?.id}
+                      text={m.text} createdAt={m.createdAt} recipientReadAt={recipientReadAt} />
                   ))}
+                  {sending && <ChatBubble mine text={pending.text} sending />}
                 </View>
                 {c.propertyId?.status === "sold" && <Tag>This property is sold. Conversation is read-only.</Tag>}
               </>
@@ -1841,42 +2088,60 @@ export function ChatsScreen() {
           </>
         ) : (
           <>
-            {feed.loading && <ActivityIndicator />}
+            {!feed.data && feed.loading && <ActivityIndicator />}
             <View style={s.wrap}>
               <Button title="All" secondary={unreadOnly} onPress={() => setUnreadOnly(false)} />
               <Button title="Unread" secondary={!unreadOnly} onPress={() => setUnreadOnly(true)} />
             </View>
             {threads.map((c: any) => {
-              const staff = identity(c.buyerId) === user?.id,
-                other = staff ? c.staffId : c.buyerId;
+              const viewingAsBuyer = identity(c.buyerId) === user?.id;
+              const participant = viewingAsBuyer ? c.staffId : c.buyerId;
+              const role = !viewingAsBuyer ? "Buyer" : participant?.role === "advisor" ? "Advisor"
+                : participant?.role === "verifier" ? "Verifier" : "Property team";
+              const name: string = typeof participant?.name === "string" && participant.name.trim()
+                ? participant.name.trim() : "Property team";
+              const lastMessage = c.messages?.at(-1);
+              const timestamp = lastMessage?.createdAt || c.createdAt;
+              const location = c.propertyId?.location;
+              const address = [location?.block, location?.district].map(formatChatLocationPart);
+              const listing = [formatChatLocationPart(c.propertyId?.title), ...new Set(address)].filter(Boolean).join(" · ");
+              const unreadCount = c.unreadCount;
               return (
                 <Pressable
                   key={c._id}
                   accessibilityRole="button"
+                  accessibilityHint={unreadCount > 0 ? `${unreadCount} unread messages` : c.unread ? "Unread conversation" : undefined}
                   onPress={() => { setSelected(c._id); setText(""); }}
-                  style={[s.panel, s.row, c.unread && { borderColor: C.sun }]}
+                  style={({ pressed }) => [s.threadCard, pressed && { opacity: 0.78 }]}
                 >
-                  <View style={s.avatar}>
-                    <Text style={s.avatarText}>{other?.name?.[0] || "A"}</Text>
-                  </View>
-                  <View style={{ flex: 1, gap: 5 }}>
-                    <View style={s.between}>
-                      <Text style={s.cardTitle}>
-                        {other?.name || "Property team"}
-                      </Text>
-                      <Tag green>{staff ? "Assigned staff" : "Buyer"}</Tag>
+                  <View style={s.threadAvatarColumn}>
+                    <View style={s.threadAvatar}>
+                      <Text style={s.threadAvatarText}>{Array.from(name)[0]?.toLocaleUpperCase()}</Text>
+                      {c.unread && <View style={s.threadUnreadDot} />}
                     </View>
-                    <Text style={s.muted} numberOfLines={2}>
-                      {c.messages?.at(-1)?.text || c.message}
+                  </View>
+                  <View style={s.threadCopy}>
+                    <View style={s.threadNameRow}>
+                      <Text style={s.threadName} numberOfLines={1}>{name}</Text>
+                      <View style={s.threadRole}><Text style={s.threadRoleText}>{role}</Text></View>
+                    </View>
+                    {listing ? <View style={s.threadListing}>
+                      <Icon name="home" size={15} color={C.muted} />
+                      <Text style={s.threadListingText} numberOfLines={1}>{listing}</Text>
+                    </View> : null}
+                    <Text style={s.threadPreview} numberOfLines={1}>
+                      {lastMessage?.text || c.message}
                     </Text>
-                    <Text style={s.small}>{c.propertyId?.title}</Text>
                   </View>
-                  <View style={{ alignItems: "flex-end", gap: 6 }}>
-                    {c.messages?.at(-1)?.createdAt || c.createdAt ? <Text style={s.small}>
-                      {new Date(c.messages?.at(-1)?.createdAt || c.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                    </Text> : null}
-                    {c.unread && <View accessibilityLabel="Unread" style={s.dot} />}
+                  <View style={s.threadMeta}>
+                      {timestamp ? <Text style={s.threadTime}>
+                        {new Date(timestamp).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+                      </Text> : null}
+                    {c.unread && <View style={unreadCount > 0 ? s.threadCount : s.threadCountDot}>
+                      {unreadCount > 0 && <Text style={s.threadCountText}>{unreadCount > 99 ? "99+" : unreadCount}</Text>}
+                    </View>}
                   </View>
+                  <Icon name="chevron-right" size={19} color={C.ink} />
                 </Pressable>
               );
             })}
@@ -2634,6 +2899,7 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   header: { flexDirection: "row", alignItems: "center", gap: 10 },
   heroInner: { width: "100%", maxWidth: 1140, alignSelf: "center", gap: 18 },
+  matchedHeroInner: { flex: 1, justifyContent: "space-between", gap: 6 },
   compactHeroInner: { gap: 10 },
   heroIcon: {
     width: 42, height: 42, borderRadius: 21, alignItems: "center",
@@ -2771,6 +3037,22 @@ const s = StyleSheet.create({
   },
   heroTitle: { fontFamily: fontDisplay, fontSize: 32, lineHeight: 38, color: "#fff" },
   heroSubtitle: { fontFamily: font, fontSize: 14, lineHeight: 20, color: "rgba(255,255,255,0.78)" },
+  homeHeroDetails: { gap: 12, maxWidth: 360 },
+  homeDistrict: {
+    flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 8,
+    minHeight: 44, maxWidth: "100%", paddingHorizontal: 12, paddingVertical: 6,
+    backgroundColor: C.sunSoft, borderRadius: 22,
+  },
+  homeDistrictLabel: { fontFamily: "ManropeBold", fontSize: 13, color: C.ink, flexShrink: 1 },
+  messagesHeroIntro: { flex: 1, minHeight: 0, justifyContent: "center" },
+  messagesHeroCopy: { width: "66%", gap: 4 },
+  messagesHeroSubtitle: { fontFamily: font, fontSize: 13, lineHeight: 18, color: "rgba(255,255,255,0.82)" },
+  messagesHeroHouse: { position: "absolute", bottom: -12, right: -9 },
+  messagesHeroSearch: {
+    minHeight: 44, flexDirection: "row", alignItems: "center", gap: 10, zIndex: 1,
+    paddingHorizontal: 14, borderRadius: 24, backgroundColor: "#fff",
+  },
+  messagesHeroSearchInput: { flex: 1, minWidth: 0, minHeight: 44, fontFamily: font, fontSize: 14, color: C.ink },
   tag: {
     alignSelf: "flex-start",
     paddingHorizontal: 9,
@@ -2843,17 +3125,29 @@ const s = StyleSheet.create({
     letterSpacing: -0.2,
   },
   link: { fontSize: 12.5, fontWeight: "700", color: C.blue },
-  avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: C.sunSoft,
-    borderWidth: 1,
-    borderColor: "rgba(26, 86, 219, 0.20)",
-    alignItems: "center",
-    justifyContent: "center",
+  threadCard: {
+    flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: "#fff",
+    borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, borderColor: C.line,
+    paddingLeft: 13, paddingRight: 9, paddingVertical: 12,
+    shadowColor: C.ink, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.10, shadowRadius: 6, elevation: 2,
   },
-  avatarText: { fontWeight: "800", color: C.blue, fontSize: 14 },
+  threadAvatarColumn: { alignSelf: "stretch", justifyContent: "center", paddingRight: 11, borderRightWidth: StyleSheet.hairlineWidth, borderColor: C.line },
+  threadAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.sunSoft, alignItems: "center", justifyContent: "center" },
+  threadAvatarText: { fontFamily: "ManropeExtraBold", fontSize: 20, color: C.ink },
+  threadUnreadDot: { position: "absolute", right: 0, bottom: 0, width: 11, height: 11, borderWidth: 2, borderColor: "#fff", borderRadius: 6, backgroundColor: "#12964C" },
+  threadCopy: { flex: 1, minWidth: 0, gap: 3 },
+  threadNameRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 5 },
+  threadName: { flexShrink: 1, fontFamily: "ManropeExtraBold", fontSize: 15, color: C.ink },
+  threadRole: { borderRadius: 12, backgroundColor: "#E3F5E9", paddingHorizontal: 6, paddingVertical: 2 },
+  threadRoleText: { color: C.green, fontFamily: "ManropeBold", fontSize: 10 },
+  threadListing: { flexDirection: "row", alignItems: "center", gap: 4 },
+  threadListingText: { flexShrink: 1, fontFamily: "ManropeBold", fontSize: 12, color: C.muted },
+  threadPreview: { fontFamily: font, fontSize: 12, color: C.ink },
+  threadMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
+  threadTime: { fontFamily: font, fontSize: 10, color: C.muted },
+  threadCount: { minHeight: 20, minWidth: 20, paddingHorizontal: 4, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: C.sun },
+  threadCountText: { fontFamily: "ManropeExtraBold", fontSize: 11, lineHeight: 14, includeFontPadding: false, textAlign: "center", color: C.ink },
+  threadCountDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.sun },
   dockArtwork: { position: "absolute", left: 0, right: 0, bottom: 0 },
   dockWrapper: {
     position: "absolute",
@@ -2954,28 +3248,67 @@ const s = StyleSheet.create({
   photoCounter: { position: "absolute", right: 12, bottom: 12, color: "#fff", backgroundColor: C.ink, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6, fontFamily: "ManropeBold" },
   galleryThumb: { width: 82, height: 62, borderRadius: 14, borderWidth: 2, borderColor: C.line, overflow: "hidden" },
   gallerySave: { position: "absolute", top: 12, right: 12, width: 42, height: 42, borderRadius: 21 },
-  chatArea: { gap: 14, minHeight: 240 },
-  bubble: { maxWidth: "85%", padding: 12, borderRadius: 16, gap: 5 },
+  scrollViewport: { flex: 1 },
+  conversationWatermark: {
+    position: "absolute", top: 0, right: 0, bottom: 0, left: 0,
+    alignItems: "flex-end", justifyContent: "flex-end",
+    paddingRight: 8, paddingBottom: 8,
+  },
+  conversationWatermarkImage: { width: "66%", height: "92%", maxWidth: 304, maxHeight: 304, opacity: 0.4 },
+  conversationHeader: {
+    backgroundColor: C.ink, paddingHorizontal: 14, paddingBottom: 12,
+    borderBottomLeftRadius: 12, borderBottomRightRadius: 28,
+  },
+  conversationHeaderRow: { flexDirection: "row", alignItems: "center", gap: 8, width: "100%", maxWidth: 760, alignSelf: "center" },
+  conversationBack: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  chatIdentityCard: {
+    flex: 1, minWidth: 0, minHeight: 54, flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 7, paddingVertical: 6, borderRadius: 16, backgroundColor: "#1C3556",
+    borderWidth: StyleSheet.hairlineWidth, borderColor: "#FFFFFF30",
+  },
+  chatIdentityIcon: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: C.sun },
+  chatIdentityInitials: { color: C.ink, fontFamily: "ManropeExtraBold", fontSize: 14 },
+  chatIdentityDetails: { flex: 1, minWidth: 0, gap: 2 },
+  chatIdentityNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  chatCategory: {
+    flexShrink: 0, borderRadius: 9, borderWidth: StyleSheet.hairlineWidth, borderColor: "#FFFFFF45",
+    backgroundColor: "#FFFFFF12", paddingHorizontal: 7, paddingVertical: 3,
+  },
+  chatCategoryText: { fontFamily: "ManropeBold", fontSize: 10, color: "#E3ECF8" },
+  chatOffer: { borderColor: "#FCC61C66", backgroundColor: "#FCC61C1A" },
+  chatOfferText: { color: C.sunSoft },
+  chatIdentityName: { flex: 1, minWidth: 0, fontFamily: fontDisplay, fontSize: 18, color: "#fff" },
+  chatIdentityListing: { flexDirection: "row", alignItems: "center", gap: 4 },
+  chatIdentityProperty: { flexShrink: 1, fontFamily: font, fontSize: 12, color: "#D4DEEC" },
+  chatArea: { gap: 7 },
+  bubble: { alignItems: "stretch", minWidth: 66, maxWidth: "84%", paddingHorizontal: 11, paddingVertical: 7, borderRadius: 14, gap: 2 },
+  chatMessage: { fontFamily: font, color: C.ink, fontSize: 15, lineHeight: 21 },
+  chatMetadata: { alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: 4 },
+  chatTime: { fontFamily: font, color: C.muted, fontSize: 11, lineHeight: 15 },
   mine: {
     alignSelf: "flex-end",
     backgroundColor: C.sunSoft,
-    borderWidth: 1,
-    borderColor: "rgba(20, 38, 62, 0.18)",
     borderBottomRightRadius: 4,
   },
   theirs: {
     alignSelf: "flex-start",
     backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "rgba(196, 211, 240, 0.85)",
     borderBottomLeftRadius: 4,
-    shadowColor: "#061c46",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
   },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.blue },
+  chatFooter: { backgroundColor: C.bg, borderTopWidth: 0, paddingTop: 8 },
+  chatComposerArea: { gap: 5 },
+  chatSendError: { fontFamily: font, fontSize: 12, color: "#9A2D20" },
+  chatComposer: { alignItems: "flex-end" },
+  chatInput: {
+    flex: 1, minHeight: 44, maxHeight: 116, paddingVertical: 10, paddingHorizontal: 14,
+    borderRadius: 22, borderWidth: 1, borderColor: C.line, backgroundColor: "transparent",
+    fontFamily: font, fontSize: 15, lineHeight: 21, color: C.ink,
+  },
+  chatSend: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center", backgroundColor: C.sun,
+  },
+  chatSendDimmed: { opacity: 0.6 },
   history: {
     padding: 10,
     borderLeftWidth: 3,

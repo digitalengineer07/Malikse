@@ -16,7 +16,12 @@ router.get("/notifications", authGuard, async (req: AuthRequest, res, next) => {
   res.set("Cache-Control", "private, no-store");
   const limit = 20;
   try {
-    const notifications = await Notification.find({ recipient, listingBroadcast: { $ne: true }, ...(before ? { _id: { $lt: before } } : {}) })
+    const notifications = await Notification.find({
+      recipient,
+      listingBroadcast: { $ne: true },
+      ...(req.query.unread === "true" ? { readAt: null } : {}),
+      ...(before ? { _id: { $lt: before } } : {}),
+    })
       .sort({ _id: -1 }).limit(limit + 1)
       .select("title body data messageId readAt createdAt").lean();
     const items = await Promise.all(notifications.slice(0, limit).map(async item => {

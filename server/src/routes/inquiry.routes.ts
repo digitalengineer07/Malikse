@@ -135,7 +135,9 @@ for (const [route, party, other] of [
 ]) {
   router.get(route, authGuard, async (req: AuthRequest, res) => {
     try {
-      const { limit, filter } = pageInput(req.query);
+      const sortField = req.query.sort === "activity" ? "updatedAt" : "createdAt";
+      const sort = { [sortField]: -1, _id: -1 } as const;
+      const { limit, filter } = pageInput(req.query, sortField);
       const actor = new Types.ObjectId(req.user!.id);
       const assigned = await Property.find({
         $or: [{ assignedAdvisorId: actor }, { assignedVerifierId: actor }],
@@ -152,62 +154,39 @@ for (const [route, party, other] of [
       // The first six conversations are always read from the primary. The
       // boundary comes from the primary too, so a secondary never serves them.
       const newest = await Inquiry.find(membership)
-        .select("_id createdAt")
-        .sort({ createdAt: -1, _id: -1 })
+        .select(`_id ${sortField}`)
+        .sort(sort)
         .limit(6)
         .lean();
       const primaryIds = newest.map((row) => row._id);
       const pipeline = (match: object, count: number): PipelineStage[] => [
         { $match: match },
-        { $sort: { createdAt: -1, _id: -1 } },
+        { $sort: sort },
         { $limit: count },
         {
           $addFields: {
-            unread: {
-              $gt: [
-                {
-                  $max: [
-                    {
-                      $cond: [
-                        { $eq: ["$staffId", actor] },
-                        "$createdAt",
-                        new Date(0),
-                      ],
-                    },
-                    {
-                      $max: {
-                        $map: {
-                          input: {
-                            $filter: {
-                              input: "$messages",
-                              as: "m",
-                              cond: { $ne: ["$$m.senderId", actor] },
-                            },
-                          },
-                          as: "m",
-                          in: "$$m.createdAt",
-                        },
-                      },
-                    },
-                  ],
-                },
-                {
-                  $ifNull: [
-                    {
-                      $cond: [
-                        { $eq: ["$buyerId", actor] },
-                        "$buyerReadAt",
-                        "$staffReadAt",
-                      ],
-                    },
-                    new Date(0),
-                  ],
-                },
-              ],
+            unreadCount: {
+              $let: {
+                vars: { readAt: { $ifNull: [
+                  { $cond: [{ $eq: ["$buyerId", actor] }, "$buyerReadAt", "$staffReadAt"] },
+                  new Date(0),
+                ] } },
+                in: { $add: [
+                  { $cond: [{ $and: [{ $eq: ["$staffId", actor] }, { $gt: ["$createdAt", "$$readAt"] }] }, 1, 0] },
+                  { $size: { $filter: {
+                    input: { $ifNull: ["$messages", []] },
+                    as: "message",
+                    cond: { $and: [
+                      { $ne: ["$$message.senderId", actor] },
+                      { $gt: ["$$message.createdAt", "$$readAt"] },
+                    ] },
+                  } } },
+                ] },
+              },
             },
           },
         },
-        { $set: { messages: { $slice: ["$messages", -1] } } },
+        { $set: { unread: { $gt: ["$unreadCount", 0] }, messages: { $slice: [{ $ifNull: ["$messages", []] }, -1] } } },
       ];
       const primaryRows = await Inquiry.aggregate(
         pipeline(
@@ -220,8 +199,8 @@ for (const [route, party, other] of [
         const boundary = newest[5];
         const older = {
           $or: [
-            { createdAt: { $lt: boundary.createdAt } },
-            { createdAt: boundary.createdAt, _id: { $lt: boundary._id } },
+            { [sortField]: { $lt: boundary[sortField] } },
+            { [sortField]: boundary[sortField], _id: { $lt: boundary._id } },
           ],
         };
         const replicaRows = await Inquiry.aggregate(
@@ -236,7 +215,7 @@ for (const [route, party, other] of [
       }
       res.setHeader(
         "X-Next-Cursor",
-        rows.length > limit ? cursorFor(rows[limit - 1]) : "",
+        rows.length > limit ? cursorFor(rows[limit - 1], sortField) : "",
       );
       const items = rows.slice(0, limit);
       const populate = (
@@ -250,7 +229,7 @@ for (const [route, party, other] of [
             options: { readPreference },
           },
           { path: "buyerId", select: "name", options: { readPreference } },
-          { path: "staffId", select: "name", options: { readPreference } },
+          { path: "staffId", select: "name role", options: { readPreference } },
         ]);
       await populate(
         items.slice(0, Math.min(primaryRows.length, limit)),

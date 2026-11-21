@@ -57,8 +57,8 @@ export default function NotificationPanel() {
   const user = useAuthStore(state => state.user);
   const unread = useNotificationStore(state => state.userId === user?.id ? state.unread : 0);
   const [revision, setRevision] = useState(0);
+  const [showAll, setShowAll] = useState(false);
   const insets = useSafeAreaInsets();
-  const accountInitials = initials(user?.name);
   const goBack = () => router.canGoBack() ? router.back() : router.replace("/home");
   const refresh = () => {
     void refreshNotificationCount();
@@ -77,10 +77,6 @@ export default function NotificationPanel() {
               <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={goBack} style={styles.back}>
                 <MaterialIcons name="arrow-back" size={22} color={white} />
               </Pressable>
-              <View accessible={false} style={styles.account}>
-                {accountInitials ? <Text style={styles.accountText}>{accountInitials}</Text> :
-                  <MaterialIcons name="person-outline" size={22} color={navy} />}
-              </View>
             </View>
             <View style={styles.headingRow}>
               <View style={styles.headingGroup}>
@@ -89,26 +85,26 @@ export default function NotificationPanel() {
                   <Text style={styles.countText}>{unread > 99 ? "99+" : unread}</Text>
                 </View>}
               </View>
-              <Pressable accessibilityRole="button" accessibilityLabel="Refresh notifications" onPress={refresh} style={styles.refresh}>
-                <MaterialIcons name="refresh" size={21} color={yellow} />
+              <Pressable accessibilityRole="button" onPress={() => setShowAll(current => !current)} style={styles.filter}>
+                <Text style={styles.filterText}>{showAll ? "Unread" : "View all"}</Text>
               </Pressable>
             </View>
           </View>
         </View>
-        <ScrollView style={[styles.listSurface, {
+        <View style={[styles.listSurface, {
           marginLeft: insets.left + 14,
           marginRight: insets.right,
-        }]}
-          contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 12 }]}>
-          {user ? <Inbox key={user.id} userId={user.id} revision={revision} refresh={refresh} /> :
+        }]}>
+          {user ? <Inbox key={`${user.id}-${showAll}`} userId={user.id} unreadOnly={!showAll} revision={revision}
+            refresh={refresh} bottomInset={insets.bottom} /> :
             <Text style={[styles.body, styles.action]}>Sign in to view notifications.</Text>}
-        </ScrollView>
+        </View>
     </View>
   );
 }
 
-function Inbox({ userId, revision, refresh }: {
-  userId: string; revision: number; refresh: () => void;
+function Inbox({ userId, unreadOnly, revision, refresh, bottomInset }: {
+  userId: string; unreadOnly: boolean; revision: number; refresh: () => void; bottomInset: number;
 }) {
   const router = useRouter();
   const unread = useNotificationStore(state => state.userId === userId ? state.unread : 0);
@@ -123,7 +119,9 @@ function Inbox({ userId, revision, refresh }: {
 
   useEffect(() => {
     const controller = new AbortController();
-    void api.get<NotificationPage>("/push/notifications", { signal: controller.signal })
+    void api.get<NotificationPage>("/push/notifications", {
+      signal: controller.signal, params: { unread: unreadOnly ? "true" : undefined },
+    })
       .then(({ data }) => {
         if (controller.signal.aborted) return;
         setPage(data);
@@ -131,13 +129,15 @@ function Inbox({ userId, revision, refresh }: {
       })
       .catch(() => { if (!controller.signal.aborted) setError("Couldn’t load notifications."); });
     return () => controller.abort();
-  }, [unread, revision]);
+  }, [unread, unreadOnly, revision]);
 
   async function loadOlder(before: string) {
     setLoading(true);
     setError("");
     try {
-      const { data } = await api.get<NotificationPage>("/push/notifications", { params: { before } });
+      const { data } = await api.get<NotificationPage>("/push/notifications", {
+        params: { before, unread: unreadOnly ? "true" : undefined },
+      });
       setPage(current => current?.nextCursor === before
         ? { items: [...current.items, ...data.items], nextCursor: data.nextCursor }
         : current);
@@ -174,19 +174,25 @@ function Inbox({ userId, revision, refresh }: {
     }
   }
 
-  return <View>
+  const visibleItems = page?.items.filter(item => !unreadOnly || !item.readAt) ?? [];
+  const lastItem = visibleItems[visibleItems.length - 1];
+  return <ScrollView style={{ backgroundColor: lastItem?.readAt ? cardSolid : marketplaceBackground }}
+    contentContainerStyle={[styles.scroll, { paddingBottom: bottomInset + 12 }]}>
     {error ? <Pressable accessibilityRole="button" onPress={refresh} style={styles.action}>
       <Text style={styles.body}>{error} Refresh</Text>
     </Pressable> : !page ? <ActivityIndicator style={styles.action} color={navy} accessibilityLabel="Loading notifications" /> : null}
-    {page?.items.length === 0 && <View style={styles.action}><Text style={styles.body}>You’re all caught up.</Text></View>}
-    {page?.items.map(item => {
+    {page && !page.nextCursor && visibleItems.length === 0 &&
+      <View style={styles.action}><Text style={styles.body}>{unreadOnly ? "You’re all caught up." : "No notifications yet."}</Text></View>}
+    {visibleItems.map(item => {
       const unread = !item.readAt;
       const senderInitials = initials(item.senderName);
       const timestamp = formatTimestamp(item.createdAt);
       return <Pressable key={item.id} accessibilityRole="button"
         accessibilityLabel={[item.title, item.body, timestamp, unread ? "Unread" : ""].filter(Boolean).join(", ")}
         disabled={opening || (!unread && !item.target)}
-        onPress={() => void open(item)} style={({ pressed }) => [styles.row, unread && styles.unread, pressed && styles.pressed]}>
+        onPress={() => void open(item)} style={({ pressed }) => [
+          styles.row, unread && styles.unread, item === lastItem && styles.lastRow, pressed && styles.pressed,
+        ]}>
         <View style={[styles.itemIcon, unread && styles.unreadIcon]}>
           {senderInitials ? <Text style={styles.accountText}>{senderInitials}</Text> :
             <MaterialIcons name={item.target ? rowIcons[item.target.kind] : "notifications-none"} size={20} color={navy} />}
@@ -203,27 +209,28 @@ function Inbox({ userId, revision, refresh }: {
       onPress={() => void loadOlder(page.nextCursor!)}>
       {loading ? <ActivityIndicator color={navy} /> : <Text style={styles.title}>Load older notifications</Text>}
     </Pressable>}
-  </View>;
+  </ScrollView>;
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: navy },
   header: { paddingBottom: 16 },
-  headerContent: { width: "100%", maxWidth: 720, alignSelf: "center", gap: 8 },
+  headerContent: { width: "100%", maxWidth: 720, alignSelf: "center", gap: 12 },
   toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  back: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#FFFFFF24", alignItems: "center", justifyContent: "center" },
-  account: { width: 42, height: 42, borderRadius: 21, backgroundColor: paleYellow, alignItems: "center", justifyContent: "center" },
+  back: { width: 44, height: 44, alignItems: "flex-start", justifyContent: "center" },
   accountText: { fontFamily: "ManropeBold", color: navy, fontSize: 14 },
-  headingRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  headingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   headingGroup: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
-  heading: { color: white, fontFamily: "Fraunces", fontSize: 28, flexShrink: 1 },
-  count: { minWidth: 24, minHeight: 24, borderRadius: 12, paddingHorizontal: 5, justifyContent: "center", alignItems: "center", backgroundColor: yellow },
+  heading: { color: white, fontFamily: "ManropeExtraBold", fontSize: 27, flexShrink: 1 },
+  count: { minWidth: 22, minHeight: 22, borderRadius: 11, paddingHorizontal: 5, justifyContent: "center", alignItems: "center", backgroundColor: yellow, alignSelf: "flex-start" },
   countText: { fontFamily: "ManropeBold", color: navy, fontSize: 12 },
-  refresh: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  listSurface: { flex: 1, backgroundColor: cardSolid, borderTopLeftRadius: 34, overflow: "hidden" },
+  filter: { minHeight: 44, minWidth: 44, alignItems: "flex-end", justifyContent: "center" },
+  filterText: { color: paleYellow, fontFamily: "ManropeBold", fontSize: 13 },
+  listSurface: { flex: 1, backgroundColor: marketplaceBackground, borderTopLeftRadius: 34, overflow: "hidden" },
   scroll: { width: "100%", maxWidth: 760, alignSelf: "center", paddingTop: 12 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingLeft: 24, paddingRight: 20,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: divider },
+    backgroundColor: cardSolid, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: divider },
+  lastRow: { borderBottomWidth: 0 },
   itemIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: marketplaceBackground, alignItems: "center", justifyContent: "center" },
   unreadIcon: { backgroundColor: paleYellow },
   unread: { backgroundColor: marketplaceBackground },

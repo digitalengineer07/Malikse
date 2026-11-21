@@ -2,7 +2,7 @@ import { create } from "zustand";
 import api from "../services/authService";
 import { useAuthStore } from "./authStore";
 
-export const useNotificationStore = create<{ userId?: string; unread: number }>(() => ({ unread: 0 }));
+export const useNotificationStore = create<{ userId?: string; unread: number; chatRevision: number }>(() => ({ unread: 0, chatRevision: 0 }));
 
 let latestRequest = 0;
 

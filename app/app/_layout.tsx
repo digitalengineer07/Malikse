@@ -1,7 +1,7 @@
 import { renderAppScreen } from "../components/AppScreen";
 import React, { useState, useEffect } from "react";
 import { useFonts } from "expo-font";
-import { Stack, usePathname, useRouter, type Href } from "expo-router";
+import { Stack, useRouter, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { AppState, LogBox, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -12,11 +12,11 @@ import { useAuthStore } from "../src/store/authStore";
 import { authService } from "../src/services/authService";
 
 import { marketplaceBackground } from "../constants/theme";
-import { hydrateResume, resumeTabs, useResumeStore } from "../src/store/resumeStore";
+import { hydrateResume } from "../src/store/resumeStore";
 import { preloadStartupResources } from "../src/services/startupPreload";
 import { cachedMapAssets, preloadMapAssets } from "../src/services/mapAssets";
 import { observePushOpens, registerPushDevice } from "../src/services/pushNotifications";
-import { refreshNotificationCount } from "../src/store/notificationStore";
+import { refreshNotificationCount, useNotificationStore } from "../src/store/notificationStore";
 
 LogBox.ignoreLogs([
   '"shadow*" style props are deprecated. Use "boxShadow".',
@@ -73,7 +73,6 @@ export default function RootLayout() {
   const userId = useAuthStore(state => state.user?.id);
   const accessToken = useAuthStore(state => state.accessToken);
   const router = useRouter();
-  const pathname = usePathname();
   const [resumeReady, setResumeReady] = useState(Platform.OS === "web");
   useEffect(() => { hydrateResume().finally(() => setResumeReady(true)); }, []);
   useEffect(() => {
@@ -94,11 +93,6 @@ export default function RootLayout() {
     });
     return () => subscription.remove();
   }, []);
-  useEffect(() => {
-    if (resumeReady && Platform.OS !== "web" && resumeTabs.includes(pathname as typeof resumeTabs[number])) {
-      useResumeStore.getState().setTab(pathname as typeof resumeTabs[number]);
-    }
-  }, [pathname, resumeReady]);
 
   useEffect(() => {
     useAuthStore.getState().hydrateSession().then(() => {
@@ -116,7 +110,13 @@ export default function RootLayout() {
       else if (kind === "deal") router.push(`/deal/${id}` as Href);
       else if (kind === "property") router.push(`/property/${id}` as Href);
       else router.push("/my-properties" as Href);
-    }, () => { if (active) void refreshNotificationCount(); }).then(stop => { if (active) dispose = stop; else stop(); })
+    }, kind => {
+      if (!active) return;
+      void refreshNotificationCount();
+      if (kind === "inquiry" || kind === "deal") {
+        useNotificationStore.setState(state => ({ chatRevision: state.chatRevision + 1 }));
+      }
+    }).then(stop => { if (active) dispose = stop; else stop(); })
       .catch(error => console.warn("Could not observe push notifications", error));
     return () => { active = false; dispose?.(); };
   }, [hydrated, userId, accessToken, router]);
