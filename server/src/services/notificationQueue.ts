@@ -1,7 +1,7 @@
 import { Notification } from "../models/Notification.model";
 import { User } from "../models/User.model";
 import { notifyUser } from "./pushNotifications";
-import { findNotificationMessage } from "./notificationMessage";
+import { chatNotificationTitle, findNotificationMessage, genericChatTitle } from "./notificationMessage";
 
 export async function deliverNotifications() {
   for (let i = 0; i < 20; i++) {
@@ -22,13 +22,14 @@ export async function deliverNotifications() {
     if (!job) return;
     try {
       const message = await findNotificationMessage(String(job.recipient), job.data, job.messageId);
-      // A missing sender or a failed name lookup should never hold up the alert.
-      const sender = message?.senderId
+      // Only older queue entries need a separate sender lookup.
+      const sender = job.title === genericChatTitle && message?.senderId
         ? await User.findOne({ _id: message.senderId, deletionRequestedAt: { $exists: false } })
           .select("name").maxTimeMS(2000).lean().catch(() => null)
         : null;
-      const name = sender?.name?.replace(/[\s\u202a-\u202e\u2066-\u2069]+/gu, " ").trim();
-      const title = name ? Array.from(name).slice(0, 60).join("") : job.title!;
+      const title = job.messageId && !message
+        ? genericChatTitle
+        : sender ? chatNotificationTitle(sender.name) : job.title!;
       // Bound the push payload while keeping complete Unicode code points.
       const characters = message ? Array.from(message.text) : [];
       const body = characters.length > 240 ? characters.slice(0, 240).join("") + "…" : message?.text ?? job.body!;
