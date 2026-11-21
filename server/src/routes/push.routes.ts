@@ -23,7 +23,8 @@ router.get("/notifications", authGuard, async (req: AuthRequest, res, next) => {
       const { kind, id } = item.data || {};
       const target = (kind === "inquiry" || kind === "deal") && typeof id === "string" && isObjectIdOrHexString(id)
         ? { kind, id } : null;
-      const body = await findNotificationMessage(recipient, target ?? undefined, item.messageId) ?? item.body;
+      const message = await findNotificationMessage(recipient, target ?? undefined, item.messageId);
+      const body = message?.text ?? item.body;
       return { id: String(item._id), title: item.title, body, target, readAt: item.readAt, createdAt: item.createdAt };
     }));
     res.json({ items, nextCursor: notifications.length > limit ? items[limit - 1].id : null });

@@ -11,5 +11,5 @@ export async function findNotificationMessage(
     _id: data.id,
     $or: [{ buyerId: recipient }, { staffId: recipient }],
   }, { messages: { $elemMatch: { _id: messageId } } }).lean();
-  return inquiry?.messages?.[0]?.text;
+  return inquiry?.messages?.[0];
 }
