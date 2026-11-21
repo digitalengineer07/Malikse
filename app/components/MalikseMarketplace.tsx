@@ -34,6 +34,7 @@ import { currentMapLocation, LocationPermissionBlocked } from "../src/services/c
 import { validMapPoint, type MapFocus, type MapPoint } from "../src/utils/nativeMapHtml";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api, { authService } from "../src/services/authService";
+import { homeFeedBusyMessage, loadHomeRecommendations } from "../src/services/homeRecommendations";
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
 import { userService } from "../src/services/userService";
@@ -155,22 +156,22 @@ function Field({
     </View>
   );
 }
-function useData(path: string | null, deps: any[] = []) {
+function useData(path: string | null, deps: any[] = [], homeScope?: string) {
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(false),
     [nextCursor, setNextCursor] = useState<string | null>(null);
-  const requestKey = JSON.stringify([path, deps]);
+  const requestKey = JSON.stringify([path, deps, homeScope]);
   const latestRequest = useRef(requestKey);
   useEffect(() => { latestRequest.current = requestKey; }, [requestKey]);
   const [resultKey, setResultKey] = useState(requestKey);
   const refresh = useCallback(async () => {
-    const [path] = JSON.parse(requestKey);
+    const [path, , homeScope] = JSON.parse(requestKey);
     if (!path) return;
     setLoading(true);
     setError("");
     try {
-      const response = await api.get(path);
+      const response = homeScope ? await loadHomeRecommendations(path, homeScope) : await api.get(path);
       if (latestRequest.current !== requestKey) return;
       setResultKey(requestKey);
       setData(response.data);
@@ -553,19 +554,26 @@ export function HomeScreen() {
     router = useRouter(),
     [query, setQuery] = useState(""),
     [type, setType] = useState(""),
-    [prefs, setPrefs] = useState<any>({});
+    [storedPrefs, setStoredPrefs] = useState<{ scope: string; value: any }>();
+  const scope = user?.id || "guest";
+  const prefs = storedPrefs?.scope === scope ? storedPrefs.value : {};
   useEffect(() => {
-    AsyncStorage.getItem(`marketplace_preferences_${user?.id || "guest"}`)
-      .then((v) => setPrefs(v ? JSON.parse(v) : {}))
-      .catch(() => {});
-  }, [user?.id]);
-  const personal = useData(
-      `/recommendations?mode=personalized&district=${encodeURIComponent(prefs.district || "")}&type=${type || prefs.type || ""}&maxPrice=${prefs.maxPrice || ""}`,
+    let active = true;
+    AsyncStorage.getItem(`marketplace_preferences_${scope}`)
+      .then(v => v ? JSON.parse(v) || {} : {})
+      .catch(() => ({}))
+      .then(value => { if (active) setStoredPrefs({ scope, value }); });
+    return () => { active = false; };
+  }, [scope]);
+  const recent = useData("/recommendations?mode=new", [], "public"),
+    trending = useData("/recommendations?mode=trending", [], "public"),
+    personal = useData(
+      storedPrefs?.scope === scope ? `/recommendations?mode=personalized&district=${encodeURIComponent(prefs.district || "")}&type=${type || prefs.type || ""}&maxPrice=${prefs.maxPrice || ""}` : null,
       [user?.id],
+      scope,
     ),
-    recent = useData("/recommendations?mode=new"),
-    trending = useData("/recommendations?mode=trending"),
     { width } = useWindowDimensions();
+  const homeBusy = [personal, recent, trending].some(feed => feed.error === homeFeedBusyMessage);
   return (
     <MarketplaceShell
       title={<>Find a home,{"\n"}<Text style={{ color: C.sun }}>direct from the owner.</Text></>}
@@ -622,6 +630,14 @@ export function HomeScreen() {
         ))}
       </ScrollView>
       </View>
+      {homeBusy && <View style={s.panel}>
+        <Text accessibilityRole="alert" style={s.body}>{homeFeedBusyMessage}</Text>
+        <Button title="Retry listings" secondary onPress={() => {
+          void personal.refresh();
+          void recent.refresh();
+          void trending.refresh();
+        }} />
+      </View>}
       {[
         [
           "Recommended for You",
@@ -648,9 +664,9 @@ export function HomeScreen() {
               <Text style={s.link}>View all →</Text>
             </Pressable>
           </View>
-          {feed.loading ? (
+          {feed.error === homeFeedBusyMessage && !listings.length ? null : (feed.loading || (feed === personal && storedPrefs?.scope !== scope)) && !listings.length ? (
             <ActivityIndicator color={C.blue} />
-          ) : feed.error ? (
+          ) : feed.error && !listings.length ? (
             <ErrorBox text={feed.error} />
           ) : !listings.length ? (
             <Empty

@@ -72,7 +72,7 @@ export async function getRecommendationsResponse(
         : 0,
     recentDistricts: recentDistrictsList.join(","),
     recentTypes: recentTypesList.join(","),
-    refresh: mode === "personalized" ? (refreshSeed || `${Date.now()}_${Math.random()}`) : "",
+    refresh: mode === "personalized" ? (refreshSeed || String(Math.floor(Date.now() / 30_000))) : "",
   };
 
   return publicResponse(cacheKey, async () => {
@@ -300,9 +300,7 @@ export async function getRecommendationsResponse(
     // 1. Deduplicate so duplicate cards (like identical "rps" listings) never appear side by side
     const uniqueCandidates = deduplicate(results);
 
-    // 2. Dynamic Rotation ("at every refresh it get changes"):
-    // Inject dynamic jitter (0 to 3.8 pts) to rotate and shuffle properties within relevance tiers
-    // so properties matching user interest always lead, but the exact lineup rotates on every refresh!
+    // Rotate properties within relevance tiers when the cache bucket or explicit refresh seed changes.
     const rotated = uniqueCandidates.map((p) => {
       const baseScore = Number(p.score || 0);
       const jitter = Math.random() * 3.8;
