@@ -3,7 +3,7 @@ import { isObjectIdOrHexString, Types } from "mongoose";
 import { authGuard, AuthRequest } from "../middleware/auth.middleware";
 import { PushDevice } from "../models/PushDevice.model";
 import { Notification } from "../models/Notification.model";
-import { findNotificationMessage } from "../services/notificationMessage";
+import { findNotificationMessage, genericChatTitle } from "../services/notificationMessage";
 
 const router = Router();
 
@@ -16,15 +16,17 @@ router.get("/notifications", authGuard, async (req: AuthRequest, res, next) => {
   res.set("Cache-Control", "private, no-store");
   const limit = 20;
   try {
-    const notifications = await Notification.find({ recipient, ...(before ? { _id: { $lt: before } } : {}) })
+    const notifications = await Notification.find({ recipient, listingBroadcast: { $ne: true }, ...(before ? { _id: { $lt: before } } : {}) })
       .sort({ _id: -1 }).limit(limit + 1)
       .select("title body data messageId readAt createdAt").lean();
     const items = await Promise.all(notifications.slice(0, limit).map(async item => {
       const { kind, id } = item.data || {};
-      const target = (kind === "inquiry" || kind === "deal") && typeof id === "string" && isObjectIdOrHexString(id)
+      const target = (kind === "inquiry" || kind === "deal" || kind === "property" || kind === "listings") && typeof id === "string" && isObjectIdOrHexString(id)
         ? { kind, id } : null;
-      const body = await findNotificationMessage(recipient, target ?? undefined, item.messageId) ?? item.body;
-      return { id: String(item._id), title: item.title, body, target, readAt: item.readAt, createdAt: item.createdAt };
+      const message = await findNotificationMessage(recipient, target ?? undefined, item.messageId);
+      const title = item.messageId && !message ? genericChatTitle : item.title;
+      const senderName = message && title !== genericChatTitle ? title : undefined;
+      return { id: String(item._id), title, senderName, body: message?.text ?? item.body, target, readAt: item.readAt, createdAt: item.createdAt };
     }));
     res.json({ items, nextCursor: notifications.length > limit ? items[limit - 1].id : null });
   } catch (error) {
@@ -35,7 +37,7 @@ router.get("/notifications", authGuard, async (req: AuthRequest, res, next) => {
 router.get("/notifications/unread", authGuard, async (req: AuthRequest, res, next) => {
   res.set("Cache-Control", "private, no-store");
   try {
-    res.json({ unread: await Notification.countDocuments({ recipient: req.user!.id, readAt: null }) });
+    res.json({ unread: await Notification.countDocuments({ recipient: req.user!.id, readAt: null, listingBroadcast: { $ne: true } }) });
   } catch (error) {
     next(error);
   }
@@ -45,7 +47,7 @@ router.patch("/notifications/:id/read", authGuard, async (req: AuthRequest, res,
   if (!isObjectIdOrHexString(req.params.id)) return res.sendStatus(404);
   try {
     await Notification.updateOne(
-      { _id: new Types.ObjectId(req.params.id), recipient: req.user!.id, readAt: null },
+      { _id: new Types.ObjectId(req.params.id), recipient: req.user!.id, readAt: null, listingBroadcast: { $ne: true } },
       { $set: { readAt: new Date() } },
     );
     res.sendStatus(204);

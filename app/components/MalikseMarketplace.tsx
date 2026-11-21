@@ -370,7 +370,7 @@ export function MarketplaceShell({
           {user?.name?.[0] ? <Text style={s.avatarText}>{user.name[0]}</Text> : <Icon name="person-outline" size={19} />}
         </Pressable>
         </>}
-        {path !== "/notifications" && <NotificationBell />}
+        <NotificationBell />
         </View>
           {Boolean(title) && (
             <View style={{ gap: 4 }}>

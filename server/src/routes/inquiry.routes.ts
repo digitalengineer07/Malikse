@@ -13,6 +13,7 @@ import mongoose, { isValidObjectId, Types, PipelineStage } from "mongoose";
 import { pageInput, cursorFor } from "../services/pagination";
 import { replicaReadPreference } from "../services/readReplica";
 import { sendPush } from "../services/pushNotifications";
+import { chatNotificationTitle } from "../services/notificationMessage";
 
 import { Property } from "../models/Property.model";
 import { createOffer, changeDeal } from "../services/dealWorkflow";
@@ -467,7 +468,7 @@ router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
           [
             {
               recipient: buyer ? staff._id : current.buyerId,
-              title: "New message",
+              title: chatNotificationTitle(req.account?.name),
               body: "You have a new property message.",
               messageId,
               data: { kind: "inquiry", id: String(current._id) },

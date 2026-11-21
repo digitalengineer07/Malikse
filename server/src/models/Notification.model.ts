@@ -6,6 +6,8 @@ const schema = new Schema(
     body: String,
     data: Schema.Types.Mixed,
     messageId: Schema.Types.ObjectId,
+    listingBroadcast: Boolean,
+    broadcastCursor: Schema.Types.ObjectId,
     readAt: Date,
     deliveredAt: Date,
     failedAt: Date,

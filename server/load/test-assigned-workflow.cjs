@@ -10,6 +10,7 @@ const {User}=require('../dist/models/User.model');
 const {Property}=require('../dist/models/Property.model');
 const {Inquiry}=require('../dist/models/Inquiry.model');
 const {Deal}=require('../dist/models/Deal.model');
+const {deliverNotifications}=require('../dist/services/notificationQueue');
 const {generateTokens}=require('../dist/services/security');
 const {processNextSubmission}=require('../dist/services/submissionQueue');
 (async()=>{
@@ -27,11 +28,19 @@ const {processNextSubmission}=require('../dist/services/submissionQueue');
   const p=await listing(advisor);assert.equal(String(p.assignedAdvisorId),String(advisor._id));assert.equal(p.assignedVerifierId,null);
   await req('/verification/'+p._id+'/report',other,report,403);
   await req('/verification/'+p._id+'/report',advisor,report);
+  await deliverNotifications();
+  const ownerAlerts = (await req('/push/notifications',owner)).items;
+  assert.ok(ownerAlerts.some(item => item.title === 'Property verified' && item.target?.id === String(p._id)));
+  assert.ok(!ownerAlerts.some(item => item.title === 'New plot listed' && item.target?.id === String(p._id)));
+  const buyerAlerts = (await req('/push/notifications',buyer)).items;
+  assert.ok(buyerAlerts.some(item => item.title === 'New plot listed' && item.target?.id === String(p._id)));
   await req('/properties/'+p._id);
   const v=await listing();assert.equal(String(v.assignedVerifierId),String(verifier._id));await req('/verification/'+v._id+'/report',verifier,report);await req('/properties/'+v._id);
   await req('/deals/'+p._id+'/offer',null,{amount:90000},401);
   await req('/deals/'+p._id+'/offer',unverified,{amount:90000},403);
   const chat=await req('/inquiries',buyer,{propertyId:String(p._id),message:'Interested',offerAmount:90000,requestKey:'workflow_offer_retry_key'},201);
+  assert.ok((await req('/push/notifications',owner)).items.some(item =>
+    item.title === 'New offer on your property' && item.target?.id === String(p._id)));
   assert.equal(String(chat.staffId),String(advisor._id));assert.ok(chat.dealId);
   const repeated=await req('/inquiries',buyer,{propertyId:String(p._id),message:'Interested',offerAmount:90000,requestKey:'workflow_offer_retry_key'},201);assert.equal(repeated._id,chat._id);
   await req('/recommendations/preferences',buyer,{district:'Patna',type:'land',maxPrice:150000},204);

@@ -12,7 +12,7 @@ export default function NotificationBell() {
   return (
     <Pressable accessibilityRole="button"
       accessibilityLabel={unread ? `Notifications, ${unread} unread` : "Notifications"}
-      onPress={() => router.push("/notifications" as Href)} style={styles.button}>
+      onPress={() => router.navigate("/notifications" as Href)} style={styles.button}>
       <MaterialIcons name="notifications-none" color="#14263E" size={23} />
       {unread > 0 && <View style={styles.badge}><Text style={styles.count}>{unread > 99 ? "99+" : unread}</Text></View>}
     </Pressable>

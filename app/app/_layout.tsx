@@ -113,7 +113,9 @@ export default function RootLayout() {
     let dispose: (() => void) | undefined;
     void observePushOpens((kind, id) => {
       if (kind === "inquiry") router.push({ pathname: "/(tabs)/messages", params: { inquiryId: id } });
-      else router.push(`/deal/${id}` as Href);
+      else if (kind === "deal") router.push(`/deal/${id}` as Href);
+      else if (kind === "property") router.push(`/property/${id}` as Href);
+      else router.push("/my-properties" as Href);
     }, () => { if (active) void refreshNotificationCount(); }).then(stop => { if (active) dispose = stop; else stop(); })
       .catch(error => console.warn("Could not observe push notifications", error));
     return () => { active = false; dispose?.(); };
@@ -139,6 +141,7 @@ export default function RootLayout() {
         <Stack.Screen name="advisor" options={{ headerShown: false }} />
         <Stack.Screen name="verifier" options={{ headerShown: false }} />
         <Stack.Screen name="admin" options={{ headerShown: false }} />
+        <Stack.Screen name="notifications" options={{ presentation: "card" }} />
         <Stack.Screen name="modal" options={{ presentation: "modal" }} />
       </Stack>
       <StatusBar style="dark" />
