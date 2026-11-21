@@ -34,35 +34,27 @@ export default function PropertyImage(props: PropertyImageProps) {
     protectedUri = url.origin === new URL(api.defaults.baseURL!).origin && url.pathname.startsWith("/property-photos/");
   } catch { /* Bundled images and external images need no authentication. */ }
 
-  const [download, setDownload] = useState<{ uri: string; token: string | null; blob: string } | undefined>(() => {
-    if (uri && blobCache.has(uri)) {
-      return { uri, token: accessToken, blob: blobCache.get(uri)! };
-    }
-    return undefined;
-  });
+  const cacheKey = uri && accessToken ? `${accessToken}\n${uri}` : undefined;
+  const cachedBlob = cacheKey ? blobCache.get(cacheKey) : undefined;
+  const [download, setDownload] = useState<{ key: string; blob: string }>();
 
   useEffect(() => {
     // If it's a public listing image, the browser/app can fetch directly without auth headers
     if (isPublic) return;
-    if (Platform.OS !== "web" || !protectedUri || !uri || !accessToken) return;
-    if (blobCache.has(uri)) {
-      setDownload({ uri, token: accessToken, blob: blobCache.get(uri)! });
-      return;
-    }
+    if (Platform.OS !== "web" || !protectedUri || !uri || !cacheKey || cachedBlob) return;
 
     const controller = new AbortController();
-    let objectUrl: string | undefined;
     api.get(uri, { responseType: "blob", signal: controller.signal }).then(response => {
       if (controller.signal.aborted) return;
-      objectUrl = URL.createObjectURL(response.data);
-      blobCache.set(uri, objectUrl);
-      setDownload({ uri, token: accessToken, blob: objectUrl });
+      const blob = URL.createObjectURL(response.data);
+      blobCache.set(cacheKey, blob);
+      setDownload({ key: cacheKey, blob });
     }).catch(() => {});
 
     return () => {
       controller.abort();
     };
-  }, [uri, protectedUri, accessToken, isPublic]);
+  }, [uri, protectedUri, cacheKey, cachedBlob, isPublic]);
 
   // If public or unauthenticated, let browser render natively and leverage HTTP/disk caching
   if (isPublic || !protectedUri || !accessToken) {
@@ -70,7 +62,7 @@ export default function PropertyImage(props: PropertyImageProps) {
   }
 
   if (Platform.OS === "web") {
-    const activeBlob = download && download.uri === uri ? download.blob : (uri ? blobCache.get(uri) : undefined);
+    const activeBlob = download && download.key === cacheKey ? download.blob : cachedBlob;
     return <Image {...restProps} source={activeBlob ? { uri: activeBlob } : (uri ? { ...source, uri } : rawSource)} />;
   }
 
