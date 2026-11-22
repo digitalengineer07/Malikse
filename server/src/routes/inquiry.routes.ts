@@ -1,8 +1,7 @@
 import { User } from "../models/User.model";
 import { createHash } from "node:crypto";
 import { rateLimit } from "express-rate-limit";
-import { Notification } from "../models/Notification.model";
-import { identityApproved } from "../services/security";
+import { messaging } from "./messaging.routes";
 import express from "express";
 import { Inquiry } from "../models/Inquiry.model";
 import { authGuard, AuthRequest } from "../middleware/auth.middleware";
@@ -15,7 +14,6 @@ import mongoose, { isValidObjectId, Types, PipelineStage } from "mongoose";
 import { pageInput, cursorFor } from "../services/pagination";
 import { replicaReadPreference } from "../services/readReplica";
 import { sendPush } from "../services/pushNotifications";
-import { chatNotificationTitle } from "../services/notificationMessage";
 
 import { Property } from "../models/Property.model";
 import { createOffer, changeDeal } from "../services/dealWorkflow";
@@ -295,102 +293,6 @@ router.get("/:id", async (req: AuthRequest, res) => {
   }
 });
 
-router.get("/:id/messages", async (req: AuthRequest, res) => {
-  try {
-    const before =
-      req.query.before === undefined ? undefined : Number(req.query.before);
-    console.log(`[SERVER INQUIRY] GET /inquiries/${req.params.id}/messages | User: ${req.user!.id} | Cursor before: ${before ?? 'latest'}`);
-    if (before !== undefined && (!Number.isInteger(before) || before < 0))
-      return res.status(400).json({ error: "Invalid message cursor" });
-    const filter = {
-      _id: new Types.ObjectId(req.params.id),
-      $or: [
-        { buyerId: new Types.ObjectId(req.user!.id) },
-        { staffId: new Types.ObjectId(req.user!.id) },
-      ],
-    };
-    // Count and latest six come from the primary, so a newly sent message is
-    // visible immediately. Older pages are served from a secondary.
-    const latest = await Inquiry.aggregate([
-      { $match: filter },
-      {
-        $project: {
-          total: { $size: "$messages" },
-          messages: { $slice: ["$messages", -6] },
-          buyerId: 1,
-          buyerReadAt: 1,
-          staffReadAt: 1,
-        },
-      },
-    ]).option({ maxTimeMS: 5000 });
-    if (!latest.length)
-      return res.status(404).json({ error: "Inquiry not found" });
-    const total = latest[0].total as number;
-    if (before === undefined) {
-      const viewingAsBuyer = String(latest[0].buyerId) === req.user!.id;
-      const tag = '"' + createHash("sha256").update(JSON.stringify([
-        req.params.id, viewingAsBuyer, total, latest[0].messages.at(-1)?._id,
-        latest[0].buyerReadAt, latest[0].staffReadAt,
-      ])).digest("base64url") + '"';
-      res.setHeader("ETag", tag);
-      if (req.headers["if-none-match"] === tag) return res.status(304).end();
-      return res.json({
-        messages: latest[0].messages,
-        nextBefore: total > 6 ? total - 6 : null,
-        recipientReadAt: (viewingAsBuyer ? latest[0].staffReadAt : latest[0].buyerReadAt) ?? null,
-        ownReadAt: (viewingAsBuyer ? latest[0].buyerReadAt : latest[0].staffReadAt) ?? null,
-      });
-    }
-    const end = Math.min(before, Math.max(0, total - 6));
-    const start = Math.max(0, end - 50);
-      let rows = await Inquiry.aggregate([
-        { $match: filter },
-        {
-          $project: {
-            messages: {
-              $cond: [
-                { $gt: [end, 0] },
-                { $slice: ["$messages", start, end - start] },
-                [],
-              ],
-            },
-          },
-        },
-      ])
-        .read(replicaReadPreference())
-        .option({ maxTimeMS: 5000 });
-    if (!rows.length || rows[0].messages.length !== end - start) {
-      // If secondary has not replicated yet or cluster is single node, fallback to primary before 503
-      rows = await Inquiry.aggregate([
-        { $match: filter },
-        {
-          $project: {
-            messages: {
-              $cond: [
-                { $gt: [end, 0] },
-                { $slice: ["$messages", start, end - start] },
-                [],
-              ],
-            },
-          },
-        },
-      ]).option({ maxTimeMS: 5000 });
-    }
-    if (!rows.length || rows[0].messages.length !== end - start) {
-      res.setHeader("Retry-After", "1");
-      return res
-        .status(503)
-        .json({ error: "Messages are still syncing. Please try again." });
-    }
-    res.json({
-      messages: rows[0]?.messages || [],
-      nextBefore: start > 0 ? start : null,
-    });
-  } catch {
-    res.status(500).json({ error: "Could not load messages" });
-  }
-});
-
 // Reply/update inquiry status (Seller view)
 router.put("/:id/status", async (req: AuthRequest, res) => {
   try {
@@ -444,127 +346,6 @@ router.put("/:id/status", async (req: AuthRequest, res) => {
   }
 });
 
-// Send a message on an inquiry
-router.post("/:id/message", async (req: AuthRequest, res) => {
-  try {
-    const { text, clientMessageId } = req.body;
-    if (clientMessageId !== undefined && (typeof clientMessageId !== "string" || !/^[a-zA-Z0-9_-]{16,80}$/.test(clientMessageId)))
-      return res.status(400).json({ error: "Invalid message key" });
-    if (typeof text !== "string" || !text.trim() || text.length > 5000)
-      return res
-        .status(400)
-        .json({ error: "Enter a message between 1 and 5000 characters" });
-
-    const session = await mongoose.startSession();
-    const messageId = clientMessageId
-      ? new Types.ObjectId(createHash("sha256").update([req.params.id,req.user!.id,clientMessageId].join("/")).digest().subarray(0,12))
-      : new Types.ObjectId();
-    let inquiry: any;
-    let attempt = 0;
-    try {
-      await session.withTransaction(async () => {
-        if (attempt++ > 0) {
-          console.info(JSON.stringify({event:"chat_transaction_retry",attempt,requestId:res.locals.requestId}));
-          await new Promise(resolve => setTimeout(resolve, Math.random()*Math.min(200, 20*attempt)));
-        }
-        const current = await Inquiry.findOne({ _id: req.params.id, staffId: { $exists: true } })
-          .select({ propertyId:1, buyerId:1, staffId:1, ...(clientMessageId ? {messages:{$elemMatch:{_id:messageId}}} : {}) }).session(session).lean();
-        if (!current) throw new OfferError(404, "Conversation not found");
-        const property = await Property.findById(current.propertyId)
-          .select("status assignedAdvisorId assignedVerifierId").session(session).lean();
-        if (!property || property.status !== "verified")
-          throw new OfferError(
-            409,
-            "Property unavailable. Conversation is read-only",
-          );
-        const staff = await assignedStaff(property, session);
-        const buyer = String(current.buyerId) === req.user!.id;
-        if (!buyer && String(staff._id) !== req.user!.id)
-          throw new OfferError(403, "Not assigned to this property");
-        if (buyer) {
-          const account = await User.findById(req.user!.id)
-            .select("isVerifiedIdentity demoKycComplete").session(session).lean();
-          if (!account || !identityApproved(account))
-            throw new OfferError(
-              403,
-              "Approved KYC is required to send messages",
-            );
-        }
-        if (current.messages?.length) {
-          if (current.messages[0].text !== text.trim()) throw new OfferError(409, "Message key already used");
-          inquiry = {messages:current.messages};
-          return;
-        }
-        inquiry = await Inquiry.findOneAndUpdate(
-          { _id: current._id, "messages.999": { $exists: false } },
-          {
-            $set: { staffId: staff._id },
-            ...(String(current.staffId) !== String(staff._id) ? { $unset: { staffReadAt: 1 } } : {}),
-            $push: {
-              messages: {
-                _id: messageId,
-                senderId: req.user!.id,
-                text: text.trim(),
-                createdAt: new Date(),
-              },
-            },
-          },
-          { new: true, runValidators: true, session },
-        )
-          .select({ messages: { $slice: -1 } })
-          .lean();
-        if (!inquiry)
-          throw new OfferError(409, "Conversation message limit reached");
-        await Notification.create(
-          [
-            {
-              recipient: buyer ? staff._id : current.buyerId,
-              title: chatNotificationTitle(req.account?.name),
-              body: "You have a new property message.",
-              messageId,
-              data: { kind: "inquiry", id: String(current._id) },
-            },
-          ],
-          { session },
-        );
-      }, {timeoutMS: 8000});
-    } finally {
-      await session.endSession();
-    }
-    console.log(`[SERVER INQUIRY] <<< Successfully finished POST /inquiries/${req.params.id}/message`);
-    res.json(inquiry);
-  } catch (err: any) {
-    console.error(`[SERVER INQUIRY ERR] Failed to send message on inquiry ${req.params.id}:`, err.message || err);
-    res
-      .status(err instanceof OfferError ? err.status : 500)
-      .json({
-        error: err instanceof OfferError ? err.message : "Server error",
-      });
-  }
-});
-
-// A client acknowledges only the activity it has actually displayed.
-router.post("/:id/read", async (req: AuthRequest, res) => {
-  try {
-    const through = new Date(req.body.through);
-    console.log(`[SERVER INQUIRY] POST /inquiries/${req.params.id}/read | User: ${req.user!.id} | Through: ${req.body.through}`);
-    if (
-      typeof req.body.through !== "string" ||
-      !Number.isFinite(through.getTime()) ||
-      through.getTime() > Date.now()
-    )
-      return res.status(400).json({ error: "Invalid read timestamp" });
-    const field = res.locals.inquiryBuyer ? "buyerReadAt" : "staffReadAt";
-    const participant = res.locals.inquiryBuyer ? "buyerId" : "staffId";
-    await Inquiry.updateOne(
-      { _id:req.params.id, [participant]:req.user!.id, $or:[{[field]:null},{[field]:{$lt:through}}] },
-      { $max: { [field]: through } },
-      { timestamps: false },
-    );
-    res.json({ success: true });
-  } catch {
-    res.status(500).json({ error: "Could not mark messages as read" });
-  }
-});
+router.use(messaging);
 
 export default router;
