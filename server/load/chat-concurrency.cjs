@@ -115,6 +115,16 @@ async function main() {
     }
     if (process.argv.includes("--integration")) {
       const path="/inquiries/"+threads[0]._id;
+      // Installed APKs can omit clientMessageId. Exercise both participants typing concurrently.
+      const burst = Array.from({length:12}, () => randomUUID());
+      const repliesToBurst = await Promise.all(burst.map((text, index) =>
+        call(index % 2, "legacySend", path + "/message", {text})));
+      assert(repliesToBurst.every(reply => reply?.messages?.length === 1));
+      const newest = await call(0, "history", path + "/messages");
+      const older = await call(0, "history", path + "/messages?before=" + newest.nextBefore);
+      const observed = [...older.messages, ...newest.messages].map(message => message.text);
+      for (const text of burst) assert.equal(observed.filter(item => item === text).length, 1);
+      console.log("PASS concurrent two-participant legacy sends and transcript pagination");
       const key=randomUUID(), payload={text:"retry fixture",clientMessageId:key};
       const replies=await Promise.all(Array.from({length:6},()=>call(0,"retry",path+"/message",payload)));
       assert(replies.every(r=>r?.messages?.[0]._id===replies[0]?.messages?.[0]._id && r));

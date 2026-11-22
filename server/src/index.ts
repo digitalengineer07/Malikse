@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import path from "path";
 import { createFastifyApp } from "./fastifyApp";
 import { positiveInteger } from "./middleware/runtime.middleware";
+import { Inquiry } from "./models/Inquiry.model";
 import { User } from "./models/User.model";
 import { startAccountDeletionWorker } from "./services/accountDeletion";
 import { processFileCleanup } from "./services/fileCleanup";
@@ -65,7 +66,13 @@ startListening(PORT).then(() => {
   }
   startupStage = "required index verification";
   if (process.env.NODE_ENV !== "production") await createRequiredIndexes();
-  else await User.collection.createIndex({ googleId: 1 }, { unique: true, sparse: true });
+  else {
+    await User.collection.createIndex({ googleId: 1 }, { unique: true, sparse: true });
+    await Inquiry.collection.createIndexes([
+      { key: { buyerId: 1, updatedAt: -1, _id: -1 }, name: "inquiry_buyer_activity" },
+      { key: { propertyId: 1, updatedAt: -1, _id: -1 }, name: "inquiry_property_activity" },
+    ]);
+  }
   await verifyRequiredIndexes();
   initialized = true;
   clearTimeout(startupDeadline);
