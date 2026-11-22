@@ -188,23 +188,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
     setShowGoogleSetupModal(true);
   };
 
-  const handleDemoGoogleSignIn = async () => {
-    setLoading(true);
-    setShowGoogleSetupModal(false);
-    try {
-      await authService.loginWithGoogle({
-        email: "demo.malikse.user@gmail.com",
-        name: "Demo Google User",
-        googleId: "google_demo_12345",
-      });
-      router.replace(destination as any);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || "Demo sign in failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleTabSwitch = (tab: "login" | "register" | "forgot") => {
     setActiveTab(tab);
     setError("");
@@ -2038,15 +2021,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                   <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
                     <TouchableOpacity
-                      style={styles.demoGoogleBtn}
-                      onPress={handleDemoGoogleSignIn}
-                      activeOpacity={0.85}
-                    >
-                      <MaterialIcons name="play-circle-outline" size={17} color="#FFFFFF" />
-                      <Text style={styles.demoGoogleBtnText}>Test Instant Demo Sign-In</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
                       style={styles.closeModalBtn}
                       onPress={() => setShowGoogleSetupModal(false)}
                       activeOpacity={0.85}
@@ -3040,25 +3014,6 @@ const styles = StyleSheet.create({
     color: "#475569",
     fontFamily: font,
     lineHeight: 16,
-  },
-  demoGoogleBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: "#0A45B5",
-    borderRadius: 10,
-    paddingVertical: 11,
-    ...Platform.select({
-      web: { cursor: "pointer" },
-    }),
-  },
-  demoGoogleBtnText: {
-    color: "#FFFFFF",
-    fontSize: 12.5,
-    fontWeight: "800",
-    fontFamily: font,
   },
   closeModalBtn: {
     paddingHorizontal: 18,

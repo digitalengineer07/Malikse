@@ -1,3 +1,4 @@
+import { OAuth2Client } from "google-auth-library";
 import { cookieSession, trustedCookieOrigin, sessionPayload, refreshFromRequest, clearCookieSession } from "../services/browserSession";
 import { randomUUID, randomInt, randomBytes, createHash, createHmac, timingSafeEqual } from "crypto";
 import { rateLimit } from "express-rate-limit";
@@ -521,83 +522,47 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// POST /auth/google
+const googleVerifier = new OAuth2Client();
 router.post("/google", async (req, res) => {
+  const token = req.body?.credential ?? req.body?.idToken;
+  if (typeof token !== "string" || !token || token.length > 8192) {
+    return res.status(400).json({ message: "A Google ID token is required." });
+  }
+  const audience = process.env.GOOGLE_SIGN_IN_CLIENT_ID?.trim();
+  if (!audience) return res.status(503).json({ message: "Google sign-in is not configured." });
+
+  let profile;
   try {
-    const { credential, idToken, email: bodyEmail, name: bodyName, googleId: bodyGoogleId } = req.body;
-    let email = bodyEmail;
-    let name = bodyName;
-    let googleId = bodyGoogleId;
+    profile = (await googleVerifier.verifyIdToken({ idToken: token, audience })).getPayload();
+  } catch {
+    return res.status(401).json({ message: "Google sign-in could not be verified." });
+  }
+  const email = profile?.email?.trim().toLowerCase();
+  if (!email || !profile?.sub || profile.email_verified !== true || (!email.endsWith("@gmail.com") && !profile.hd)) {
+    return res.status(401).json({ message: "Google could not verify ownership of this email address." });
+  }
 
-    // Verify token with Google public endpoint if credential or idToken is passed
-    const token = credential || idToken;
-    if (token && typeof token === "string") {
-      try {
-        const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`);
-        if (verifyRes.ok) {
-          const payload = (await verifyRes.json()) as any;
-          if (payload.email) {
-            email = payload.email.toLowerCase();
-            name = payload.name || name || email.split("@")[0];
-            googleId = payload.sub || googleId;
-          }
-        }
-      } catch (e) {
-        console.warn("Google token verification error:", e);
-      }
+  try {
+    let user = await User.findOne({ googleId: profile.sub });
+    if (user && (user.role !== "user" || !accountEnabled(user) || user.deletionRequestedAt)) {
+      return res.status(403).json({ message: "This account cannot sign in with Google." });
     }
-
-    if (!email || typeof email !== "string") {
-      return res.status(400).json({ message: "Google authentication failed: Email address is required" });
-    }
-
-    email = email.trim().toLowerCase();
-    name = (name || email.split("@")[0]).trim();
-
-    // Check if user exists by email or googleId
-    let user = await User.findOne({
-      $or: [
-        { email },
-        ...(googleId ? [{ googleId }] : [])
-      ]
-    });
-
-    if (user) {
-      if (!accountEnabled(user)) {
-        return res.status(403).json({ message: "This account is suspended or inactive" });
-      }
-      if (googleId && !user.googleId) {
-        user.googleId = googleId;
-      }
-      if (!user.emailVerifiedAt) {
-        user.emailVerifiedAt = new Date();
-      }
-    } else {
+    if (!user) {
+      if (await User.exists({ email })) return res.status(409).json({ message: "Sign in with your existing MalikSe credentials." });
       user = new User({
-        name,
-        email,
-        googleId,
-        role: "user",
-        isVerifiedIdentity: false,
-        demoKycComplete: false,
-        emailVerifiedAt: new Date(),
-        sessionVersion: 0,
-        wishlist: [],
-        isActive: true,
-        isSuspended: false,
+        name: (profile.name?.trim() || email.split("@")[0]).slice(0, 120),
+        email, googleId: profile.sub, role: "user", emailVerifiedAt: new Date(),
       });
     }
-
-    if (["buyer", "owner"].includes(user.role as string)) user.role = "user";
 
     const { accessToken, refreshToken } = generateTokens(user);
     user.refreshTokenHash = tokenDigest(refreshToken);
     user.refreshTokenExpiresAt = refreshExpiry(refreshToken);
     await user.save();
-
     res.json(sessionPayload(req, res, { accessToken, refreshToken }, user));
   } catch (error: any) {
-    res.status(500).json({ message: error?.message || "An unexpected error occurred during Google sign in" });
+    if (error?.code === 11000) return res.status(409).json({ message: "This account already exists. Please sign in again." });
+    res.status(500).json({ message: "Google sign-in is temporarily unavailable." });
   }
 });
 

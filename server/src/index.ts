@@ -1,25 +1,33 @@
-import { processFileCleanup } from "./services/fileCleanup";
-import path from "path";
 import dotenv from "dotenv";
-dotenv.config();
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
-import { createRequiredIndexes, verifyRequiredIndexes } from "./services/requiredIndexes";
-import { startAccountDeletionWorker } from "./services/accountDeletion";
-import { deliverNotifications } from "./services/notificationQueue";
 import mongoose from "mongoose";
+import path from "path";
 import { createFastifyApp } from "./fastifyApp";
 import { positiveInteger } from "./middleware/runtime.middleware";
+import { User } from "./models/User.model";
+import { startAccountDeletionWorker } from "./services/accountDeletion";
+import { processFileCleanup } from "./services/fileCleanup";
+import { freePort } from "./services/freePort";
 import { mongoPoolOptions } from "./services/mongoPool";
+import { deliverNotifications } from "./services/notificationQueue";
 import { monitorPool } from "./services/performanceMetrics";
+import { checkPushReceipts } from "./services/pushNotifications";
 import { closeRedis } from "./services/redis";
 import { startRegionCounts, stopRegionCounts } from "./services/regionCountStore";
+import { createRequiredIndexes, verifyRequiredIndexes } from "./services/requiredIndexes";
 import { startSubmissionWorker } from "./services/submissionQueue";
-import { checkPushReceipts } from "./services/pushNotifications";
-import { freePort } from "./services/freePort";
+dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 let stopping = false;
 let initialized = false;
-const app = createFastifyApp(() => initialized && !stopping && mongoose.connection.readyState === 1);
+let finishStartup!: () => void;
+const startupWait = new Promise<void>(resolve => { finishStartup = resolve; });
+const startupDeadline = setTimeout(finishStartup, 8_000);
+startupDeadline.unref();
+const app = createFastifyApp(
+  () => initialized && !stopping && mongoose.connection.readyState === 1,
+  () => !initialized && !stopping ? startupWait : Promise.resolve(),
+);
 const PORT = positiveInteger("PORT", 5000, 65535);
 mongoose.set("bufferCommands", false);
 
@@ -44,8 +52,8 @@ startListening(PORT).then(() => {
   console.log(`[MalikSe] Fastify server running on http://localhost:${PORT}`);
   startupStage = "MongoDB connection";
   return mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/malikse", {
-  autoIndex: false,
-  ...mongoPoolOptions(),
+    autoIndex: false,
+    ...mongoPoolOptions(),
   });
 }).then(async () => {
   monitorPool(mongoose.connection.getClient());
@@ -57,8 +65,11 @@ startListening(PORT).then(() => {
   }
   startupStage = "required index verification";
   if (process.env.NODE_ENV !== "production") await createRequiredIndexes();
+  else await User.collection.createIndex({ googleId: 1 }, { unique: true, sparse: true });
   await verifyRequiredIndexes();
   initialized = true;
+  clearTimeout(startupDeadline);
+  finishStartup();
   const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => {} : startSubmissionWorker();
   const stopDeletionWorker = startAccountDeletionWorker();
   let regionStartup: Promise<void> | undefined;
@@ -89,7 +100,7 @@ startListening(PORT).then(() => {
     stopping = true;
     clearTimeout(regionRetry);
 
-    const deadline = setTimeout(() => { server.closeAllConnections(); process.exit(1); }, 15_000);
+    const deadline = setTimeout(() => { (server as any).closeAllConnections?.(); process.exit(1); }, 15_000);
     deadline.unref();
     await Promise.all([app.close(), stopWorker(), stopDeletionWorker(), stopNotifications(), stopReceipts(), stopFileCleanup()]);
     await regionStartup;
@@ -102,10 +113,12 @@ startListening(PORT).then(() => {
   process.once("SIGINT", () => { void shutdown(); });
   process.once("SIGUSR2", () => { void shutdown(); });
 }).catch(async (error: unknown) => {
+  clearTimeout(startupDeadline);
+  finishStartup();
   const cause = error as { name?: string; code?: string; message?: string };
   const message = String(cause?.message || "Unknown error").replace(/mongodb(?:\+srv)?:\/\/[^\s]+/gi, "[redacted MongoDB URI]");
   console.error("[MalikSe] Server startup failed", { stage: startupStage, name: cause?.name, code: cause?.code, message });
-  await app.close().catch(() => {});
+  await app.close().catch(() => { });
   await stopRegionCounts();
   await mongoose.disconnect();
   closeRedis();

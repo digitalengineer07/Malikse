@@ -95,6 +95,7 @@ const { stopRegionCounts } = require('../dist/services/regionCountStore');
   assert.equal((await req('/properties', { ...valid, media: { photos: ['https://tracker.test/pixel'] } }, freshToken)).status, 400);
   assert.equal((await req('/users/contact-change', { email: 'new@example.test', password }, generateTokens(unverified).accessToken)).status, 409);
   // A 200 provider response can still contain failed tickets; only failed devices retry.
+  assert.equal((await req('/auth/google', { email: owner.email }, null)).status, 400);
   await PushDevice.create([{ userId: owner._id, platform: 'android', token: 'ExpoPushToken[good]' }, { userId: owner._id, platform: 'android', token: 'ExpoPushToken[retry]' }]);
   const job = await Notification.create({ recipient: owner._id, title: 'Fixture', body: 'Test', data: { kind: 'deal', id: 'fixture' } });
   let sends = 0;
@@ -117,7 +118,7 @@ const { stopRegionCounts } = require('../dist/services/regionCountStore');
   assert.equal(await PushReceipt.countDocuments(), 0);
   assert.equal((await Notification.findById(job._id)).lastError, 'ReceiptTimeout');
   // The Android banner uses the body sent to Expo, so assert the provider payload.
-  const buyerId = new mongoose.Types.ObjectId();
+  const buyerId = unverified._id;
   const chatText = 'Can I visit tomorrow? 🏠';
   const inquiry = await Inquiry.create({
    propertyId: new mongoose.Types.ObjectId(), buyerId, staffId: owner._id,
@@ -128,14 +129,14 @@ const { stopRegionCounts } = require('../dist/services/regionCountStore');
    recipient: owner._id, title: 'New message', body: 'You have a new property message.',
    messageId: inquiry.messages[0]._id, data: { kind: 'inquiry', id: String(inquiry._id) },
   });
-  const pushBodies = [];
+  const pushPreviews = [];
   global.fetch = async (_url, options) => {
    const batch = JSON.parse(options.body);
-   pushBodies.push(...batch.map(item => item.body));
+   pushPreviews.push(...batch.map(({ title, body }) => ({ title, body })));
    return Response.json({ data: batch.map(() => ({ status: 'ok', id: randomUUID() })) });
   };
   await deliverNotifications();
-  assert.deepEqual(pushBodies, [chatText, chatText]);
+  assert.deepEqual(pushPreviews, Array(2).fill({ title: unverified.name, body: chatText }));
   const { scanDocumentBytes } = require('../dist/services/documentScanner');
   const previousScanner = process.env.DOCUMENT_SCAN_URL;
   try {

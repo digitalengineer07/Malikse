@@ -21,7 +21,8 @@ export function readChat(path: string): Promise<AxiosResponse> {
   const cooldown = cooldowns.get(resource);
   if (cooldown && Date.now() < cooldown.retryAt) return Promise.reject(new Error(chatBusyMessage));
   const request = api.get(path).catch(error => {
-    if (error.response?.status !== 429) throw error;
+    const status = error.response?.status;
+    if (status !== 429 && status !== 503) throw error;
     if (pending.get(path) === request) {
       const raw = error.response.headers?.["retry-after"];
       const delay = /^\d+$/.test(String(raw)) ? Number(raw) * 1000 : Date.parse(String(raw)) - Date.now();
@@ -29,7 +30,9 @@ export function readChat(path: string): Promise<AxiosResponse> {
       const failures = Math.min((previous?.failures ?? 0) + 1, 3);
       cooldowns.set(resource, {
         failures,
-        retryAt: Math.max(previous?.retryAt ?? 0, Date.now() + Math.max(1_000, Number.isFinite(delay) ? delay : 15_000 * 2 ** failures)),
+        retryAt: Math.max(previous?.retryAt ?? 0, Date.now() + Math.max(
+          1_000, Number.isFinite(delay) ? delay : (status === 503 ? 1_000 : 7_500) * 2 ** failures,
+        )),
       });
     }
     throw new Error(chatBusyMessage);

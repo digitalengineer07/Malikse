@@ -39,6 +39,7 @@ import { currentMapLocation, LocationPermissionBlocked } from "../src/services/c
 import { validMapPoint, type MapFocus, type MapPoint } from "../src/utils/nativeMapHtml";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api, { authService } from "../src/services/authService";
+import { chatTracker } from "../src/services/chatRequestTracker";
 import { homeFeedBusyMessage, loadHomeRecommendations } from "../src/services/homeRecommendations";
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
@@ -240,8 +241,10 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
       if (latestRequest.current === requestKey) setLoading(false);
     }
   };
-  return { data: resultKey === requestKey ? data : null, error, loading, refresh, setData, nextCursor,
-    loadMore: () => loadPages(false), loadAll: () => loadPages(true) };
+  return {
+    data: resultKey === requestKey ? data : null, error, loading, refresh, setData, nextCursor,
+    loadMore: () => loadPages(false), loadAll: () => loadPages(true)
+  };
 }
 function useAction() {
   const [busy, setBusy] = useState(false),
@@ -339,9 +342,9 @@ export function MarketplaceShell({
   const focused = useIsFocused();
   const contextualTab =
     path === "/saved" ? ["/saved", "favorite-border", "Wishlist"] :
-    path === "/my-properties" ? ["/my-properties", "apartment", "Listings"] :
-    path.startsWith("/deal/") ? [path, "handshake", "Deal"] :
-    ["/messages", "chat-bubble-outline", "Chats"];
+      path === "/my-properties" ? ["/my-properties", "apartment", "Listings"] :
+        path.startsWith("/deal/") ? [path, "handshake", "Deal"] :
+          ["/messages", "chat-bubble-outline", "Chats"];
   const scroll = useRef<ScrollViewInstance>(null);
   useEffect(() => {
     if (step !== undefined) scroll.current?.scrollTo({ y: 0, animated: false });
@@ -354,78 +357,78 @@ export function MarketplaceShell({
       {focused && <StatusBar style="light" />}
       {fixedHeader}
       <View style={s.scrollViewport}>
-      {backgroundArtwork}
-      <ScrollView
-        ref={transcriptRef ?? scroll}
-        {...transcriptEvents}
-        scrollEventThrottle={transcriptEvents ? 16 : undefined}
-        scrollEnabled={scrollEnabled}
-        style={{ flex: 1 }}
-        contentContainerStyle={[s.scroll, !showDock && { paddingBottom: 12 }, scrollFooter && s.scrollWithArtwork,
+        {backgroundArtwork}
+        <ScrollView
+          ref={transcriptRef ?? scroll}
+          {...transcriptEvents}
+          scrollEventThrottle={transcriptEvents ? 16 : undefined}
+          scrollEnabled={scrollEnabled}
+          style={{ flex: 1 }}
+          contentContainerStyle={[s.scroll, !showDock && { paddingBottom: 12 }, scrollFooter && s.scrollWithArtwork,
           !scrollEnabled && scrollFooter && s.fitArtworkToViewport,
           !scrollEnabled && scrollFooter && showDock && !dockArtwork && { paddingBottom: dockBottom + dockHeight + 16 },
           showDock && dockArtwork && { paddingBottom: dockBottom + dockHeight + 54 }]}
-        keyboardShouldPersistTaps="handled"
-      >
-      {!fixedHeader && <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
-        smallHeader && s.smallHero, profileHeader && s.profileHero, matchedHero && { height: sharedHeroHeight }]}>
-        <View pointerEvents="none" style={s.heroSun} />
-        <View pointerEvents="none" style={s.heroRay} />
-        <View style={[s.heroInner, compactHeader && s.compactHeroInner, matchedHero && s.matchedHeroInner]}>
-        {profileHeader || <>
-        <View style={[s.header, Boolean(user) && width < 390 && { gap: 6 }]}>
-        <View style={[s.row, { flex: 1, minWidth: 0 }]}>
-          {back ? (
-            <Pressable
-              accessibilityLabel="Back"
-              accessibilityRole="button"
-              style={s.heroIcon}
-              onPress={onBack ?? (() =>
-                router.canGoBack() ? router.back() : router.replace("/home")
-              )}
-            >
-              <Icon name="arrow-back" color="white" size={20} />
-            </Pressable>
-          ) : (
-            <View style={s.logoIcon}>
-              <Icon name="roofing" size={18} />
-            </View>
-          )}
-          <Pressable style={{ flexShrink: 1 }} onPress={() => router.push("/home")}>
-            <Text style={s.logo} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-              MalikSe<Text style={{ color: C.sun }}>.</Text>
-            </Text>
-          </Pressable>
-        </View>
-        {headerAction || (
-        <Pressable
-          accessibilityLabel="Wishlist"
-          accessibilityRole="button"
-          style={s.heroIcon}
-          onPress={() => router.push("/saved")}
+          keyboardShouldPersistTaps="handled"
         >
-          <Icon name="favorite-border" color="white" size={20} />
-        </Pressable>
-        )}
-        <NotificationBell />
-        </View>
-          {Boolean(title) && (
-            <View style={{ gap: 4 }}>
-              <Text accessibilityRole="header" style={s.heroTitle}>{title}</Text>
-              {Boolean(subtitle) && <Text numberOfLines={compactHeader ? 1 : undefined}
-                adjustsFontSizeToFit={compactHeader} minimumFontScale={0.85}
-                style={[s.heroSubtitle, smallHeader && s.smallHeroSubtitle]}>{subtitle}</Text>}
+          {!fixedHeader && <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
+          smallHeader && s.smallHero, profileHeader && s.profileHero, matchedHero && { height: sharedHeroHeight }]}>
+            <View pointerEvents="none" style={s.heroSun} />
+            <View pointerEvents="none" style={s.heroRay} />
+            <View style={[s.heroInner, compactHeader && s.compactHeroInner, matchedHero && s.matchedHeroInner]}>
+              {profileHeader || <>
+                <View style={[s.header, Boolean(user) && width < 390 && { gap: 6 }]}>
+                  <View style={[s.row, { flex: 1, minWidth: 0 }]}>
+                    {back ? (
+                      <Pressable
+                        accessibilityLabel="Back"
+                        accessibilityRole="button"
+                        style={s.heroIcon}
+                        onPress={onBack ?? (() =>
+                          router.canGoBack() ? router.back() : router.replace("/home")
+                        )}
+                      >
+                        <Icon name="arrow-back" color="white" size={20} />
+                      </Pressable>
+                    ) : (
+                      <View style={s.logoIcon}>
+                        <Icon name="roofing" size={18} />
+                      </View>
+                    )}
+                    <Pressable style={{ flexShrink: 1 }} onPress={() => router.push("/home")}>
+                      <Text style={s.logo} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                        MalikSe<Text style={{ color: C.sun }}>.</Text>
+                      </Text>
+                    </Pressable>
+                  </View>
+                  {headerAction || (
+                    <Pressable
+                      accessibilityLabel="Wishlist"
+                      accessibilityRole="button"
+                      style={s.heroIcon}
+                      onPress={() => router.push("/saved")}
+                    >
+                      <Icon name="favorite-border" color="white" size={20} />
+                    </Pressable>
+                  )}
+                  <NotificationBell />
+                </View>
+                {Boolean(title) && (
+                  <View style={{ gap: 4 }}>
+                    <Text accessibilityRole="header" style={s.heroTitle}>{title}</Text>
+                    {Boolean(subtitle) && <Text numberOfLines={compactHeader ? 1 : undefined}
+                      adjustsFontSizeToFit={compactHeader} minimumFontScale={0.85}
+                      style={[s.heroSubtitle, smallHeader && s.smallHeroSubtitle]}>{subtitle}</Text>}
+                  </View>
+                )}
+                {headerContent}
+              </>}
             </View>
-          )}
-          {headerContent}
-        </>}
-        </View>
-      </View>}
-        <View style={[s.content, profileHeader && s.profileContent]}>
-          {children}
-        </View>
-        {scrollFooter?.(showDock ? dockClearance : 0)}
-      </ScrollView>
+          </View>}
+          <View style={[s.content, profileHeader && s.profileContent]}>
+            {children}
+          </View>
+          {scrollFooter?.(showDock ? dockClearance : 0)}
+        </ScrollView>
       </View>
       {footer && <View style={[s.footer, footerStyle, { paddingBottom: Math.max(insets.bottom, 12) }]}>{footer}</View>}
       {showDock && dockArtwork && <View pointerEvents="none" style={s.dockArtwork}>
@@ -566,7 +569,7 @@ function PropertyCard({
                       .post(`/recommendations/${p._id}/activity`, {
                         kind: "save",
                       })
-                      .catch(() => {});
+                      .catch(() => { });
                   onSaved?.();
                 });
             }}
@@ -661,22 +664,22 @@ export function HomeScreen() {
             <Icon name="arrow-forward" size={15} color={C.ink} />
           </Pressable>
         ) : null}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8 }}
-      >
-        {types.map(([id, text, icon]) => (
-          <Pressable
-            key={id}
-            onPress={() => setType(type === id ? "" : id)}
-            style={[s.typeChip, type === id && { backgroundColor: C.blue }]}
-          >
-            <Icon name={icon} color={type === id ? C.sun : C.blue} size={16} />
-            <Text style={[s.small, { color: type === id ? C.sun : C.ink }]}>{text}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8 }}
+        >
+          {types.map(([id, text, icon]) => (
+            <Pressable
+              key={id}
+              onPress={() => setType(type === id ? "" : id)}
+              style={[s.typeChip, type === id && { backgroundColor: C.blue }]}
+            >
+              <Icon name={icon} color={type === id ? C.sun : C.blue} size={16} />
+              <Text style={[s.small, { color: type === id ? C.sun : C.ink }]}>{text}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
       </View>
       {homeBusy && <View style={s.panel}>
         <Text accessibilityRole="alert" style={s.body}>{homeFeedBusyMessage}</Text>
@@ -702,36 +705,36 @@ export function HomeScreen() {
         const listings = (feed.data || []).filter((p: any) => !type || p.type === type).slice(0, 6);
         const carousel = title === "Recommended for You" && width < 650;
         return (
-        <View key={title} style={{ gap: 14 }}>
-          <View style={s.between}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.h2}>{title}</Text>
-              <Text style={s.small}>{sub}</Text>
+          <View key={title} style={{ gap: 14 }}>
+            <View style={s.between}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.h2}>{title}</Text>
+                <Text style={s.small}>{sub}</Text>
+              </View>
+              <Pressable onPress={() => router.push({ pathname: "/search", params: { type } })}>
+                <Text style={s.link}>View all →</Text>
+              </Pressable>
             </View>
-            <Pressable onPress={() => router.push({ pathname: "/search", params: { type } })}>
-              <Text style={s.link}>View all →</Text>
-            </Pressable>
-          </View>
-          {feed.error === homeFeedBusyMessage && !listings.length ? null : (feed.loading || (feed === personal && storedPrefs?.scope !== scope)) && !listings.length ? (
-            <ActivityIndicator color={C.blue} />
-          ) : feed.error && !listings.length ? (
-            <ErrorBox text={feed.error} />
-          ) : !listings.length ? (
-            <Empty
-              title={type ? "No listings in this category" : "Properties are on their way"}
-              text={type ? "Choose another property type to see more listings." : "Verified listings will appear here as they become available."}
-            />
-          ) : (
-            <ScrollView horizontal={carousel} scrollEnabled={carousel} showsHorizontalScrollIndicator={false}
-              contentContainerStyle={carousel ? { gap: 14 } : s.grid}>
-              {listings.map((p: any) => (
+            {feed.error === homeFeedBusyMessage && !listings.length ? null : (feed.loading || (feed === personal && storedPrefs?.scope !== scope)) && !listings.length ? (
+              <ActivityIndicator color={C.blue} />
+            ) : feed.error && !listings.length ? (
+              <ErrorBox text={feed.error} />
+            ) : !listings.length ? (
+              <Empty
+                title={type ? "No listings in this category" : "Properties are on their way"}
+                text={type ? "Choose another property type to see more listings." : "Verified listings will appear here as they become available."}
+              />
+            ) : (
+              <ScrollView horizontal={carousel} scrollEnabled={carousel} showsHorizontalScrollIndicator={false}
+                contentContainerStyle={carousel ? { gap: 14 } : s.grid}>
+                {listings.map((p: any) => (
                   <View
                     key={p._id}
                     style={{
                       width:
                         width > 1000 ? "31.8%" : width > 650 ? "48.5%" :
                           title === "Recommended for You" ? Math.min(width - 64, 320) :
-                          title === "Trending Properties" && width >= 360 ? "47.5%" : "100%",
+                            title === "Trending Properties" && width >= 360 ? "47.5%" : "100%",
                     }}
                   >
                     <PropertyCard
@@ -740,9 +743,9 @@ export function HomeScreen() {
                     />
                   </View>
                 ))}
-            </ScrollView>
-          )}
-        </View>
+              </ScrollView>
+            )}
+          </View>
         );
       })}
       <View style={[s.panel, { backgroundColor: C.sunSoft }]}>
@@ -820,7 +823,7 @@ export function SearchScreen() {
       for (const property of feed.data.slice(0, 5))
         void api
           .post(`/recommendations/${property._id}/activity`, { kind: "search" })
-          .catch(() => {});
+          .catch(() => { });
   }, [feed.data, submitted]);
   const search = () => {
     setNearby(undefined);
@@ -833,7 +836,7 @@ export function SearchScreen() {
           type,
           ...(max ? { maxPrice: Number(max) } : {}),
         })
-        .catch(() => {});
+        .catch(() => { });
     void AsyncStorage.setItem(
       `marketplace_preferences_${user?.id || "guest"}`,
       JSON.stringify({ district: query, type, maxPrice: max }),
@@ -845,29 +848,29 @@ export function SearchScreen() {
       subtitle="Search by area or explore listings on the map."
       scrollEnabled={!mapGestureActive}
       headerContent={
-      <View style={s.searchControls}>
-        <View style={s.searchInputRow}>
-          <TextInput
-            accessibilityLabel="Search properties"
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Locality, project or city"
-            placeholderTextColor="#6f82a8"
-            onSubmitEditing={search}
-            returnKeyType="search"
-            style={s.searchInputText}
+        <View style={s.searchControls}>
+          <View style={s.searchInputRow}>
+            <TextInput
+              accessibilityLabel="Search properties"
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Locality, project or city"
+              placeholderTextColor="#6f82a8"
+              onSubmitEditing={search}
+              returnKeyType="search"
+              style={s.searchInputText}
+            />
+            <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={search} style={s.searchSubmit}>
+              <Icon name="search" size={21} />
+            </Pressable>
+          </View>
+          <Button
+            title="Filters"
+            secondary
+            icon="tune"
+            onPress={() => setFilter(!filter)}
           />
-          <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={search} style={s.searchSubmit}>
-            <Icon name="search" size={21} />
-          </Pressable>
         </View>
-        <Button
-          title="Filters"
-          secondary
-          icon="tune"
-          onPress={() => setFilter(!filter)}
-        />
-      </View>
       }
     >
       {filter && (
@@ -1113,11 +1116,11 @@ export function ProfileScreen() {
       <View style={s.between}>
         <Text accessibilityRole="header" style={s.heroTitle}>Profile</Text>
         <View style={s.row}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Edit profile"
-          accessibilityState={{ expanded: editing }} onPress={openEditor} style={s.profileEdit}>
-          <Icon name="edit" color={C.sun} />
-        </Pressable>
-        <NotificationBell />
+          <Pressable accessibilityRole="button" accessibilityLabel="Edit profile"
+            accessibilityState={{ expanded: editing }} onPress={openEditor} style={s.profileEdit}>
+            <Icon name="edit" color={C.sun} />
+          </Pressable>
+          <NotificationBell />
         </View>
       </View>
       <View style={s.profileIdentity}>
@@ -1419,9 +1422,9 @@ export function KycScreen() {
                 {feed.data?.isVerifiedIdentity
                   ? "Approved"
                   : (feed.data?.kycStatus || "not_submitted").replaceAll(
-                      "_",
-                      " ",
-                    )}
+                    "_",
+                    " ",
+                  )}
               </Tag>
             </View>
           </View>
@@ -1472,8 +1475,8 @@ export function KycScreen() {
               void authService.getMe();
               router.replace(
                 (typeof params.returnTo === "string" &&
-                params.returnTo.startsWith("/") &&
-                !params.returnTo.startsWith("//")
+                  params.returnTo.startsWith("/") &&
+                  !params.returnTo.startsWith("//")
                   ? params.returnTo
                   : "/profile") as any,
               );
@@ -1501,7 +1504,7 @@ export function PropertyDetailScreen() {
     if (id)
       void api
         .post(`/recommendations/${id}/activity`, { kind: "view" })
-        .catch(() => {});
+        .catch(() => { });
   }, [id]);
   const offerRequest = useRef<{ amount: string; key: string } | null>(null);
   const contact = (offer = false) =>
@@ -1515,9 +1518,9 @@ export function PropertyDetailScreen() {
           message,
           ...(offer
             ? {
-                offerAmount: Number(amount),
-                requestKey: offerRequest.current?.key,
-              }
+              offerAmount: Number(amount),
+              requestKey: offerRequest.current?.key,
+            }
             : {}),
         })
       ).data;
@@ -1579,7 +1582,7 @@ export function PropertyDetailScreen() {
                   const result = await userService.toggleWishlist(id);
                   wishlist.setData(result);
                   if (result.isWishlisted) {
-                    void api.post(`/recommendations/${id}/activity`, { kind: "save" }).catch(() => {});
+                    void api.post(`/recommendations/${id}/activity`, { kind: "save" }).catch(() => { });
                   }
                 });
               }}
@@ -1657,7 +1660,7 @@ export function PropertyDetailScreen() {
           </View>
           <View style={s.panel}>
             <Text style={s.h2}>Location</Text>
-            <View style={s.map}><VerifiedPropertyMap properties={[p]} onSelect={() => {}} /></View>
+            <View style={s.map}><VerifiedPropertyMap properties={[p]} onSelect={() => { }} /></View>
           </View>
           <View style={s.panel}>
             <Text style={s.h2}>Make an offer</Text>
@@ -1797,7 +1800,7 @@ export function ChatsScreen() {
     if (handledChatRevision.current === chatRevision) return;
     handledChatRevision.current = chatRevision;
     if (!userId || !chatFocused || !appActive) return;
-    const timer = setTimeout(selected ? refreshMessages : refreshFeed, 750);
+    const timer = setTimeout(selected ? refreshMessages : refreshFeed, 350);
     return () => clearTimeout(timer);
   }, [chatRevision, userId, chatFocused, appActive, selected, refreshMessages, refreshFeed]);
   useEffect(() => {
@@ -1807,21 +1810,29 @@ export function ChatsScreen() {
     }, (selected ? 15_000 : 30_000) + Math.round(Math.random() * 4_000));
     return () => clearInterval(timer);
   }, [selected, userId, chatFocused, appActive, refreshMessages, refreshFeed]);
+  const latestIncoming = chat.data && messages.data
+    ? messages.data.messages?.slice().reverse().find((message: any) => identity(message.senderId) !== userId)?.createdAt
+    || (identity(chat.data.buyerId) !== userId ? chat.data.createdAt : undefined)
+    : undefined;
+  const ownReadAt = messages.data?.ownReadAt;
   useEffect(() => {
-    if (selected && userId && chatFocused && appActive && chat.data && messages.data) {
-      const viewingAsBuyer = identity(chat.data.buyerId) === userId;
-      const incoming = messages.data.messages?.slice().reverse().find((message: any) => identity(message.senderId) !== userId);
-      const latest = incoming?.createdAt || (!viewingAsBuyer ? chat.data.createdAt : undefined);
-      const ownReadAt = messages.data.ownReadAt;
-      if (!latest || (ownReadAt && Date.parse(ownReadAt) >= Date.parse(latest))) return;
-      const receipt = `${userId}:${selected}:${latest}`;
+    if (selected && userId && chatFocused && appActive && latestIncoming) {
+      if (ownReadAt && Date.parse(ownReadAt) >= Date.parse(latestIncoming)) return;
+      const receipt = `${userId}:${selected}:${latestIncoming}`;
       if (acknowledgedReceipt.current === receipt) return;
-      acknowledgedReceipt.current = receipt;
-      void api.post(`/inquiries/${selected}/read`, { through: latest }).catch(() => {
-        if (acknowledgedReceipt.current === receipt) acknowledgedReceipt.current = "";
-      });
+      const timer = setTimeout(() => {
+        acknowledgedReceipt.current = receipt;
+        console.log(`[APP CHAT] Sending read receipt for ${selected} through ${latestIncoming}`);
+        void api.post(`/inquiries/${selected}/read`, { through: latestIncoming }).then(() => {
+          console.log(`[APP CHAT] Read receipt acknowledged for ${selected}`);
+        }).catch((err: any) => {
+          console.warn(`[APP CHAT] Read receipt failed for ${selected}:`, err.message);
+          if (acknowledgedReceipt.current === receipt) acknowledgedReceipt.current = "";
+        });
+      }, 800);
+      return () => clearTimeout(timer);
     }
-  }, [messages.data, chat.data, selected, userId, chatFocused, appActive]);
+  }, [latestIncoming, ownReadAt, messages.data, selected, userId, chatFocused, appActive]);
   const c = chat.data,
     other = c && (identity(c.buyerId) === user?.id ? c.staffId : c.buyerId);
   const recipientReadAt = messages.data?.recipientReadAt !== undefined
@@ -1882,24 +1893,36 @@ export function ChatsScreen() {
     const content = draft.trim();
     if (!selected || !content || sendLock.current) return;
     sendLock.current = true;
+    chatTracker.startMessage(content);
+    console.log(`[APP CHAT] User initiated sendMessage to conversation ${selected}: "${content}"`);
     setSendErrorConversation(undefined);
     setPending({ conversation: selected, text: content });
     scrollToLatest();
     try {
+      console.log(`[APP CHAT] Sending POST /inquiries/${selected}/message...`);
       const { data } = await api.post(`/inquiries/${selected}/message`, { text: content });
+      console.log(`[APP CHAT] Successfully sent message. Server returned updated inquiry.`);
       if (activeConversation.current !== selected) return;
       const saved = data.messages?.at(-1);
       if (saved?._id) {
-        setSent(current => ({ conversation: selected,
-          messages: [...(current?.conversation === selected ? current.messages : []), saved].slice(-6) }));
+        setSent(current => ({
+          conversation: selected,
+          messages: [...(current?.conversation === selected ? current.messages : []), saved].slice(-6)
+        }));
+      } else {
+        void refreshMessages();
       }
       setText(current => current === draft ? "" : current);
-      void refreshMessages();
-    } catch {
+    } catch (err: any) {
+      console.error(`[APP CHAT ERROR] Failed to send message:`, err.response?.data || err.message);
       if (activeConversation.current === selected) setSendErrorConversation(selected);
     } finally {
       sendLock.current = false;
       setPending(undefined);
+      // Wait a moment for any cascading refreshes/read-receipts to log summary
+      setTimeout(() => {
+        chatTracker.finishMessage(content);
+      }, 1500);
     }
   }
   const search = query.trim().toLocaleLowerCase();
@@ -2006,32 +2029,32 @@ export function ChatsScreen() {
         <View style={s.chatComposerArea}>
           {sendFailed && <Text accessibilityRole="alert" style={s.chatSendError}>Couldn’t send your message. Your draft is still here.</Text>}
           <View style={[s.row, s.chatComposer]}>
-          <TextInput
-            accessibilityLabel="Message"
-            value={text}
-            onChangeText={value => { setText(value); if (sendFailed) setSendErrorConversation(undefined); }}
-            onFocus={() => {
-              composerFocused.current = true;
-              scrollToLatest();
-            }}
-            onBlur={() => {
-              composerFocused.current = false;
-            }}
-            style={s.chatInput}
-            placeholder="Write a message…"
-            placeholderTextColor={C.muted}
-            multiline
-          />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Send message"
-            accessibilityState={{ disabled: cannotSend, busy: sending }}
-            disabled={cannotSend}
-            style={({ pressed }) => [s.chatSend, (cannotSend || pressed) && s.chatSendDimmed]}
-            onPress={() => void sendMessage()}
-          >
-            {sending ? <ActivityIndicator size="small" color={C.ink} /> : <Icon name="send" size={20} color={C.ink} />}
-          </Pressable>
+            <TextInput
+              accessibilityLabel="Message"
+              value={text}
+              onChangeText={value => { setText(value); if (sendFailed) setSendErrorConversation(undefined); }}
+              onFocus={() => {
+                composerFocused.current = true;
+                scrollToLatest();
+              }}
+              onBlur={() => {
+                composerFocused.current = false;
+              }}
+              style={s.chatInput}
+              placeholder="Write a message…"
+              placeholderTextColor={C.muted}
+              multiline
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Send message"
+              accessibilityState={{ disabled: cannotSend, busy: sending }}
+              disabled={cannotSend}
+              style={({ pressed }) => [s.chatSend, (cannotSend || pressed) && s.chatSendDimmed]}
+              onPress={() => void sendMessage()}
+            >
+              {sending ? <ActivityIndicator size="small" color={C.ink} /> : <Icon name="send" size={20} color={C.ink} />}
+            </Pressable>
           </View>
         </View>
       ) : undefined}
@@ -2138,9 +2161,9 @@ export function ChatsScreen() {
                     </Text>
                   </View>
                   <View style={s.threadMeta}>
-                      {timestamp ? <Text style={s.threadTime}>
-                        {new Date(timestamp).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
-                      </Text> : null}
+                    {timestamp ? <Text style={s.threadTime}>
+                      {new Date(timestamp).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+                    </Text> : null}
                     {c.unread && <View style={unreadCount > 0 ? s.threadCount : s.threadCountDot}>
                       {unreadCount > 0 && <Text style={s.threadCountText}>{unreadCount > 99 ? "99+" : unreadCount}</Text>}
                     </View>}
@@ -2267,13 +2290,13 @@ export function DealScreen() {
             {["offered", "countered", "accepted", "token_paid"].includes(
               d.status,
             ) && (
-              <Button
-                title="Cancel offer / reservation"
-                secondary
-                disabled={action.busy}
-                onPress={() => update("cancelled")}
-              />
-            )}
+                <Button
+                  title="Cancel offer / reservation"
+                  secondary
+                  disabled={action.busy}
+                  onPress={() => update("cancelled")}
+                />
+              )}
             {staff && ["accepted", "token_paid"].includes(d.status) && (
               <View style={s.panel}>
                 <Text style={s.cardTitle}>Confirm the completed sale</Text>
@@ -2537,25 +2560,25 @@ export function PostScreen() {
       ) : undefined}
       step={step}
       footer={canPost && !done ? (
-      <View style={s.between}>
-        <Button
-          title="Back"
-          secondary
-          disabled={step === 1 || action.busy}
-          onPress={() => setStep(step - 1)}
-        />
-        <Button
-          title={
-            action.busy
-              ? "Submitting…"
-              : step === 5
-                ? "Submit for verification"
-                : "Continue →"
-          }
-          disabled={action.busy || (step === 5 && !consent)}
-          onPress={() => (step === 5 ? submit() : setStep(step + 1))}
-        />
-      </View>
+        <View style={s.between}>
+          <Button
+            title="Back"
+            secondary
+            disabled={step === 1 || action.busy}
+            onPress={() => setStep(step - 1)}
+          />
+          <Button
+            title={
+              action.busy
+                ? "Submitting…"
+                : step === 5
+                  ? "Submit for verification"
+                  : "Continue →"
+            }
+            disabled={action.busy || (step === 5 && !consent)}
+            onPress={() => (step === 5 ? submit() : setStep(step + 1))}
+          />
+        </View>
       ) : undefined}
       headerContent={canPost && !done ? (
         <View style={s.progress}>
@@ -2600,27 +2623,27 @@ export function PostScreen() {
             <ErrorBox text={action.error} />
             {step === 1 && (
               <>
-              <PostSection number={1} title="What are you listing?">
-                <View style={s.postPurpose} accessibilityLabel="Listing purpose">
-                  <View accessible accessibilityLabel="Sell" accessibilityState={{ selected: true }}
-                    style={[s.postPurposeOption, s.postPurposeSelected]}>
-                    <Text style={s.postPurposeText}>Sell</Text>
+                <PostSection number={1} title="What are you listing?">
+                  <View style={s.postPurpose} accessibilityLabel="Listing purpose">
+                    <View accessible accessibilityLabel="Sell" accessibilityState={{ selected: true }}
+                      style={[s.postPurposeOption, s.postPurposeSelected]}>
+                      <Text style={s.postPurposeText}>Sell</Text>
+                    </View>
+                    <View accessible accessibilityLabel="Rent out, unavailable" accessibilityState={{ disabled: true }}
+                      style={s.postPurposeOption}>
+                      <Text style={s.postPurposeUnavailable}>Rent out</Text>
+                      <Text style={s.small}>Unavailable</Text>
+                    </View>
                   </View>
-                  <View accessible accessibilityLabel="Rent out, unavailable" accessibilityState={{ disabled: true }}
-                    style={s.postPurposeOption}>
-                    <Text style={s.postPurposeUnavailable}>Rent out</Text>
-                    <Text style={s.small}>Unavailable</Text>
-                  </View>
-                </View>
-                <View style={s.postTypeGrid}>
-                  {[
-                    { id: "flat", title: "Apartment", icon: "apartment" },
-                    { id: "house", title: "House", icon: "home" },
-                    { id: null, title: "Villa", icon: "park" },
-                    { id: "land", title: "Plot", icon: "map" },
-                    { id: "shop", title: "Commercial", icon: "people-outline" },
-                    { id: null, title: "PG / Room", icon: "hotel" },
-                  ].map(({ id, title, icon }) => {
+                  <View style={s.postTypeGrid}>
+                    {[
+                      { id: "flat", title: "Apartment", icon: "apartment" },
+                      { id: "house", title: "House", icon: "home" },
+                      { id: null, title: "Villa", icon: "park" },
+                      { id: "land", title: "Plot", icon: "map" },
+                      { id: "shop", title: "Commercial", icon: "people-outline" },
+                      { id: null, title: "PG / Room", icon: "hotel" },
+                    ].map(({ id, title, icon }) => {
                       const disabled = id === null;
                       const selected = !disabled && (form.type === id || (id === "shop" && form.type === "office"));
                       return <Pressable
@@ -2638,63 +2661,63 @@ export function PostScreen() {
                         {disabled && <Text style={s.small}>Unavailable</Text>}
                       </Pressable>;
                     })}
-                </View>
-                {["shop", "office"].includes(form.type) && (
-                  <View style={s.wrap} accessibilityLabel="Commercial property type">
-                    <Button title="Shop" secondary={form.type !== "shop"} onPress={() => set("type")("shop")} />
-                    <Button title="Office" secondary={form.type !== "office"} onPress={() => set("type")("office")} />
                   </View>
-                )}
-              </PostSection>
-              <PostSection number={2} title="Property details">
-                <Field
-                  title="Listing title"
-                  uppercaseLabel
-                  value={form.title}
-                  onChangeText={set("title")}
-                />
-                <View style={s.row}>
-                  <Field uppercaseLabel numeric title="Expected price (₹)" value={form.price} onChangeText={set("price")} />
-                  <Field uppercaseLabel numeric title="Area (sq ft)" value={form.totalArea} onChangeText={set("totalArea")} />
-                </View>
-                {["flat", "house"].includes(form.type) && <>
-                  {[["bedrooms", "Bedrooms"], ["bathrooms", "Bathrooms"]].map(([key, title]) => (
-                    <View key={key} style={[s.between, s.postCounter]}>
-                      <Text style={s.cardTitle}>{title}</Text>
-                      <View style={s.row}>
-                        <Pressable accessibilityRole="button" accessibilityLabel={`Decrease ${key}`} disabled={!form[key]}
-                          style={s.postCounterButton} onPress={() => set(key)(Math.max(0, Number(form[key]) - 1))}>
-                          <Icon name="remove" size={18} />
-                        </Pressable>
-                        <Text style={s.postCounterValue}>{form[key] ?? "—"}</Text>
-                        <Pressable accessibilityRole="button" accessibilityLabel={`Increase ${key}`} disabled={form[key] >= 99}
-                          style={[s.postCounterButton, s.postPurposeSelected]} onPress={() => set(key)(Math.min(99, (form[key] ?? 0) + 1))}>
-                          <Icon name="add" color={C.sun} size={18} />
-                        </Pressable>
-                      </View>
+                  {["shop", "office"].includes(form.type) && (
+                    <View style={s.wrap} accessibilityLabel="Commercial property type">
+                      <Button title="Shop" secondary={form.type !== "shop"} onPress={() => set("type")("shop")} />
+                      <Button title="Office" secondary={form.type !== "office"} onPress={() => set("type")("office")} />
                     </View>
-                  ))}
-                  <Text style={[s.fieldLabel, s.postFieldLabel]}>Furnishing</Text>
-                  <View style={s.wrap}>
-                    {["Unfurnished", "Semi-furnished", "Fully furnished"].map(label => {
-                      const value = label.toLowerCase();
-                      const selected = form.furnishing === value;
-                      return <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected }}
-                        onPress={() => set("furnishing")(value)}
-                        style={[s.typeChip, selected && s.postPurposeSelected]}>
-                        <Text style={[s.cardTitle, selected && { color: C.sun }]}>{label}</Text>
-                      </Pressable>;
-                    })}
+                  )}
+                </PostSection>
+                <PostSection number={2} title="Property details">
+                  <Field
+                    title="Listing title"
+                    uppercaseLabel
+                    value={form.title}
+                    onChangeText={set("title")}
+                  />
+                  <View style={s.row}>
+                    <Field uppercaseLabel numeric title="Expected price (₹)" value={form.price} onChangeText={set("price")} />
+                    <Field uppercaseLabel numeric title="Area (sq ft)" value={form.totalArea} onChangeText={set("totalArea")} />
                   </View>
-                </>}
-                <Field
-                  title="Description"
-                  uppercaseLabel
-                  value={form.description}
-                  onChangeText={set("description")}
-                  multiline
-                />
-              </PostSection>
+                  {["flat", "house"].includes(form.type) && <>
+                    {[["bedrooms", "Bedrooms"], ["bathrooms", "Bathrooms"]].map(([key, title]) => (
+                      <View key={key} style={[s.between, s.postCounter]}>
+                        <Text style={s.cardTitle}>{title}</Text>
+                        <View style={s.row}>
+                          <Pressable accessibilityRole="button" accessibilityLabel={`Decrease ${key}`} disabled={!form[key]}
+                            style={s.postCounterButton} onPress={() => set(key)(Math.max(0, Number(form[key]) - 1))}>
+                            <Icon name="remove" size={18} />
+                          </Pressable>
+                          <Text style={s.postCounterValue}>{form[key] ?? "—"}</Text>
+                          <Pressable accessibilityRole="button" accessibilityLabel={`Increase ${key}`} disabled={form[key] >= 99}
+                            style={[s.postCounterButton, s.postPurposeSelected]} onPress={() => set(key)(Math.min(99, (form[key] ?? 0) + 1))}>
+                            <Icon name="add" color={C.sun} size={18} />
+                          </Pressable>
+                        </View>
+                      </View>
+                    ))}
+                    <Text style={[s.fieldLabel, s.postFieldLabel]}>Furnishing</Text>
+                    <View style={s.wrap}>
+                      {["Unfurnished", "Semi-furnished", "Fully furnished"].map(label => {
+                        const value = label.toLowerCase();
+                        const selected = form.furnishing === value;
+                        return <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected }}
+                          onPress={() => set("furnishing")(value)}
+                          style={[s.typeChip, selected && s.postPurposeSelected]}>
+                          <Text style={[s.cardTitle, selected && { color: C.sun }]}>{label}</Text>
+                        </Pressable>;
+                      })}
+                    </View>
+                  </>}
+                  <Field
+                    title="Description"
+                    uppercaseLabel
+                    value={form.description}
+                    onChangeText={set("description")}
+                    multiline
+                  />
+                </PostSection>
               </>
             )}
             {step === 2 && (
