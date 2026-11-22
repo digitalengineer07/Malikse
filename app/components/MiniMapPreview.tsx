@@ -1,3 +1,4 @@
+import { removeLeafletMap } from "../src/utils/removeLeafletMap";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import type { Property } from "../src/types/property.types";
@@ -26,7 +27,7 @@ function MiniMapContent({ property }: { property: Property }) {
       }
       setLoading(false);
     }).catch(() => { if (active) { setFailed(true); setLoading(false); } });
-    return () => { active = false; map?.remove(); };
+    return () => { active = false; removeLeafletMap(map); };
   }, [points]);
   if (Platform.OS !== "web") return null;
   if (!hasParcelBoundary(points)) return <Text>No parcel boundary recorded for this property.</Text>;

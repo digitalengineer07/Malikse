@@ -4,25 +4,53 @@ import type { Property } from "../src/types/property.types";
 import { addParcelBaseLayer, hasParcelBoundary, parcelStyle } from "../src/utils/parcelMap";
 import { validMapPoint, type MapFocus } from "../src/utils/nativeMapHtml";
 
-export default function VerifiedPropertyMap({ properties, onSelect, focus }: { properties: Property[]; onSelect: (property: Property) => void; focus?: MapFocus }) {
+export default function VerifiedPropertyMap({
+  properties,
+  onSelect,
+  focus,
+  mapLayer = "standard",
+}: {
+  properties: Property[];
+  onSelect: (property: Property) => void;
+  focus?: MapFocus;
+  mapLayer?: "standard" | "satellite" | "mouza";
+}) {
   const container = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
+
   useEffect(() => {
     if (Platform.OS !== "web") return;
     let active = true;
     let map: import("leaflet").Map | undefined;
     let resize: ResizeObserver | undefined;
+
     import("leaflet").then(module => {
       if (!active || !container.current) return;
       const L = module.default || module;
       map = L.map(container.current, { scrollWheelZoom: true, zoomControl: false }).setView([25.6, 85.1], 7);
       map.attributionControl?.setPrefix(false);
       
-      // Use satellite base layer if viewing a single property (popup from details), else use Google Maps for marketplace.
+      // Use satellite base layer if viewing a single property (popup from details), else use chosen mapLayer.
       if (properties.length === 1 && hasParcelBoundary(properties[0].parcelPoints)) {
         addParcelBaseLayer(L, map);
+      } else if (mapLayer === "satellite") {
+        L.tileLayer("https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", {
+          attribution: 'Map data &copy; <a href="https://maps.google.com" target="_blank" rel="noopener">Google</a>',
+          maxZoom: 20,
+          subdomains: "0123",
+        }).addTo(map);
+      } else if (mapLayer === "mouza") {
+        L.tileLayer("https://mt{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}", {
+          attribution: 'Cadastral &copy; <a href="https://maps.google.com" target="_blank" rel="noopener">Google</a>',
+          maxZoom: 20,
+          subdomains: "0123",
+        }).addTo(map);
       } else {
-        L.tileLayer("https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", { attribution: 'Map data &copy; <a href="https://maps.google.com" target="_blank" rel="noopener">Google</a>', maxZoom: 20, subdomains: "0123" }).addTo(map);
+        L.tileLayer("https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+          attribution: 'Map data &copy; <a href="https://maps.google.com" target="_blank" rel="noopener">Google</a>',
+          maxZoom: 20,
+          subdomains: "0123",
+        }).addTo(map);
       }
       
       const points: [number, number][] = [];
@@ -51,10 +79,16 @@ export default function VerifiedPropertyMap({ properties, onSelect, focus }: { p
       resize.observe(container.current);
     }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; resize?.disconnect(); map?.remove(); };
-  }, [properties, onSelect, focus]);
+  }, [properties, onSelect, focus, mapLayer]);
+
   return <View style={styles.map}>
     {Platform.OS === "web" && <div ref={container} aria-label="Map of verified properties" style={{ width: "100%", height: "100%" }} />}
     {(failed || Platform.OS !== "web") && <View style={styles.fallback}><Text style={styles.text}>{failed ? "Map unavailable. Explore the verified properties below." : "Explore verified properties below. Open a property for its map location."}</Text></View>}
   </View>;
 }
-const styles = StyleSheet.create({ map: { height: "100%", width: "100%", overflow: "hidden", backgroundColor: "#E9F3FA" }, fallback: { flex: 1, justifyContent: "center", padding: 30 }, text: { color: "#284B68", fontSize: 16 } });
+
+const styles = StyleSheet.create({
+  map: { height: "100%", width: "100%", overflow: "hidden", backgroundColor: "#E9F3FA" },
+  fallback: { flex: 1, justifyContent: "center", padding: 30 },
+  text: { color: "#284B68", fontSize: 16 }
+});

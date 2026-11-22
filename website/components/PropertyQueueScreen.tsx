@@ -708,7 +708,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
             })}
 
           {/* Load More Button */}
-          {nextCursor && (
+          {!!nextCursor && (
             <TouchableOpacity
               accessibilityRole="button"
               style={styles.loadMoreBtn}

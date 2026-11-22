@@ -101,6 +101,7 @@ export default function ManageUsersScreen() {
             <Text style={[styles.userName, usr.isSuspended && { color: "#B91C1C", textDecorationLine: "line-through" }]}>{usr.name} {usr.isVerifiedIdentity && <MaterialIcons name="verified" size={14} color="#047857" />}</Text>
             <Text style={styles.userDetail}>{usr.mobile}{usr.email ? ` · ${usr.email}` : ""}</Text>
             <Text style={styles.userDetail}>Joined: {new Date(usr.createdAt).toLocaleDateString()}</Text>
+            {usr.deletionRequestedAt && <Text style={{ color: "#a52d3b", marginTop: 6 }}>Deletion requested — access disabled. Resolve accepted or paid deals to allow cleanup.</Text>}
             {usr.isSuspended && <Text style={{ color: "#B91C1C", fontSize: 12, fontWeight: "600", marginTop: 4 }}>[SUSPENDED]</Text>}
           </View>
           <MaterialIcons name={selectedUser?._id === usr._id ? "expand-less" : "expand-more"} size={24} color="#53645B" />

@@ -15,6 +15,8 @@ export interface UserProfile {
   identityVerificationMode?: "staff" | "demo";
   kycDocuments?: string[];
   createdAt: string;
+  hasPassword?: boolean;
+  isGoogleUser?: boolean;
 }
 
 export interface AuthTokens {

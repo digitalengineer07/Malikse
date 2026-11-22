@@ -88,7 +88,7 @@ export default function AppHeader(props: AppHeaderProps) {
               </Text>
               {width >= 640 && (
                 <Text style={styles.brandTagline} numberOfLines={1}>
-                  {language === "hi" ? "सत्यापित ज़मीन · विश्वसनीय रिश्ते" : "Verified spaces · Trusted connections"}
+                  {language === "hi" ? "सत्यापित संपत्तियां · विश्वसनीय संबंध" : "Verified spaces · Trusted connections"}
                 </Text>
               )}
             </View>
@@ -218,7 +218,8 @@ export default function AppHeader(props: AppHeaderProps) {
   );
 }
 
-const font = Platform.OS === "web" ? "Manrope, Inter, system-ui" : "PoppinsRegular";
+const font = Platform.OS === "web" ? "'Plus Jakarta Sans', Manrope, -apple-system, BlinkMacSystemFont, sans-serif" : "PoppinsRegular";
+const fontDisplay = Platform.OS === "web" ? "'Plus Jakarta Sans', PoppinsBold, Manrope, sans-serif" : "PoppinsBold";
 
 const styles = StyleSheet.create({
   headerWrapper: {
@@ -297,20 +298,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   brandTitle: {
-    fontFamily: font,
-    fontSize: 22,
-    fontWeight: "800",
+    fontFamily: fontDisplay,
+    fontSize: 23,
+    fontWeight: "900",
     color: "#0B1B3F",
-    letterSpacing: -0.5,
-    lineHeight: 25,
+    letterSpacing: -0.7,
+    lineHeight: 27,
   },
   brandTagline: {
     fontFamily: font,
-    fontSize: 10.5,
-    fontWeight: "600",
+    fontSize: 10,
+    fontWeight: "700",
     color: "#64748B",
-    letterSpacing: 0.1,
+    letterSpacing: 0.3,
     lineHeight: 14,
+    textTransform: "uppercase",
   },
   topNavRow: {
     flexDirection: "row",
@@ -346,6 +348,7 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: "600",
     color: "#64748B",
+    letterSpacing: -0.1,
   },
   topNavTextActive: {
     color: "#0A45B5",
@@ -374,10 +377,11 @@ const styles = StyleSheet.create({
     }),
   },
   topPostBtnText: {
-    fontFamily: font,
+    fontFamily: fontDisplay,
     fontSize: 13,
     fontWeight: "700",
     color: "#FFFFFF",
+    letterSpacing: -0.1,
   },
   topProfileBtn: {
     flexDirection: "row",

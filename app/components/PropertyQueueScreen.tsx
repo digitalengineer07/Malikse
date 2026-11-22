@@ -94,7 +94,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
         {role === "user" && ["draft", "correction_required"].includes(property.status) ? <Action title={property.status === "draft" ? "Continue listing" : "Correct and resubmit"} secondary onPress={() => router.push({ pathname: "/listing/create", params: { id: property._id } })} /> : null}
       </View>;
     })}
-    {nextCursor && <Action title={busy ? "Loading…" : "Load more properties"} disabled={busy} onPress={loadMore} />}
+    {!!nextCursor && <Action title={busy ? "Loading…" : "Load more properties"} disabled={busy} onPress={loadMore} />}
   </WorkflowScreen>;
 }
 

@@ -98,7 +98,7 @@ const RecommendationCard = React.memo(function RecommendationCard({
       <View style={s.cardTopImage}>
         {property.media?.photos?.[0] ? (
           <Image
-            source={{ uri: property.media.photos[0] }}
+            source={{ uri: property.media?.photos?.[0] ? `${property.media.photos[0]}${property.media.photos[0].includes('?') ? '&' : '?'}w=600` : undefined }}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
           />
@@ -504,7 +504,7 @@ export default function VerifiedHomeScreen() {
           <View style={s.mainCardContainer}>
             {/* Skyline sitting DIRECTLY on the top edge of mainCard */}
             {isWide && (
-              <View style={s.skylineHorizonAnchor} pointerEvents="none">
+              <View style={[s.skylineHorizonAnchor, { pointerEvents: "none" }]}>
                 <CitySkyline
                   width={width < 1100 ? 840 : 1060}
                   maxWidth="82%"

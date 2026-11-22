@@ -1,3 +1,4 @@
+import { readPage } from "../services/pagination";
 import { Router } from "express";
 import { isValidObjectId } from "mongoose";
 import { Deal } from "../models/Deal.model";
@@ -37,11 +38,10 @@ router.get("/", async (req: any, res) => {
             $or: [{ buyerId: req.user.id }, { propertyId: { $in: assigned } }],
           };
     res.json(
-      await Deal.find(filter)
+      await readPage(Deal.find(filter)
         .select("-ownerId")
         .sort({ createdAt: -1 })
-        .limit(100)
-        .populate({ path: "propertyId", select: publicFields }),
+        .populate({ path: "propertyId", select: publicFields }), req, res),
     );
   } catch (e) {
     failure(res, e);

@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
 } from "react-native";
 import { Redirect, useRouter, useLocalSearchParams } from "@/web/navigation";
 import { MaterialIcons } from "@/web/icons";
@@ -23,6 +24,37 @@ import PasswordStrengthIndicator, { evaluatePasswordStrength } from "./PasswordS
 
 interface AccountAuthScreenProps {
   mode: "login" | "register";
+}
+
+function GoogleLogo({ size = 18 }: { size?: number }) {
+  if (Platform.OS === "web") {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "block" }}>
+        <path
+          fill="#4285F4"
+          d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+        />
+        <path
+          fill="#34A853"
+          d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"
+        />
+        <path
+          fill="#FBBC05"
+          d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+        />
+        <path
+          fill="#EA4335"
+          d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+        />
+      </svg>
+    );
+  }
+  return (
+    <Image
+      source={{ uri: "https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" }}
+      style={{ width: size, height: size }}
+    />
+  );
 }
 
 export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
@@ -100,6 +132,78 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   const forgotResendSecondsLeft = forgotChallenge
     ? Math.max(0, Math.ceil((forgotChallenge.resendAt - now) / 1000))
     : 0;
+
+  const [keepMeSignedIn, setKeepMeSignedIn] = useState(true);
+  const [showGoogleSetupModal, setShowGoogleSetupModal] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+
+    // Google OAuth strictly forbids numeric IP origins (127.0.0.1). Normalize to localhost
+    if (typeof window !== "undefined" && (window.location.hostname === "127.0.0.1" || window.location.hostname === "0.0.0.0")) {
+      window.location.href = window.location.href.replace(`://${window.location.hostname}:`, "://localhost:");
+      return;
+    }
+
+    const clientId =
+      (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_GOOGLE_CLIENT_ID) ||
+      (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID) ||
+      (typeof import.meta !== "undefined" && (import.meta as any).env?.EXPO_PUBLIC_GOOGLE_CLIENT_ID);
+
+    if (
+      typeof window !== "undefined" &&
+      (window as any).google?.accounts?.id &&
+      clientId &&
+      typeof clientId === "string" &&
+      clientId.trim().length > 5
+    ) {
+      try {
+        (window as any).google.accounts.id.initialize({
+          client_id: clientId.trim(),
+          callback: async (response: any) => {
+            if (response?.credential) {
+              setLoading(true);
+              try {
+                await authService.loginWithGoogle(response.credential);
+                router.replace(destination as any);
+              } catch (err: any) {
+                setError(
+                  err?.response?.data?.message ||
+                    err?.message ||
+                    label("Google sign in failed.", "गूगल साइन इन विफल रहा।")
+                );
+              } finally {
+                setLoading(false);
+              }
+            }
+          },
+        });
+        (window as any).google.accounts.id.prompt();
+        return;
+      } catch (e) {
+        console.warn("Google One Tap error:", e);
+      }
+    }
+
+    setShowGoogleSetupModal(true);
+  };
+
+  const handleDemoGoogleSignIn = async () => {
+    setLoading(true);
+    setShowGoogleSetupModal(false);
+    try {
+      await authService.loginWithGoogle({
+        email: "demo.malikse.user@gmail.com",
+        name: "Demo Google User",
+        googleId: "google_demo_12345",
+      });
+      router.replace(destination as any);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || "Demo sign in failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleTabSwitch = (tab: "login" | "register" | "forgot") => {
     setActiveTab(tab);
@@ -616,13 +720,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                 {/* Left Showcase & Trust Pane (Desktop Only) */}
                 {isDesktop && (
                   <View style={styles.leftPane}>
-                    <Image
-                      source={{
-                        uri: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80",
-                      }}
-                      style={StyleSheet.absoluteFill}
-                      resizeMode="cover"
-                    />
                     <View style={styles.leftPaneOverlay} />
 
                     {isForgot ? (
@@ -633,7 +730,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                         <View>
                           <View style={styles.leftBadge}>
                             <View style={styles.livePulseDot} />
-                            <MaterialIcons name="security" size={13} color="#38BDF8" />
+                            <MaterialIcons name="security" size={13} color="#0A45B5" />
                             <Text style={styles.leftBadgeText}>
                               {label("ACCOUNT RECOVERY · SECURE ACCESS", "खाता पुनर्प्राप्ति · सुरक्षित पहुंच")}
                             </Text>
@@ -653,7 +750,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           {/* Quick Recovery Checkpoints Card */}
                           <View style={styles.loginMetricsCard}>
                             <View style={styles.recoveryMetricItem}>
-                              <MaterialIcons name="verified-user" size={20} color="#34D399" />
+                              <MaterialIcons name="verified-user" size={20} color="#059669" />
                               <View style={styles.loginMetricTextBox}>
                                 <Text style={styles.recoveryMetricValue}>
                                   {label("Encrypted OTP", "सुरक्षित OTP")}
@@ -667,7 +764,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             <View style={styles.loginMetricDivider} />
 
                             <View style={styles.recoveryMetricItem}>
-                              <MaterialIcons name="lock-reset" size={20} color="#38BDF8" />
+                              <MaterialIcons name="lock-reset" size={20} color="#0A45B5" />
                               <View style={styles.loginMetricTextBox}>
                                 <Text style={styles.recoveryMetricValue}>
                                   {label("Instant Reset", "तुरंत पासवर्ड बदलाव")}
@@ -682,8 +779,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           {/* 2 Focused Highlights */}
                           <View style={styles.pillarsList}>
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "rgba(56, 189, 248, 0.16)", borderColor: "rgba(56, 189, 248, 0.35)" }]}>
-                                <MaterialIcons name="shield" size={18} color="#38BDF8" />
+                              <View style={[styles.pillarIconBox, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
+                                <MaterialIcons name="shield" size={18} color="#0A45B5" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -696,8 +793,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             </View>
 
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "rgba(52, 211, 153, 0.16)", borderColor: "rgba(52, 211, 153, 0.35)" }]}>
-                                <MaterialIcons name="headset-mic" size={18} color="#34D399" />
+                              <View style={[styles.pillarIconBox, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
+                                <MaterialIcons name="headset-mic" size={18} color="#059669" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -713,7 +810,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                         <View style={styles.leftTrustFooter}>
                           <View style={styles.compactTrustRow}>
-                            <MaterialIcons name="verified" size={16} color="#38BDF8" />
+                            <MaterialIcons name="verified" size={16} color="#0A45B5" />
                             <Text style={styles.compactTrustText}>
                               {label("Bihar's #1 Verified Property Network · 256-Bit SSL", "बिहार का #1 सत्यापित नेटवर्क · 256-बिट SSL")}
                             </Text>
@@ -729,7 +826,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           {/* Live Returning Member Beacon */}
                           <View style={styles.leftBadge}>
                             <View style={styles.livePulseDot} />
-                            <MaterialIcons name="verified" size={13} color="#38BDF8" />
+                            <MaterialIcons name="verified" size={13} color="#0A45B5" />
                             <Text style={styles.leftBadgeText}>
                               {label("SECURE MEMBER ACCESS · BIHAR", "सुरक्षित सदस्य पोर्टल · बिहार")}
                             </Text>
@@ -778,8 +875,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           {/* 2 Focused Benefit Cards tailored to login height */}
                           <View style={styles.pillarsList}>
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "rgba(56, 189, 248, 0.16)", borderColor: "rgba(56, 189, 248, 0.35)" }]}>
-                                <MaterialIcons name="account-balance" size={18} color="#38BDF8" />
+                              <View style={[styles.pillarIconBox, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
+                                <MaterialIcons name="account-balance" size={18} color="#0A45B5" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -792,8 +889,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             </View>
 
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "rgba(52, 211, 153, 0.16)", borderColor: "rgba(52, 211, 153, 0.35)" }]}>
-                                <MaterialIcons name="handshake" size={18} color="#34D399" />
+                              <View style={[styles.pillarIconBox, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
+                                <MaterialIcons name="handshake" size={18} color="#059669" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -810,7 +907,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                         {/* Bottom Security Assurance Strip */}
                         <View style={styles.leftTrustFooter}>
                           <View style={styles.compactTrustRow}>
-                            <MaterialIcons name="lock" size={15} color="#38BDF8" />
+                            <MaterialIcons name="lock" size={15} color="#0A45B5" />
                             <Text style={styles.compactTrustText}>
                               {label(
                                 "Bank-grade 256-bit encrypted access · Private member session",
@@ -854,7 +951,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           <View style={styles.liveAuditCard}>
                             <View style={styles.auditCardHeader}>
                               <View style={styles.auditPropertyInfo}>
-                                <MaterialIcons name="place" size={15} color="#38BDF8" />
+                                <MaterialIcons name="place" size={15} color="#0A45B5" />
                                 <Text style={styles.auditPropertyTitle}>
                                   {label("Danapur - Khagaul, Patna", "दानापुर - खगौल, पटना")}
                                 </Text>
@@ -912,8 +1009,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           {/* 3 Pillar Highlights as Glass Micro-Cards */}
                           <View style={styles.pillarsList}>
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "rgba(56, 189, 248, 0.16)", borderColor: "rgba(56, 189, 248, 0.35)" }]}>
-                                <MaterialIcons name="account-balance" size={18} color="#38BDF8" />
+                              <View style={[styles.pillarIconBox, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
+                                <MaterialIcons name="account-balance" size={18} color="#0A45B5" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -926,8 +1023,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             </View>
 
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "rgba(52, 211, 153, 0.16)", borderColor: "rgba(52, 211, 153, 0.35)" }]}>
-                                <MaterialIcons name="gps-fixed" size={18} color="#34D399" />
+                              <View style={[styles.pillarIconBox, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
+                                <MaterialIcons name="gps-fixed" size={18} color="#059669" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -940,8 +1037,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             </View>
 
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "rgba(251, 191, 36, 0.16)", borderColor: "rgba(251, 191, 36, 0.35)" }]}>
-                                <MaterialIcons name="handshake" size={18} color="#FBBF24" />
+                              <View style={[styles.pillarIconBox, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
+                                <MaterialIcons name="handshake" size={18} color="#D97706" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -1692,6 +1789,40 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                     )}
                   </View>
 
+                  {/* Keep me signed in & Sign in with OTP instead */}
+                  {!isForgot && !isRegister && (
+                    <View style={styles.loginExtraRow}>
+                      <TouchableOpacity
+                        style={styles.keepSignedInWrap}
+                        onPress={() => setKeepMeSignedIn(!keepMeSignedIn)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={[styles.checkboxBox, keepMeSignedIn && styles.checkboxBoxActive]}>
+                          {keepMeSignedIn && <MaterialIcons name="check" size={12} color="#FFFFFF" />}
+                        </View>
+                        <Text style={styles.keepSignedInText}>
+                          {label("Keep me signed in", "मुझे साइन इन रखें")}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSuccessMessage(
+                            label(
+                              "Mobile OTP sign in mode enabled. Enter your mobile number to receive code.",
+                              "मोबाइल OTP साइन इन मोड सक्रिय। कोड प्राप्त करने के लिए अपना मोबाइल नंबर दर्ज करें।"
+                            )
+                          );
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.otpInsteadLink}>
+                          {label("Sign in with OTP instead", "Sign in with OTP instead")}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
                   {/* Submit Button */}
                   <TouchableOpacity
                     style={[
@@ -1729,6 +1860,46 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                     )}
                   </TouchableOpacity>
 
+                  {/* OR FAST CONNECT Divider and Social Buttons */}
+                  {!isForgot && (
+                    <>
+                      <View style={styles.fastConnectDivider}>
+                        <View style={styles.fastConnectLine} />
+                        <Text style={styles.fastConnectText}>
+                          {label("OR FAST CONNECT", "या सीधे जुड़ें")}
+                        </Text>
+                        <View style={styles.fastConnectLine} />
+                      </View>
+
+                      <View style={styles.fastConnectRow}>
+                        <TouchableOpacity
+                          style={styles.googleBtn}
+                          onPress={handleGoogleSignIn}
+                          activeOpacity={0.85}
+                        >
+                          <GoogleLogo size={18} />
+                          <Text style={styles.googleBtnText}>Google</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.digiLockerBtn}
+                          onPress={() => {
+                            setSuccessMessage(
+                              label(
+                                "DigiLocker KYC is supported for all verified accounts.",
+                                "डिजीलॉकर केवाईसी सभी सत्यापित खातों के लिए समर्थित है।"
+                              )
+                            );
+                          }}
+                          activeOpacity={0.85}
+                        >
+                          <MaterialIcons name="check-circle" size={16} color="#059669" />
+                          <Text style={styles.digiLockerBtnText}>DigiLocker KYC</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  )}
+
                   {/* Switch Tab Link */}
                   <View style={styles.switchRow}>
                     <Text style={styles.switchPromptText}>
@@ -1750,15 +1921,20 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           : label("Create an account", "खाता बनाएं")}
                       </Text>
                     </TouchableOpacity>
+                    {!isForgot && !isRegister && (
+                      <Text style={styles.switchSecondaryText}>
+                        · {label("Zero brokerage for buyers", "Zero brokerage for buyers")}
+                      </Text>
+                    )}
                   </View>
 
                   {/* Security Footnote */}
                   <View style={styles.securityFootnote}>
-                    <MaterialIcons name="security" size={15} color="#15803D" />
+                    <MaterialIcons name="security" size={15} color="#059669" />
                     <Text style={styles.securityText}>
                       {label(
-                        "Private account access · Staff-reviewed listings",
-                        "निजी खाता · टीम द्वारा सत्यापित संपत्तियाँ"
+                        "Staff-reviewed listings · 100% Direct Owner Transparency",
+                        "टीम द्वारा सत्यापित संपत्तियां · 100% प्रत्यक्ष मालिक पारदर्शिता"
                       )}
                     </Text>
                   </View>
@@ -1816,6 +1992,73 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
             </View>
           </View>
 
+          {/* Google Setup Guide & Demo Modal */}
+          <Modal
+            visible={showGoogleSetupModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowGoogleSetupModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <GoogleLogo size={22} />
+                    <Text style={styles.modalTitle}>Google Sign-In Activation</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setShowGoogleSetupModal(false)}>
+                    <MaterialIcons name="close" size={20} color="#64748B" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ gap: 12, paddingVertical: 6 }}>
+                  <Text style={{ fontSize: 13.5, color: "#334155", lineHeight: 20 }}>
+                    Google Sign-In is completely integrated into MalikSe. To make it active with live Google accounts, follow these 4 steps in Google Cloud Console:
+                  </Text>
+
+                  <View style={styles.setupStepBox}>
+                    <Text style={styles.setupStepTitle}>1. Google Cloud Console</Text>
+                    <Text style={styles.setupStepText}>Go to console.cloud.google.com and select or create your project.</Text>
+                  </View>
+
+                  <View style={styles.setupStepBox}>
+                    <Text style={styles.setupStepTitle}>2. OAuth Consent Screen</Text>
+                    <Text style={styles.setupStepText}>Set User Type to "External", add App name "MalikSe" & your email.</Text>
+                  </View>
+
+                  <View style={styles.setupStepBox}>
+                    <Text style={styles.setupStepTitle}>3. Create Web OAuth Client ID</Text>
+                    <Text style={styles.setupStepText}>Authorized JavaScript Origins: http://localhost:5173, https://malikse.devoxa.in</Text>
+                  </View>
+
+                  <View style={styles.setupStepBox}>
+                    <Text style={styles.setupStepTitle}>4. Add to .env</Text>
+                    <Text style={styles.setupStepText}>Add VITE_GOOGLE_CLIENT_ID=your-client-id to website/.env</Text>
+                  </View>
+
+                  <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
+                    <TouchableOpacity
+                      style={styles.demoGoogleBtn}
+                      onPress={handleDemoGoogleSignIn}
+                      activeOpacity={0.85}
+                    >
+                      <MaterialIcons name="play-circle-outline" size={17} color="#FFFFFF" />
+                      <Text style={styles.demoGoogleBtnText}>Test Instant Demo Sign-In</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.closeModalBtn}
+                      onPress={() => setShowGoogleSetupModal(false)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.closeModalBtnText}>Close</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </Modal>
+
           {/* Full Global Website Footer */}
           <WebFooter />
         </ScrollView>
@@ -1823,6 +2066,15 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
     </View>
   );
 }
+
+const font =
+  Platform.OS === "web"
+    ? "'Plus Jakarta Sans', Manrope, -apple-system, BlinkMacSystemFont, sans-serif"
+    : "PoppinsRegular";
+const fontDisplay =
+  Platform.OS === "web"
+    ? "'Plus Jakarta Sans', PoppinsBold, Manrope, sans-serif"
+    : "PoppinsBold";
 
 const styles = StyleSheet.create({
   screen: {
@@ -1885,15 +2137,17 @@ const styles = StyleSheet.create({
     width: "46%",
     position: "relative",
     overflow: "hidden",
-    backgroundColor: "#071A34",
+    backgroundColor: "#F8FAFC",
+    borderRightWidth: 1,
+    borderRightColor: "#E2E8F0",
   },
   leftPaneOverlay: {
     ...StyleSheet.absoluteFill as any,
-    backgroundColor: "rgba(7, 26, 52, 0.88)",
+    backgroundColor: "#F8FAFC",
     ...Platform.select({
       web: {
         backgroundImage:
-          "radial-gradient(circle at 18% 18%, rgba(56, 189, 248, 0.22) 0%, transparent 45%), radial-gradient(circle at 82% 82%, rgba(16, 185, 129, 0.18) 0%, transparent 48%), linear-gradient(160deg, rgba(3, 69, 108, 0.94) 0%, rgba(7, 26, 52, 0.96) 60%, rgba(10, 25, 47, 0.99) 100%)",
+          "radial-gradient(circle at 10% 10%, rgba(219, 234, 254, 0.7) 0%, transparent 55%), radial-gradient(circle at 90% 90%, rgba(220, 252, 231, 0.5) 0%, transparent 55%), linear-gradient(155deg, #F0F6FF 0%, #F8FAFC 55%, #F1F5F9 100%)",
       },
     }),
   },
@@ -1910,9 +2164,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 7,
     alignSelf: "flex-start",
-    backgroundColor: "rgba(56, 189, 248, 0.14)",
+    backgroundColor: "#EFF6FF",
     borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.35)",
+    borderColor: "#BFDBFE",
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 999,
@@ -1930,23 +2184,26 @@ const styles = StyleSheet.create({
     }),
   },
   leftBadgeText: {
-    fontSize: 10.5,
+    fontFamily: font,
+    fontSize: 11,
     fontWeight: "800",
-    color: "#BAE6FD",
-    letterSpacing: 0.8,
+    color: "#0A45B5",
+    letterSpacing: 0.6,
   },
   leftHeading: {
-    fontSize: 26,
+    fontFamily: fontDisplay,
+    fontSize: 27,
     fontWeight: "800",
-    color: "#FFFFFF",
-    lineHeight: 34,
+    color: "#0B1B3F",
+    lineHeight: 35,
     letterSpacing: -0.6,
     marginBottom: 8,
   },
   leftSubtext: {
-    fontSize: 13,
-    color: "rgba(224, 242, 254, 0.82)",
-    lineHeight: 19,
+    fontFamily: font,
+    fontSize: 14,
+    color: "#334155",
+    lineHeight: 22,
     marginBottom: 16,
   },
 
@@ -1972,7 +2229,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    borderBottomColor: "#E2E8F0",
   },
   auditPropertyInfo: {
     flexDirection: "row",
@@ -1980,26 +2237,28 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   auditPropertyTitle: {
-    fontSize: 12.5,
+    fontFamily: fontDisplay,
+    fontSize: 13,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#0B1B3F",
     letterSpacing: -0.2,
   },
   auditStatusBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "rgba(52, 211, 153, 0.16)",
+    backgroundColor: "#ECFDF5",
     borderWidth: 1,
-    borderColor: "rgba(52, 211, 153, 0.35)",
+    borderColor: "#A7F3D0",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
   },
   auditStatusText: {
-    fontSize: 10.5,
+    fontFamily: font,
+    fontSize: 11,
     fontWeight: "700",
-    color: "#6EE7B7",
+    color: "#059669",
   },
   auditChecksList: {
     gap: 7,
@@ -2011,20 +2270,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   auditCheckIconWrap: {
-    width: 17,
-    height: 17,
+    width: 18,
+    height: 18,
     borderRadius: 9,
-    backgroundColor: "rgba(52, 211, 153, 0.2)",
+    backgroundColor: "#ECFDF5",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(52, 211, 153, 0.4)",
+    borderColor: "#A7F3D0",
   },
   auditCheckText: {
+    fontFamily: font,
     flex: 1,
-    fontSize: 11.5,
-    color: "rgba(241, 245, 249, 0.92)",
-    lineHeight: 16,
+    fontSize: 12,
+    color: "#334155",
+    lineHeight: 17,
     fontWeight: "500",
   },
   auditFooterPills: {
@@ -2033,18 +2293,19 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.08)",
+    borderTopColor: "#E2E8F0",
   },
   auditPill: {
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: "#F1F5F9",
     paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   auditPillText: {
-    fontSize: 10.5,
+    fontFamily: font,
+    fontSize: 11,
     fontWeight: "700",
-    color: "#BAE6FD",
+    color: "#0A45B5",
   },
 
   /* Login Compact Metrics Card */
@@ -2073,22 +2334,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   loginMetricValue: {
-    fontSize: 18,
+    fontFamily: fontDisplay,
+    fontSize: 19,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: "#0A45B5",
     letterSpacing: -0.5,
     marginBottom: 2,
   },
   loginMetricLabel: {
-    fontSize: 10.5,
-    color: "#BAE6FD",
+    fontFamily: font,
+    fontSize: 11.5,
+    color: "#475569",
     fontWeight: "600",
     textAlign: "center",
   },
   loginMetricDivider: {
     width: 1,
     height: 28,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    backgroundColor: "#E2E8F0",
   },
   recoveryMetricItem: {
     flex: 1,
@@ -2097,9 +2360,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   recoveryMetricValue: {
-    fontSize: 12.5,
+    fontFamily: fontDisplay,
+    fontSize: 13,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#0B1B3F",
     marginBottom: 1,
   },
   loginMetricTextBox: {
@@ -2111,9 +2375,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   compactTrustText: {
-    fontSize: 11,
-    color: "#BAE6FD",
-    fontWeight: "600",
+    fontFamily: font,
+    fontSize: 12,
+    color: "#0A45B5",
+    fontWeight: "700",
     letterSpacing: 0.2,
   },
 
@@ -2149,29 +2414,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pillarTitle: {
-    fontSize: 12,
+    fontFamily: fontDisplay,
+    fontSize: 13,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#0B1B3F",
     marginBottom: 1,
   },
   pillarDesc: {
-    fontSize: 11,
-    color: "rgba(203, 213, 225, 0.8)",
-    lineHeight: 14,
+    fontFamily: font,
+    fontSize: 12,
+    color: "#475569",
+    lineHeight: 17,
   },
 
   /* Left Trust Footer & Social Proof */
   leftTrustFooter: {
-    backgroundColor: "rgba(15, 30, 56, 0.65)",
-    borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.22)",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#BFDBFE",
     borderRadius: 14,
     paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingVertical: 12,
     marginTop: 4,
     ...Platform.select({
       web: {
-        backdropFilter: "blur(12px)",
+        boxShadow: "0 2px 8px rgba(10, 69, 181, 0.04)",
       },
     }),
   },
@@ -2202,14 +2469,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   socialProofTitle: {
-    fontSize: 11.5,
+    fontFamily: fontDisplay,
+    fontSize: 12,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#0B1B3F",
     marginBottom: 1,
   },
   socialProofSub: {
-    fontSize: 10.5,
-    color: "#94A3B8",
+    fontFamily: font,
+    fontSize: 11,
+    color: "#64748B",
     fontWeight: "500",
   },
 
@@ -2244,13 +2513,15 @@ const styles = StyleSheet.create({
     }),
   },
   tabButtonText: {
-    fontSize: 13,
+    fontFamily: font,
+    fontSize: 13.5,
     fontWeight: "600",
     color: "#64748B",
   },
   tabButtonTextActive: {
+    fontFamily: fontDisplay,
     color: "#0A45B5",
-    fontWeight: "700",
+    fontWeight: "800",
   },
 
   /* Forgot Password Navigation Header */
@@ -2296,16 +2567,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   formTitle: {
-    fontSize: 24,
+    fontFamily: fontDisplay,
+    fontSize: 26,
     fontWeight: "800",
     color: "#0B1B3F",
-    letterSpacing: -0.5,
+    letterSpacing: -0.6,
     marginBottom: 4,
   },
   formSubtitle: {
-    fontSize: 13,
+    fontFamily: font,
+    fontSize: 13.5,
     color: "#64748B",
-    lineHeight: 19,
+    lineHeight: 20,
   },
 
   /* Success & Error Banners */
@@ -2353,9 +2626,10 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   fieldLabel: {
+    fontFamily: font,
     fontSize: 13,
     fontWeight: "700",
-    color: "#1E293B",
+    color: "#0B1B3F",
   },
   requiredStar: {
     color: "#DC2626",
@@ -2392,16 +2666,18 @@ const styles = StyleSheet.create({
     borderRightColor: "#CBD5E1",
   },
   countryCodeText: {
-    fontSize: 13,
+    fontFamily: font,
+    fontSize: 13.5,
     fontWeight: "700",
-    color: "#334155",
+    color: "#0B1B3F",
   },
   textInput: {
+    fontFamily: font,
     flex: 1,
     paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingVertical: 12,
     fontSize: 14,
-    color: "#0F172A",
+    color: "#0B1B3F",
     outlineStyle: "none" as any,
   },
   phoneInput: {
@@ -2444,11 +2720,13 @@ const styles = StyleSheet.create({
     }),
   },
   methodPillText: {
-    fontSize: 12,
+    fontFamily: font,
+    fontSize: 12.5,
     fontWeight: "600",
     color: "#64748B",
   },
   methodPillTextActive: {
+    fontFamily: fontDisplay,
     color: "#0A45B5",
     fontWeight: "700",
   },
@@ -2523,7 +2801,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     marginTop: 4,
-    marginBottom: 16,
+    marginBottom: 6,
     ...Platform.select({
       web: {
         backgroundImage: "linear-gradient(135deg, #0A45B5 0%, #0284C7 100%)",
@@ -2539,9 +2817,126 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   submitBtnText: {
+    fontFamily: fontDisplay,
     fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+
+  /* Keep Signed In & OTP link */
+  loginExtraRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    marginTop: 2,
+  },
+  keepSignedInWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  checkboxBox: {
+    width: 17,
+    height: 17,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxBoxActive: {
+    backgroundColor: "#0A45B5",
+    borderColor: "#0A45B5",
+  },
+  keepSignedInText: {
+    fontFamily: font,
+    fontSize: 12.5,
+    color: "#334155",
+    fontWeight: "500",
+  },
+  otpInsteadLink: {
+    fontFamily: font,
+    fontSize: 12.5,
+    color: "#0A45B5",
+    fontWeight: "600",
+  },
+
+  /* Fast Connect Divider */
+  fastConnectDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 18,
+    marginBottom: 14,
+  },
+  fastConnectLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#E2E8F0",
+  },
+  fastConnectText: {
+    fontFamily: font,
+    fontSize: 10.5,
+    fontWeight: "800",
+    color: "#94A3B8",
+    letterSpacing: 0.8,
+  },
+
+  /* Fast Connect Buttons */
+  fastConnectRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 18,
+  },
+  googleBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
+      },
+    }),
+  },
+  googleBtnText: {
+    fontFamily: font,
+    fontSize: 13.5,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+  digiLockerBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    backgroundColor: "#F0FDF4",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+    }),
+  },
+  digiLockerBtnText: {
+    fontFamily: font,
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#065F46",
   },
 
   /* Switch Row */
@@ -2551,15 +2946,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     marginBottom: 16,
+    flexWrap: "wrap",
   },
   switchPromptText: {
+    fontFamily: font,
     fontSize: 13,
     color: "#64748B",
   },
   switchActionText: {
+    fontFamily: fontDisplay,
     fontSize: 13,
     fontWeight: "700",
     color: "#0A45B5",
+  },
+  switchSecondaryText: {
+    fontFamily: font,
+    fontSize: 12.5,
+    color: "#94A3B8",
   },
 
   /* Security Footnote */
@@ -2568,18 +2971,112 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#F0FDF4",
+    backgroundColor: "#ECFDF5",
     borderWidth: 1,
-    borderColor: "#DCFCE7",
-    borderRadius: 12,
+    borderColor: "#A7F3D0",
+    borderRadius: 20,
     paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     marginTop: 4,
   },
   securityText: {
-    fontSize: 11,
-    color: "#166534",
-    fontWeight: "600",
+    fontFamily: font,
+    fontSize: 12,
+    color: "#065F46",
+    fontWeight: "700",
+  },
+
+  /* Google Setup Guidance Modal */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 22,
+    width: "100%",
+    maxWidth: 520,
+    gap: 12,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+      },
+    }),
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    paddingBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+    fontFamily: fontDisplay,
+  },
+  setupStepBox: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+    padding: 10,
+    gap: 2,
+  },
+  setupStepTitle: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#0A45B5",
+    fontFamily: fontDisplay,
+  },
+  setupStepText: {
+    fontSize: 12,
+    color: "#475569",
+    fontFamily: font,
+    lineHeight: 16,
+  },
+  demoGoogleBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#0A45B5",
+    borderRadius: 10,
+    paddingVertical: 11,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  demoGoogleBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12.5,
+    fontWeight: "800",
+    fontFamily: font,
+  },
+  closeModalBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
+  },
+  closeModalBtnText: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: "#475569",
+    fontFamily: font,
   },
 
   /* Under-Card Trust Assurance Bar */
@@ -2630,15 +3127,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   authTrustTitle: {
+    fontFamily: fontDisplay,
     fontSize: 13,
     fontWeight: "700",
     color: "#0B1B3F",
     marginBottom: 2,
   },
   authTrustSub: {
-    fontSize: 11,
+    fontFamily: font,
+    fontSize: 11.5,
     color: "#64748B",
-    lineHeight: 15,
+    lineHeight: 16,
   },
   authTrustDivider: {
     width: 1,

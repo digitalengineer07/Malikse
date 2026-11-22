@@ -42,7 +42,7 @@ export default function BottomNav() {
   if (isDesktop) return null;
   if (false as boolean) {
     return (
-      <View style={[styles.webWrapper, { paddingBottom: bottomInset }]} pointerEvents="box-none">
+      <View style={[styles.webWrapper, { paddingBottom: bottomInset, pointerEvents: "box-none" }]}>
         <View style={styles.webFooterContainer}>
           {/* Left Watermark: Monument + Vertical Divider + Text */}
           <View style={styles.leftWatermark}>
@@ -168,7 +168,7 @@ export default function BottomNav() {
 
   // Mobile Bottom Navigation
   return (
-    <View style={[styles.mobileWrapper, { paddingBottom: bottomInset }]} pointerEvents="box-none">
+    <View style={[styles.mobileWrapper, { paddingBottom: bottomInset, pointerEvents: "box-none" }]}>
       <View style={styles.mobileDock}>
         <TouchableOpacity style={styles.mobileTab} onPress={() => router.replace("/home")} activeOpacity={0.7}>
           <MaterialIcons name="home" size={24} color={isHomeActive ? "#0A192F" : "#64748B"} />

@@ -6,6 +6,12 @@ require("./scripts/generate-native-map.cjs");
 
 const config = getDefaultConfig(__dirname);
 
+// Keep release bundling within memory limits alongside Gradle on Windows.
+// One worker runs transforms in-process instead of creating a worker pool.
+if (process.platform === "win32") {
+  config.maxWorkers = 1;
+}
+
 // Force zustand and use-sync-external-store to use CJS builds
 // which are compatible with Metro/Hermes on web
 config.resolver.resolveRequest = (context, moduleName, platform) => {

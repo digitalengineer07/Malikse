@@ -1,3 +1,5 @@
+import { removeLeafletMap } from "../src/utils/removeLeafletMap";
+import type { MapFocus, MapPoint } from "../src/utils/nativeMapHtml";
 import TextInput from "./FormInput";
 import { addParcelBaseLayer, parcelStyle } from "../src/utils/parcelMap";
 import React, { useEffect, useState, useRef } from "react";
@@ -22,17 +24,30 @@ interface MapParcelPickerProps {
   initialPoints?: LatLngPoint[];
   onParcelChange: (points: LatLngPoint[]) => void;
   areaSqFt?: number | string;
+  locationFocus?: MapFocus;
+  showLocate?: boolean;
+  selectedLocation?: MapPoint;
+  onLocationSet?: (point: MapPoint) => void;
+  initialSearch?: string;
 }
 
 export default function MapParcelPicker({
   initialPoints,
   onParcelChange,
   areaSqFt = "2,400",
+  locationFocus,
 }: MapParcelPickerProps) {
   const { language } = useLanguageStore();
+  const [workspaceWidth, setWorkspaceWidth] = useState(0);
+  const wideLayout = workspaceWidth >= 980;
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
+  const locationFocusRef = useRef(locationFocus);
+  useEffect(() => {
+    locationFocusRef.current = locationFocus;
+    if (locationFocus) mapInstanceRef.current?.setView([locationFocus.lat, locationFocus.lng], locationFocus.zoom);
+  }, [locationFocus]);
 
   const polygonLayerRef = useRef<any>(null);
   const markerLayersRef = useRef<any[]>([]);
@@ -588,15 +603,16 @@ export default function MapParcelPicker({
       if (!isMounted || !mapContainerRef.current) return;
 
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        removeLeafletMap(mapInstanceRef.current);
         mapInstanceRef.current = null;
       }
 
       // Initial center
-      const centroid = calculateCentroid(pointsRef.current);
+      const focus = locationFocusRef.current;
+      const centroid = focus ?? calculateCentroid(pointsRef.current);
       const map = L.map(mapContainerRef.current, {
         center: [centroid.lat, centroid.lng],
-        zoom: 17,
+        zoom: focus?.zoom ?? 17,
         zoomControl: false,
         attributionControl: true,
         maxZoom: 20,
@@ -697,7 +713,7 @@ export default function MapParcelPicker({
     return () => {
       isMounted = false;
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        removeLeafletMap(mapInstanceRef.current);
         mapInstanceRef.current = null;
       }
     };
@@ -715,9 +731,11 @@ export default function MapParcelPicker({
 
 
   return (
-    <View style={styles.workspaceContainer}>
+    <View style={[styles.workspaceContainer, wideLayout && styles.wideWorkspace]}
+      onLayout={event => setWorkspaceWidth(event.nativeEvent.layout.width)}>
       {/* ================= LEFT / MAIN: MAP CANVASES WITH OVERLAYS ================= */}
-      <View style={styles.mapCanvasCard}>
+      <View style={[styles.mapCanvasCard, wideLayout && styles.wideMap]}
+        onLayout={() => mapInstanceRef.current?.invalidateSize({ pan: false })}>
         {/* Leaflet DOM Node */}
         {Platform.OS === "web" ? (
           <div
@@ -740,7 +758,7 @@ export default function MapParcelPicker({
         )}
 
         {/* OVERLAY: Top-Left Search Location Bar */}
-        <View style={styles.mapSearchBox}>
+        <View style={[styles.mapSearchBox, !wideLayout && styles.compactSearch]}>
           <MaterialIcons name="search" size={18} color="#065F46" style={{ marginRight: 6 }} />
           <TextInput
             style={styles.mapSearchInput}
@@ -758,7 +776,7 @@ export default function MapParcelPicker({
         </View>
 
         {/* OVERLAY: Top-Right Toolbar (Quick Template, Finish, Undo, Redo, Delete) */}
-        <View style={styles.mapDrawingToolbar}>
+        <View style={[styles.mapDrawingToolbar, !wideLayout && styles.compactToolbar]}>
           {/* Quick 4-Corner Plot Button */}
           <TouchableOpacity
             style={styles.quickPresetBtn}
@@ -837,7 +855,7 @@ export default function MapParcelPicker({
         </View>
 
         {/* Parcel navigation controls */}
-        <View style={styles.mapLeftControls}>
+        <View style={[styles.mapLeftControls, !wideLayout && styles.compactLeftControls]}>
           <TouchableOpacity
             style={styles.standaloneIconBtn}
             onPress={handleCenterToPlot}
@@ -858,7 +876,7 @@ export default function MapParcelPicker({
       </View>
 
       {/* ================= RIGHT: CLEAN MINIMAL SIDEBAR ================= */}
-      <View style={styles.sidebarCol}>
+      <View style={[styles.sidebarCol, wideLayout && styles.wideSidebar]}>
         {/* Card 1: How to Draw */}
         <View style={styles.sidebarCard}>
           <View style={styles.sidebarTitleRow}>
@@ -938,14 +956,14 @@ export default function MapParcelPicker({
 const styles = StyleSheet.create({
   workspaceContainer: {
     width: "100%",
-    flexDirection: Platform.OS === "web" ? "row" : "column",
     gap: 24,
     alignItems: "stretch",
   },
+  wideWorkspace: { flexDirection: "row" },
 
   /* Left / Main Map Canvas */
   mapCanvasCard: {
-    flex: 1,
+    minWidth: 0,
     minHeight: 520,
     height: 520,
     borderRadius: 16,
@@ -955,6 +973,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "transparent",
   },
+  wideMap: { flex: 1 },
   fallbackBox: {
     flex: 1,
     justifyContent: "center",
@@ -991,6 +1010,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     outlineStyle: "none" as any,
   },
+  compactSearch: { left: 8, right: 8, width: undefined, maxWidth: undefined, backgroundColor: "#FFFFFF" },
 
   /* Overlay: Top-Right Drawing Tools Bar */
   mapDrawingToolbar: {
@@ -1022,6 +1042,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#A7F3D0",
   },
+  compactToolbar: { top: 62, left: 8, right: 8, flexWrap: "wrap", backgroundColor: "#FFFFFF" },
   quickPresetBtnText: {
     fontSize: 11,
     fontWeight: "800",
@@ -1066,6 +1087,7 @@ const styles = StyleSheet.create({
     gap: 8,
     zIndex: 1000,
   },
+  compactLeftControls: { top: 140 },
   standaloneIconBtn: {
     width: 34,
     height: 34,
@@ -1178,9 +1200,9 @@ const styles = StyleSheet.create({
 
   /* ================= RIGHT: SIDEBAR ================= */
   sidebarCol: {
-    width: Platform.OS === "web" ? 330 : "100%",
     gap: 16,
   },
+  wideSidebar: { width: 330 },
   sidebarCard: {
     backgroundColor: "transparent",
     borderRadius: 14,

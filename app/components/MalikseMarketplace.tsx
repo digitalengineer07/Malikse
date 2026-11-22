@@ -1,43 +1,66 @@
 import { randomUUID } from "expo-crypto";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { isRunningInExpoGo } from "expo";
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
+  Linking,
+  AppState,
+  Keyboard,
   KeyboardAvoidingView,
   ActivityIndicator,
+  BackHandler,
   Image,
   Platform,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
+  type ScrollViewProps,
+  type StyleProp,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type ViewStyle,
   useWindowDimensions,
 } from "react-native";
 import {
   useFocusEffect,
+  useIsFocused,
   useLocalSearchParams,
   usePathname,
   useRouter,
 } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
+import AccountArtworkFooter from "./AccountArtworkFooter";
+import Svg, { Rect } from "react-native-svg";
 import * as DocumentPicker from "expo-document-picker";
-import * as Location from "expo-location";
+import { currentMapLocation, LocationPermissionBlocked } from "../src/services/currentMapLocation";
+import { validMapPoint, type MapFocus, type MapPoint } from "../src/utils/nativeMapHtml";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api, { authService } from "../src/services/authService";
+import { homeFeedBusyMessage, loadHomeRecommendations } from "../src/services/homeRecommendations";
 import { useAuthStore } from "../src/store/authStore";
+import { useLanguageStore } from "../src/store/languageStore";
+import NotificationBell from "./NotificationBell";
+import { chatBusyMessage, readChat } from "../src/services/chatRequests";
+import { useNotificationStore } from "../src/store/notificationStore";
 import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
+import EmailChangeForm from "./EmailChangeForm";
 import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
+import PropertyImage from "./PropertyImage";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 const C = {
-  bg: "#f3f7ff",
-  ink: "#0b1b3f",
-  muted: "#475a82",
-  blue: "#0a45b5",
-  line: "#dce5f5",
-  green: "#0b5a3a",
+  bg: "#F7F4EC",
+  ink: "#14263E",
+  muted: "#536174",
+  blue: "#14263E",
+  sun: "#FCC61C",
+  sunSoft: "#FFF1C0",
+  line: "rgba(20, 38, 62, 0.12)",
+  green: "#076c31",
 };
 const money = (n: number) =>
   `₹${n >= 10000000 ? (n / 10000000).toFixed(2) + " Cr" : n >= 100000 ? (n / 100000).toFixed(1) + " Lakh" : Number(n || 0).toLocaleString("en-IN")}`;
@@ -76,7 +99,7 @@ function Button({
       onPress={onPress}
       style={[s.button, secondary && s.secondary, disabled && { opacity: 0.5 }]}
     >
-      {icon && <Icon name={icon} color={secondary ? C.blue : "white"} />}
+      {icon && <Icon name={icon} size={17} />}
       <Text style={[s.buttonText, secondary && { color: C.blue }]}>
         {title}
       </Text>
@@ -85,19 +108,29 @@ function Button({
 }
 function Tag({ children, green = false }: any) {
   return (
-    <View style={[s.tag, green && { backgroundColor: "#e0f5e9" }]}>
-      <Text style={[s.tagText, green && { color: C.green }]}>{children}</Text>
+    <View
+      style={[
+        s.tag,
+        green && {
+          backgroundColor: "#e8f7ee",
+          borderColor: "rgba(7, 108, 49, 0.28)",
+          borderWidth: 1,
+        },
+      ]}
+    >
+      <Text style={[s.tagText, green && { color: "#076c31" }]}>{children}</Text>
     </View>
   );
 }
 function Empty({
   title = "Nothing here yet",
   text = "New activity will appear here.",
+  icon = "real-estate-agent",
   action,
 }: any) {
   return (
     <View style={[s.panel, { alignItems: "center", padding: 32 }]}>
-      <Icon name="real-estate-agent" size={40} />
+      <Icon name={icon} size={40} />
       <Text style={s.h2}>{title}</Text>
       <Text style={s.muted}>{text}</Text>
       {action}
@@ -110,97 +143,117 @@ function Field({
   onChangeText,
   numeric = false,
   multiline = false,
+  uppercaseLabel = false,
 }: any) {
   return (
-    <View style={{ flex: 1, minWidth: 140, gap: 7 }}>
-      <Text style={s.fieldLabel}>{title}</Text>
+    <View style={{ flex: 1, minWidth: uppercaseLabel ? 0 : 140, gap: 5 }}>
+      <Text style={[s.fieldLabel, uppercaseLabel && s.postFieldLabel]}>{title}</Text>
       <TextInput
         accessibilityLabel={title}
         style={[
           s.input,
-          multiline && { minHeight: 100, textAlignVertical: "top" },
+          multiline && { minHeight: 90, textAlignVertical: "top" },
         ]}
         value={value}
         onChangeText={onChangeText}
         keyboardType={numeric ? "decimal-pad" : "default"}
         multiline={multiline}
         placeholder={title}
-        placeholderTextColor="#8291ac"
+        placeholderTextColor="#6f82a8"
       />
     </View>
   );
 }
-function useData(path: string | null, deps: any[] = []) {
+function useData(path: string | null, deps: any[] = [], homeScope?: string, keepLoadedPages = false) {
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(false),
-    [nextCursor, setNextCursor] = useState("");
+    [nextCursor, setNextCursor] = useState<string | null>(null);
+  const requestKey = JSON.stringify([path, deps, homeScope]);
+  const latestRequest = useRef(requestKey);
+  const refreshSequence = useRef(0);
+  const loadedPagesKey = useRef<string | null>(null);
+  useEffect(() => { latestRequest.current = requestKey; }, [requestKey]);
+  const [resultKey, setResultKey] = useState(requestKey);
   const refresh = useCallback(async () => {
+    const [path, , homeScope] = JSON.parse(requestKey);
     if (!path) return;
+    const sequence = ++refreshSequence.current;
     setLoading(true);
     setError("");
     try {
-      const response = await api.get(path);
-      setData(response.data);
-      setNextCursor(response.headers["x-next-cursor"] || "");
+      const response = homeScope ? await loadHomeRecommendations(path, homeScope)
+        : path.startsWith("/inquiries") ? await readChat(path) : await api.get(path);
+      if (latestRequest.current !== requestKey || sequence !== refreshSequence.current) return;
+      setResultKey(requestKey);
+      if (keepLoadedPages && loadedPagesKey.current === requestKey) {
+        setData((previous: any[]) => {
+          const fresh: any[] = response.data;
+          const ids = new Set(fresh.map(item => item._id));
+          return [...fresh, ...(previous || []).filter(item => !ids.has(item._id))];
+        });
+      } else {
+        setData(response.data);
+        setNextCursor(response.headers["x-next-cursor"] || null);
+      }
     } catch (e) {
-      setError(errorText(e));
+      if (latestRequest.current === requestKey && sequence === refreshSequence.current) setError(errorText(e));
     } finally {
-      setLoading(false);
+      if (latestRequest.current === requestKey && sequence === refreshSequence.current) setLoading(false);
     }
-  }, [path, ...deps]);
+  }, [requestKey, keepLoadedPages]);
   useFocusEffect(
     useCallback(() => {
       void refresh();
     }, [refresh]),
   );
-  useEffect(() => {
-    setData(null);
-  }, [path, ...deps]);
-  const loadMore = async () => {
-    if (!path || !nextCursor || loading) return;
+
+  const loadPages = async (all: boolean) => {
+    if (!path || !nextCursor || loading || resultKey !== requestKey) return;
     setLoading(true);
     try {
-      const response = await api.get(
-        path +
-          (path.includes("?") ? "&" : "?") +
-          "cursor=" +
-          encodeURIComponent(nextCursor),
-      );
-      setData((old: any[]) => [
-        ...old,
-        ...response.data.filter(
-          (p: any) => !old.some((item) => item._id === p._id),
-        ),
-      ]);
-      setNextCursor(response.headers["x-next-cursor"] || "");
+      let cursor: string | null = nextCursor;
+      const items = new Map<string, any>(data.map((item: any) => [item._id, item]));
+      const visited = new Set<string>();
+      while (cursor && !visited.has(cursor)) {
+        visited.add(cursor);
+        const pagePath: string = path + (path.includes("?") ? "&" : "?") + "cursor=" + encodeURIComponent(cursor);
+        const response = pagePath.startsWith("/inquiries") ? await readChat(pagePath) : await api.get(pagePath);
+        if (latestRequest.current !== requestKey) return;
+        for (const item of response.data) items.set(item._id, item);
+        cursor = response.headers["x-next-cursor"] || null;
+        if (!all) break;
+      }
+      if (keepLoadedPages) {
+        loadedPagesKey.current = requestKey;
+        setData((current: any[]) => {
+          const merged = new Map(items);
+          for (const item of current || []) merged.set(item._id, item);
+          return [...merged.values()].sort((a, b) =>
+            Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt));
+        });
+      } else setData([...items.values()]);
+      setNextCursor(cursor);
     } catch (e) {
-      setError(errorText(e));
+      if (latestRequest.current === requestKey) setError(errorText(e));
     } finally {
-      setLoading(false);
+      if (latestRequest.current === requestKey) setLoading(false);
     }
   };
-  return { data, error, loading, refresh, setData, nextCursor, loadMore };
+  return { data: resultKey === requestKey ? data : null, error, loading, refresh, setData, nextCursor,
+    loadMore: () => loadPages(false), loadAll: () => loadPages(true) };
 }
 function useAction() {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  return {
-    busy,
-    error,
-    run: async (fn: () => Promise<any>) => {
-      setBusy(true);
-      setError("");
-      try {
-        await fn();
-      } catch (e) {
-        setError(errorText(e));
-      } finally {
-        setBusy(false);
-      }
-    },
-  };
+  const run = useCallback(async (fn: () => Promise<any>) => {
+    setBusy(true); setError("");
+    try { await fn(); } catch (e) { setError(errorText(e)); }
+    finally { setBusy(false); }
+  }, []);
+  return { busy, error, run };
 }
+
 function ErrorBox({ text }: any) {
   return text ? (
     <Text accessibilityRole="alert" style={s.error}>
@@ -227,128 +280,230 @@ function useGate() {
     return true;
   };
 }
+const dockHeight = 70;
+
 export function MarketplaceShell({
   title,
   subtitle,
+  compactHeader = false,
+  matchedHero = false,
   children,
   back = false,
-}: any) {
+  onBack,
+  headerContent,
+  headerAction,
+  backgroundArtwork,
+  fixedHeader,
+  transcriptRef,
+  transcriptEvents,
+  showDock = true,
+  footer,
+  footerStyle,
+  profileHeader,
+  scrollFooter,
+  dockArtwork = false,
+  scrollEnabled = true,
+  step,
+}: {
+  title?: React.ReactNode;
+  subtitle?: string;
+  compactHeader?: boolean;
+  matchedHero?: boolean;
+  children: React.ReactNode;
+  back?: boolean;
+  onBack?: () => void;
+  headerContent?: React.ReactNode;
+  headerAction?: React.ReactNode;
+  backgroundArtwork?: React.ReactNode;
+  fixedHeader?: React.ReactNode;
+  transcriptRef?: React.RefObject<ScrollViewInstance | null>;
+  transcriptEvents?: Pick<ScrollViewProps, "onLayout" | "onScroll" | "onScrollBeginDrag" | "onContentSizeChange">;
+  showDock?: boolean;
+  footer?: React.ReactNode;
+  footerStyle?: StyleProp<ViewStyle>;
+  profileHeader?: React.ReactElement;
+  scrollFooter?: (dockClearance: number) => React.ReactElement;
+  dockArtwork?: boolean;
+  scrollEnabled?: boolean;
+  step?: number;
+}) {
   const insets = useSafeAreaInsets();
+  const { width, height, fontScale } = useWindowDimensions();
+  const sharedHeroHeight = insets.top + (width < 376 ? 252 : 232) + Math.ceil(145 * Math.max(0, fontScale - 1));
+  const smallHeader = compactHeader && (width < 370 || height - insets.top - insets.bottom < 620);
+  const dockBottom = Math.max(insets.bottom, 8);
+  const dockClearance = dockBottom - insets.bottom + dockHeight;
   const router = useRouter(),
     path = usePathname(),
-    { width } = useWindowDimensions(),
     user = useAuthStore((x) => x.user);
+  const focused = useIsFocused();
+  const contextualTab =
+    path === "/saved" ? ["/saved", "favorite-border", "Wishlist"] :
+    path === "/my-properties" ? ["/my-properties", "apartment", "Listings"] :
+    path.startsWith("/deal/") ? [path, "handshake", "Deal"] :
+    ["/messages", "chat-bubble-outline", "Chats"];
+  const scroll = useRef<ScrollViewInstance>(null);
+  useEffect(() => {
+    if (step !== undefined) scroll.current?.scrollTo({ y: 0, animated: false });
+  }, [step]);
   return (
     <KeyboardAvoidingView
       style={s.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View
-        style={[s.header, { height: 76 + insets.top, paddingTop: insets.top }]}
+      {focused && <StatusBar style="light" />}
+      {fixedHeader}
+      <View style={s.scrollViewport}>
+      {backgroundArtwork}
+      <ScrollView
+        ref={transcriptRef ?? scroll}
+        {...transcriptEvents}
+        scrollEventThrottle={transcriptEvents ? 16 : undefined}
+        scrollEnabled={scrollEnabled}
+        style={{ flex: 1 }}
+        contentContainerStyle={[s.scroll, !showDock && { paddingBottom: 12 }, scrollFooter && s.scrollWithArtwork,
+          !scrollEnabled && scrollFooter && s.fitArtworkToViewport,
+          !scrollEnabled && scrollFooter && showDock && !dockArtwork && { paddingBottom: dockBottom + dockHeight + 16 },
+          showDock && dockArtwork && { paddingBottom: dockBottom + dockHeight + 54 }]}
+        keyboardShouldPersistTaps="handled"
       >
-        <View style={[s.row, { flex: 1 }]}>
+      {!fixedHeader && <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
+        smallHeader && s.smallHero, profileHeader && s.profileHero, matchedHero && { height: sharedHeroHeight }]}>
+        <View pointerEvents="none" style={s.heroSun} />
+        <View pointerEvents="none" style={s.heroRay} />
+        <View style={[s.heroInner, compactHeader && s.compactHeroInner, matchedHero && s.matchedHeroInner]}>
+        {profileHeader || <>
+        <View style={[s.header, Boolean(user) && width < 390 && { gap: 6 }]}>
+        <View style={[s.row, { flex: 1, minWidth: 0 }]}>
           {back ? (
             <Pressable
               accessibilityLabel="Back"
-              onPress={() =>
+              accessibilityRole="button"
+              style={s.heroIcon}
+              onPress={onBack ?? (() =>
                 router.canGoBack() ? router.back() : router.replace("/home")
-              }
+              )}
             >
-              <Icon name="arrow-back" />
+              <Icon name="arrow-back" color="white" size={20} />
             </Pressable>
           ) : (
             <View style={s.logoIcon}>
-              <Icon name="roofing" color="white" />
+              <Icon name="roofing" size={18} />
             </View>
           )}
-          <Pressable onPress={() => router.push("/home")}>
-            <Text style={s.logo}>
-              MalikSe<Text style={{ color: "#18a06b" }}>.</Text>
+          <Pressable style={{ flexShrink: 1 }} onPress={() => router.push("/home")}>
+            <Text style={s.logo} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+              MalikSe<Text style={{ color: C.sun }}>.</Text>
             </Text>
           </Pressable>
-          {width > 850 && (
-            <Text style={s.muted}>Verified spaces. Trusted connections.</Text>
-          )}
         </View>
+        {headerAction || (
         <Pressable
           accessibilityLabel="Wishlist"
+          accessibilityRole="button"
+          style={s.heroIcon}
           onPress={() => router.push("/saved")}
         >
-          <Icon name="favorite-border" />
+          <Icon name="favorite-border" color="white" size={20} />
         </Pressable>
-        <Pressable
-          accessibilityLabel="Profile"
-          onPress={() => router.push("/profile")}
-          style={s.avatar}
-        >
-          <Text style={s.avatarText}>{user?.name?.[0] || "M"}</Text>
-        </Pressable>
-      </View>
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={s.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={s.content}>
-          {title && (
-            <View style={{ gap: 6 }}>
-              <Text style={s.h1}>{title}</Text>
-              {subtitle && <Text style={s.muted}>{subtitle}</Text>}
+        )}
+        <NotificationBell />
+        </View>
+          {Boolean(title) && (
+            <View style={{ gap: 4 }}>
+              <Text accessibilityRole="header" style={s.heroTitle}>{title}</Text>
+              {Boolean(subtitle) && <Text numberOfLines={compactHeader ? 1 : undefined}
+                adjustsFontSizeToFit={compactHeader} minimumFontScale={0.85}
+                style={[s.heroSubtitle, smallHeader && s.smallHeroSubtitle]}>{subtitle}</Text>}
             </View>
           )}
+          {headerContent}
+        </>}
+        </View>
+      </View>}
+        <View style={[s.content, profileHeader && s.profileContent]}>
           {children}
         </View>
+        {scrollFooter?.(showDock ? dockClearance : 0)}
       </ScrollView>
-      <View style={[s.nav, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-        {[
-          ["/home", "home", "Home"],
-          ["/search", "search", "Search"],
-          ["/post", "add", "Post"],
-          ["/messages", "chat-bubble-outline", "Chats"],
-          ["/profile", "person-outline", "Profile"],
-        ].map(([url, icon, text]) => (
-          <Pressable
-            key={url}
-            accessibilityRole="button"
-            onPress={() => router.push(url as any)}
-            style={[s.navItem, url === "/post" && { marginTop: -18 }]}
-          >
-            <View style={url === "/post" ? s.postCircle : undefined}>
-              <Icon
-                name={icon}
-                color={
-                  url === "/post" ? "white" : path === url ? C.blue : C.muted
-                }
-              />
-            </View>
-            <Text
-              style={[
-                s.navText,
-                path === url && { color: C.blue, fontWeight: "800" },
-              ]}
-            >
-              {text}
-            </Text>
-          </Pressable>
-        ))}
       </View>
+      {footer && <View style={[s.footer, footerStyle, { paddingBottom: Math.max(insets.bottom, 12) }]}>{footer}</View>}
+      {showDock && dockArtwork && <View pointerEvents="none" style={s.dockArtwork}>
+        <AccountArtworkFooter wavesOnly bottomExtension={dockClearance} hideWhileTyping={false} />
+      </View>}
+      {showDock && <View
+        style={[s.dockWrapper, { bottom: dockBottom, pointerEvents: "box-none" }]}
+      >
+        <View style={s.nav}>
+          {[
+            ["/home", "home", "Home"],
+            ["/search", "search", "Search"],
+            ["/post", "add", "Post"],
+            contextualTab,
+            ["/profile", "person-outline", "Profile"],
+          ].map(([url, icon, text]) => {
+            const isActive = path === url;
+            const isPost = url === "/post";
+            return (
+              <Pressable
+                key={url}
+                accessibilityRole="button"
+                accessibilityLabel={text}
+                onPress={() => {
+                  if (!isActive) router.push(url as any);
+                }}
+                accessibilityState={{ selected: isActive }}
+                style={s.navItem}
+              >
+                {isPost ? (
+                  <View style={s.postCircle}>
+                    <Icon name="add" color={C.ink} size={24} />
+                  </View>
+                ) : (
+                  <View style={s.navGlyph}>
+                    {isActive && (
+                      <Svg width={48} height={32} viewBox="0 0 48 32" style={StyleSheet.absoluteFill} pointerEvents="none">
+                        <Rect width={48} height={32} rx={16} fill={C.sun} />
+                      </Svg>
+                    )}
+                    <Icon name={icon} color={isActive ? C.ink : "#C7A532"} size={20} />
+                  </View>
+                )}
+                <Text
+                  style={[
+                    s.navText,
+                    isActive && { color: C.sun },
+                  ]}
+                >
+                  {text}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>}
     </KeyboardAvoidingView>
   );
 }
-function Protected({ children, kyc = false }: any) {
+function Protected({ children, kyc = false, guest }: {
+  children: React.ReactNode;
+  kyc?: boolean;
+  guest?: { title: string; text: string; icon: keyof typeof MaterialIcons.glyphMap };
+}) {
   const user = useAuthStore((x) => x.user),
     gate = useGate();
   if (!user || (kyc && !approved(user)))
     return (
       <Empty
+        icon={!user ? guest?.icon : undefined}
         title={
           !user
-            ? "Your next step starts here"
+            ? guest?.title ?? "Your next step starts here"
             : "Complete identity verification"
         }
         text={
           !user
-            ? "Browse freely. Sign in to save properties and manage your account."
+            ? guest?.text ?? "Browse freely. Sign in to save properties and manage your account."
             : "Approved KYC is required to sell, make an offer or contact assigned staff."
         }
         action={
@@ -389,7 +544,7 @@ function PropertyCard({
           </View>
         )}
         <View style={s.imageTags}>
-          <Tag green>✓ Verified</Tag>
+          <Tag green>✓ Verified Owner</Tag>
         </View>
       </Pressable>
       <View style={[s.cardBody, compact && { flex: 1 }]}>
@@ -400,6 +555,7 @@ function PropertyCard({
               saved ? "Remove from wishlist" : "Save property"
             }
             disabled={action.busy}
+            style={[s.heartBtn, saved && { backgroundColor: C.sun }]}
             onPress={() => {
               if (gate())
                 void action.run(async () => {
@@ -415,14 +571,14 @@ function PropertyCard({
                 });
             }}
           >
-            <Icon name={saved ? "favorite" : "favorite-border"} />
+            <Icon name={saved ? "favorite" : "favorite-border"} color={C.ink} size={18} />
           </Pressable>
         </View>
         <Pressable onPress={() => router.push(`/property/${p._id}` as any)}>
-          <Text style={s.cardTitle}>{label(p)}</Text>
+          <Text style={s.cardTitle} numberOfLines={1}>{label(p)}</Text>
         </Pressable>
-        <Text style={s.muted}>
-          {p.location?.district}, {p.location?.state}
+        <Text style={s.muted} numberOfLines={1}>
+          ⌖ {p.location?.district}, {p.location?.state}
         </Text>
         <View style={s.row}>
           <Tag>{p.type}</Tag>
@@ -438,40 +594,47 @@ export function HomeScreen() {
     router = useRouter(),
     [query, setQuery] = useState(""),
     [type, setType] = useState(""),
-    [prefs, setPrefs] = useState<any>({});
+    [storedPrefs, setStoredPrefs] = useState<{ scope: string; value: any }>();
+  const scope = user?.id || "guest";
+  const prefs = storedPrefs?.scope === scope ? storedPrefs.value : {};
   useEffect(() => {
-    AsyncStorage.getItem(`marketplace_preferences_${user?.id || "guest"}`)
-      .then((v) => setPrefs(v ? JSON.parse(v) : {}))
-      .catch(() => {});
-  }, [user?.id]);
-  const personal = useData(
-      `/recommendations?mode=personalized&district=${encodeURIComponent(prefs.district || "")}&type=${type || prefs.type || ""}&maxPrice=${prefs.maxPrice || ""}`,
+    let active = true;
+    AsyncStorage.getItem(`marketplace_preferences_${scope}`)
+      .then(v => v ? JSON.parse(v) || {} : {})
+      .catch(() => ({}))
+      .then(value => { if (active) setStoredPrefs({ scope, value }); });
+    return () => { active = false; };
+  }, [scope]);
+  const recent = useData("/recommendations?mode=new", [], "public"),
+    trending = useData("/recommendations?mode=trending", [], "public"),
+    personal = useData(
+      storedPrefs?.scope === scope ? `/recommendations?mode=personalized&district=${encodeURIComponent(prefs.district || "")}&type=${type || prefs.type || ""}&maxPrice=${prefs.maxPrice || ""}` : null,
       [user?.id],
+      scope,
     ),
-    recent = useData("/recommendations?mode=new"),
-    trending = useData("/recommendations?mode=trending"),
     { width } = useWindowDimensions();
+  const homeBusy = [personal, recent, trending].some(feed => feed.error === homeFeedBusyMessage);
   return (
     <MarketplaceShell
-      title={`Hello${user ? ", " + user.name.split(" ")[0] : ", welcome"} 👋`}
-      subtitle="Find your next place, verified by people you can trust."
-    >
-      <View style={{ gap: 12 }}>
-        <View style={s.row}>
-          <Icon name="location-on" />
-          <Text style={s.cardTitle}>
-            {prefs.district || "Explore your preferred location"}
-          </Text>
+      matchedHero
+      title={<>Find your next home.{"\n"}<Text style={{ color: C.sun }}>Direct from owners.</Text></>}
+      headerContent={
+        <View style={s.homeHeroDetails}>
+          <Text style={s.heroSubtitle}>Explore homes and plots by locality, property type, and budget.</Text>
         </View>
+      }
+    >
+      <View style={s.panel}>
         <View style={s.row}>
-          <View style={[s.input, s.row, { flex: 1 }]}>
-            <Icon name="search" />
+          <View style={[s.input, s.row, { flex: 1, backgroundColor: "#ffffff" }]}>
+            <Icon name="search" size={19} />
             <TextInput
               accessibilityLabel="Search location"
               placeholder="Search city, locality or property"
+              placeholderTextColor="#6f82a8"
               value={query}
               onChangeText={setQuery}
-              style={{ flex: 1, color: C.ink, fontSize: 15 }}
+              style={{ flex: 1, color: C.ink, fontSize: 13.5 }}
               onSubmitEditing={() =>
                 router.push({
                   pathname: "/search",
@@ -490,23 +653,39 @@ export function HomeScreen() {
             }
           />
         </View>
-      </View>
+        {prefs.district ? (
+          <Pressable accessibilityRole="button" style={s.homeDistrict}
+            onPress={() => router.push({ pathname: "/search", params: { q: prefs.district } })}>
+            <Icon name="location-on" size={17} color={C.ink} />
+            <Text style={s.homeDistrictLabel}>Browse {prefs.district}</Text>
+            <Icon name="arrow-forward" size={15} color={C.ink} />
+          </Pressable>
+        ) : null}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 10 }}
+        contentContainerStyle={{ gap: 8 }}
       >
         {types.map(([id, text, icon]) => (
           <Pressable
             key={id}
-            onPress={() => setType(id)}
+            onPress={() => setType(type === id ? "" : id)}
             style={[s.typeChip, type === id && { backgroundColor: C.blue }]}
           >
-            <Icon name={icon} color={type === id ? "white" : C.blue} />
-            <Text style={{ color: type === id ? "white" : C.ink }}>{text}</Text>
+            <Icon name={icon} color={type === id ? C.sun : C.blue} size={16} />
+            <Text style={[s.small, { color: type === id ? C.sun : C.ink }]}>{text}</Text>
           </Pressable>
         ))}
       </ScrollView>
+      </View>
+      {homeBusy && <View style={s.panel}>
+        <Text accessibilityRole="alert" style={s.body}>{homeFeedBusyMessage}</Text>
+        <Button title="Retry listings" secondary onPress={() => {
+          void personal.refresh();
+          void recent.refresh();
+          void trending.refresh();
+        }} />
+      </View>}
       {[
         [
           "Recommended for You",
@@ -519,37 +698,40 @@ export function HomeScreen() {
           "Popular with property seekers this week",
           trending,
         ],
-      ].map(([title, sub, feed]: any) => (
+      ].map(([title, sub, feed]: any) => {
+        const listings = (feed.data || []).filter((p: any) => !type || p.type === type).slice(0, 6);
+        const carousel = title === "Recommended for You" && width < 650;
+        return (
         <View key={title} style={{ gap: 14 }}>
           <View style={s.between}>
             <View style={{ flex: 1 }}>
               <Text style={s.h2}>{title}</Text>
               <Text style={s.small}>{sub}</Text>
             </View>
-            <Pressable onPress={() => router.push("/search")}>
+            <Pressable onPress={() => router.push({ pathname: "/search", params: { type } })}>
               <Text style={s.link}>View all →</Text>
             </Pressable>
           </View>
-          {feed.loading ? (
+          {feed.error === homeFeedBusyMessage && !listings.length ? null : (feed.loading || (feed === personal && storedPrefs?.scope !== scope)) && !listings.length ? (
             <ActivityIndicator color={C.blue} />
-          ) : feed.error ? (
+          ) : feed.error && !listings.length ? (
             <ErrorBox text={feed.error} />
-          ) : !feed.data?.length ? (
+          ) : !listings.length ? (
             <Empty
-              title="Properties are on their way"
-              text="Verified listings will appear here as they become available."
+              title={type ? "No listings in this category" : "Properties are on their way"}
+              text={type ? "Choose another property type to see more listings." : "Verified listings will appear here as they become available."}
             />
           ) : (
-            <View style={s.grid}>
-              {feed.data
-                .filter((p: any) => !type || p.type === type)
-                .slice(0, 6)
-                .map((p: any) => (
+            <ScrollView horizontal={carousel} scrollEnabled={carousel} showsHorizontalScrollIndicator={false}
+              contentContainerStyle={carousel ? { gap: 14 } : s.grid}>
+              {listings.map((p: any) => (
                   <View
                     key={p._id}
                     style={{
                       width:
-                        width > 1000 ? "31.8%" : width > 650 ? "48.5%" : "100%",
+                        width > 1000 ? "31.8%" : width > 650 ? "48.5%" :
+                          title === "Recommended for You" ? Math.min(width - 64, 320) :
+                          title === "Trending Properties" && width >= 360 ? "47.5%" : "100%",
                     }}
                   >
                     <PropertyCard
@@ -558,18 +740,19 @@ export function HomeScreen() {
                     />
                   </View>
                 ))}
-            </View>
+            </ScrollView>
           )}
         </View>
-      ))}
-      <View style={[s.panel, s.row]}>
-        <Icon name="handshake" size={34} />
+        );
+      })}
+      <View style={[s.panel, { backgroundColor: C.sunSoft }]}>
         <View style={{ flex: 1 }}>
-          <Text style={s.cardTitle}>Real people, every step of the way</Text>
+          <Text style={s.h2}>List your property</Text>
           <Text style={s.muted}>
             Your assigned team helps with questions, offers and deal closure.
           </Text>
         </View>
+        <Button title="Post property" icon="add" onPress={() => router.push("/post")} />
       </View>
     </MarketplaceShell>
   );
@@ -585,10 +768,53 @@ export function SearchScreen() {
     [map, setMap] = useState(true),
     [selected, setSelected] = useState<any>(null),
     [submitted, setSubmitted] = useState(String(params.q || ""));
+  const [nearby, setNearby] = useState<MapFocus>();
+  const locationAction = useAction();
+  const [locationPermissionBlocked, setLocationPermissionBlocked] = useState(false);
+  const directionsAction = useAction();
+  const nearbyQuery = nearby ? `&nearLat=${nearby.lat.toFixed(3)}&nearLng=${nearby.lng.toFixed(3)}` : "";
   const feed = useData(
-    `/properties/search?limit=50&location=${encodeURIComponent(submitted)}${type ? "&type=" + type : ""}${max ? "&maxPrice=" + max : ""}`,
+    `/properties/search?limit=50&location=${encodeURIComponent(nearby ? "" : submitted)}${type ? "&type=" + type : ""}${max ? "&maxPrice=" + max : ""}${nearbyQuery}`,
   );
+  const nearbyLoad = useRef("");
+  const nearbyLoadKey = `${nearbyQuery}:${type}:${max}`;
+  const { data: searchResults, nextCursor: searchCursor, loading: searchLoading, loadAll } = feed;
+  useEffect(() => {
+    if (!nearbyQuery || !searchResults || !searchCursor || searchLoading || nearbyLoad.current === nearbyLoadKey) return;
+    nearbyLoad.current = nearbyLoadKey;
+    void loadAll();
+  }, [nearbyQuery, nearbyLoadKey, searchResults, searchCursor, searchLoading, loadAll]);
   const select = useCallback((p: any) => setSelected(p), []);
+  const [mapGestureActive, setMapGestureActive] = useState(false);
+  const [mapFitVersion, setMapFitVersion] = useState(0);
+  const { height } = useWindowDimensions();
+  const properties = feed.data || [];
+  const visibleSelection = selected && properties.find((property: any) => property._id === selected._id);
+  const hasMapSelection = Boolean(map && visibleSelection);
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS !== "android") return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (hasMapSelection) {
+        setSelected(null);
+      } else if (filter) {
+        setFilter(false);
+      } else if (nearby) {
+        setNearby(undefined);
+        setSelected(null);
+      } else if (!map) {
+        setMap(true);
+      }
+      setMapGestureActive(false);
+      // Search is a primary tab. Home is available from the bottom navigation.
+      return true;
+    });
+    return () => subscription.remove();
+  }, [filter, hasMapSelection, map, nearby]));
+  useFocusEffect(useCallback(() => () => setSelected(null), []));
+  const destination = visibleSelection?.location;
+  const directionsUrl = validMapPoint(destination)
+    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${destination.lat},${destination.lng}`)}&dir_action=navigate`
+    : null;
   useEffect(() => {
     if (submitted && feed.data)
       for (const property of feed.data.slice(0, 5))
@@ -597,6 +823,8 @@ export function SearchScreen() {
           .catch(() => {});
   }, [feed.data, submitted]);
   const search = () => {
+    setNearby(undefined);
+    setSelected(null);
     setSubmitted(query);
     if (user)
       void api
@@ -613,22 +841,26 @@ export function SearchScreen() {
   };
   return (
     <MarketplaceShell
-      title="Explore properties"
-      subtitle="Find your place on the map. Every listing is verified."
-    >
-      <View style={s.wrap}>
-        <View style={[s.input, s.row, { flex: 1, minWidth: 180 }]}>
-          <Icon name="search" />
+      title="Search properties"
+      subtitle="Search by area or explore listings on the map."
+      scrollEnabled={!mapGestureActive}
+      headerContent={
+      <View style={s.searchControls}>
+        <View style={s.searchInputRow}>
           <TextInput
             accessibilityLabel="Search properties"
             value={query}
             onChangeText={setQuery}
-            placeholder="City, district or property"
+            placeholder="Locality, project or city"
+            placeholderTextColor="#6f82a8"
             onSubmitEditing={search}
-            style={{ flex: 1 }}
+            returnKeyType="search"
+            style={s.searchInputText}
           />
+          <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={search} style={s.searchSubmit}>
+            <Icon name="search" size={21} />
+          </Pressable>
         </View>
-        <Button title="Search" onPress={search} />
         <Button
           title="Filters"
           secondary
@@ -636,22 +868,30 @@ export function SearchScreen() {
           onPress={() => setFilter(!filter)}
         />
       </View>
+      }
+    >
       {filter && (
-        <View style={s.panel}>
+        <View style={[s.panel, s.searchFilterPanel]}>
+          <View style={s.searchFilterHeader}>
+            <View style={s.searchFilterIcon}><Icon name="tune" color={C.ink} size={20} /></View>
+            <Text accessibilityRole="header" style={s.searchFilterTitle}>Refine your search</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close filters" onPress={() => setFilter(false)} style={s.searchFilterClose}>
+              <Icon name="close" color={C.ink} size={20} />
+            </Pressable>
+          </View>
           <Field
             title="Maximum price (₹)"
             value={max}
             onChangeText={setMax}
             numeric
           />
+          <Text style={s.fieldLabel}>Property type</Text>
           <View style={s.wrap}>
             {types.map(([id, text]) => (
-              <Button
-                key={id}
-                secondary={type !== id}
-                title={text}
-                onPress={() => setType(id)}
-              />
+              <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: type === id }}
+                onPress={() => setType(id)} style={[s.searchFilterChip, type === id && s.searchFilterChipSelected]}>
+                <Text style={[s.searchMapLoadingText, type === id && s.searchFilterChipTextSelected]}>{text}</Text>
+              </Pressable>
             ))}
           </View>
           <Button
@@ -664,32 +904,83 @@ export function SearchScreen() {
           />
         </View>
       )}
-      <View style={s.between}>
-        <Tag green>✓ Verified properties only</Tag>
+      <View style={s.searchResultsControls}>
         <Button
           secondary
           title={map ? "List view" : "Map view"}
           icon={map ? "view-list" : "map"}
-          onPress={() => setMap(!map)}
+          onPress={() => { setMapGestureActive(false); setSelected(null); setMap(!map); }}
         />
+        <Button title="Show all on map" icon="map" disabled={feed.loading || !properties.length}
+          onPress={() => {
+            setMapGestureActive(false);
+            setSelected(null);
+            setMap(true);
+            if (!feed.nextCursor) setMapFitVersion(version => version + 1);
+            void feed.loadAll();
+          }} />
       </View>
+      {nearby && <View style={s.searchResultsControls}>
+        <Tag>Within 25 km of your location</Tag>
+        <Button title="Clear nearby" secondary onPress={() => { setNearby(undefined); setSelected(null); }} />
+      </View>}
       <ErrorBox text={feed.error} />
-      {feed.loading && <ActivityIndicator color={C.blue} />}
+      <ErrorBox text={locationAction.error} />
+      {locationPermissionBlocked && locationAction.error && <Button title="Open app settings" icon="settings" secondary
+        onPress={() => void locationAction.run(() => Linking.openSettings())} />}
+      {feed.loading && !map && <ActivityIndicator color={C.blue} />}
       {map && (
-        <View style={s.map}>
-          <VerifiedPropertyMap properties={feed.data || []} onSelect={select} />
+        <View style={[s.map, { height: Math.min(420, Math.max(260, height * 0.44)), zIndex: 0 }]}
+          onTouchStart={event => { if (Platform.OS !== "web" && event.nativeEvent.touches.length === 2) setMapGestureActive(true); }}
+          onTouchEnd={event => { if (Platform.OS !== "web" && event.nativeEvent.touches.length === 0) setMapGestureActive(false); }}
+          onTouchCancel={() => setMapGestureActive(false)}>
+          <VerifiedPropertyMap key={mapFitVersion} properties={properties} onSelect={select}
+            focus={nearby} selectedId={visibleSelection ? visibleSelection.id || visibleSelection._id : null} zoomControls twoFingerPan />
+          <Pressable accessibilityRole="button" accessibilityLabel="Find properties near my location"
+            accessibilityState={{ disabled: locationAction.busy, busy: locationAction.busy }}
+            disabled={locationAction.busy} style={s.searchMapLocation}
+            onPress={() => void locationAction.run(async () => {
+              setLocationPermissionBlocked(false);
+              let point: MapPoint;
+              try {
+                point = await currentMapLocation({ allowRecent: true });
+              } catch (error) {
+                setLocationPermissionBlocked(error instanceof LocationPermissionBlocked);
+                throw error;
+              }
+              nearbyLoad.current = "";
+              setSelected(null);
+              setNearby({ ...point, zoom: 9 });
+            })}>
+            {locationAction.busy ? <ActivityIndicator color={C.ink} /> : <Icon name="my-location" color={C.ink} />}
+          </Pressable>
+          {(locationAction.busy || feed.loading) && (
+            <View pointerEvents="none" style={[StyleSheet.absoluteFill, s.searchMapLoading]} accessibilityLiveRegion="polite">
+              <View style={s.searchMapLoadingPill}>
+                <ActivityIndicator color={C.ink} />
+                <Text style={s.searchMapLoadingText}>{locationAction.busy ? "Finding your location…" : "Loading properties…"}</Text>
+              </View>
+            </View>
+          )}
         </View>
       )}
-      {selected && map && (
+      {visibleSelection && map && (
         <View style={s.panel}>
-          <PropertyCard property={selected} compact />
+          <PropertyCard property={visibleSelection} compact />
+          {directionsUrl && <Button title="Google Maps directions" icon="directions" disabled={directionsAction.busy}
+            onPress={() => void directionsAction.run(async () => {
+              await Linking.openURL(directionsUrl);
+              setSelected(null);
+            })} />}
+          <ErrorBox text={directionsAction.error} />
           <Button
+            secondary
             title="View full property details"
-            onPress={() => router.push(`/property/${selected._id}` as any)}
+            onPress={() => router.push(`/property/${visibleSelection._id}` as any)}
           />
         </View>
       )}
-      {(!map || !selected) && (
+      {(!map || !visibleSelection) && (
         <View style={s.grid}>
           {(feed.data || []).map((p: any) => (
             <View style={{ minWidth: 270, flex: 1, maxWidth: 520 }} key={p._id}>
@@ -698,7 +989,7 @@ export function SearchScreen() {
           ))}
         </View>
       )}
-      {feed.nextCursor && (
+      {Boolean(feed.nextCursor) && (
         <Button
           title="Load more properties"
           secondary
@@ -716,49 +1007,67 @@ export function SearchScreen() {
   );
 }
 export function WishlistScreen() {
+  const router = useRouter();
+  const goToChats = useCallback(() => router.navigate("/messages"), [router]);
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS !== "android") return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      goToChats();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [goToChats]));
   const user = useAuthStore((x) => x.user),
     feed = useData(user ? "/users/wishlist" : null, [user?.id]),
     [sort, setSort] = useState(false);
   const rows = [...(feed.data || [])];
+  const showArtwork = !user || (!feed.loading && !feed.error && feed.data?.length === 0);
+  const savedCount = `${rows.length}${feed.nextCursor ? "+" : ""}`;
   if (sort) rows.sort((a, b) => a.price - b.price);
   return (
     <MarketplaceShell
-      title="Saved Properties"
-      subtitle={`${rows.length} available properties bookmarked`}
-      back
-    >
-      <Protected>
-        <View style={s.between}>
-          <Tag>Your wishlist</Tag>
-          <Button
-            secondary
-            title={sort ? "Newest saved" : "Sort by price"}
-            icon="sort"
-            onPress={() => setSort(!sort)}
-          />
+      title="Wishlist"
+      compactHeader
+      dockArtwork
+      scrollEnabled={rows.length > 0}
+      scrollFooter={showArtwork ? () => (
+        <View style={s.wishlistArtwork} pointerEvents="none">
+          <View style={s.wishlistWatermarkFrame}>
+            <Image source={require("../assets/images/wishlist_watermark.png")}
+              style={s.watermarkImage} resizeMode="contain"
+              accessible={Boolean(user)} accessibilityLabel={user ? "Your wishlist is empty" : undefined} />
+          </View>
         </View>
+      ) : undefined}
+      subtitle={rows.length
+        ? `Revisit ${savedCount} saved ${rows.length === 1 && !feed.nextCursor ? "property" : "properties"} anytime.`
+        : "Save your favourites and revisit them anytime."}
+      headerAction={user ? <Button secondary icon="sort" title={sort ? "Newest saved" : "Sort by price"} onPress={() => setSort(!sort)} /> : undefined}
+      back
+      onBack={goToChats}
+    >
+      <Protected guest={{
+        title: "Keep your favourites together",
+        text: "Sign in, then tap the heart on any listing to add it to your Wishlist.",
+        icon: "favorite-border",
+      }}>
         <ErrorBox text={feed.error} />
         {feed.loading && <ActivityIndicator />}
         {rows.map((p) => (
           <PropertyCard
             key={p._id}
             property={p}
+            compact
             initiallySaved
             onSaved={feed.refresh}
           />
         ))}
-        {feed.nextCursor && (
+        {Boolean(feed.nextCursor) && (
           <Button
             title="Load more properties"
             secondary
             disabled={feed.loading}
             onPress={feed.loadMore}
-          />
-        )}
-        {feed.data?.length === 0 && (
-          <Empty
-            title="Keep your favourites close"
-            text="Tap the heart on a property to save it here. Sold listings are no longer shown."
           />
         )}
       </Protected>
@@ -772,97 +1081,123 @@ export function ProfileScreen() {
     [editing, setEditing] = useState(false),
     [name, setName] = useState(user?.name || ""),
     [email, setEmail] = useState(user?.email || "");
+  const { language, setLanguage } = useLanguageStore();
+  const [openPreference, setOpenPreference] = useState<"language" | "notifications" | null>(null);
+  const notificationSettingsAvailable = Platform.OS !== "web" && !isRunningInExpoGo();
+  const listings = useData(user?.role === "user" ? "/properties/mine" : null, [user?.id]);
+  const wishlist = useData(user ? "/users/wishlist" : null, [user?.id]);
+  const kyc = useData(user ? "/users/kyc" : null, [user?.id]);
+  const initials = user?.name?.trim().split(/\s+/).slice(0, 2).map(word => word[0]).join("").toUpperCase();
+  const listingCount = listings.data ? `${listings.data.length}${listings.nextCursor ? "+" : ""}` : null;
+  const savedCount = wishlist.data ? `${wishlist.data.length}${wishlist.nextCursor ? "+" : ""}` : null;
+  const listingSummary = listings.data && !listings.nextCursor
+    ? `${listings.data.filter((property: any) => property.status === "verified").length} active · ${listings.data.filter((property: any) => ["queued", "pending", "advisor_verified"].includes(property.status)).length} under review`
+    : "Manage properties and track reviews";
+  const kycLabel = approved(user) || kyc.data?.isVerifiedIdentity ? "Verified" :
+    kyc.data?.kycStatus === "pending" ? "In review" :
+      kyc.data?.kycStatus === "correction_required" ? "Action needed" :
+        kyc.data?.kycStatus === "rejected" ? "Rejected" :
+          kyc.data ? "Not submitted" : null;
+
+  const openEditor = () => {
+    if (editing) {
+      setEditing(false);
+      return;
+    }
+    setName(user?.name || "");
+    setEmail(user?.email || "");
+    setEditing(true);
+  };
+  const profileHeader = user ? (
+    <>
+      <View style={s.between}>
+        <Text accessibilityRole="header" style={s.heroTitle}>Profile</Text>
+        <View style={s.row}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Edit profile"
+          accessibilityState={{ expanded: editing }} onPress={openEditor} style={s.profileEdit}>
+          <Icon name="edit" color={C.sun} />
+        </Pressable>
+        <NotificationBell />
+        </View>
+      </View>
+      <View style={s.profileIdentity}>
+        <View style={s.profilePortrait}>
+          {initials ? <Text style={s.profileInitials}>{initials}</Text> : <Icon name="person-outline" color={C.sun} size={32} />}
+        </View>
+        <View style={s.profileDetails}>
+          <Text style={s.profileName}>{user.name}</Text>
+          {!!user.mobile && <Text style={s.heroSubtitle}>{/^\d{10}$/.test(user.mobile) ? `+91 ${user.mobile}` : user.mobile}</Text>}
+          {!!user.email && <Text style={s.heroSubtitle}>{user.email}</Text>}
+          <Pressable accessibilityRole="button" accessibilityLabel="Identity verification"
+            style={s.profileVerification} onPress={() => router.push("/kyc")}>
+            <Icon name="verified-user" size={17} color={kycLabel === "Verified" ? C.green : C.ink} />
+            <Text style={[s.cardTitle, { flexShrink: 1 }, kycLabel === "Verified" && { color: C.green }]}>
+              {kycLabel === "Verified" ? "Identity verified" : kycLabel || "Identity verification"}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    </>
+  ) : undefined;
   return (
-    <MarketplaceShell title="Your account">
+    <MarketplaceShell title="Profile" profileHeader={profileHeader}
+      scrollFooter={!user ? bottomExtension => <AccountArtworkFooter bottomExtension={bottomExtension} /> : undefined}>
       <Protected>
         {user && (
           <>
-            <View style={[s.panel, { alignItems: "center", padding: 30 }]}>
-              <View
-                style={[s.avatar, { width: 76, height: 76, borderRadius: 38 }]}
-              >
-                <Text style={[s.avatarText, { fontSize: 30 }]}>
-                  {user.name[0]}
-                </Text>
-              </View>
-              <Text style={s.h2}>{user.name}</Text>
-              <Text style={s.muted}>{user.mobile || user.email}</Text>
-              <Tag green={approved(user)}>
-                {approved(user)
-                  ? "✓ Identity approved"
-                  : "Identity verification pending"}
-              </Tag>
+            <View style={s.profileStats}>
+              {[
+                { label: "Listings", value: listingCount, onPress: user.role === "user" ? () => router.push("/my-properties") : undefined },
+                { label: "Saved", value: savedCount, onPress: () => router.push("/saved") },
+                { label: "Rating", value: null, onPress: undefined },
+              ].map(({ label, value, onPress }) => (
+                <Pressable key={label} disabled={!onPress} accessibilityRole={onPress ? "button" : undefined}
+                  accessibilityLabel={value == null ? `${label} unavailable` : `${value} ${label}`}
+                  style={[s.profileStat, label !== "Listings" && s.profileDivider]} onPress={onPress}>
+                  <Text style={s.profileStatValue}>{value ?? "—"}</Text>
+                  <Text style={s.muted}>{label}</Text>
+                </Pressable>
+              ))}
             </View>
-            <Text style={s.h2}>Account & preferences</Text>
-            {[
-              [
-                "Personal information",
-                "manage-accounts",
-                "Update your name and email",
-                "edit",
-              ],
-              [
-                "My posted properties",
-                "real-estate-agent",
-                "Manage listings and verification",
-                "/my-properties",
-              ],
-              [
-                "Wishlist",
-                "favorite-border",
-                "Your saved properties",
-                "/saved",
-              ],
-              [
-                "Identity verification",
-                "verified-user",
-                "Submit and track KYC",
-                "/kyc",
-              ],
-              [
-                "Conversations",
-                "chat-bubble-outline",
-                "Chat with assigned staff",
-                "/messages",
-              ],
-              ...(user.role !== "user"
-                ? [
-                    [
-                      "Staff dashboard",
-                      "dashboard",
-                      "Assigned work and reviews",
-                      dashboardRoutes[user.role],
-                    ],
-                  ]
-                : []),
-            ].map(([title, icon, sub, url]) => (
-              <Pressable
-                key={title}
-                style={[s.panel, s.row]}
-                onPress={() =>
-                  url === "edit"
-                    ? setEditing(!editing)
-                    : router.push(url as any)
-                }
-              >
-                <Icon name={icon} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.cardTitle}>{title}</Text>
-                  <Text style={s.small}>{sub}</Text>
-                </View>
-                <Icon name="chevron-right" />
-              </Pressable>
-            ))}
+            <View style={s.profileMenu}>
+              {[
+                { title: "Profile", icon: "person-outline", sub: "Name, phone and email", onPress: openEditor },
+                ...(user.role === "user" ? [{
+                  title: "My listings", icon: "apartment", sub: listingSummary, badge: listingCount,
+                  onPress: () => router.push("/my-properties"),
+                }] : []),
+                { title: "KYC verification", icon: "badge", sub: "Identity and documents", badge: kycLabel, onPress: () => router.push("/kyc") },
+                { title: "Wishlist", icon: "favorite-border", sub: savedCount == null ? "Your saved properties" : `${savedCount} saved properties`, badge: savedCount, onPress: () => router.push("/saved") },
+              ].map(({ title, icon, sub, badge, onPress }, index) => (
+                <Pressable key={title} accessibilityRole="button" onPress={onPress}
+                  style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
+                  <View style={s.preferenceIcon}><Icon name={icon} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.profileMenuTitle}>{title}</Text>
+                    <Text style={s.muted}>{sub}</Text>
+                  </View>
+                  {badge != null ? (
+                    <View style={[s.profileBadge, title === "KYC verification" && s.profileKycBadge]}>
+                      <Text style={[s.profileBadgeText, title === "KYC verification" && { color: C.ink }]}>{badge}</Text>
+                    </View>
+                  ) : (
+                    <View style={s.profileChevron}><Icon name="chevron-right" size={19} /></View>
+                  )}
+                </Pressable>
+              ))}
+            </View>
             {editing && (
               <View style={s.panel}>
+                <Text style={s.h2}>Edit profile</Text>
                 <Field title="Full name" value={name} onChangeText={setName} />
-                <Field title="Email" value={email} onChangeText={setEmail} />
+                <Field title="New email" value={email} onChangeText={setEmail} />
+                <EmailChangeForm email={email} />
                 <Button
                   title="Save profile"
                   disabled={action.busy}
                   onPress={() =>
                     action.run(async () => {
-                      await userService.updateProfile({ name, email });
+                      await userService.updateProfile({ name });
                       await authService.getMe();
                       setEditing(false);
                     })
@@ -870,6 +1205,58 @@ export function ProfileScreen() {
                 />
               </View>
             )}
+            <Text style={s.h2}>Preferences</Text>
+            <View style={s.profileMenu}>
+              {[
+                {
+                  title: "Notifications", subtitle: "Advisor replies & deal updates", icon: "notifications-none",
+                  expanded: notificationSettingsAvailable ? undefined : openPreference === "notifications",
+                  onPress: () => {
+                    if (notificationSettingsAvailable) void action.run(() => Linking.openSettings());
+                    else setOpenPreference(current => current === "notifications" ? null : "notifications");
+                  },
+                },
+                {
+                  title: "Language", subtitle: "English · हिंदी", icon: "language",
+                  expanded: openPreference === "language",
+                  onPress: () => setOpenPreference(current => current === "language" ? null : "language"),
+                },
+                {
+                  title: "Help & support", subtitle: "Talk to the MalikSe team", icon: "help-outline",
+                  onPress: () => void action.run(() => Linking.openURL("mailto:support@malikse.in")),
+                },
+              ].map(({ title, subtitle, icon, expanded, onPress }, index) => (
+                <React.Fragment key={title}>
+                  <Pressable accessibilityRole="button" accessibilityState={{ expanded }}
+                    onPress={onPress} style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
+                    <View style={s.preferenceIcon}><Icon name={icon} /></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.profileMenuTitle}>{title}</Text>
+                      <Text style={s.muted}>{subtitle}</Text>
+                    </View>
+                    <View style={s.profileChevron}><Icon name={expanded ? "expand-less" : "chevron-right"} size={19} /></View>
+                  </Pressable>
+                  {expanded && title === "Notifications" && (
+                    <Text style={[s.muted, s.preferenceDetails]}>Push notifications are available in the installed MalikSe app.</Text>
+                  )}
+                  {expanded && title === "Language" && (
+                    <View style={[s.wrap, s.preferenceDetails]}>
+                      {([{ id: "en", label: "English" }, { id: "hi", label: "हिंदी" }] as const).map(option => (
+                        <Pressable key={option.id} accessibilityRole="radio" accessibilityState={{ checked: language === option.id }}
+                          onPress={() => { setLanguage(option.id); setOpenPreference(null); }}
+                          style={[s.typeChip, language === option.id && { backgroundColor: C.sunSoft }]}>
+                          <Text style={s.cardTitle}>{option.label}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </React.Fragment>
+              ))}
+            </View>
+            <Button title="Conversations" icon="chat-bubble-outline" secondary onPress={() => router.push("/messages")} />
+            {user.role !== "user" && <Button title="Staff dashboard" icon="dashboard" secondary onPress={() => router.push(dashboardRoutes[user.role] as any)} />}
+            <Button title="Privacy policy" secondary onPress={() => action.run(() => Linking.openURL("https://malikse.devoxa.in/privacy-policy"))} />
+            {user.role === "user" && <Button title="Delete account" secondary onPress={() => router.push("/delete-account" as any)} />}
             <ErrorBox text={action.error} />
             <Button
               title="Log out of MalikSe"
@@ -892,37 +1279,56 @@ export function ListingsScreen() {
   const user = useAuthStore((x) => x.user),
     router = useRouter(),
     feed = useData(user ? "/properties/mine" : null, [user?.id]);
+  const groups = [
+    { id: "all", label: "All listings", status: null },
+    { id: "verified", label: "Verified", status: ["verified"] },
+    { id: "review", label: "In review", status: ["queued", "pending", "advisor_verified"] },
+  ].map(group => ({
+    ...group,
+    rows: (feed.data || []).filter((property: any) => !group.status || group.status.includes(property.status)),
+  }));
+  const [activeGroup, setActiveGroup] = useState("all");
+  const visible = groups.find(group => group.id === activeGroup)?.rows ?? groups[0].rows;
   return (
     <MarketplaceShell
-      title="Your Listings"
-      subtitle="Manage your portfolio"
+      title="My listings"
+      subtitle="Manage your properties"
+      headerAction={<Button title="Post new" icon="add" onPress={() => router.push("/post")} />}
       back
     >
       <Protected>
-        <View style={s.between}>
-          <Tag>{feed.data?.length || 0} listings</Tag>
-          <Button
-            title="Post new"
-            icon="add"
-            onPress={() => router.push("/post")}
-          />
-        </View>
+        {feed.data && <View style={[s.panel, s.row]}>
+          {groups.map(group => (
+            <Pressable
+              key={group.id}
+              style={[s.stat, activeGroup === group.id && { backgroundColor: C.sunSoft }]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: activeGroup === group.id }}
+              onPress={() => setActiveGroup(group.id)}
+            >
+              <Text style={s.price}>{group.rows.length}{feed.nextCursor ? "+" : ""}</Text>
+              <Text style={s.small}>{group.label}</Text>
+            </Pressable>
+          ))}
+        </View>}
         <ErrorBox text={feed.error} />
         {feed.loading && <ActivityIndicator />}
-        {feed.data?.map((p: any) => (
+        {visible.map((p: any) => (
           <View key={p._id} style={s.panel}>
-            <View style={s.between}>
-              <Tag green={p.status === "verified"}>
-                {p.status.replaceAll("_", " ")}
-              </Tag>
-              <Text style={s.small}>ID: {p._id.slice(-8)}</Text>
+            <View style={s.row}>
+              {p.media?.photos?.[0] ? (
+                <PropertyImage source={{ uri: p.media.photos[0] }} style={s.listingPhoto} resizeMode="cover" thumbnailWidth={240} />
+              ) : (
+                <View style={[s.listingPhoto, s.placeholder]}><Icon name="home-work" size={30} /></View>
+              )}
+              <View style={{ flex: 1, gap: 4 }}>
+                <Tag green={p.status === "verified"}>{p.status.replaceAll("_", " ")}</Tag>
+                <Text style={s.cardTitle}>{label(p)}</Text>
+                <Text style={s.muted}>{[p.location?.district, p.totalArea ? `${p.totalArea} sq ft` : null].filter(Boolean).join(" · ")}</Text>
+                <Text style={s.price}>{money(p.price)}</Text>
+              </View>
             </View>
-            <Text style={s.h2}>{label(p)}</Text>
-            <Text style={s.muted}>
-              {p.location.district} · {p.totalArea} sq ft
-            </Text>
-            <Text style={s.price}>{money(p.price)}</Text>
-            {p.rejectionReason && <ErrorBox text={p.rejectionReason} />}
+            {Boolean(p.rejectionReason) && <ErrorBox text={p.rejectionReason} />}
             <View style={s.wrap}>
               {["draft", "correction_required"].includes(p.status) && (
                 <Button
@@ -945,7 +1351,10 @@ export function ListingsScreen() {
             </View>
           </View>
         ))}
-        {feed.nextCursor && (
+        {feed.data?.length > 0 && visible.length === 0 && (
+          <Empty title="No matching listings" text={feed.nextCursor ? "Load more properties to see additional listings." : "Choose All listings to view your other properties."} />
+        )}
+        {Boolean(feed.nextCursor) && (
           <Button
             title="Load more properties"
             secondary
@@ -972,14 +1381,38 @@ export function KycScreen() {
     action = useAction();
   return (
     <MarketplaceShell
-      title="KYC Verification"
+      title="KYC verification"
       subtitle="Verify your identity to sell, make offers and contact staff."
       back
+      showDock={false}
+      footer={user && feed.data && !feed.data.isVerifiedIdentity && feed.data.kycStatus !== "pending" ? (
+        <Button
+          title="Submit KYC for review"
+          disabled={action.busy || !files.length}
+          onPress={() =>
+            action.run(async () => {
+              const form = new FormData();
+              for (const asset of files) {
+                const prepared = await prepareUpload(asset, true);
+                if (Platform.OS === "web")
+                  form.append("files", prepared.file, prepared.name);
+                else form.append("files", prepared.file as any);
+              }
+              await api.post("/users/kyc", form, {
+                headers: { "Content-Type": "multipart/form-data" },
+                timeout: 120000,
+              });
+              setFiles([]);
+              await feed.refresh();
+            })
+          }
+        />
+      ) : undefined}
     >
       <Protected>
-        <View style={s.panel}>
+        <View style={[s.panel, s.kycSummary]}>
           <View style={s.row}>
-            <Icon name="verified-user" size={42} />
+            <View style={s.featureIcon}><Icon name="verified-user" size={26} /></View>
             <View style={{ flex: 1 }}>
               <Text style={s.h2}>Verification status</Text>
               <Tag green={feed.data?.isVerifiedIdentity}>
@@ -992,27 +1425,26 @@ export function KycScreen() {
               </Tag>
             </View>
           </View>
-          <Text style={s.muted}>
+          <Text style={s.body}>
             Your documents are private and reviewed by authorized staff.
             Submission does not automatically approve your identity.
           </Text>
-          {feed.data?.identityReview?.notes && (
+          {Boolean(feed.data?.identityReview?.notes) && (
             <Text style={s.muted}>{feed.data.identityReview.notes}</Text>
           )}
         </View>
         <ErrorBox text={feed.error || action.error} />
-        {!feed.data?.isVerifiedIdentity &&
-          feed.data?.kycStatus !== "pending" && (
+        {feed.loading && <ActivityIndicator color={C.ink} />}
+        {feed.data && !feed.data.isVerifiedIdentity &&
+          feed.data.kycStatus !== "pending" && (
             <View style={s.panel}>
               <Text style={s.h2}>Identity documents</Text>
               <Text style={s.muted}>
                 Upload clear identity documents. JPG, PNG or PDF, up to 5 MB
                 each; maximum 3 files.
               </Text>
-              <Button
-                title="Choose documents"
-                secondary
-                icon="cloud-upload"
+              <Pressable accessibilityRole="button" accessibilityLabel="Choose identity documents"
+                disabled={action.busy} style={s.uploadTarget}
                 onPress={() =>
                   action.run(async () => {
                     const result = await DocumentPicker.getDocumentAsync({
@@ -1023,33 +1455,14 @@ export function KycScreen() {
                     if (!result.canceled) setFiles(result.assets.slice(0, 3));
                   })
                 }
-              />
+              >
+                <View style={s.featureIcon}><Icon name="cloud-upload" size={24} /></View>
+                <Text style={s.cardTitle}>{files.length ? "Replace documents" : "Tap to upload documents"}</Text>
+                <Text style={s.muted}>JPG, PNG or PDF</Text>
+              </Pressable>
               {files.map((f) => (
-                <Text key={f.uri} style={s.muted}>
-                  {f.name}
-                </Text>
+                <View key={f.uri} style={s.documentRow}><Icon name="description" size={18} /><Text style={[s.body, { flex: 1 }]}>{f.name}</Text></View>
               ))}
-              <Button
-                title="Submit KYC for review"
-                disabled={action.busy || !files.length}
-                onPress={() =>
-                  action.run(async () => {
-                    const form = new FormData();
-                    for (const asset of files) {
-                      const prepared = await prepareUpload(asset, true);
-                      if (Platform.OS === "web")
-                        form.append("files", prepared.file, prepared.name);
-                      else form.append("files", prepared.file as any);
-                    }
-                    await api.post("/users/kyc", form, {
-                      headers: { "Content-Type": "multipart/form-data" },
-                      timeout: 120000,
-                    });
-                    setFiles([]);
-                    await feed.refresh();
-                  })
-                }
-              />
             </View>
           )}
         {feed.data?.isVerifiedIdentity && (
@@ -1076,10 +1489,14 @@ export function PropertyDetailScreen() {
     router = useRouter(),
     gate = useGate(),
     feed = useData(id ? `/properties/${id}` : null),
+    [galleryIndex, setGalleryIndex] = useState(0),
     [amount, setAmount] = useState(""),
     [message, setMessage] = useState("I am interested in this property."),
     action = useAction(),
     p = feed.data;
+  const userId = useAuthStore((state) => state.user?.id);
+  const wishlist = useData(userId && id ? `/users/wishlist/${id}` : null, [userId]);
+  const saved = Boolean(wishlist.data?.isWishlisted);
   useEffect(() => {
     if (id)
       void api
@@ -1109,9 +1526,24 @@ export function PropertyDetailScreen() {
         params: { inquiryId: conversation._id },
       } as any);
     });
+  const photos: string[] = p?.media?.photos || [];
+  const activePhoto = Math.min(galleryIndex, Math.max(0, photos.length - 1));
+  const checks = [
+    ["identityVerified", "Owner identity verified"],
+    ["documentsChecked", "Property documents checked"],
+    ["siteVisited", "Site visit completed"],
+    ["lawyerReviewed", "Reviewed by a lawyer"],
+  ].filter(([key]) => p?.badges?.[key]);
   return (
-    <MarketplaceShell title="Property details" back>
-      <ErrorBox text={feed.error || action.error} />
+    <MarketplaceShell title="Property details" back showDock={false}
+      footer={p && (
+        <View style={s.between}>
+          <Text style={s.price}>{money(p.price)}</Text>
+          <Button title="Chat with assigned staff" icon="chat-bubble-outline" disabled={action.busy} onPress={() => contact()} />
+        </View>
+      )}
+    >
+      <ErrorBox text={feed.error || action.error || wishlist.error} />
       {feed.loading && <ActivityIndicator />}
       {p && (
         <>
@@ -1121,9 +1553,9 @@ export function PropertyDetailScreen() {
               { height: 340, borderRadius: 24, overflow: "hidden" },
             ]}
           >
-            {p.media?.photos?.[0] ? (
-              <Image
-                source={{ uri: p.media.photos[0] }}
+            {photos.length ? (
+              <PropertyImage isPublic
+                source={{ uri: photos[activePhoto] }}
                 style={StyleSheet.absoluteFill}
               />
             ) : (
@@ -1131,23 +1563,44 @@ export function PropertyDetailScreen() {
                 <Icon name="home-work" size={70} />
               </View>
             )}
+            {photos.length > 0 && <Text style={s.photoCounter}>{activePhoto + 1} / {photos.length} photos</Text>}
             <View style={s.imageTags}>
               <Tag green>✓ Verified property</Tag>
             </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={saved ? "Remove from wishlist" : "Save property"}
+              accessibilityState={{ selected: saved }}
+              disabled={action.busy || wishlist.loading}
+              style={[s.heartBtn, s.gallerySave, saved && { backgroundColor: C.sun }]}
+              onPress={() => {
+                if (!gate() || typeof id !== "string") return;
+                void action.run(async () => {
+                  const result = await userService.toggleWishlist(id);
+                  wishlist.setData(result);
+                  if (result.isWishlisted) {
+                    void api.post(`/recommendations/${id}/activity`, { kind: "save" }).catch(() => {});
+                  }
+                });
+              }}
+            >
+              <Icon name={saved ? "favorite" : "favorite-border"} size={19} />
+            </Pressable>
           </View>
-          {p.media?.photos?.length > 1 && (
-            <ScrollView horizontal contentContainerStyle={{ gap: 8 }}>
-              {p.media.photos.slice(1).map((uri: string) => (
-                <Image
-                  key={uri}
-                  source={{ uri }}
-                  style={{ width: 180, height: 120, borderRadius: 14 }}
-                />
+          {photos.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {photos.map((uri, index) => (
+                <Pressable key={`${uri}-${index}`} accessibilityRole="button"
+                  accessibilityLabel={`View photo ${index + 1}`}
+                  accessibilityState={{ selected: index === activePhoto }}
+                  onPress={() => setGalleryIndex(index)} style={[s.galleryThumb, index === activePhoto && { borderColor: C.sun }]}>
+                  <PropertyImage isPublic source={{ uri }} style={StyleSheet.absoluteFill} />
+                </Pressable>
               ))}
             </ScrollView>
           )}
           <View style={s.panel}>
-            <Text style={[s.price, { fontSize: 32 }]}>{money(p.price)}</Text>
+            <Text style={[s.price, { fontSize: 22, lineHeight: 28 }]}>{money(p.price)}</Text>
             <Text style={s.h1}>{label(p)}</Text>
             <Text style={s.muted}>
               ⌖ {p.location?.district}, {p.location?.state}
@@ -1158,8 +1611,14 @@ export function PropertyDetailScreen() {
               <Tag>{p.negotiable ? "Negotiable" : "Fixed price"}</Tag>
             </View>
           </View>
+          {checks.length > 0 && <View style={[s.panel, s.kycSummary]}>
+            <Text style={s.h2}>Why you can trust this listing</Text>
+            {checks.map(([key, title]) => (
+              <View key={key} style={s.row}><Icon name="check-circle" size={19} color={C.green} /><Text style={s.body}>{title}</Text></View>
+            ))}
+          </View>}
           <View style={s.panel}>
-            <Text style={s.h2}>Overview & specifications</Text>
+            <Text style={s.h2}>About this property</Text>
             <View style={s.wrap}>
               {[
                 ["Total area", `${p.totalArea} sq ft`],
@@ -1195,15 +1654,10 @@ export function PropertyDetailScreen() {
                 </Text>
               </View>
             </View>
-            <Button
-              title="Chat with assigned staff"
-              icon="chat-bubble-outline"
-              disabled={action.busy}
-              onPress={() => contact()}
-            />
           </View>
-          <View style={s.map}>
-            <VerifiedPropertyMap properties={[p]} onSelect={() => {}} />
+          <View style={s.panel}>
+            <Text style={s.h2}>Location</Text>
+            <View style={s.map}><VerifiedPropertyMap properties={[p]} onSelect={() => {}} /></View>
           </View>
           <View style={s.panel}>
             <Text style={s.h2}>Make an offer</Text>
@@ -1234,13 +1688,43 @@ export function PropertyDetailScreen() {
     </MarketplaceShell>
   );
 }
+function formatChatLocationPart(value: unknown) {
+  return typeof value === "string"
+    ? value.trim().toLocaleLowerCase().replace(/(^|[\s-])\p{L}/gu, start => start.toLocaleUpperCase())
+    : "";
+}
+
+function ChatBubble({ mine, text, createdAt, offer, sending, recipientReadAt }: {
+  mine: boolean; text: string; createdAt?: string; offer?: number; sending?: boolean; recipientReadAt?: string;
+}) {
+  const read = Boolean(createdAt && recipientReadAt &&
+    Date.parse(recipientReadAt) >= Date.parse(createdAt));
+  return <View style={[s.bubble, mine ? s.mine : s.theirs]}>
+    <Text style={s.chatMessage} selectable>{text}</Text>
+    {Boolean(offer) && <Text style={s.cardTitle}>Offer: {money(offer!)}</Text>}
+    {(sending || createdAt) && <View style={s.chatMetadata}>
+      <Text style={s.chatTime}>
+        {sending ? "Sending…" : new Date(createdAt!).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+      </Text>
+      {mine && !sending && <View accessible accessibilityLabel={read ? "Read" : "Sent"}>
+        <Icon name={read ? "done-all" : "done"} size={15} color={read ? "#1766C2" : C.muted} />
+      </View>}
+    </View>}
+  </View>;
+}
+
 export function ChatsScreen() {
+  const { width } = useWindowDimensions();
+  const houseWidth = Math.min(194, Math.max(0, width - 40) * 0.42);
   const user = useAuthStore((x) => x.user),
     router = useRouter(),
     params = useLocalSearchParams(),
-    [selected, setSelected] = useState(String(params.inquiryId || "")),
+    [selectedInquiry, setSelected] = useState(String(params.inquiryId || "")),
+    selected = user ? selectedInquiry : "",
     [text, setText] = useState(""),
-    feed = useData(user ? "/inquiries" : null, [user?.id]),
+    [query, setQuery] = useState(""),
+    [unreadOnly, setUnreadOnly] = useState(false),
+    feed = useData(user ? "/inquiries?sort=activity" : null, [user?.id], undefined, true),
     chat = useData(user && selected ? `/inquiries/${selected}` : null, [
       user?.id,
     ]),
@@ -1249,62 +1733,341 @@ export function ChatsScreen() {
       [user?.id],
     ),
     action = useAction();
+  const insets = useSafeAreaInsets();
+  const transcript = useRef<ScrollViewInstance>(null);
+  const scrollState = useRef({ nearEnd: true, height: 0, viewport: 0, offset: 0, restore: 0, restoring: false, dragging: false });
+  const scrollFrame = useRef<number | null>(null);
+  const userScrolling = useRef(false);
+  const composerFocused = useRef(false);
+  const historyRequest = useRef<string | null>(null);
+  const activeConversation = useRef(selected);
+  const sendLock = useRef(false);
+  const [pending, setPending] = useState<{ conversation: string; text: string }>();
+  const [sent, setSent] = useState<{ conversation: string; messages: any[] }>();
+  const [history, setHistory] = useState<{ conversation: string; messages: any[]; nextBefore: number | null }>();
+  const [sendErrorConversation, setSendErrorConversation] = useState<string>();
+  const scrollToLatest = useCallback(() => {
+    scrollState.current.nearEnd = true;
+    scrollState.current.restoring = false;
+    userScrolling.current = false;
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = null;
+      const { height, viewport } = scrollState.current;
+      if (viewport > 0) {
+        transcript.current?.scrollTo({ y: Math.max(0, height - viewport), animated: false });
+      }
+    });
+  }, []);
   useEffect(() => {
-    if (params.inquiryId) setSelected(String(params.inquiryId));
-  }, [params.inquiryId]);
+    activeConversation.current = selected;
+    scrollState.current = { nearEnd: true, height: 0, viewport: 0, offset: 0, restore: 0, restoring: false, dragging: false };
+    composerFocused.current = false;
+    if (selected) scrollToLatest();
+    return () => {
+      if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+      scrollFrame.current = null;
+    };
+  }, [selected, scrollToLatest]);
   useEffect(() => {
-    if (!selected || !user) return;
+    if (!selected) return;
+    const shown = Keyboard.addListener("keyboardDidShow", () => {
+      if (composerFocused.current) scrollToLatest();
+    });
+    return () => shown.remove();
+  }, [selected, scrollToLatest]);
+  const [previousInquiry, setPreviousInquiry] = useState(params.inquiryId);
+  if (params.inquiryId !== previousInquiry) { setPreviousInquiry(params.inquiryId); if (params.inquiryId) setSelected(String(params.inquiryId)); }
+  const refreshMessages = messages.refresh;
+  const refreshFeed = feed.refresh;
+  const userId = user?.id;
+  const chatFocused = useIsFocused();
+  const chatRevision = useNotificationStore(state => state.chatRevision);
+  const handledChatRevision = useRef(chatRevision);
+  const [appActive, setAppActive] = useState(() => AppState.currentState === "active" || AppState.currentState == null);
+  const acknowledgedReceipt = useRef("");
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", state => {
+      setAppActive(state === "active");
+      if (state === "active" && userId && chatFocused && !selected) void refreshFeed();
+    });
+    return () => subscription.remove();
+  }, [userId, chatFocused, selected, refreshFeed]);
+  useEffect(() => {
+    if (handledChatRevision.current === chatRevision) return;
+    handledChatRevision.current = chatRevision;
+    if (!userId || !chatFocused || !appActive) return;
+    const timer = setTimeout(selected ? refreshMessages : refreshFeed, 750);
+    return () => clearTimeout(timer);
+  }, [chatRevision, userId, chatFocused, appActive, selected, refreshMessages, refreshFeed]);
+  useEffect(() => {
+    if (!userId || !chatFocused || !appActive) return;
     const timer = setInterval(() => {
-      void messages.refresh();
-      void chat.refresh();
-    }, 7000);
+      void (selected ? refreshMessages() : refreshFeed());
+    }, (selected ? 15_000 : 30_000) + Math.round(Math.random() * 4_000));
     return () => clearInterval(timer);
-  }, [selected, user?.id, messages.refresh, chat.refresh]);
+  }, [selected, userId, chatFocused, appActive, refreshMessages, refreshFeed]);
   useEffect(() => {
-    if (chat.data && messages.data) {
-      const latest =
-        messages.data.messages?.at(-1)?.createdAt || chat.data.createdAt;
-      if (latest)
-        void api
-          .post(`/inquiries/${selected}/read`, { through: latest })
-          .catch(() => {});
+    if (selected && userId && chatFocused && appActive && chat.data && messages.data) {
+      const viewingAsBuyer = identity(chat.data.buyerId) === userId;
+      const incoming = messages.data.messages?.slice().reverse().find((message: any) => identity(message.senderId) !== userId);
+      const latest = incoming?.createdAt || (!viewingAsBuyer ? chat.data.createdAt : undefined);
+      const ownReadAt = messages.data.ownReadAt;
+      if (!latest || (ownReadAt && Date.parse(ownReadAt) >= Date.parse(latest))) return;
+      const receipt = `${userId}:${selected}:${latest}`;
+      if (acknowledgedReceipt.current === receipt) return;
+      acknowledgedReceipt.current = receipt;
+      void api.post(`/inquiries/${selected}/read`, { through: latest }).catch(() => {
+        if (acknowledgedReceipt.current === receipt) acknowledgedReceipt.current = "";
+      });
     }
-  }, [messages.data, chat.data?.createdAt]);
+  }, [messages.data, chat.data, selected, userId, chatFocused, appActive]);
   const c = chat.data,
     other = c && (identity(c.buyerId) === user?.id ? c.staffId : c.buyerId);
+  const recipientReadAt = messages.data?.recipientReadAt !== undefined
+    ? messages.data.recipientReadAt : c && (identity(c.buyerId) === userId ? c.staffReadAt : c.buyerReadAt);
+  const visibleChatError = selected
+    ? [chat, messages].find(request => request.error && (request.error !== chatBusyMessage || !request.data))?.error || action.error
+    : feed.error === chatBusyMessage && feed.data ? "" : feed.error;
+  const participantName = other?.name?.trim();
+  const isOffer = Boolean(c?.dealId) || typeof c?.offerAmount === "number";
+  const propertyTitle = formatChatLocationPart(c?.propertyId?.title);
+  const participantInitials = participantName?.split(/\s+/).slice(0, 2)
+    .map((part: string) => Array.from(part)[0]).join("").toLocaleUpperCase();
+  const sending = pending?.conversation === selected;
+  const sendFailed = sendErrorConversation === selected;
+  const cannotSend = Boolean(pending) || !text.trim();
+  const sentInConversation = sent?.conversation === selected ? sent?.messages ?? [] : [];
+  const serverMessages = messages.data?.messages ?? [];
+  const recentMessages = [...serverMessages, ...sentInConversation.filter(message =>
+    !serverMessages.some((row: any) => row._id === message._id) &&
+    (!serverMessages.length || message.createdAt >= serverMessages[serverMessages.length - 1].createdAt))];
+  const loadedHistory = history?.conversation === selected ? history : undefined;
+  const nextBefore = loadedHistory ? loadedHistory.nextBefore : messages.data?.nextBefore;
+  const displayedMessages = loadedHistory
+    ? Array.from(new Map([...loadedHistory.messages, ...recentMessages].map(message => [message._id, message])).values())
+    : recentMessages;
+  async function loadEarlier() {
+    if (!selected || nextBefore == null || historyRequest.current) return;
+    const request = `${selected}:${nextBefore}`;
+    historyRequest.current = request;
+    try {
+      await action.run(async () => {
+        const { data: older } = await readChat(`/inquiries/${selected}/messages?before=${encodeURIComponent(nextBefore)}`);
+        if (activeConversation.current !== selected) return;
+        const state = scrollState.current;
+        if (!state.nearEnd) {
+          state.restore = state.offset;
+          state.restoring = true;
+        }
+        setHistory({
+          conversation: selected,
+          messages: [...older.messages, ...displayedMessages],
+          nextBefore: older.nextBefore === nextBefore ? null : older.nextBefore,
+        });
+      });
+    } finally {
+      if (historyRequest.current === request) historyRequest.current = null;
+    }
+  }
+  function closeConversation() {
+    setSelected("");
+    setText("");
+    setHistory(undefined);
+    setSendErrorConversation(undefined);
+    void feed.refresh();
+  }
+  async function sendMessage() {
+    const draft = text;
+    const content = draft.trim();
+    if (!selected || !content || sendLock.current) return;
+    sendLock.current = true;
+    setSendErrorConversation(undefined);
+    setPending({ conversation: selected, text: content });
+    scrollToLatest();
+    try {
+      const { data } = await api.post(`/inquiries/${selected}/message`, { text: content });
+      if (activeConversation.current !== selected) return;
+      const saved = data.messages?.at(-1);
+      if (saved?._id) {
+        setSent(current => ({ conversation: selected,
+          messages: [...(current?.conversation === selected ? current.messages : []), saved].slice(-6) }));
+      }
+      setText(current => current === draft ? "" : current);
+      void refreshMessages();
+    } catch {
+      if (activeConversation.current === selected) setSendErrorConversation(selected);
+    } finally {
+      sendLock.current = false;
+      setPending(undefined);
+    }
+  }
+  const search = query.trim().toLocaleLowerCase();
+  const threads = (feed.data || []).filter((thread: any) => {
+    if (unreadOnly && !thread.unread) return false;
+    const participant = identity(thread.buyerId) === user?.id ? thread.staffId : thread.buyerId;
+    return !search || [participant?.name, thread.propertyId?.title, thread.messages?.at(-1)?.text || thread.message]
+      .some(value => typeof value === "string" && value.toLocaleLowerCase().includes(search));
+  });
   return (
     <MarketplaceShell
-      title={selected ? "Property conversation" : "Conversations"}
-      subtitle="Private conversations with your assigned Advisor or Verifier."
+      matchedHero={!selected}
       back
+      showDock={!selected}
+      dockArtwork={Boolean(user)}
+      fixedHeader={selected ? (
+        <View style={[s.conversationHeader, { paddingTop: insets.top + 6 }]}>
+          <View style={s.conversationHeaderRow}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Back to messages" style={s.conversationBack} onPress={closeConversation}>
+              <Icon name="arrow-back" size={20} color="#fff" />
+            </Pressable>
+            <View style={s.chatIdentityCard}>
+              <View style={s.chatIdentityIcon} accessible={false}>
+                {participantInitials ? <Text style={s.chatIdentityInitials}>{participantInitials}</Text> :
+                  <Icon name="chat-bubble-outline" size={18} color={C.ink} />}
+              </View>
+              <View style={s.chatIdentityDetails}>
+                <View style={s.chatIdentityNameRow}>
+                  <Text accessibilityRole="header" style={s.chatIdentityName} numberOfLines={1} ellipsizeMode="tail">
+                    {participantName || "Property conversation"}
+                  </Text>
+                  {c && <View style={[s.chatCategory, isOffer && s.chatOffer]}>
+                    <Text style={[s.chatCategoryText, isOffer && s.chatOfferText]}>{isOffer ? "Offer" : "Enquiry"}</Text>
+                  </View>}
+                </View>
+                {propertyTitle ? (
+                  <View style={s.chatIdentityListing}>
+                    <Icon name="home-work" size={13} color={C.sun} />
+                    <Text style={s.chatIdentityProperty} numberOfLines={1}>{propertyTitle}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+            <NotificationBell />
+          </View>
+        </View>
+      ) : undefined}
+      transcriptRef={selected ? transcript : undefined}
+      transcriptEvents={selected ? {
+        onLayout: ({ nativeEvent }) => {
+          const state = scrollState.current;
+          const viewport = nativeEvent.layout.height;
+          const shrankWhileTyping = composerFocused.current && viewport < state.viewport;
+          state.viewport = viewport;
+          if (state.nearEnd || shrankWhileTyping) scrollToLatest();
+          if (state.height > 0 && state.height <= viewport) void loadEarlier();
+        },
+        onScrollBeginDrag: () => {
+          userScrolling.current = true;
+          if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+          scrollFrame.current = null;
+          scrollState.current.dragging = true;
+          if (scrollState.current.offset < 48) void loadEarlier();
+        },
+        onScroll: ({ nativeEvent }) => {
+          const state = scrollState.current;
+          state.offset = nativeEvent.contentOffset.y;
+          if (userScrolling.current) {
+            state.nearEnd = nativeEvent.contentSize.height - nativeEvent.layoutMeasurement.height - state.offset < 56;
+          }
+          if (state.dragging && state.offset < 48) {
+            state.dragging = false;
+            void loadEarlier();
+          }
+        },
+        onContentSizeChange: (_width, height) => {
+          const state = scrollState.current;
+          const previousHeight = state.height;
+          state.height = height;
+          if (state.restoring) {
+            transcript.current?.scrollTo({ y: state.restore + Math.max(0, height - previousHeight), animated: false });
+            state.restoring = false;
+          } else if (state.nearEnd) scrollToLatest();
+          if (state.viewport > 0 && height <= state.viewport) void loadEarlier();
+        },
+      } : undefined}
+      backgroundArtwork={selected && c ? (
+        <View pointerEvents="none" accessible={false} accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants" style={s.conversationWatermark}>
+          <Image source={require("../assets/images/conversation_watermark.png")}
+            resizeMode="contain" style={s.conversationWatermarkImage} />
+        </View>
+      ) : undefined}
+      scrollFooter={!user ? bottomExtension => (
+        <AccountArtworkFooter wavesOnly bottomExtension={bottomExtension} hideWhileTyping={false}
+          illustration={<View style={s.watermarkFrame} aria-hidden pointerEvents="none">
+            <Image source={require("../assets/images/messages_watermark.png")}
+              style={s.watermarkImage} resizeMode="contain" accessible={false} />
+          </View>}
+        />
+      ) : undefined}
+      footerStyle={selected ? s.chatFooter : undefined}
+      footer={selected && c && c.propertyId?.status !== "sold" ? (
+        <View style={s.chatComposerArea}>
+          {sendFailed && <Text accessibilityRole="alert" style={s.chatSendError}>Couldn’t send your message. Your draft is still here.</Text>}
+          <View style={[s.row, s.chatComposer]}>
+          <TextInput
+            accessibilityLabel="Message"
+            value={text}
+            onChangeText={value => { setText(value); if (sendFailed) setSendErrorConversation(undefined); }}
+            onFocus={() => {
+              composerFocused.current = true;
+              scrollToLatest();
+            }}
+            onBlur={() => {
+              composerFocused.current = false;
+            }}
+            style={s.chatInput}
+            placeholder="Write a message…"
+            placeholderTextColor={C.muted}
+            multiline
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
+            accessibilityState={{ disabled: cannotSend, busy: sending }}
+            disabled={cannotSend}
+            style={({ pressed }) => [s.chatSend, (cannotSend || pressed) && s.chatSendDimmed]}
+            onPress={() => void sendMessage()}
+          >
+            {sending ? <ActivityIndicator size="small" color={C.ink} /> : <Icon name="send" size={20} color={C.ink} />}
+          </Pressable>
+          </View>
+        </View>
+      ) : undefined}
+      headerContent={!selected ? (
+        <>
+          <View style={s.messagesHeroIntro}>
+            <View style={s.messagesHeroCopy}>
+              <Text accessibilityRole="header" style={s.heroTitle}>Messages</Text>
+              <Text style={s.messagesHeroSubtitle} numberOfLines={2}>Track property enquiries and replies.</Text>
+            </View>
+            <Image source={require("../assets/images/messages_header_house.png")}
+              resizeMode="contain" accessible={false}
+              style={[s.messagesHeroHouse, { width: houseWidth, height: houseWidth * (897 / 1754) }]} />
+          </View>
+          {user && <View style={s.messagesHeroSearch}>
+            <Icon name="search" size={20} color={C.ink} />
+            <TextInput accessibilityLabel="Search chats, people or properties" placeholder="Search chats, people or properties"
+              placeholderTextColor={C.muted} value={query} onChangeText={setQuery}
+              style={s.messagesHeroSearchInput} />
+          </View>}
+        </>
+      ) : undefined}
     >
-      <Protected>
+      <Protected guest={{
+        title: "Pick up the conversation",
+        text: "Sign in to read replies and follow up with your property team.",
+        icon: "chat-bubble-outline",
+      }}>
         <ErrorBox
-          text={feed.error || chat.error || messages.error || action.error}
+          text={visibleChatError}
         />
         {selected ? (
           <>
-            <Button
-              title="All conversations"
-              secondary
-              onPress={() => setSelected("")}
-            />
+            {!c && !chat.error && <ActivityIndicator color={C.ink} />}
             {c && (
               <>
-                <View style={[s.panel, s.row]}>
-                  <View style={s.avatar}>
-                    <Text style={s.avatarText}>{other?.name?.[0] || "A"}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.h2}>{other?.name || "Assigned staff"}</Text>
-                    <Text style={s.small}>
-                      {c.propertyId?.title || "Property conversation"}
-                    </Text>
-                  </View>
-                  <Tag green>
-                    {c.propertyId?.status === "sold" ? "Sold" : c.status}
-                  </Tag>
-                </View>
                 {c.dealId && (
                   <Button
                     title="View offer & deal"
@@ -1315,129 +2078,86 @@ export function ChatsScreen() {
                   />
                 )}
                 <View style={s.chatArea}>
-                  <View
-                    style={[
-                      s.bubble,
-                      identity(c.buyerId) === user?.id ? s.mine : s.theirs,
-                    ]}
-                  >
-                    <Text style={s.body}>{c.message}</Text>
-                    {c.offerAmount && (
-                      <Text style={s.cardTitle}>
-                        Offer: {money(c.offerAmount)}
-                      </Text>
-                    )}
-                  </View>
-                  {messages.data?.nextBefore != null && (
-                    <Button
-                      secondary
-                      title="Load earlier messages"
-                      onPress={() =>
-                        action.run(async () => {
-                          const older = (
-                            await api.get(`/inquiries/${selected}/messages`, {
-                              params: { before: messages.data.nextBefore },
-                            })
-                          ).data;
-                          messages.setData({
-                            messages: [
-                              ...older.messages,
-                              ...messages.data.messages,
-                            ],
-                            nextBefore: older.nextBefore,
-                          });
-                        })
-                      }
-                    />
-                  )}
-                  {messages.data?.messages?.map((m: any, i: number) => (
-                    <View
-                      key={m._id || i}
-                      style={[
-                        s.bubble,
-                        identity(m.senderId) === user?.id ? s.mine : s.theirs,
-                      ]}
-                    >
-                      <Text style={s.body}>{m.text}</Text>
-                      <Text style={s.small}>
-                        {new Date(m.createdAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </Text>
-                    </View>
+                  {messages.data && nextBefore == null && <ChatBubble mine={identity(c.buyerId) === user?.id} text={c.message}
+                    createdAt={c.createdAt} offer={c.offerAmount} recipientReadAt={recipientReadAt} />}
+                  {displayedMessages.map((m: any, i: number) => (
+                    <ChatBubble key={m._id || i} mine={identity(m.senderId) === user?.id}
+                      text={m.text} createdAt={m.createdAt} recipientReadAt={recipientReadAt} />
                   ))}
+                  {sending && <ChatBubble mine text={pending.text} sending />}
                 </View>
-                {c.propertyId?.status === "sold" ? (
-                  <Tag>This property is sold. Conversation is read-only.</Tag>
-                ) : (
-                  <View style={s.row}>
-                    <TextInput
-                      accessibilityLabel="Message"
-                      value={text}
-                      onChangeText={setText}
-                      style={[s.input, { flex: 1 }]}
-                      placeholder="Write a message…"
-                      multiline
-                    />
-                    <Button
-                      title="Send"
-                      icon="send"
-                      disabled={action.busy || !text.trim()}
-                      onPress={() =>
-                        action.run(async () => {
-                          await api.post(`/inquiries/${selected}/message`, {
-                            text,
-                          });
-                          setText("");
-                          await messages.refresh();
-                        })
-                      }
-                    />
-                  </View>
-                )}
+                {c.propertyId?.status === "sold" && <Tag>This property is sold. Conversation is read-only.</Tag>}
               </>
             )}
           </>
         ) : (
           <>
-            {feed.loading && <ActivityIndicator />}
-            {feed.data?.map((c: any) => {
-              const staff = identity(c.buyerId) === user?.id,
-                other = staff ? c.staffId : c.buyerId;
+            {!feed.data && feed.loading && <ActivityIndicator />}
+            <View style={s.wrap}>
+              <Button title="All" secondary={unreadOnly} onPress={() => setUnreadOnly(false)} />
+              <Button title="Unread" secondary={!unreadOnly} onPress={() => setUnreadOnly(true)} />
+            </View>
+            {threads.map((c: any) => {
+              const viewingAsBuyer = identity(c.buyerId) === user?.id;
+              const participant = viewingAsBuyer ? c.staffId : c.buyerId;
+              const role = !viewingAsBuyer ? "Buyer" : participant?.role === "advisor" ? "Advisor"
+                : participant?.role === "verifier" ? "Verifier" : "Property team";
+              const name: string = typeof participant?.name === "string" && participant.name.trim()
+                ? participant.name.trim() : "Property team";
+              const lastMessage = c.messages?.at(-1);
+              const timestamp = lastMessage?.createdAt || c.createdAt;
+              const location = c.propertyId?.location;
+              const address = [location?.block, location?.district].map(formatChatLocationPart);
+              const listing = [formatChatLocationPart(c.propertyId?.title), ...new Set(address)].filter(Boolean).join(" · ");
+              const unreadCount = c.unreadCount;
               return (
                 <Pressable
                   key={c._id}
-                  onPress={() => setSelected(c._id)}
-                  style={[s.panel, s.row]}
+                  accessibilityRole="button"
+                  accessibilityHint={unreadCount > 0 ? `${unreadCount} unread messages` : c.unread ? "Unread conversation" : undefined}
+                  onPress={() => { setSelected(c._id); setText(""); }}
+                  style={({ pressed }) => [s.threadCard, pressed && { opacity: 0.78 }]}
                 >
-                  <View style={s.avatar}>
-                    <Text style={s.avatarText}>{other?.name?.[0] || "A"}</Text>
-                  </View>
-                  <View style={{ flex: 1, gap: 5 }}>
-                    <View style={s.between}>
-                      <Text style={s.cardTitle}>
-                        {other?.name || "Property team"}
-                      </Text>
-                      <Tag green>{staff ? "Assigned staff" : "Buyer"}</Tag>
+                  <View style={s.threadAvatarColumn}>
+                    <View style={s.threadAvatar}>
+                      <Text style={s.threadAvatarText}>{Array.from(name)[0]?.toLocaleUpperCase()}</Text>
+                      {c.unread && <View style={s.threadUnreadDot} />}
                     </View>
-                    <Text style={s.muted} numberOfLines={2}>
-                      {c.messages?.at(-1)?.text || c.message}
-                    </Text>
-                    <Text style={s.small}>{c.propertyId?.title}</Text>
                   </View>
-                  {c.unread && <View style={s.dot} />}
+                  <View style={s.threadCopy}>
+                    <View style={s.threadNameRow}>
+                      <Text style={s.threadName} numberOfLines={1}>{name}</Text>
+                      <View style={s.threadRole}><Text style={s.threadRoleText}>{role}</Text></View>
+                    </View>
+                    {listing ? <View style={s.threadListing}>
+                      <Icon name="home" size={15} color={C.muted} />
+                      <Text style={s.threadListingText} numberOfLines={1}>{listing}</Text>
+                    </View> : null}
+                    <Text style={s.threadPreview} numberOfLines={1}>
+                      {lastMessage?.text || c.message}
+                    </Text>
+                  </View>
+                  <View style={s.threadMeta}>
+                      {timestamp ? <Text style={s.threadTime}>
+                        {new Date(timestamp).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+                      </Text> : null}
+                    {c.unread && <View style={unreadCount > 0 ? s.threadCount : s.threadCountDot}>
+                      {unreadCount > 0 && <Text style={s.threadCountText}>{unreadCount > 99 ? "99+" : unreadCount}</Text>}
+                    </View>}
+                  </View>
+                  <Icon name="chevron-right" size={19} color={C.ink} />
                 </Pressable>
               );
             })}
-            {feed.nextCursor && (
+            {Boolean(feed.nextCursor) && (
               <Button
-                title="Load more properties"
+                title="Load more conversations"
                 secondary
                 disabled={feed.loading}
                 onPress={feed.loadMore}
               />
             )}
+            {feed.data?.length > 0 && threads.length === 0 && <Empty title="No matching conversations" text="Try another search or filter." />}
             {feed.data?.length === 0 && (
               <Empty
                 title="Start a conversation"
@@ -1589,22 +2309,42 @@ export function DealScreen() {
     </MarketplaceShell>
   );
 }
+function PostSection({ number, title, children }: { number?: number; title: string; children: React.ReactNode }) {
+  return (
+    <View style={[s.panel, s.postSection]}>
+      <View style={s.row}>
+        {number != null && <View style={s.postSectionNumber}><Text style={s.postSectionNumberText}>{number}</Text></View>}
+        <Text accessibilityRole="header" style={[s.h2, { flex: 1 }]}>{title}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
+
+const postDocumentOptions = [
+  { type: "Registry", title: "Sale deed / title document", subtitle: "Optional · PDF, JPG or PNG" },
+  { type: "Utility or Tax Bill", title: "Electricity or tax bill", subtitle: "Optional · Supporting proof" },
+] as const;
+type PostDocumentType = (typeof postDocumentOptions)[number]["type"];
+type PostDocument = { asset: DocumentPicker.DocumentPickerAsset; type: PostDocumentType };
+
 export function PostScreen() {
   const router = useRouter(),
     params = useLocalSearchParams(),
     user = useAuthStore((x) => x.user),
     [draftId, setDraftId] = useState(String(params.id || "")),
+    [showCoordinates, setShowCoordinates] = useState(false),
+    [parcelFocus, setParcelFocus] = useState<MapFocus>(),
     [step, setStep] = useState(1),
     [done, setDone] = useState(false),
     [consent, setConsent] = useState(false),
     [points, setPoints] = useState<LatLngPoint[]>([]),
     [photos, setPhotos] = useState<DocumentPicker.DocumentPickerAsset[]>([]),
-    [documents, setDocuments] = useState<DocumentPicker.DocumentPickerAsset[]>(
-      [],
-    ),
+    [documents, setDocuments] = useState<PostDocument[]>([]),
     [form, setForm] = useState<any>({
       title: "",
       description: "",
+      streetAddress: "",
       type: "flat",
       state: "",
       district: "",
@@ -1631,17 +2371,24 @@ export function PostScreen() {
   const onParcelChange = useCallback((next: LatLngPoint[]) => {
     setPoints(next);
     if (next.length) {
-      setForm((f: any) => ({
+      setForm((f: any) => f.lat && f.lng ? f : ({
         ...f,
         lat: String(next[0].lat),
         lng: String(next[0].lng),
       }));
     }
   }, []);
+  const setPropertyLocation = useCallback((point: MapPoint) => {
+    setForm((current: any) => ({ ...current, lat: String(point.lat), lng: String(point.lng) }));
+  }, []);
+  const formLocation = { lat: Number(form.lat), lng: Number(form.lng) };
+  const selectedLocation = form.lat?.trim() && form.lng?.trim() && validMapPoint(formLocation) ? formLocation : undefined;
 
+  const runAction = action.run;
+  const editorUserId = user?.id;
   useEffect(() => {
-    if (params.id && user)
-      void action.run(async () => {
+    if (params.id && editorUserId)
+      void runAction(async () => {
         const p = (await api.get(`/properties/${params.id}/workspace`)).data;
         if (p.parcelPoints && Array.isArray(p.parcelPoints)) {
           setPoints(p.parcelPoints);
@@ -1660,17 +2407,27 @@ export function PostScreen() {
           requestedAdvisorId: p.requestedAdvisorId || "",
         });
       });
-  }, [params.id, user?.id]);
-  const pick = async (doc = false) => {
+  }, [params.id, editorUserId, runAction]);
+  const pick = async (documentType?: PostDocumentType) => {
     const result = await DocumentPicker.getDocumentAsync({
-      type: doc
+      type: documentType
         ? ["application/pdf", "image/jpeg", "image/png"]
         : ["image/jpeg", "image/png", "image/webp"],
       multiple: true,
       copyToCacheDirectory: true,
     });
-    if (!result.canceled)
-      doc ? setDocuments(result.assets) : setPhotos(result.assets);
+    if (result.canceled) return;
+    if (documentType) {
+      setDocuments(current => [
+        ...current.filter(document => document.type !== documentType),
+        ...result.assets.map(asset => ({ asset, type: documentType })),
+      ]);
+      return;
+    }
+    setPhotos(current => {
+      const unique = new Map([...current, ...result.assets].map(asset => [asset.uri, asset]));
+      return [...unique.values()].slice(0, Math.max(0, 10 - (form.media?.photos?.length || 0)));
+    });
   };
   const uploadKeys = useRef(new Map<string, string>());
   const uploadKey = (uri: string) => {
@@ -1686,6 +2443,10 @@ export function PostScreen() {
       const payload = {
         title: form.title,
         description: form.description,
+        bedrooms: form.bedrooms,
+        bathrooms: form.bathrooms,
+        furnishing: form.furnishing,
+        streetAddress: form.streetAddress,
         type: form.type,
         location: {
           state: form.state,
@@ -1735,12 +2496,13 @@ export function PostScreen() {
         }));
         setPhotos((current) => current.filter((a) => a.uri !== asset.uri));
       }
-      for (const asset of documents) {
+      for (const document of documents) {
+        const { asset, type } = document;
         const prepared = await prepareUpload(asset, true),
           body = new FormData();
-        body.append("uploadId", uploadKey(asset.uri));
+        body.append("uploadId", uploadKey(`${type}:${asset.uri}`));
         body.append("propertyId", id);
-        body.append("type", "Registry");
+        body.append("type", type);
         if (Platform.OS === "web")
           body.append("file", prepared.file, prepared.name);
         else body.append("file", prepared.file as any);
@@ -1748,22 +2510,80 @@ export function PostScreen() {
           headers: { "Content-Type": "multipart/form-data" },
           timeout: 120000,
         });
-        setDocuments((current) => current.filter((a) => a.uri !== asset.uri));
+        setDocuments(current => current.filter(item => item !== document));
       }
       await api.post(`/properties/${id}/submit`, { consent: true });
       setDone(true);
     });
+  const canPost = Boolean(user && approved(user));
   return (
     <MarketplaceShell
-      title="Post Property"
+      title="Post property"
       subtitle={
         done
           ? "Your listing has been submitted"
-          : `Step ${step} of 5 · Private until verified`
+          : canPost
+            ? `Step ${step} of 5 · Private until verified`
+            : "Create a listing for your property on MalikSe."
       }
       back
+      showDock={!canPost || done}
+      scrollEnabled={canPost}
+      scrollFooter={!canPost ? () => (
+        <View style={s.postWatermarkFrame} aria-hidden pointerEvents="none">
+          <Image source={require("../assets/images/post_property_watermark.png")}
+            style={s.watermarkImage} resizeMode="contain" accessible={false} />
+        </View>
+      ) : undefined}
+      step={step}
+      footer={canPost && !done ? (
+      <View style={s.between}>
+        <Button
+          title="Back"
+          secondary
+          disabled={step === 1 || action.busy}
+          onPress={() => setStep(step - 1)}
+        />
+        <Button
+          title={
+            action.busy
+              ? "Submitting…"
+              : step === 5
+                ? "Submit for verification"
+                : "Continue →"
+          }
+          disabled={action.busy || (step === 5 && !consent)}
+          onPress={() => (step === 5 ? submit() : setStep(step + 1))}
+        />
+      </View>
+      ) : undefined}
+      headerContent={canPost && !done ? (
+        <View style={s.progress}>
+          {["Basics", "Location", "Details", "Uploads", "Review"].map((label, index) => {
+            const number = index + 1;
+            const complete = number < step;
+            const reached = number <= step;
+            return (
+              <React.Fragment key={label}>
+                {index > 0 && <View style={[s.progressLine, reached && { backgroundColor: C.sun }]} />}
+                <View style={s.progressStep} accessibilityLabel={complete ? `${label}, completed` : label} accessibilityState={{ selected: step === number }}>
+                  <View style={[s.progressCircle, reached && s.progressReached]}>
+                    {complete ? <Icon name="check" size={17} /> :
+                      <Text style={[s.progressNumber, reached && { color: C.ink }]}>{number}</Text>}
+                  </View>
+                  <Text style={[s.progressLabel, reached && { color: C.sun }]}>{label}</Text>
+                </View>
+              </React.Fragment>
+            );
+          })}
+        </View>
+      ) : undefined}
     >
-      <Protected kyc>
+      <Protected kyc guest={{
+        title: "Start your property listing",
+        text: "Sign in or create an account to add your property details and submit your listing for verification.",
+        icon: "real-estate-agent",
+      }}>
         {done ? (
           <Empty
             title="Submitted for review"
@@ -1777,154 +2597,156 @@ export function PostScreen() {
           />
         ) : (
           <>
-            <View style={s.progress}>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <View
-                  key={i}
-                  style={[
-                    s.progressPart,
-                    i <= step && { backgroundColor: C.blue },
-                  ]}
-                />
-              ))}
-            </View>
             <ErrorBox text={action.error} />
             {step === 1 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>What kind of property are you listing?</Text>
-                <View style={s.wrap}>
-                  {types
-                    .filter(([id]) => id)
-                    .map(([id, title, icon]) => (
-                      <Button
-                        key={id}
-                        title={title}
-                        icon={icon}
-                        secondary={form.type !== id}
-                        onPress={() => set("type")(id)}
-                      />
-                    ))}
+              <>
+              <PostSection number={1} title="What are you listing?">
+                <View style={s.postPurpose} accessibilityLabel="Listing purpose">
+                  <View accessible accessibilityLabel="Sell" accessibilityState={{ selected: true }}
+                    style={[s.postPurposeOption, s.postPurposeSelected]}>
+                    <Text style={s.postPurposeText}>Sell</Text>
+                  </View>
+                  <View accessible accessibilityLabel="Rent out, unavailable" accessibilityState={{ disabled: true }}
+                    style={s.postPurposeOption}>
+                    <Text style={s.postPurposeUnavailable}>Rent out</Text>
+                    <Text style={s.small}>Unavailable</Text>
+                  </View>
                 </View>
+                <View style={s.postTypeGrid}>
+                  {[
+                    { id: "flat", title: "Apartment", icon: "apartment" },
+                    { id: "house", title: "House", icon: "home" },
+                    { id: null, title: "Villa", icon: "park" },
+                    { id: "land", title: "Plot", icon: "map" },
+                    { id: "shop", title: "Commercial", icon: "people-outline" },
+                    { id: null, title: "PG / Room", icon: "hotel" },
+                  ].map(({ id, title, icon }) => {
+                      const disabled = id === null;
+                      const selected = !disabled && (form.type === id || (id === "shop" && form.type === "office"));
+                      return <Pressable
+                        key={title}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected, disabled }}
+                        disabled={disabled}
+                        style={[s.postTypeTile, selected && s.postTypeTileSelected]}
+                        onPress={() => {
+                          if (id && !selected) set("type")(id);
+                        }}
+                      >
+                        <Icon name={icon} color={selected ? C.sun : disabled ? C.muted : C.ink} size={26} />
+                        <Text style={[s.postTypeLabel, selected && { color: C.sun }, disabled && { color: C.muted }]}>{title}</Text>
+                        {disabled && <Text style={s.small}>Unavailable</Text>}
+                      </Pressable>;
+                    })}
+                </View>
+                {["shop", "office"].includes(form.type) && (
+                  <View style={s.wrap} accessibilityLabel="Commercial property type">
+                    <Button title="Shop" secondary={form.type !== "shop"} onPress={() => set("type")("shop")} />
+                    <Button title="Office" secondary={form.type !== "office"} onPress={() => set("type")("office")} />
+                  </View>
+                )}
+              </PostSection>
+              <PostSection number={2} title="Property details">
                 <Field
-                  title="Property title"
+                  title="Listing title"
+                  uppercaseLabel
                   value={form.title}
                   onChangeText={set("title")}
                 />
+                <View style={s.row}>
+                  <Field uppercaseLabel numeric title="Expected price (₹)" value={form.price} onChangeText={set("price")} />
+                  <Field uppercaseLabel numeric title="Area (sq ft)" value={form.totalArea} onChangeText={set("totalArea")} />
+                </View>
+                {["flat", "house"].includes(form.type) && <>
+                  {[["bedrooms", "Bedrooms"], ["bathrooms", "Bathrooms"]].map(([key, title]) => (
+                    <View key={key} style={[s.between, s.postCounter]}>
+                      <Text style={s.cardTitle}>{title}</Text>
+                      <View style={s.row}>
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Decrease ${key}`} disabled={!form[key]}
+                          style={s.postCounterButton} onPress={() => set(key)(Math.max(0, Number(form[key]) - 1))}>
+                          <Icon name="remove" size={18} />
+                        </Pressable>
+                        <Text style={s.postCounterValue}>{form[key] ?? "—"}</Text>
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Increase ${key}`} disabled={form[key] >= 99}
+                          style={[s.postCounterButton, s.postPurposeSelected]} onPress={() => set(key)(Math.min(99, (form[key] ?? 0) + 1))}>
+                          <Icon name="add" color={C.sun} size={18} />
+                        </Pressable>
+                      </View>
+                    </View>
+                  ))}
+                  <Text style={[s.fieldLabel, s.postFieldLabel]}>Furnishing</Text>
+                  <View style={s.wrap}>
+                    {["Unfurnished", "Semi-furnished", "Fully furnished"].map(label => {
+                      const value = label.toLowerCase();
+                      const selected = form.furnishing === value;
+                      return <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected }}
+                        onPress={() => set("furnishing")(value)}
+                        style={[s.typeChip, selected && s.postPurposeSelected]}>
+                        <Text style={[s.cardTitle, selected && { color: C.sun }]}>{label}</Text>
+                      </Pressable>;
+                    })}
+                  </View>
+                </>}
                 <Field
                   title="Description"
+                  uppercaseLabel
                   value={form.description}
                   onChangeText={set("description")}
                   multiline
                 />
-              </View>
+              </PostSection>
+              </>
             )}
             {step === 2 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Where is the property located?</Text>
-                {[
-                  ["state", "State"],
-                  ["district", "City / district"],
-                  ["block", "Locality"],
-                  ["pincode", "Pincode"],
-                ].map(([key, title]) => (
-                  <Field
-                    key={key}
-                    title={title}
-                    value={form[key]}
-                    onChangeText={set(key)}
-                  />
-                ))}
-                <Button
-                  secondary
-                  title="Use current location"
-                  icon="my-location"
-                  onPress={() =>
-                    action.run(async () => {
-                      const permission =
-                        await Location.requestForegroundPermissionsAsync();
-                      if (permission.status !== "granted")
-                        throw new Error(
-                          "Location permission denied. Enter coordinates manually.",
-                        );
-                      const location = await Location.getCurrentPositionAsync({
-                        accuracy: Location.Accuracy.High,
-                      });
-                      set("lat")(String(location.coords.latitude));
-                      set("lng")(String(location.coords.longitude));
-                    })
-                  }
-                />
-                <View style={s.row}>
-                  <Field
-                    title="Latitude"
-                    value={form.lat}
-                    onChangeText={set("lat")}
-                    numeric
-                  />
-                  <Field
-                    title="Longitude"
-                    value={form.lng}
-                    onChangeText={set("lng")}
-                    numeric
-                  />
-                </View>
-                <Text style={s.small}>
-                  Enter the property's coordinates if you are not currently at
-                  the site.
-                </Text>
-
-                <View style={{ marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.line }}>
-                  <Text style={s.h2}>Demarcate Property Boundary</Text>
-                  <Text style={s.muted}>
-                    Draw the boundary outline on the satellite map. Tap points around the plot corners to mark the perimeter.
-                  </Text>
-                  <View
-                    style={{
-                      minHeight: Platform.OS === "web" ? 520 : 440,
-                      borderRadius: 16,
-                      overflow: "hidden",
-                      marginVertical: 12,
-                      borderWidth: 1,
-                      borderColor: C.line,
-                    }}
-                  >
-                    <MapParcelPicker
-                      initialPoints={points}
-                      onParcelChange={onParcelChange}
-                      areaSqFt={form.totalArea || "2,400"}
-                    />
+              <>
+                <PostSection number={3} title="Location">
+                  <Text style={s.muted}>Add the property address and use the map to confirm its location.</Text>
+                  <Field uppercaseLabel title="Society / street address" value={form.streetAddress || ""} onChangeText={set("streetAddress")} />
+                  <View style={s.row}>
+                    <Field uppercaseLabel title="Locality" value={form.block} onChangeText={set("block")} />
+                    <Field uppercaseLabel numeric title="Pincode" value={form.pincode} onChangeText={set("pincode")} />
                   </View>
-                  <Field
-                    title="Boundary description (North / South / East / West)"
-                    value={form.boundary}
-                    onChangeText={set("boundary")}
-                    multiline
+                  <View style={s.row}>
+                    <Field uppercaseLabel title="State" value={form.state} onChangeText={set("state")} />
+                    <Field uppercaseLabel title="City / district" value={form.district} onChangeText={set("district")} />
+                  </View>
+                </PostSection>
+                <PostSection title="Map & boundary">
+                  <Text style={s.muted}>Search for the property area or use GPS if you’re on site.</Text>
+                  <Button secondary title="Use current location" icon="my-location" disabled={action.busy}
+                    onPress={() => action.run(async () => {
+                      const point = await currentMapLocation();
+                      setPropertyLocation(point);
+                      setParcelFocus({ ...point, zoom: 17 });
+                    })}
                   />
-                  <Field
-                    title="Road width in front of plot (feet)"
-                    value={form.roadWidth}
-                    onChangeText={set("roadWidth")}
-                    numeric
-                  />
-                </View>
-              </View>
+                  <MapParcelPicker initialPoints={points} onParcelChange={onParcelChange} areaSqFt={form.totalArea}
+                    locationFocus={parcelFocus} showLocate={false} onLocationSet={setPropertyLocation}
+                    selectedLocation={selectedLocation} initialSearch={form.pincode || form.district || ""} />
+                  {points.length > 0 && <Text style={s.small}>{points.length} {points.length === 1 ? "corner" : "corners"} marked</Text>}
+                  <Pressable accessibilityRole="button" accessibilityState={{ expanded: showCoordinates }}
+                    style={s.postCoordinates} onPress={() => setShowCoordinates(current => !current)}>
+                    <Icon name="place" size={20} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.cardTitle}>GPS coordinates</Text>
+                      <Text style={s.small}>{form.lat && form.lng ? "Location set · edit manually" : "Enter latitude and longitude manually"}</Text>
+                    </View>
+                    <Icon name={showCoordinates ? "expand-less" : "expand-more"} size={20} />
+                  </Pressable>
+                  {showCoordinates && (
+                    <View style={s.row}>
+                      <Field uppercaseLabel title="Latitude" value={form.lat} onChangeText={set("lat")} numeric />
+                      <Field uppercaseLabel title="Longitude" value={form.lng} onChangeText={set("lng")} numeric />
+                    </View>
+                  )}
+                  <Field uppercaseLabel title="Boundary notes (optional)" value={form.boundary} onChangeText={set("boundary")} multiline />
+                  <Field uppercaseLabel title="Road width (ft)" value={form.roadWidth} onChangeText={set("roadWidth")} numeric />
+                </PostSection>
+              </>
             )}
             {step === 3 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Set your price & area</Text>
-                {[
-                  ["price", "Expected price (₹)"],
-                  ["totalArea", "Total area (sq ft)"],
-                  ["sellableArea", "Sellable area (sq ft)"],
-                ].map(([key, title]) => (
-                  <Field
-                    numeric
-                    key={key}
-                    title={title}
-                    value={form[key]}
-                    onChangeText={set(key)}
-                  />
-                ))}
+              <PostSection title="Additional details">
+                <Field uppercaseLabel numeric title="Sellable area (sq ft)" value={form.sellableArea} onChangeText={set("sellableArea")} />
                 {[
                   ["negotiable", "Price is negotiable"],
                   ["hasLoan", "Property has an existing loan"],
@@ -1944,53 +2766,73 @@ export function PostScreen() {
                   </Pressable>
                 ))}
                 <Field
+                  uppercaseLabel
                   title="Possession status"
                   value={form.possessionStatus}
                   onChangeText={set("possessionStatus")}
                 />
-              </View>
+              </PostSection>
             )}
             {step === 4 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Photos & ownership documents</Text>
-                <Text style={s.muted}>
-                  At least one property photo is required. Ownership documents
-                  remain private.
-                </Text>
-                <Button
-                  secondary
-                  title="Add property photos"
-                  icon="add-a-photo"
-                  onPress={() => action.run(() => pick())}
-                />
-                <View style={s.wrap}>
-                  {[...form.media.photos, ...photos.map((p) => p.uri)].map(
-                    (uri: string) => (
-                      <Image
-                        key={uri}
-                        source={{ uri }}
-                        style={{ width: 120, height: 90, borderRadius: 12 }}
-                      />
-                    ),
-                  )}
-                </View>
-                <Button
-                  secondary
-                  title="Add ownership documents (optional)"
-                  icon="upload-file"
-                  onPress={() => action.run(() => pick(true))}
-                />
-                {documents.map((d) => (
-                  <Text key={d.uri} style={s.small}>
-                    {d.name}
-                  </Text>
-                ))}
-              </View>
+              <>
+                <PostSection number={4} title="Photos">
+                  <View style={s.postTypeGrid}>
+                    <Pressable accessibilityRole="button" accessibilityLabel="Add photo"
+                      style={[s.postMediaTile, s.postMediaAdd]} disabled={action.busy || form.media.photos.length + photos.length >= 10}
+                      onPress={() => action.run(() => pick())}>
+                      <Icon name="photo-camera" size={26} />
+                      <Text style={s.cardTitle}>Add photo</Text>
+                    </Pressable>
+                    {form.media.photos.map((uri: string, index: number) => (
+                      <View key={uri} style={s.postMediaTile}>
+                        <PropertyImage source={{ uri }} style={StyleSheet.absoluteFill} />
+                        {index === 0 && <Text style={s.postCover}>Cover</Text>}
+                      </View>
+                    ))}
+                    {photos.map((photo, index) => (
+                      <View key={photo.uri} style={s.postMediaTile}>
+                        <Image source={{ uri: photo.uri }} style={StyleSheet.absoluteFill} />
+                        {index === 0 && !form.media.photos.length && <Text style={s.postCover}>Cover</Text>}
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${photo.name}`}
+                          disabled={action.busy} style={s.postPhotoRemove}
+                          onPress={() => setPhotos(current => current.filter(item => item.uri !== photo.uri))}>
+                          <Icon name="close" color="white" size={18} />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                  <Text style={s.muted}>Add at least one property photo. The first photo is the cover.</Text>
+                </PostSection>
+                <PostSection number={5} title="Documents">
+                  {postDocumentOptions.map(({ type, title, subtitle }) => {
+                    const selected = documents.filter(document => document.type === type);
+                    return (
+                      <View key={type} style={[s.row, s.postCounter]}>
+                        <View style={s.postDocumentIcon}><Icon name="description" size={22} /></View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.cardTitle}>{title}</Text>
+                          {selected.length ? selected.map(({ asset }) => (
+                            <Text key={asset.uri} style={s.small}>
+                              {asset.name}{asset.size != null ? ` · ${(asset.size / 1048576).toFixed(2)} MB` : ""}
+                            </Text>
+                          )) : <Text style={s.muted}>{subtitle}</Text>}
+                          {selected.length > 0 && <Text style={[s.small, { color: C.green }]}>Ready to upload</Text>}
+                        </View>
+                        <Button title={selected.length ? "Replace" : "Upload"} disabled={action.busy} onPress={() => action.run(() => pick(type))} />
+                      </View>
+                    );
+                  })}
+                  <View style={s.row}>
+                    <Icon name="lock-outline" color={C.muted} size={18} />
+                    <Text style={[s.muted, { flex: 1 }]}>Ownership documents are private and used for verification.</Text>
+                  </View>
+                </PostSection>
+              </>
             )}
             {step === 5 && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Assign your property team</Text>
+              <PostSection title="Review & submit">
                 <Field
+                  uppercaseLabel
                   title="Advisor ID (optional)"
                   value={form.requestedAdvisorId}
                   onChangeText={set("requestedAdvisorId")}
@@ -2026,28 +2868,9 @@ export function PostScreen() {
                     details and disclosures are accurate.
                   </Text>
                 </Pressable>
-              </View>
+              </PostSection>
             )}
-            <View style={s.between}>
-              <Button
-                title="Back"
-                secondary
-                disabled={step === 1 || action.busy}
-                onPress={() => setStep(step - 1)}
-              />
-              <Button
-                title={
-                  action.busy
-                    ? "Submitting…"
-                    : step === 5
-                      ? "Submit for verification"
-                      : "Continue →"
-                }
-                disabled={action.busy || (step === 5 && !consent)}
-                onPress={() => (step === 5 ? submit() : setStep(step + 1))}
-              />
-            </View>
-            {draftId && (
+            {Boolean(draftId) && (
               <Text style={s.small}>
                 Draft saved: {draftId}. Uploads are retained if submission needs
                 to be retried.
@@ -2056,231 +2879,502 @@ export function PostScreen() {
           </>
         )}
       </Protected>
+      {!canPost && (
+        <View style={s.panel}>
+          <Text accessibilityRole="header" style={s.h2}>What you’ll need</Text>
+          {([
+            ["place", "Property address and location"],
+            ["photo-camera", "Clear photos and property details"],
+            ["description", "Ownership documents for verification"],
+          ] as const).map(([icon, text]) => (
+            <View key={icon} style={s.row}>
+              <View style={s.postPrepIcon}><Icon name={icon} size={19} color={C.ink} /></View>
+              <Text style={[s.body, { flex: 1 }]}>{text}</Text>
+            </View>
+          ))}
+        </View>
+      )}
     </MarketplaceShell>
   );
 }
-const font =
-  Platform.OS === "web" ? "Manrope, Inter, system-ui" : "PoppinsRegular";
+const font = "Manrope";
+const fontDisplay = "Fraunces";
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
-  header: {
-    height: 76,
-    paddingHorizontal: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 18,
-    backgroundColor: "white",
-    borderBottomWidth: 1,
-    borderColor: C.line,
+  header: { flexDirection: "row", alignItems: "center", gap: 10 },
+  heroInner: { width: "100%", maxWidth: 1140, alignSelf: "center", gap: 18 },
+  matchedHeroInner: { flex: 1, justifyContent: "space-between", gap: 6 },
+  compactHeroInner: { gap: 10 },
+  heroIcon: {
+    width: 42, height: 42, borderRadius: 21, alignItems: "center",
+    justifyContent: "center", backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.20)",
   },
-  logo: { fontSize: 26, fontWeight: "800", color: C.blue, letterSpacing: -1 },
-  logoIcon: { backgroundColor: C.blue, padding: 7, borderRadius: 12 },
-  scroll: { padding: 20, paddingBottom: 35 },
-  content: { width: "100%", maxWidth: 1160, alignSelf: "center", gap: 24 },
-  row: { flexDirection: "row", alignItems: "center", gap: 12 },
+  logo: { fontFamily: fontDisplay, fontSize: 25, color: "#fff", letterSpacing: -0.5 },
+  logoIcon: { backgroundColor: C.sun, padding: 8, borderRadius: 12 },
+  scroll: { paddingBottom: 108 },
+  scrollWithArtwork: { flexGrow: 1, paddingBottom: 0 },
+  fitArtworkToViewport: { flex: 1 },
+  wishlistArtwork: { flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" },
+  wishlistWatermarkFrame: { width: "86%", maxWidth: 335, height: "95%" },
+  watermarkFrame: { width: "72%", maxWidth: 280, aspectRatio: 1.2 },
+  watermarkImage: { width: "100%", height: "100%" },
+  postWatermarkFrame: { flex: 1, minHeight: 0, width: "86%", maxWidth: 420, alignSelf: "center" },
+  postPrepIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF1C0" },
+  content: { width: "100%", maxWidth: 1180, alignSelf: "center", padding: 20, gap: 18 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10 },
   between: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 10,
   },
-  wrap: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 18 },
+  wrap: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  searchControls: { flexDirection: "row", alignItems: "center", gap: 8 },
+  searchInputRow: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", padding: 4, borderRadius: 16, backgroundColor: "#fff" },
+  searchInputText: { flex: 1, minWidth: 0, minHeight: 44, paddingHorizontal: 8, color: C.ink, fontSize: 14 },
+  searchSubmit: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.sun },
+  searchResultsControls: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  searchFilterPanel: { gap: 12 },
+  searchFilterHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  searchFilterIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: "#FFF1C0", alignItems: "center", justifyContent: "center" },
+  searchFilterTitle: { flex: 1, color: C.ink, fontFamily: "Fraunces", fontSize: 21 },
+  searchFilterClose: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" },
+  searchFilterChip: { minHeight: 44, borderWidth: 1, borderColor: C.line, paddingHorizontal: 14, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  searchFilterChipSelected: { backgroundColor: C.ink, borderColor: C.ink },
+  searchFilterChipTextSelected: { color: C.sun },
+  searchMapLoading: { alignItems: "center", justifyContent: "center", zIndex: 1100, backgroundColor: "rgba(20,38,62,0.16)" },
+  searchMapLoadingPill: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 24, backgroundColor: "#fff" },
+  searchMapLoadingText: { color: C.ink, fontFamily: "ManropeBold" },
+  searchMapLocation: { position: "absolute", top: 10, right: 10, zIndex: 1001, width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.sun, elevation: 3 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
   h1: {
-    fontFamily: font,
+    fontFamily: fontDisplay,
     fontSize: 28,
-    fontWeight: "800",
+    lineHeight: 34,
     color: C.ink,
-    letterSpacing: -0.6,
+    letterSpacing: -0.4,
+    textShadowColor: "rgba(255, 255, 255, 0.85)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  h2: { fontFamily: font, fontSize: 21, fontWeight: "700", color: C.ink },
-  muted: { fontFamily: font, fontSize: 14, lineHeight: 22, color: C.muted },
-  small: { fontFamily: font, fontSize: 12, lineHeight: 19, color: C.muted },
-  body: { fontFamily: font, fontSize: 15, lineHeight: 24, color: C.ink },
+  h2: {
+    fontFamily: fontDisplay,
+    fontSize: 22,
+    lineHeight: 28,
+    color: C.ink,
+    letterSpacing: -0.3,
+    textShadowColor: "rgba(255, 255, 255, 0.85)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  muted: { fontFamily: font, fontSize: 12.5, lineHeight: 18, color: C.muted, fontWeight: "500" },
+  small: { fontFamily: font, fontSize: 11.5, lineHeight: 16, color: "#536174", fontWeight: "600" },
+  body: { fontFamily: font, fontSize: 13.5, lineHeight: 21, color: C.ink, fontWeight: "500" },
   fieldLabel: {
     fontFamily: font,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
     color: C.ink,
+    letterSpacing: 0.1,
   },
   button: {
-    minHeight: 46,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: C.blue,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 22,
+    backgroundColor: C.sun,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 6,
+    shadowColor: "#14263E",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 2,
   },
   secondary: {
-    backgroundColor: "#eaf1ff",
+    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: C.line,
+    borderColor: "rgba(20, 38, 62, 0.18)",
+    shadowOpacity: 0,
+    elevation: 0,
   },
   buttonText: {
-    fontFamily: font,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "white",
+    fontFamily: "ManropeExtraBold",
+    fontSize: 14,
+    color: C.ink,
+    letterSpacing: 0.1,
   },
   input: {
     fontFamily: font,
-    minHeight: 48,
+    minHeight: 50,
     borderWidth: 1,
-    borderColor: C.line,
+    borderColor: "rgba(20, 38, 62, 0.18)",
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: "white",
-    fontSize: 15,
+    paddingVertical: 8,
+    backgroundColor: "#ffffff",
+    fontSize: 13.5,
     color: C.ink,
+    shadowColor: "#14263E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   hero: {
-    padding: 28,
-    gap: 18,
-    borderRadius: 24,
-    backgroundColor: "#e5efff",
-    borderWidth: 1,
-    borderColor: "#d0e0ff",
+    paddingHorizontal: 20, paddingBottom: 24, backgroundColor: C.ink,
+    borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden",
   },
-  heroTitle: {
-    fontFamily: Platform.OS === "web" ? "Fraunces, Georgia" : "PoppinsBold",
-    fontSize: 40,
-    color: C.ink,
-    letterSpacing: -1,
+  compactHero: { paddingBottom: 13 },
+  smallHero: { paddingHorizontal: 16, paddingBottom: 10 },
+  smallHeroSubtitle: { fontSize: 13, lineHeight: 18 },
+  heroSun: {
+    position: "absolute", width: 178, height: 178, borderRadius: 89,
+    right: -52, top: -58, backgroundColor: C.sun,
   },
+  heroRay: {
+    position: "absolute", width: 74, height: 210, borderRadius: 40,
+    right: 62, top: 70, backgroundColor: "#1C3556", transform: [{ rotate: "-30deg" }],
+  },
+  heroTitle: { fontFamily: fontDisplay, fontSize: 32, lineHeight: 38, color: "#fff" },
+  heroSubtitle: { fontFamily: font, fontSize: 14, lineHeight: 20, color: "rgba(255,255,255,0.78)" },
+  homeHeroDetails: { gap: 12, maxWidth: 360 },
+  homeDistrict: {
+    flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 8,
+    minHeight: 44, maxWidth: "100%", paddingHorizontal: 12, paddingVertical: 6,
+    backgroundColor: C.sunSoft, borderRadius: 22,
+  },
+  homeDistrictLabel: { fontFamily: "ManropeBold", fontSize: 13, color: C.ink, flexShrink: 1 },
+  messagesHeroIntro: { flex: 1, minHeight: 0, justifyContent: "center" },
+  messagesHeroCopy: { width: "66%", gap: 4 },
+  messagesHeroSubtitle: { fontFamily: font, fontSize: 13, lineHeight: 18, color: "rgba(255,255,255,0.82)" },
+  messagesHeroHouse: { position: "absolute", bottom: -12, right: -9 },
+  messagesHeroSearch: {
+    minHeight: 44, flexDirection: "row", alignItems: "center", gap: 10, zIndex: 1,
+    paddingHorizontal: 14, borderRadius: 24, backgroundColor: "#fff",
+  },
+  messagesHeroSearchInput: { flex: 1, minWidth: 0, minHeight: 44, fontFamily: font, fontSize: 14, color: C.ink },
   tag: {
     alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    backgroundColor: "#eaf1ff",
-  },
-  tagText: { fontFamily: font, fontSize: 11, fontWeight: "700", color: C.blue },
-  typeChip: {
-    padding: 14,
-    borderWidth: 1,
-    borderColor: C.line,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 14,
-    backgroundColor: "white",
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderWidth: 1,
+    borderColor: "rgba(10, 69, 181, 0.14)",
+    shadowColor: "#14263E",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+  },
+  tagText: { fontFamily: font, fontSize: 11, fontWeight: "700", color: C.blue, letterSpacing: 0.1 },
+  typeChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 13,
+    borderWidth: 1,
+    borderColor: "rgba(20, 38, 62, 0.12)",
+    borderRadius: 20,
+    backgroundColor: "#fff",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
+    shadowColor: "#14263E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   panel: {
-    padding: 22,
-    borderRadius: 20,
+    padding: 16,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: "white",
-    gap: 16,
+    borderColor: "rgba(20, 38, 62, 0.08)",
+    backgroundColor: "#fff",
+    gap: 12,
+    shadowColor: "#14263E",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
   },
   card: {
-    backgroundColor: "white",
+    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 20,
+    borderColor: "rgba(20, 38, 62, 0.08)",
+    borderRadius: 22,
     overflow: "hidden",
+    shadowColor: "#14263E",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
   },
-  photo: { height: 220, backgroundColor: "#dce7fa" },
+  photo: { height: 180, backgroundColor: "#EEE8D9" },
   placeholder: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#e0eaff",
+    backgroundColor: "#EEE8D9",
   },
-  imageTags: { position: "absolute", top: 12, left: 12 },
-  cardBody: { padding: 18, gap: 9 },
-  price: { fontFamily: font, fontSize: 25, fontWeight: "800", color: C.ink },
+  imageTags: { position: "absolute", top: 10, left: 10 },
+  cardBody: { padding: 14, gap: 6 },
+  price: { fontFamily: font, fontSize: 19, lineHeight: 23, fontWeight: "800", color: C.ink, letterSpacing: -0.4 },
   cardTitle: {
-    fontFamily: font,
-    fontSize: 16,
-    lineHeight: 23,
-    fontWeight: "700",
+    fontFamily: "ManropeBold",
+    fontSize: 14.5,
+    lineHeight: 20,
     color: C.ink,
+    letterSpacing: -0.2,
   },
-  link: { fontSize: 13, fontWeight: "700", color: C.blue },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#e2ecff",
+  link: { fontSize: 12.5, fontWeight: "700", color: C.blue },
+  threadCard: {
+    flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: "#fff",
+    borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, borderColor: C.line,
+    paddingLeft: 13, paddingRight: 9, paddingVertical: 12,
+    shadowColor: C.ink, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.10, shadowRadius: 6, elevation: 2,
+  },
+  threadAvatarColumn: { alignSelf: "stretch", justifyContent: "center", paddingRight: 11, borderRightWidth: StyleSheet.hairlineWidth, borderColor: C.line },
+  threadAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.sunSoft, alignItems: "center", justifyContent: "center" },
+  threadAvatarText: { fontFamily: "ManropeExtraBold", fontSize: 20, color: C.ink },
+  threadUnreadDot: { position: "absolute", right: 0, bottom: 0, width: 11, height: 11, borderWidth: 2, borderColor: "#fff", borderRadius: 6, backgroundColor: "#12964C" },
+  threadCopy: { flex: 1, minWidth: 0, gap: 3 },
+  threadNameRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 5 },
+  threadName: { flexShrink: 1, fontFamily: "ManropeExtraBold", fontSize: 15, color: C.ink },
+  threadRole: { borderRadius: 12, backgroundColor: "#E3F5E9", paddingHorizontal: 6, paddingVertical: 2 },
+  threadRoleText: { color: C.green, fontFamily: "ManropeBold", fontSize: 10 },
+  threadListing: { flexDirection: "row", alignItems: "center", gap: 4 },
+  threadListingText: { flexShrink: 1, fontFamily: "ManropeBold", fontSize: 12, color: C.muted },
+  threadPreview: { fontFamily: font, fontSize: 12, color: C.ink },
+  threadMeta: { flexDirection: "row", alignItems: "center", alignSelf: "stretch", gap: 6 },
+  threadTime: { alignSelf: "flex-start", fontFamily: font, fontSize: 10, color: C.muted },
+  threadCount: { minHeight: 20, minWidth: 20, paddingHorizontal: 4, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: C.sun },
+  threadCountText: { fontFamily: "ManropeExtraBold", fontSize: 11, lineHeight: 14, includeFontPadding: false, textAlign: "center", color: C.ink },
+  threadCountDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.sun },
+  dockArtwork: { position: "absolute", left: 0, right: 0, bottom: 0 },
+  dockWrapper: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 8,
     alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 12,
+    zIndex: 100,
   },
-  avatarText: { fontWeight: "800", color: C.blue, fontSize: 17 },
   nav: {
-    minHeight: 76,
-    paddingBottom: Platform.OS === "web" ? 10 : 22,
-    paddingTop: 9,
+    width: "100%",
+    maxWidth: 406,
+    minHeight: 52,
+    height: dockHeight,
+    borderRadius: 32,
+    backgroundColor: C.ink,
     flexDirection: "row",
-    backgroundColor: "white",
-    borderTopWidth: 1,
-    borderColor: C.line,
-    justifyContent: "center",
+    alignItems: "center",
+    justifyContent: "space-around",
+    paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    shadowColor: "#14263E",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.16,
+    shadowRadius: 20,
+    elevation: 10,
   },
   navItem: {
     flex: 1,
-    maxWidth: 180,
+    maxWidth: 90,
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
+    gap: 2,
+    paddingVertical: 4,
+    borderRadius: 18,
   },
-  navText: { fontSize: 11, color: C.muted },
+  navGlyph: { width: 48, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  navText: { fontFamily: "ManropeBold", fontSize: 10.5, color: "#C7A532" },
   postCircle: {
-    height: 50,
-    width: 50,
-    borderRadius: 25,
+    height: 58,
+    width: 58,
+    borderRadius: 29,
+    marginTop: -36,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: C.blue,
-    borderWidth: 4,
+    backgroundColor: C.sun,
+    borderWidth: 5,
     borderColor: C.bg,
+    shadowColor: "#14263E",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.40,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  heartBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: C.bg,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(10, 69, 181, 0.10)",
   },
   error: {
-    padding: 14,
-    borderRadius: 12,
+    padding: 12,
+    borderRadius: 10,
     backgroundColor: "#fff0f2",
     color: "#a8193c",
-    fontSize: 14,
+    fontSize: 12.5,
+    borderWidth: 1,
+    borderColor: "rgba(225, 29, 72, 0.20)",
+    fontWeight: "600",
   },
   map: {
-    height: 420,
-    borderRadius: 22,
+    height: 380,
+    borderRadius: 18,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: C.line,
+    borderColor: "rgba(10, 69, 181, 0.14)",
   },
   spec: {
-    minWidth: 140,
+    minWidth: 130,
     flex: 1,
-    padding: 16,
-    backgroundColor: C.bg,
-    borderRadius: 14,
-    gap: 6,
+    padding: 12,
+    backgroundColor: "rgba(244, 248, 255, 0.95)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(10, 69, 181, 0.10)",
+    gap: 4,
   },
-  chatArea: { gap: 16, minHeight: 260 },
-  bubble: { maxWidth: "85%", padding: 16, borderRadius: 18, gap: 7 },
+  kycSummary: { backgroundColor: C.sunSoft },
+  featureIcon: { width: 46, height: 46, borderRadius: 16, backgroundColor: C.sun, alignItems: "center", justifyContent: "center" },
+  uploadTarget: { alignItems: "center", justifyContent: "center", gap: 8, padding: 22, borderRadius: 18, borderWidth: 2, borderStyle: "dashed", borderColor: C.line, backgroundColor: C.bg },
+  documentRow: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, backgroundColor: C.bg, borderRadius: 12 },
+  photoCounter: { position: "absolute", right: 12, bottom: 12, color: "#fff", backgroundColor: C.ink, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6, fontFamily: "ManropeBold" },
+  galleryThumb: { width: 82, height: 62, borderRadius: 14, borderWidth: 2, borderColor: C.line, overflow: "hidden" },
+  gallerySave: { position: "absolute", top: 12, right: 12, width: 42, height: 42, borderRadius: 21 },
+  scrollViewport: { flex: 1 },
+  conversationWatermark: {
+    position: "absolute", top: 0, right: 0, bottom: 0, left: 0,
+    alignItems: "flex-end", justifyContent: "flex-end",
+    paddingRight: 8, paddingBottom: 8,
+  },
+  conversationWatermarkImage: { width: "66%", height: "92%", maxWidth: 304, maxHeight: 304, opacity: 0.4 },
+  conversationHeader: {
+    backgroundColor: C.ink, paddingHorizontal: 14, paddingBottom: 12,
+    borderBottomLeftRadius: 12, borderBottomRightRadius: 28,
+  },
+  conversationHeaderRow: { flexDirection: "row", alignItems: "center", gap: 8, width: "100%", maxWidth: 760, alignSelf: "center" },
+  conversationBack: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  chatIdentityCard: {
+    flex: 1, minWidth: 0, minHeight: 54, flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 7, paddingVertical: 6, borderRadius: 16, backgroundColor: "#1C3556",
+    borderWidth: StyleSheet.hairlineWidth, borderColor: "#FFFFFF30",
+  },
+  chatIdentityIcon: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: C.sun },
+  chatIdentityInitials: { color: C.ink, fontFamily: "ManropeExtraBold", fontSize: 14 },
+  chatIdentityDetails: { flex: 1, minWidth: 0, gap: 2 },
+  chatIdentityNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  chatCategory: {
+    flexShrink: 0, borderRadius: 9, borderWidth: StyleSheet.hairlineWidth, borderColor: "#FFFFFF45",
+    backgroundColor: "#FFFFFF12", paddingHorizontal: 7, paddingVertical: 3,
+  },
+  chatCategoryText: { fontFamily: "ManropeBold", fontSize: 10, color: "#E3ECF8" },
+  chatOffer: { borderColor: "#FCC61C66", backgroundColor: "#FCC61C1A" },
+  chatOfferText: { color: C.sunSoft },
+  chatIdentityName: { flex: 1, minWidth: 0, fontFamily: fontDisplay, fontSize: 18, color: "#fff" },
+  chatIdentityListing: { flexDirection: "row", alignItems: "center", gap: 4 },
+  chatIdentityProperty: { flexShrink: 1, fontFamily: font, fontSize: 12, color: "#D4DEEC" },
+  chatArea: { gap: 7 },
+  bubble: { alignItems: "stretch", minWidth: 66, maxWidth: "84%", paddingHorizontal: 11, paddingVertical: 7, borderRadius: 14, gap: 2 },
+  chatMessage: { fontFamily: font, color: C.ink, fontSize: 15, lineHeight: 21 },
+  chatMetadata: { alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: 4 },
+  chatTime: { fontFamily: font, color: C.muted, fontSize: 11, lineHeight: 15 },
   mine: {
     alignSelf: "flex-end",
-    backgroundColor: "#dce9ff",
+    backgroundColor: C.sunSoft,
     borderBottomRightRadius: 4,
   },
   theirs: {
     alignSelf: "flex-start",
-    backgroundColor: "white",
-    borderWidth: 1,
-    borderColor: C.line,
+    backgroundColor: "#ffffff",
     borderBottomLeftRadius: 4,
   },
-  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.blue },
-  history: { padding: 12, borderLeftWidth: 3, borderColor: C.line, gap: 4 },
-  progress: { flexDirection: "row", gap: 6 },
-  progressPart: {
-    height: 5,
-    flex: 1,
-    borderRadius: 5,
-    backgroundColor: C.line,
+  chatFooter: { backgroundColor: C.bg, borderTopWidth: 0, paddingTop: 8 },
+  chatComposerArea: { gap: 5 },
+  chatSendError: { fontFamily: font, fontSize: 12, color: "#9A2D20" },
+  chatComposer: { alignItems: "flex-end" },
+  chatInput: {
+    flex: 1, minHeight: 44, maxHeight: 116, paddingVertical: 10, paddingHorizontal: 14,
+    borderRadius: 22, borderWidth: 1, borderColor: C.line, backgroundColor: "transparent",
+    fontFamily: font, fontSize: 15, lineHeight: 21, color: C.ink,
   },
+  chatSend: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center", backgroundColor: C.sun,
+  },
+  chatSendDimmed: { opacity: 0.6 },
+  history: {
+    padding: 10,
+    borderLeftWidth: 3,
+    borderColor: C.blue,
+    gap: 3,
+  },
+  progress: { flexDirection: "row", justifyContent: "center", gap: 4 },
+  progressStep: { width: 48, alignItems: "center", gap: 6 },
+  progressLine: { height: 3, flex: 1, maxWidth: 64, marginTop: 18, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.18)" },
+  progressCircle: {
+    height: 36, width: 36, borderRadius: 18, alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1, borderColor: "rgba(255,255,255,0.22)",
+  },
+  progressReached: { backgroundColor: C.sun, borderColor: C.sun },
+  progressNumber: { fontFamily: "ManropeExtraBold", color: "#fff" },
+  progressLabel: { fontFamily: "ManropeBold", fontSize: 11, color: "rgba(255,255,255,0.76)", textAlign: "center" },
+  postSection: { padding: 18, borderRadius: 22, gap: 16 },
+  postSectionNumber: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.sun, alignItems: "center", justifyContent: "center" },
+  postSectionNumberText: { color: C.ink, fontFamily: "ManropeExtraBold", fontSize: 14 },
+  postPurpose: { flexDirection: "row", padding: 4, gap: 4, borderRadius: 16, backgroundColor: C.bg },
+  postPurposeOption: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: 12, paddingVertical: 4 },
+  postPurposeSelected: { backgroundColor: C.ink },
+  postPurposeText: { color: C.sun, fontFamily: "ManropeExtraBold", fontSize: 14 },
+  postPurposeUnavailable: { color: C.muted, fontFamily: "ManropeBold", fontSize: 14 },
+  postTypeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  postTypeTile: { width: "31%", minHeight: 86, borderRadius: 16, borderWidth: 1, borderColor: C.line, alignItems: "center", justifyContent: "center", padding: 5, gap: 6, overflow: "hidden" },
+  postTypeTileSelected: { backgroundColor: C.ink, borderColor: C.ink },
+  postTypeLabel: { color: C.ink, fontFamily: "ManropeBold", fontSize: 13, textAlign: "center" },
+  postFieldLabel: { textTransform: "uppercase", letterSpacing: 0.6, color: C.muted, fontFamily: "ManropeExtraBold" },
+  postCoordinates: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: C.bg, borderRadius: 14 },
+  postCounter: { backgroundColor: C.bg, borderRadius: 16, padding: 12 },
+  postCounterButton: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: C.line, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  postCounterValue: { minWidth: 22, textAlign: "center", color: C.ink, fontFamily: "ManropeExtraBold", fontSize: 16 },
+  postMediaTile: { width: "31%", aspectRatio: 1, borderRadius: 16, overflow: "hidden", backgroundColor: C.bg },
+  postMediaAdd: { borderWidth: 2, borderStyle: "dashed", borderColor: C.line, backgroundColor: "#FFF7DA", alignItems: "center", justifyContent: "center", gap: 6 },
+  postCover: { position: "absolute", left: 5, top: 5, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: C.sun, color: C.ink, fontFamily: "ManropeExtraBold", fontSize: 11 },
+  postPhotoRemove: { position: "absolute", right: 4, top: 4, height: 28, width: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: C.ink },
+  postDocumentIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  footer: { backgroundColor: "#fff", borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 20, paddingTop: 12 },
+  profileHero: { paddingBottom: 82 },
+  profileContent: { marginTop: -50 },
+  profileEdit: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: C.ink },
+  profileIdentity: { flexDirection: "row", alignItems: "center", gap: 14, marginTop: 8 },
+  profilePortrait: { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: C.sun, alignItems: "center", justifyContent: "center", backgroundColor: "#244268" },
+  profileInitials: { color: "#fff", fontFamily: fontDisplay, fontSize: 28 },
+  profileDetails: { flex: 1, gap: 3, alignItems: "flex-start" },
+  profileName: { color: "#fff", fontFamily: fontDisplay, fontSize: 28, lineHeight: 34 },
+  profileVerification: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 7, backgroundColor: "#fff", paddingVertical: 6, paddingHorizontal: 11, borderRadius: 22, maxWidth: "100%" },
+  profileStats: { flexDirection: "row", paddingVertical: 16, borderRadius: 22, backgroundColor: "#fff", borderWidth: 1, borderColor: C.line, shadowColor: C.ink, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 3 },
+  profileStat: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 52, gap: 2 },
+  profileDivider: { borderLeftWidth: 1, borderColor: C.line },
+  profileStatValue: { color: C.ink, fontSize: 23, fontFamily: "ManropeExtraBold" },
+  profileMenu: { backgroundColor: "#fff", borderRadius: 22, borderWidth: 1, borderColor: C.line, overflow: "hidden", shadowColor: C.ink, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 14, elevation: 2 },
+  profileMenuTitle: { fontFamily: "ManropeExtraBold", fontSize: 16, color: C.ink, marginBottom: 2 },
+  preferenceRow: { minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
+  preferenceSeparator: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: C.line },
+  preferenceDetails: { paddingHorizontal: 14, paddingBottom: 14 },
+  preferenceIcon: { height: 44, width: 44, borderRadius: 16, backgroundColor: C.sun, alignItems: "center", justifyContent: "center" },
+  profileBadge: { minWidth: 29, minHeight: 29, borderRadius: 16, backgroundColor: C.ink, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" },
+  profileBadgeText: { color: C.sun, fontFamily: "ManropeExtraBold", fontSize: 12 },
+  profileKycBadge: { backgroundColor: C.sunSoft },
+  profileChevron: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: C.bg },
+  stat: { flex: 1, minHeight: 52, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  listingPhoto: { width: 96, height: 104, borderRadius: 16, backgroundColor: C.bg },
 });

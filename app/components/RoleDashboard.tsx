@@ -1,107 +1,179 @@
-import { AppTheme } from "../constants/theme";
-import { premiumStyles } from "../constants/typography";
+import NotificationFailures from "./NotificationFailures";
+import NotificationBell from "./NotificationBell";
+import { marketplaceBackground } from "../constants/theme";
 import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
-import Image from "./PropertyImage";
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter, type Href } from "expo-router";
+import { useIsFocused, useRouter, type Href } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "../src/store/authStore";
 import type { UserRole } from "../src/types/auth.types";
 import { authService } from "../src/services/authService";
-import AppHeader from "./AppHeader";
+import { useLanguageStore } from "../src/store/languageStore";
 import BottomNav from "./BottomNav";
 
 type Section = { title: string; description: string; route?: Href };
 const icons: React.ComponentProps<typeof MaterialIcons>["name"][] = ["space-dashboard", "fact-check", "home-work", "add-home-work", "folder-open", "swap-horiz"];
+const navy = "#14263E";
+const yellow = "#FCC61C";
+const muted = "#536174";
 
 export default function RoleDashboard({ role, title, subtitle, sections }: {
   role: UserRole; title: string; subtitle: string; sections: Section[];
 }) {
   const router = useRouter();
+  const focused = useIsFocused();
+  const insets = useSafeAreaInsets();
   const { user, authState } = useAuthStore();
+  const { language, toggleLanguage } = useLanguageStore();
   const { width } = useWindowDimensions();
   const compact = width < 680;
-  const cardWidth = compact ? "100%" : width < 1000 ? "48%" : "31.8%";
-
-  if (authState !== "AUTHENTICATED" || user?.role !== role) {
-    return <View style={styles.screen}><AppHeader showNavLinks={false} showPostPropertyBtn={false} showHomeButton />
-      <View style={styles.accessPanel}><View style={styles.iconBox}><MaterialIcons name="lock-outline" size={28} color="#294B65" /></View>
-        <Text style={styles.title}>Sign in as {role}</Text><Text style={styles.subtitle}>This dashboard is available to the {role} role.</Text>
-        <TouchableOpacity accessibilityRole="button" style={styles.darkButton} onPress={() => router.replace("/login")}><Text style={styles.darkLabel}>Go to sign in</Text><MaterialIcons name="arrow-forward" size={18} color="white" /></TouchableOpacity>
-      </View></View>;
-  }
+  const cardWidth = compact ? "100%" : width < 1000 || sections.length === 2 ? "48%" : "31.8%";
+  const hasAccess = authState === "AUTHENTICATED" && user?.role === role;
 
   return <View style={styles.screen}>
-    <AppHeader showNavLinks={false} showPostPropertyBtn={false} showHomeButton />
-    <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]}>
-      <View style={styles.topline}><Text style={styles.eyebrow}>MALIKSE / YOUR WORKSPACE</Text><View style={styles.rolePill}><View style={styles.roleDot} /><Text style={styles.roleText}>{role}</Text></View></View>
-      <Text accessibilityRole="header" style={[styles.title, compact && styles.titleCompact]}>{title}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
-      <View style={[styles.hero, compact && styles.heroCompact]}>
+    {focused && <StatusBar style="light" />}
+    <ScrollView contentContainerStyle={{ paddingBottom: hasAccess ? 20 : insets.bottom + 20 }}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
+        <View style={styles.sun} pointerEvents="none" />
+        <View style={styles.ray} pointerEvents="none" />
+        <View style={[styles.headerInner, compact && styles.horizontalCompact]}>
+          <View style={styles.topline}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back" style={styles.back}
+              onPress={() => router.canGoBack() ? router.back() : router.replace("/home")}>
+              <MaterialIcons name="arrow-back" size={22} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="MalikSe home" style={styles.brand}
+              onPress={() => router.replace("/home")}>
+              <View style={styles.brandIcon}><MaterialIcons name="roofing" size={20} color={navy} /></View>
+              <Text style={styles.brandText}>MalikSe<Text style={{ color: yellow }}>.</Text></Text>
+            </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={language === "en" ? "Switch to Hindi" : "Switch to English"}
+              style={styles.language} onPress={toggleLanguage}>
+              <Text style={styles.buttonLabel}>{language === "en" ? "H" : "E"}</Text>
+            </TouchableOpacity>
+            {hasAccess && <NotificationBell />}
+          </View>
+          {hasAccess && <>
+            <View style={styles.workspace}>
+              <Text style={[styles.eyebrow, styles.onNavy]}>MALIKSE / YOUR WORKSPACE</Text>
+              <View style={styles.rolePill}><View style={styles.roleDot} /><Text style={styles.roleText}>{role}</Text></View>
+            </View>
+            <Text accessibilityRole="header" style={[styles.title, compact && styles.titleCompact]}>{title}</Text>
+            <Text style={styles.subtitle}>{subtitle}</Text>
+          </>}
+        </View>
+      </View>
+      <View style={[styles.content, compact && styles.horizontalCompact]}>
+      {!hasAccess ? (
+        <View style={styles.accessPanel}>
+          <View style={styles.iconBox}><MaterialIcons name="lock-outline" size={24} color={navy} /></View>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>Sign in as {role}</Text>
+          <Text style={styles.cardDescription}>This dashboard is available to the {role} role.</Text>
+          <TouchableOpacity accessibilityRole="button" style={styles.primaryButton} onPress={() => router.replace("/login")}>
+            <Text style={styles.buttonLabel}>Go to sign in</Text><MaterialIcons name="arrow-forward" size={18} color={navy} />
+          </TouchableOpacity>
+        </View>
+      ) : <>
+      {role === "admin" && <NotificationFailures />}
+      <View style={styles.hero}>
         <Image source={require("../assets/saved_villa_house.jpg")} style={styles.heroBackground} resizeMode="cover" />
         <View style={styles.heroShade} />
         <View style={styles.heroCopy}><View style={styles.welcomeRow}><View style={styles.avatar}><Text style={styles.avatarText}>{user.name?.charAt(0).toUpperCase()}</Text></View><Text style={styles.welcome}>Welcome, {user.name}</Text></View>
           <Text style={styles.heroTitle}>A place for{ "\n" }your next chapter.</Text>
           <Text style={styles.heroDescription}>Your properties, your people, and the tools you need to move forward.</Text>
-          <TouchableOpacity accessibilityRole="button" style={styles.whiteButton} onPress={() => router.replace("/home")}><Text style={styles.whiteLabel}>Explore verified properties</Text><MaterialIcons name="north-east" size={18} color="#111827" /></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" style={styles.primaryButton} onPress={() => router.replace("/home")}><Text style={styles.buttonLabel}>Explore verified properties</Text><MaterialIcons name="north-east" size={18} color={navy} /></TouchableOpacity>
         </View>
 
       </View>
       <View style={styles.sectionHeading}><View><Text style={styles.eyebrow}>YOUR TOOLS</Text><Text accessibilityRole="header" style={styles.sectionTitle}>Make your next move.</Text></View><Text style={styles.sectionNote}>Built around your role</Text></View>
       <View style={styles.grid}>{sections.map((section, index) => <TouchableOpacity key={section.title} accessibilityRole="button" accessibilityState={{ disabled: !section.route }} style={[styles.card, { width: cardWidth }, index === 0 && styles.primaryCard, !section.route && styles.disabledCard]} disabled={!section.route} onPress={() => section.route && router.push(section.route)}>
-        <View style={styles.cardTop}><View style={[styles.iconBox, index === 0 && styles.primaryIcon]}><MaterialIcons name={icons[index % icons.length]} size={24} color={index === 0 ? "#FFFFFF" : "#416980"} /></View><Text style={styles.cardIndex}>{String(index + 1).padStart(2, "0")}</Text></View>
+        <View style={styles.cardTop}><View style={[styles.iconBox, index === 0 && styles.primaryIcon]}><MaterialIcons name={icons[index % icons.length]} size={24} color={navy} /></View><Text style={styles.cardIndex}>{String(index + 1).padStart(2, "0")}</Text></View>
         <Text style={styles.cardTitle}>{section.title}</Text><Text style={styles.cardDescription}>{section.description}</Text>
         <View style={styles.cardBottom}><Text style={styles.cardAction}>{section.route ? "Open workspace" : "Coming later"}</Text><View style={styles.arrowCircle}><MaterialIcons name={section.route ? "north-east" : "schedule"} size={18} color="#111827" /></View></View>
       </TouchableOpacity>)}</View>
       <View style={[styles.accountBar, compact && styles.accountCompact]}><View style={styles.accountIdentity}><View style={styles.accountIcon}><MaterialIcons name="person-outline" size={24} color="#345A76" /></View><View><Text style={styles.accountTitle}>Your account</Text><Text style={styles.accountDescription}>Profile details and session settings</Text></View></View>
-        <View style={styles.accountActions}><TouchableOpacity accessibilityRole="button" style={styles.profileButton} onPress={() => router.push("/profile")}><Text style={styles.whiteLabel}>My profile</Text><MaterialIcons name="north-east" size={15} color="#111827" /></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.signOut} onPress={() => { authService.logout().finally(() => router.replace("/login")); }}><Text style={styles.signOutLabel}>Sign out</Text></TouchableOpacity></View>
+        <View style={styles.accountActions}><TouchableOpacity accessibilityRole="button" style={styles.profileButton} onPress={() => router.push("/profile")}><Text style={styles.buttonLabel}>My profile</Text><MaterialIcons name="north-east" size={15} color={navy} /></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.signOut} onPress={() => { authService.logout().finally(() => router.replace("/login")); }}><Text style={styles.signOutLabel}>Sign out</Text></TouchableOpacity></View>
       </View>
-    </ScrollView><BottomNav />
+      </>}
+      </View>
+    </ScrollView>{hasAccess && <BottomNav themedStaff />}
   </View>;
 }
 
-const styles = premiumStyles({
-  screen: { flex: 1, backgroundColor: "transparent" },
-  content: { width: "100%", maxWidth: 1200, alignSelf: "center", paddingHorizontal: 32, paddingTop: 32, paddingBottom: 44 },
-  contentCompact: { paddingHorizontal: 20, paddingTop: 22 },
-  topline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 18 },
-  eyebrow: { color: "#6B8295", fontSize: 10, fontWeight: "600", letterSpacing: 1.6 },
-  rolePill: { flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: "#EDF6FC", borderRadius: 20 },
-  roleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#6AA0C3" }, roleText: { textTransform: "capitalize", color: "#38556E", fontSize: 11, fontWeight: "600" },
-  title: { color: "#101622", fontSize: 38, fontWeight: "800", letterSpacing: -1.3 }, titleCompact: { fontSize: 30 },
-  subtitle: { color: "#6A7785", fontSize: 13, lineHeight: 22, marginTop: 9, maxWidth: 700 },
-  hero: { marginTop: 30, marginBottom: 42, borderRadius: 32, backgroundColor: "#1D617B", padding: 12, minHeight: 400, flexDirection: "row", overflow: "hidden" },
+const surface = {
+  backgroundColor: "#fff",
+  borderWidth: 1,
+  borderColor: "rgba(20,38,62,0.12)",
+  borderRadius: 22,
+  shadowColor: navy,
+  shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.08,
+  shadowRadius: 14,
+  elevation: 2,
+} as const;
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: marketplaceBackground },
+  header: { backgroundColor: navy, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden" },
+  headerInner: { width: "100%", maxWidth: 1200, alignSelf: "center", paddingHorizontal: 32, paddingBottom: 24, gap: 8 },
+  horizontalCompact: { paddingHorizontal: 20 },
+  sun: { position: "absolute", width: 176, height: 176, borderRadius: 88, right: -55, top: -65, backgroundColor: yellow },
+  ray: { position: "absolute", width: 76, height: 214, borderRadius: 40, right: 62, top: 66, backgroundColor: "#1C3556", transform: [{ rotate: "-30deg" }] },
+  topline: { flexDirection: "row", gap: 10, alignItems: "center", marginBottom: 10 },
+  back: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#244268", alignItems: "center", justifyContent: "center" },
+  brand: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 },
+  brandIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: yellow, alignItems: "center", justifyContent: "center" },
+  brandText: { color: "#fff", fontFamily: "Fraunces", fontSize: 24 },
+  language: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#FFF1C0", alignItems: "center", justifyContent: "center" },
+  workspace: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" },
+  eyebrow: { color: muted, fontFamily: "ManropeExtraBold", fontSize: 10, letterSpacing: 1.3 },
+  onNavy: { color: "#E7EDF5" },
+  rolePill: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: "#FFF1C0", borderRadius: 20 },
+  roleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: navy },
+  roleText: { textTransform: "capitalize", color: navy, fontSize: 12, fontFamily: "ManropeBold" },
+  title: { color: "#fff", fontSize: 38, fontFamily: "Fraunces" },
+  titleCompact: { fontSize: 31 },
+  subtitle: { color: "#E7EDF5", fontFamily: "Manrope", fontSize: 14, lineHeight: 21, maxWidth: 680 },
+  content: { width: "100%", maxWidth: 1200, alignSelf: "center", paddingHorizontal: 32, paddingTop: 20, gap: 18 },
+  hero: { borderRadius: 24, backgroundColor: navy, overflow: "hidden" },
   heroBackground: { ...StyleSheet.absoluteFill, width: "100%", height: "100%" },
-  heroShade: { ...StyleSheet.absoluteFill, backgroundColor: "#102E46A8" },
-  heroCompact: { flexDirection: "column", borderRadius: 28 },
-  heroCopy: { flex: 1, padding: 24, gap: 17 }, welcomeRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  avatar: { backgroundColor: "transparent", height: 35, width: 35, borderRadius: 18, alignItems: "center", justifyContent: "center" }, avatarText: { fontSize: 13, color: "#224561", fontWeight: "700" },
-  welcome: { fontSize: 12, color: "#E6F3FC", flexShrink: 1 },
-  heroTitle: { fontSize: 32, lineHeight: 40, fontWeight: "700", letterSpacing: -1.2, color: "#FFFFFF" },
-  heroDescription: { color: "#E0EFF8", fontSize: 15, lineHeight: 21, maxWidth: 310 },
-  whiteButton: { maxWidth: "100%", flexWrap: "wrap", alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 16, paddingVertical: 14, paddingHorizontal: 19, backgroundColor: "rgba(255,255,255,0.9)", borderRadius: 30, marginTop: 4 },
-  whiteLabel: { color: AppTheme.colors.text, fontSize: 12, fontWeight: "600" },
-  heroVisual: { flex: 0.85, minHeight: 300, borderRadius: 25, overflow: "hidden", backgroundColor: "#AECBDC" },
-  heroVisualCompact: { flex: undefined, minHeight: 220 }, heroImage: { width: "100%", height: "100%", position: "absolute" },
-  glassCaption: { position: "absolute", bottom: 14, left: 14, right: 14, padding: 17, backgroundColor: "#182F4AC9", borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 12 },
-  captionTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" }, captionText: { color: "#DBE8F2", fontSize: 10, marginTop: 5 },
-  sectionHeading: { flexWrap: "wrap", flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 15, marginBottom: 23 },
-  sectionTitle: { color: AppTheme.colors.text, fontWeight: "700", fontSize: 24, letterSpacing: -0.7, marginTop: 9 }, sectionNote: { color: AppTheme.colors.textSecondary, fontSize: 10, flexShrink: 1 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 18 },
-  card: { minHeight: 250, borderRadius: 28, padding: 24, backgroundColor: AppTheme.colors.card, borderWidth: 1, borderColor: "#EBF1F6" },
-  primaryCard: { backgroundColor: "#DFEEFA", borderColor: "#DFEEFA" }, disabledCard: { backgroundColor: "#F7F8FA" },
-  cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 23 },
-  iconBox: { width: 46, height: 46, borderRadius: 23, backgroundColor: "transparent", alignItems: "center", justifyContent: "center" }, primaryIcon: { backgroundColor: AppTheme.colors.text },
-  cardIndex: { color: "#7F97AA", fontSize: 11 }, cardTitle: { fontSize: 19, fontWeight: "700", letterSpacing: -0.4, color: AppTheme.colors.text, lineHeight: 25 },
-  cardDescription: { color: "#657A8E", fontSize: 12, lineHeight: 20, marginTop: 10, flex: 1 },
-  cardBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 22 },
-  cardAction: { color: "#233E54", fontSize: 11, fontWeight: "600" }, arrowCircle: { width: 33, height: 33, borderRadius: 17, backgroundColor: "transparent", alignItems: "center", justifyContent: "center" },
-  accountBar: { marginTop: 35, flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 23, borderWidth: 1, borderColor: "#E8EFF5", borderRadius: 26, gap: 20 },
-  accountCompact: { flexDirection: "column", alignItems: "stretch" }, accountIdentity: { flexShrink: 1, flexWrap: "wrap", flexDirection: "row", alignItems: "center", gap: 13 },
-  accountIcon: { width: 43, height: 43, borderRadius: 22, backgroundColor: "#EFF6FC", alignItems: "center", justifyContent: "center" },
-  accountTitle: { fontSize: 15, fontWeight: "600", color: AppTheme.colors.text }, accountDescription: { fontSize: 11, color: AppTheme.colors.textSecondary, marginTop: 5 },
-  accountActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 20 }, profileButton: { flexDirection: "row", alignItems: "center", gap: 16, backgroundColor: "#EFF6FC", borderRadius: 24, paddingHorizontal: 18, paddingVertical: 12 },
-  signOut: { padding: 14, minHeight: 48, borderRadius: 24, backgroundColor: AppTheme.colors.primaryLight }, signOutLabel: { fontSize: 14, color: AppTheme.colors.primaryDark, fontWeight: "600" },
-  accessPanel: { width: "100%", maxWidth: 550, alignSelf: "center", padding: 30, marginTop: 40, gap: 15 },
-  darkButton: { backgroundColor: AppTheme.colors.primary, borderRadius: 28, padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 15 }, darkLabel: { color: "#FFFFFF", fontSize: 13, fontWeight: "600" },
+  heroShade: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(20,38,62,0.76)" },
+  heroCopy: { padding: 20, gap: 12 },
+  welcomeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  avatar: { backgroundColor: "#FFF1C0", height: 32, width: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontSize: 13, color: navy, fontFamily: "ManropeExtraBold" },
+  welcome: { fontSize: 13, fontFamily: "ManropeBold", color: "#fff", flexShrink: 1 },
+  heroTitle: { fontSize: 28, lineHeight: 34, fontFamily: "Fraunces", color: "#fff" },
+  heroDescription: { color: "#E7EDF5", fontSize: 14, lineHeight: 21, fontFamily: "Manrope", maxWidth: 420 },
+  primaryButton: { maxWidth: "100%", alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, paddingVertical: 10, paddingHorizontal: 16, backgroundColor: yellow, borderRadius: 24 },
+  buttonLabel: { color: navy, fontSize: 13, fontFamily: "ManropeExtraBold", flexShrink: 1 },
+  sectionHeading: { flexWrap: "wrap", flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 8 },
+  sectionTitle: { color: navy, fontFamily: "Fraunces", fontSize: 24, marginTop: 3 },
+  sectionNote: { color: muted, fontFamily: "Manrope", fontSize: 12, flexShrink: 1 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
+  card: { ...surface, padding: 16, gap: 8 },
+  primaryCard: { borderColor: "#E6B622" },
+  disabledCard: { backgroundColor: "#FAF8F2" },
+  cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  iconBox: { width: 44, height: 44, borderRadius: 14, backgroundColor: "#FFF1C0", alignItems: "center", justifyContent: "center" },
+  primaryIcon: { backgroundColor: yellow },
+  cardIndex: { color: muted, fontSize: 11, fontFamily: "ManropeBold" },
+  cardTitle: { color: navy, fontSize: 17, lineHeight: 23, fontFamily: "ManropeExtraBold" },
+  cardDescription: { color: muted, fontSize: 13, lineHeight: 20, fontFamily: "Manrope" },
+  cardBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: "auto" },
+  cardAction: { color: navy, fontSize: 12, fontFamily: "ManropeBold" },
+  arrowCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: marketplaceBackground, alignItems: "center", justifyContent: "center" },
+  accountBar: { ...surface, flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, gap: 14 },
+  accountCompact: { flexDirection: "column", alignItems: "stretch" },
+  accountIdentity: { flexShrink: 1, flexWrap: "wrap", flexDirection: "row", alignItems: "center", gap: 10 },
+  accountIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: "#FFF1C0", alignItems: "center", justifyContent: "center" },
+  accountTitle: { color: navy, fontFamily: "ManropeExtraBold", fontSize: 15 },
+  accountDescription: { color: muted, fontFamily: "Manrope", fontSize: 12, marginTop: 4 },
+  accountActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
+  profileButton: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: marketplaceBackground, borderRadius: 24, paddingHorizontal: 14, minHeight: 44 },
+  signOut: { paddingHorizontal: 14, minHeight: 44, borderRadius: 24, justifyContent: "center", borderWidth: 1, borderColor: "rgba(20,38,62,0.16)" },
+  signOutLabel: { color: navy, fontSize: 13, fontFamily: "ManropeBold" },
+  accessPanel: { ...surface, width: "100%", maxWidth: 550, alignSelf: "center", padding: 20, gap: 10 },
 });

@@ -6,6 +6,10 @@ export interface IProperty extends Document {
   __v: number;
   title?: string;
   description?: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  furnishing?: "unfurnished" | "semi-furnished" | "fully furnished";
+  streetAddress?: string;
   ownerId: mongoose.Types.ObjectId;
   jointOwnerIds: mongoose.Types.ObjectId[];
   type: "land" | "flat" | "house" | "shop" | "office";
@@ -32,6 +36,8 @@ export interface IProperty extends Document {
   media: { photos: string[]; videos: string[] };
   documents: mongoose.Types.ObjectId[];
   uploadReceipts?: Map<string, string>;
+  documentUploadLease?: string;
+  documentUploadUntil?: Date;
   disclosures: { hasLoan: boolean; hasDispute: boolean; possessionStatus: string };
   status: "draft" | "queued" | "pending" | "advisor_verified" | "correction_required" | "rejected" | "verified" | "sold";
   submission?: { id: string; digest: string; attempts: number; nextAttemptAt: Date; leaseUntil?: Date; leaseToken?: string; error?: string; completedAt?: Date };
@@ -96,6 +102,10 @@ const PropertySchema = new Schema<IProperty>(
       default: [],
     },
     khata: String,
+    bedrooms: { type: Number, min: 0, max: 99, validate: Number.isInteger },
+    bathrooms: { type: Number, min: 0, max: 99, validate: Number.isInteger },
+    furnishing: { type: String, enum: ["unfurnished", "semi-furnished", "fully furnished"] },
+    streetAddress: { type: String, trim: true, maxlength: 500 },
     khesra: String,
     holdingNumber: String,
     totalArea: { type: Number, required: true },
@@ -109,6 +119,8 @@ const PropertySchema = new Schema<IProperty>(
       videos: { type: [String], default: [] },
     },
     uploadReceipts: { type: Map, of: String, select: false },
+    documentUploadLease: String,
+    documentUploadUntil: Date,
     documents: { type: [Schema.Types.ObjectId], ref: "Document", default: [] },
     disclosures: {
       hasLoan: { type: Boolean, default: false },

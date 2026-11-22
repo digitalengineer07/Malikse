@@ -1,3 +1,4 @@
+import { isRunningInExpoGo } from "expo";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
@@ -5,7 +6,7 @@ let registeredToken: string | null = null;
 let handlerInstalled = false;
 
 async function notificationsModule() {
-  if (Platform.OS === "web") return null;
+  if (Platform.OS === "web" || isRunningInExpoGo()) return null;
   const Notifications = await import("expo-notifications");
   if (!handlerInstalled) {
     Notifications.setNotificationHandler({
@@ -61,18 +62,20 @@ export async function unregisterPushDevice() {
   await api.delete("/push/devices", { data: { token } });
 }
 
-export async function observePushOpens(onOpen: (kind: "inquiry" | "deal", id: string) => void) {
+export async function observePushOpens(onOpen: (kind: "inquiry" | "deal" | "property" | "listings", id: string) => void, onReceipt: (kind: unknown) => void) {
   const Notifications = await notificationsModule();
   if (!Notifications) return () => {};
   const open = (response: import("expo-notifications").NotificationResponse) => {
     const { kind, id } = response.notification.request.content.data || {};
-    if ((kind === "inquiry" || kind === "deal") && typeof id === "string") onOpen(kind, id);
+    onReceipt(kind);
+    if ((kind === "inquiry" || kind === "deal" || kind === "property" || kind === "listings") && typeof id === "string") onOpen(kind, id);
   };
   const subscription = Notifications.addNotificationResponseReceivedListener(open);
+  const receipts = Notifications.addNotificationReceivedListener(notification => onReceipt(notification.request.content.data?.kind));
   const last = Notifications.getLastNotificationResponse();
   if (last) {
     open(last);
     void Notifications.clearLastNotificationResponseAsync().catch(() => {});
   }
-  return () => subscription.remove();
+  return () => { subscription.remove(); receipts.remove(); };
 }

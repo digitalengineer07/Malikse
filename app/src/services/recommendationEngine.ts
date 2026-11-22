@@ -74,6 +74,13 @@ const badgeCache = new Map<string, RecommendationBadge>();
 const freshProfile = (): UserAffinityProfile => ({ ...DEFAULT_PROFILE, viewedIds: [], savedIds: [], districtAffinity: {}, intentAffinity: { ...DEFAULT_PROFILE.intentAffinity }, lastUpdated: Date.now() });
 let hydration: Promise<UserAffinityProfile> | undefined;
 let writes: Promise<void> = Promise.resolve();
+export async function clearUserAffinity() {
+  await hydration?.catch(() => {});
+  memoryProfile = freshProfile();
+  hydration = Promise.resolve(memoryProfile);
+  writes = writes.then(() => AsyncStorage.removeItem(AFFINITY_STORAGE_KEY)).catch(() => {});
+  await writes;
+}
 export function getUserAffinity(): UserAffinityProfile {
   return memoryProfile || (memoryProfile = freshProfile());
 }
@@ -361,7 +368,7 @@ export function getPropertyRecommendationBadge(
   const cached = badgeCache.get(cacheKey);
   if (cached) return cached;
 
-  const { isResidential, isCommercial, isInvestment } = classifyProperty(property);
+  const { isCommercial, isInvestment } = classifyProperty(property);
 
   let badge: RecommendationBadge;
 

@@ -41,6 +41,11 @@ export async function createOffer(
   let deal: any;
   try {
     await session.withTransaction(async () => {
+      // Writes serialize offer creation with a concurrent deletion request.
+      for (const id of [buyerId, property.ownerId]) {
+        const account = await User.updateOne({ _id: id, isActive: { $ne: false }, isSuspended: { $ne: true }, deletionRequestedAt: { $exists: false } }, { $inc: { __v: 1 } }, { session });
+        if (!account.matchedCount) throw new OfferError(409, "An account is unavailable or being deleted");
+      }
       const available = await Property.updateOne(
         {
           _id: property._id,
@@ -89,13 +94,21 @@ export async function createOffer(
           ],
           { session, ordered: true },
         );
+      const listingName = Array.from(property.title || "the listing").slice(0, 140).join("");
+      const offerBody = `A buyer made an offer on ${listingName}.`;
       await Notification.create(
         [
           {
             recipient: staff._id,
             title: "New offer",
-            body: "A buyer sent an offer on your assigned property.",
+            body: offerBody,
             data: { kind: "deal", id: String(deal._id) },
+          },
+          {
+            recipient: property.ownerId,
+            title: "New offer on your property",
+            body: offerBody,
+            data: { kind: "listings", id: String(property._id) },
           },
         ],
         { session, ordered: true },
@@ -182,6 +195,10 @@ export async function changeDeal(
           "Payment confirmation requires the existing Admin process",
         );
       if (status === "accepted") {
+        for (const id of [deal.buyerId, property.ownerId]) {
+          const account = await User.updateOne({ _id: id, isActive: { $ne: false }, isSuspended: { $ne: true }, deletionRequestedAt: { $exists: false } }, { $inc: { __v: 1 } }, { session });
+          if (!account.matchedCount) throw new OfferError(409, "An account is unavailable or being deleted");
+        }
         const buyer = await User.findById(deal.buyerId).session(session);
         if (
           !buyer ||

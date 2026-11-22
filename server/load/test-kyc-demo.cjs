@@ -1,0 +1,63 @@
+const assert = require('node:assert/strict');
+const { randomUUID } = require('node:crypto');
+process.env.NODE_ENV = 'production';
+process.env.JWT_ACCESS_SECRET = randomUUID();
+process.env.JWT_REFRESH_SECRET = randomUUID();
+process.env.PUBLIC_API_URL = 'https://malikseserver.devoxa.in';
+process.env.CORS_ORIGINS = 'https://malikse.devoxa.in';
+process.env.REQUEST_LOGS = 'false';
+process.env.KYC_UPLOADS_ENABLED = 'false';
+delete process.env.DOCUMENT_SCAN_URL;
+const mongoose = require('mongoose');
+const { createApp } = require('../dist/app');
+const { User } = require('../dist/models/User.model');
+const { generateTokens, identityApproved, publicUser } = require('../dist/services/security');
+const { stopRegionCounts } = require('../dist/services/regionCountStore');
+(async () => {
+ const dbName = 'malikse_kyc_demo_' + randomUUID().replaceAll('-', '');
+ let server;
+ try {
+  await mongoose.connect('mongodb://127.0.0.1:27017/' + dbName);
+  const user = await User.create({ name: 'Demo fixture', role: 'user', mobile: '9876543210', passwordHash: 'fixture' });
+  server = createApp().listen(0, '127.0.0.1');
+  await new Promise(r => server.once('listening', r));
+  const base = 'http://127.0.0.1:' + server.address().port;
+  const headers = { Authorization: 'Bearer ' + generateTokens(user).accessToken };
+  const upload = async bytes => {
+   const form = new FormData();
+   if (bytes !== null) form.append('files', new Blob([bytes], { type: 'application/pdf' }), 'fixture.pdf');
+   return fetch(base + '/users/kyc', { method: 'POST', headers, body: form });
+  };
+  process.env.KYC_DEMO_MODE = 'true';
+  assert.equal((await upload('invalid')).status, 400);
+  assert.equal((await User.findById(user._id)).demoKycComplete, false);
+  assert.equal((await upload(null)).status, 400);
+  const uploaded = await upload('%PDF-1.4 fixture');
+  assert.equal(uploaded.status, 200);
+  assert.equal((await uploaded.json()).demoOnly, true);
+  const saved = await User.findById(user._id);
+  assert.equal(saved.isVerifiedIdentity, false);
+  assert.equal(saved.demoKycComplete, true);
+  assert.equal(identityApproved(saved), true);
+  assert.equal(publicUser(saved).isVerifiedIdentity, true);
+  const status = await (await fetch(base + '/users/kyc', { headers })).json();
+  assert.equal(status.isVerifiedIdentity, true);
+  assert.equal(status.kycStatus, 'approved');
+  assert.match(status.identityReview.notes, /not been verified/);
+  assert.equal(await mongoose.connection.db.collection('kyc.files').countDocuments(), 0);
+  assert.equal(await mongoose.connection.db.collection('kyc.chunks').countDocuments(), 0);
+  process.env.KYC_DEMO_MODE = 'false';
+  assert.equal(identityApproved(saved), false);
+  assert.equal(publicUser(saved).isVerifiedIdentity, false);
+  const disabledStatus = await (await fetch(base + '/users/kyc', { headers })).json();
+  assert.equal(disabledStatus.isVerifiedIdentity, false);
+  saved.isVerifiedIdentity = true;
+  assert.equal(identityApproved(saved), true);
+  console.log('PASS: production demo upload, invalid/empty rejection, existing app status compatibility, no document storage, no real verification, flag disable revokes demo eligibility');
+ } finally {
+  if (server) await new Promise(r => server.close(r));
+  await stopRegionCounts();
+  if (mongoose.connection.name === dbName) await mongoose.connection.dropDatabase();
+  await mongoose.disconnect();
+ }
+})().catch(e => { console.error(e); process.exitCode = 1; });

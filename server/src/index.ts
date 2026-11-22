@@ -1,4 +1,10 @@
-import "dotenv/config";
+import { processFileCleanup } from "./services/fileCleanup";
+import path from "path";
+import dotenv from "dotenv";
+dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
+import { createRequiredIndexes, verifyRequiredIndexes } from "./services/requiredIndexes";
+import { startAccountDeletionWorker } from "./services/accountDeletion";
 import { deliverNotifications } from "./services/notificationQueue";
 import mongoose from "mongoose";
 import { createFastifyApp } from "./fastifyApp";
@@ -9,6 +15,7 @@ import { closeRedis } from "./services/redis";
 import { startRegionCounts, stopRegionCounts } from "./services/regionCountStore";
 import { startSubmissionWorker } from "./services/submissionQueue";
 import { checkPushReceipts } from "./services/pushNotifications";
+import { freePort } from "./services/freePort";
 
 let stopping = false;
 let initialized = false;
@@ -16,13 +23,28 @@ const app = createFastifyApp(() => initialized && !stopping && mongoose.connecti
 const PORT = positiveInteger("PORT", 5000, 65535);
 mongoose.set("bufferCommands", false);
 
+async function startListening(port: number): Promise<void> {
+  try {
+    await app.listen({ port, host: "0.0.0.0" });
+  } catch (err: any) {
+    if (err?.code === "EADDRINUSE" && process.env.NODE_ENV !== "production") {
+      console.warn(`[MalikSe] Port ${port} is currently busy. Reclaiming port...`);
+      freePort(port);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await app.listen({ port, host: "0.0.0.0" });
+      return;
+    }
+    throw err;
+  }
+}
+
 let startupStage = `listening on port ${PORT}`;
 // Bind before any remote database or region-count work to meet hosting startup deadlines.
-app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
+startListening(PORT).then(() => {
   console.log(`[MalikSe] Fastify server running on http://localhost:${PORT}`);
   startupStage = "MongoDB connection";
   return mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/malikse", {
-  autoIndex: process.env.NODE_ENV !== "production",
+  autoIndex: false,
   ...mongoPoolOptions(),
   });
 }).then(async () => {
@@ -33,46 +55,44 @@ app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
     await mongoose.connection.db!.command({ ping: 1 }, { readPreference: "secondary" });
     console.log("[MalikSe] MongoDB secondary available for read traffic");
   }
-  try {
-    const usersCol = mongoose.connection.collection("users");
-    const indexes = await usersCol.indexes();
-    const mobileIdx = indexes.find((idx: any) => idx.name === "mobile_1" || (idx.key && idx.key.mobile === 1));
-    if (mobileIdx && (!mobileIdx.sparse || !mobileIdx.unique)) {
-      console.log("[MalikSe] Migrating mobile_1 index to { unique: true, sparse: true }...");
-      await usersCol.dropIndex(mobileIdx.name || "mobile_1");
-      await usersCol.createIndex({ mobile: 1 }, { unique: true, sparse: true, background: true });
-      console.log("[MalikSe] mobile_1 index successfully migrated.");
-    }
-    const emailIdx = indexes.find((idx: any) => idx.name === "email_1" || (idx.key && idx.key.email === 1));
-    if (emailIdx && (!emailIdx.sparse || !emailIdx.unique)) {
-      console.log("[MalikSe] Migrating email_1 index to { unique: true, sparse: true }...");
-      await usersCol.dropIndex(emailIdx.name || "email_1");
-      await usersCol.createIndex({ email: 1 }, { unique: true, sparse: true, background: true });
-      console.log("[MalikSe] email_1 index successfully migrated.");
-    }
-  } catch (idxErr: any) {
-    console.warn("[MalikSe] Index verification warning:", idxErr?.message);
-  }
-  startupStage = "region count initialization";
-  await startRegionCounts();
+  startupStage = "required index verification";
+  if (process.env.NODE_ENV !== "production") await createRequiredIndexes();
+  await verifyRequiredIndexes();
   initialized = true;
   const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => {} : startSubmissionWorker();
-  const notificationTimer = setInterval(() => { void deliverNotifications().catch(() => console.warn("Notification retry deferred")); }, 10000);
-  notificationTimer.unref();
-  const receiptTimer = setInterval(() => {
-    void checkPushReceipts().catch(error => console.warn("[Push] Receipt check failed", error));
-  }, 5 * 60_000);
-  receiptTimer.unref();
+  const stopDeletionWorker = startAccountDeletionWorker();
+  let regionStartup: Promise<void> | undefined;
+  let regionRetry: NodeJS.Timeout | undefined;
+  const initializeRegions = () => {
+    regionStartup = startRegionCounts().catch(() => {
+      console.error("[RegionCounts] Initialization failed; retrying in 30 seconds");
+      if (!stopping) {
+        regionRetry = setTimeout(initializeRegions, 30_000);
+        regionRetry.unref();
+      }
+    });
+  };
+  const startTask = (task: () => Promise<unknown>, interval: number) => {
+    let pending: Promise<unknown> | undefined;
+    const timer = setInterval(() => { if (!pending) pending = task().catch(() => console.error("Background delivery deferred")).finally(() => { pending = undefined; }); }, interval);
+    timer.unref();
+    return async () => { clearInterval(timer); await pending; };
+  };
+  const stopFileCleanup = startTask(processFileCleanup, 30000);
+  const stopNotifications = startTask(deliverNotifications, 10000);
+  const stopReceipts = startTask(checkPushReceipts, 5 * 60_000);
   console.log("[MalikSe] API ready");
+  initializeRegions();
   const server = app.server;
   const shutdown = async () => {
     if (stopping) return;
     stopping = true;
-    clearInterval(receiptTimer);
-    clearInterval(notificationTimer);
+    clearTimeout(regionRetry);
+
     const deadline = setTimeout(() => { server.closeAllConnections(); process.exit(1); }, 15_000);
     deadline.unref();
-    await Promise.all([app.close(), stopWorker()]);
+    await Promise.all([app.close(), stopWorker(), stopDeletionWorker(), stopNotifications(), stopReceipts(), stopFileCleanup()]);
+    await regionStartup;
     await stopRegionCounts();
     await mongoose.disconnect();
     closeRedis();
@@ -80,6 +100,7 @@ app.listen({ port: PORT, host: "0.0.0.0" }).then(() => {
   };
   process.once("SIGTERM", () => { void shutdown(); });
   process.once("SIGINT", () => { void shutdown(); });
+  process.once("SIGUSR2", () => { void shutdown(); });
 }).catch(async (error: unknown) => {
   const cause = error as { name?: string; code?: string; message?: string };
   const message = String(cause?.message || "Unknown error").replace(/mongodb(?:\+srv)?:\/\/[^\s]+/gi, "[redacted MongoDB URI]");

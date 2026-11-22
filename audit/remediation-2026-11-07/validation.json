@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-08",
+  "scope": "Local verification; external delivery mocked, disposable databases",
+  "checks": {
+    "server_build": "PASS",
+    "audit_security_regression": "PASS (OTP, sessions, cookies, indexes, scanner, notification receipts, orphan cleanup)",
+    "uploads_multer_2": "PASS",
+    "account_deletion_replica": "PASS including GridFS documents",
+    "password_reset": "PASS",
+    "registration_otp": "PASS",
+    "hosting_startup": "PASS",
+    "assigned_workflow": "PASS 54 HTTP checks and transactional assertions",
+    "fastify_reads": "PASS",
+    "public_cache": "PASS",
+    "website_typecheck": "PASS",
+    "website_tests": "PASS 4 tests",
+    "website_build": "PASS 487 modules",
+    "clean_server_npm_ci_and_build": "PASS",
+    "clean_website_npm_ci_typecheck_tests_build": "PASS",
+    "clean_app_npm_ci": "PASS",
+    "clean_app_typecheck": "PASS after tracking required district data",
+    "clean_app_lint": "PASS zero errors; redundant __dirname declaration warning subsequently removed",
+    "clean_android_export": "PASS 1976 modules, Hermes bundle 5.1 MB",
+    "app_recommendations_startup_resume_regions": "PASS",
+    "profile_browser_inspection": "PASS local synthetic account; OTP form, deletion/privacy links visible",
+    "hosted_ci": "Not yet observed; runs on production push",
+    "live_deployment": "Not performed",
+    "final_app_lint": "PASS zero errors and zero warnings (eslint --no-cache --max-warnings 0)"
+  },
+  "audit_vulnerabilities": {
+    "server": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "app": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "website": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    }
+  }
+}

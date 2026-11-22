@@ -7,6 +7,19 @@ import { publicResponse, PublicResponse } from "./publicResponseCache";
 import { publicBusy } from "./publicCacheGeneration";
 import { replicaReadPreference } from "./readReplica";
 
+const nearbyRadiusKm = 25;
+const earthRadiusKm = 6371;
+const radians = Math.PI / 180;
+
+function isNearby(location: { lat?: number; lng?: number } | undefined, center: { lat: number; lng: number }) {
+  const { lat, lng } = location || {};
+  if (typeof lat !== "number" || typeof lng !== "number" || !Number.isFinite(lat) || !Number.isFinite(lng) ||
+      Math.abs(lat) > 90 || Math.abs(lng) > 180) return false;
+  const arc = Math.sin((lat - center.lat) * radians / 2) ** 2 +
+    Math.cos(center.lat * radians) * Math.cos(lat * radians) * Math.sin((lng - center.lng) * radians / 2) ** 2;
+  return arc <= Math.sin(nearbyRadiusKm / (2 * earthRadiusKm)) ** 2;
+}
+
 function scalar(value: unknown, name: string): string | undefined {
   if (value === undefined || value === null) return undefined;
   if (typeof value !== "string" && typeof value !== "number") throw new Error(`Invalid ${name}`);
@@ -53,6 +66,18 @@ export function normalizeSearch(input: Record<string, unknown>) {
     ...(type ? { type } : {}),
     ...(min !== undefined || max !== undefined ? { price: { ...(min !== undefined ? { $gte: Number(min) } : {}), ...(max !== undefined ? { $lte: Number(max) } : {}) } } : {}),
   };
+  const nearLat = scalar(input.nearLat, "nearby latitude");
+  const nearLng = scalar(input.nearLng, "nearby longitude");
+  let nearby: { lat: number; lng: number } | undefined;
+  if (input.nearLat !== undefined || input.nearLng !== undefined) {
+    const lat = Number(nearLat), lng = Number(nearLng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+      throw new Error("Invalid nearby coordinates");
+    }
+    nearby = { lat, lng };
+    const latitudeRadius = nearbyRadiusKm / (earthRadiusKm * radians);
+    filters["location.lat"] = { $gte: lat - latitudeRadius, $lte: lat + latitudeRadius };
+  }
 
   const district = scalar(input.district, "district");
   if (district && district.toLowerCase() !== "all bihar" && district.toLowerCase() !== "all") {
@@ -109,12 +134,12 @@ export function normalizeSearch(input: Record<string, unknown>) {
 
   const cursor = pageInput(input).filter;
   if (input.cursor && page !== 1) throw new Error("Use a cursor or a page, not both");
-  return { filters, cursor, page, limit, view, address: rawQuery?.toLowerCase() || "" };
+  return { filters, cursor, page, limit, view, nearby, address: rawQuery?.toLowerCase() || "" };
 }
 export function getPublicSearchResponse(input: Record<string, unknown>): Promise<PublicResponse> {
   const parsed = normalizeSearch(input);
   return publicResponse({ db: Property.db.name, kind: "search", ...parsed }, async () => {
-    const { filters, page, limit, view } = parsed;
+    const { filters, page, limit, view, nearby } = parsed;
     // Project the thumbnail in MongoDB so lists never fetch full photo/video arrays.
     const fields = view === "cards" ? "title type location totalArea sellableArea price negotiable status badges createdAt updatedAt" : publicFields;
     const projection = Object.fromEntries((fields + " ownerId").split(" ").map(field => [field, 1]));
@@ -138,6 +163,7 @@ export function getPublicSearchResponse(input: Record<string, unknown>): Promise
       const enabled = new Set(owners.map(owner => String(owner._id)));
       for (const row of batch) {
         if (!enabled.has(String(row.ownerId))) continue;
+        if (nearby && !isNearby(row.location, nearby)) continue;
         if (eligible++ < skip) continue;
         const { ownerId: _owner, ...dto } = row;
         if (view === "cards") dto.media = { photos: (dto.media?.photos || []).slice(0, 1) };

@@ -1,3 +1,4 @@
+import { removeLeafletMap } from "../src/utils/removeLeafletMap";
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text } from "react-native";
 import type { RegionGroup } from "../src/services/regionService";
@@ -20,7 +21,7 @@ export default function RegionCountMap({ groups, focus, level, state, onSelect }
       resize = new ResizeObserver(() => map.current?.invalidateSize());resize.observe(container.current);
       setReady(true);
     }).catch(() => { if (active) setFailed(true); });
-    return () => { active = false; resize?.disconnect(); map.current?.remove(); map.current = null; };
+    return () => { active = false; resize?.disconnect(); removeLeafletMap(map.current); map.current = null; };
   }, []);
   useEffect(() => {
     if (!ready) return;

@@ -1,9 +1,9 @@
 import { renderAppScreen } from "../components/AppScreen";
 import React, { useState, useEffect } from "react";
 import { useFonts } from "expo-font";
-import { Stack, usePathname, useRouter, type Href } from "expo-router";
+import { Stack, useRouter, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { AppState, Platform } from "react-native";
+import { AppState, LogBox, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SplashScreen from "expo-splash-screen";
 import "react-native-reanimated";
@@ -11,11 +11,35 @@ import AppOpeningScreen from "../components/AppOpeningScreen";
 import { useAuthStore } from "../src/store/authStore";
 import { authService } from "../src/services/authService";
 
-import AppBackground from "../components/AppBackground";
-import { hydrateResume, resumeTabs, useResumeStore } from "../src/store/resumeStore";
+import { marketplaceBackground } from "../constants/theme";
+import { hydrateResume } from "../src/store/resumeStore";
 import { preloadStartupResources } from "../src/services/startupPreload";
 import { cachedMapAssets, preloadMapAssets } from "../src/services/mapAssets";
 import { observePushOpens, registerPushDevice } from "../src/services/pushNotifications";
+import { refreshNotificationCount, useNotificationStore } from "../src/store/notificationStore";
+
+LogBox.ignoreLogs([
+  '"shadow*" style props are deprecated. Use "boxShadow".',
+  '"textShadow*" style props are deprecated. Use "textShadow".',
+  "props.pointerEvents is deprecated. Use style.pointerEvents",
+  "Animated: `useNativeDriver` is not supported",
+]);
+
+if (Platform.OS === "web" && typeof window !== "undefined") {
+  const originalWarn = console.warn;
+  console.warn = (...args: any[]) => {
+    const msg = typeof args[0] === "string" ? args[0] : "";
+    if (
+      msg.includes('"shadow*" style props are deprecated') ||
+      msg.includes('"textShadow*" style props are deprecated') ||
+      msg.includes("props.pointerEvents is deprecated") ||
+      msg.includes("useNativeDriver")
+    ) {
+      return;
+    }
+    originalWarn(...args);
+  };
+}
 
 // Prevent native splash screen from auto hiding before JS initializes
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -36,6 +60,10 @@ let openingCompleted = false;
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     PoppinsRegular: require("../assets/fonts/Poppins-Regular.ttf"),
+    Fraunces: require("../assets/fonts/Fraunces_400Regular.ttf"),
+    Manrope: require("../assets/fonts/Manrope_400Regular.ttf"),
+    ManropeBold: require("../assets/fonts/Manrope_700Bold.ttf"),
+    ManropeExtraBold: require("../assets/fonts/Manrope_800ExtraBold.ttf"),
     PoppinsMedium: require("../assets/fonts/Poppins-Medium.ttf"),
     PoppinsSemiBold: require("../assets/fonts/Poppins-SemiBold.ttf"),
     PoppinsBold: require("../assets/fonts/Poppins-Bold.ttf"),
@@ -45,9 +73,18 @@ export default function RootLayout() {
   const userId = useAuthStore(state => state.user?.id);
   const accessToken = useAuthStore(state => state.accessToken);
   const router = useRouter();
-  const pathname = usePathname();
   const [resumeReady, setResumeReady] = useState(Platform.OS === "web");
   useEffect(() => { hydrateResume().finally(() => setResumeReady(true)); }, []);
+  useEffect(() => {
+    if (!hydrated) return;
+    void refreshNotificationCount();
+    if (!userId || !accessToken) return;
+    const subscription = AppState.addEventListener("change", state => {
+      if (state === "active") void refreshNotificationCount();
+    });
+    return () => subscription.remove();
+  }, [hydrated, userId, accessToken]);
+
   useEffect(() => {
     if (Platform.OS === "web") return;
     void preloadStartupResources();
@@ -56,11 +93,6 @@ export default function RootLayout() {
     });
     return () => subscription.remove();
   }, []);
-  useEffect(() => {
-    if (resumeReady && Platform.OS !== "web" && resumeTabs.includes(pathname as typeof resumeTabs[number])) {
-      useResumeStore.getState().setTab(pathname as typeof resumeTabs[number]);
-    }
-  }, [pathname, resumeReady]);
 
   useEffect(() => {
     useAuthStore.getState().hydrateSession().then(() => {
@@ -75,7 +107,15 @@ export default function RootLayout() {
     let dispose: (() => void) | undefined;
     void observePushOpens((kind, id) => {
       if (kind === "inquiry") router.push({ pathname: "/(tabs)/messages", params: { inquiryId: id } });
-      else router.push(`/deal/${id}` as Href);
+      else if (kind === "deal") router.push(`/deal/${id}` as Href);
+      else if (kind === "property") router.push(`/property/${id}` as Href);
+      else router.push("/my-properties" as Href);
+    }, kind => {
+      if (!active) return;
+      void refreshNotificationCount();
+      if (kind === "inquiry" || kind === "deal") {
+        useNotificationStore.setState(state => ({ chatRevision: state.chatRevision + 1 }));
+      }
     }).then(stop => { if (active) dispose = stop; else stop(); })
       .catch(error => console.warn("Could not observe push notifications", error));
     return () => { active = false; dispose?.(); };
@@ -88,9 +128,8 @@ export default function RootLayout() {
   if ((!fontsLoaded && !fontError) || !resumeReady) return null;
 
   return (
-    <SafeAreaProvider style={{ flex: 1, backgroundColor: "#F4F6F9" }}>
-      <AppBackground />
-      <Stack screenLayout={renderAppScreen} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "transparent" } }}>
+    <SafeAreaProvider style={{ flex: 1, backgroundColor: marketplaceBackground }}>
+      <Stack screenLayout={renderAppScreen} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: marketplaceBackground } }}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="property/[id]" options={{ headerShown: false }} />
@@ -102,6 +141,7 @@ export default function RootLayout() {
         <Stack.Screen name="advisor" options={{ headerShown: false }} />
         <Stack.Screen name="verifier" options={{ headerShown: false }} />
         <Stack.Screen name="admin" options={{ headerShown: false }} />
+        <Stack.Screen name="notifications" options={{ presentation: "card" }} />
         <Stack.Screen name="modal" options={{ presentation: "modal" }} />
       </Stack>
       <StatusBar style="dark" />

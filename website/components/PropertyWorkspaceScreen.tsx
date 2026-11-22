@@ -121,7 +121,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
         <MiniMapPreview property={{ id: property._id, type: property.type, status: property.status, price: property.price, location: property.location, parcelPoints: property.parcelPoints }} />
         {!!property.parcelPoints?.length && <Text style={ui.muted}>Recorded boundary: {property.parcelPoints.map(point => `${point.lat}, ${point.lng}`).join(" → ")}</Text>}
         <Action title="Open location in maps" secondary onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${property.location.lat},${property.location.lng}`).catch(() => setError("Could not open maps"))} />
-        {property.media?.photos?.map((url, index) => <Image key={index} source={{ uri: url }} style={{ width: "100%", height: 220 }} />)}
+        {property.media?.photos?.map((url, index) => <Image key={index} source={{ uri: url }} style={{ width: "100%", height: 220 }} thumbnailWidth={900} />)}
         {property.media?.videos?.map((url, index) => <Action key={index} title={`View property video ${index + 1}`} secondary onPress={() => Linking.openURL(url).catch(() => setError("Could not open video"))} />)}
         {publicView && <Text style={ui.muted}>Approved by the assigned Advisor or Verifier. This is not a guarantee of legal title.</Text>}
         {publicView && (!user || user.role === "user") && <Action title="Make an offer" onPress={() => {
@@ -138,7 +138,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
       {!publicView && <>
         <View style={ui.card}>
           <Text style={ui.heading}>Seller and property records</Text>
-          {typeof property.ownerId === "object" && <Text style={ui.text}>{property.ownerId.name} · {property.ownerId.mobile}</Text>}
+          {property.ownerId && typeof property.ownerId === "object" ? <Text style={ui.text}>{property.ownerId.name} · {property.ownerId.mobile}</Text> : null}
           <Text style={ui.text}>Block: {property.location.block || "—"} · Mauza: {property.location.mauza || "—"} · Police station: {property.location.policeStation || "—"}</Text>
           <Text style={ui.text}>Khata: {property.khata || "—"} · Khesra: {property.khesra || "—"} · Holding: {property.holdingNumber || "—"}</Text>
           <Text style={ui.text}>Advisor: {property.assignedAdvisorId && typeof property.assignedAdvisorId === "object" ? property.assignedAdvisorId.name : property.assignedAdvisorId || "Awaiting assignment"}</Text>
@@ -155,7 +155,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
           <Text style={ui.heading}>{report!.role === "advisor" ? "Advisor" : "Verifier"} report · {report!.decision}</Text>
           <Text style={ui.text}>{report!.notes}</Text>
           <Text style={ui.muted}>Signed: {report!.signature} · {new Date(report!.submittedAt).toLocaleString()}</Text>
-          {Object.entries(report!.checklist).map(([key, value]) => <Text key={key} style={ui.text}>{value ? "✓" : "—"} {checks[key] || key}</Text>)}
+          {Object.entries(report!.checklist || {}).map(([key, value]) => <Text key={key} style={ui.text}>{value ? "✓" : "—"} {checks[key] || key}</Text>)}
           {report!.gpsCheckIn && <Text style={ui.text}>Site check-in: {report!.gpsCheckIn.lat}, {report!.gpsCheckIn.lng} · {new Date(report!.gpsCheckIn.timestamp).toLocaleString()}</Text>}
         </View>)}
         {canReview && <View style={ui.card}>

@@ -4,4 +4,77 @@
 @font-face{font-family:PoppinsMedium;src:url('../assets/fonts/Poppins-Medium.ttf') format('truetype');font-display:swap}
 @font-face{font-family:PoppinsSemiBold;src:url('../assets/fonts/Poppins-SemiBold.ttf') format('truetype');font-display:swap}
 @font-face{font-family:PoppinsBold;src:url('../assets/fonts/Poppins-Bold.ttf') format('truetype');font-display:swap}
-html,body,#root{height:100%;margin:0}body{font-family:Manrope,Arial,sans-serif;background:#f3f7ff;color:#0b1b3f}#root{display:flex;flex-direction:column;isolation:isolate;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);box-sizing:border-box}*{box-sizing:border-box}input,textarea,button{font:inherit}a{color:inherit}input,textarea{outline:none}input:focus,textarea:focus,[role=textbox]:focus{outline:none!important;box-shadow:none!important}a:focus-visible,button:focus-visible,[role=button]:focus-visible{outline:2px solid #0a45b5;outline-offset:2px}.page-status{margin:auto;padding:32px;text-align:center}.leaflet-container{font-family:Manrope,Arial,sans-serif}
+
+html,body,#root{height:100%;margin:0}
+body{font-family:Manrope,Arial,sans-serif;background:#f3f7ff;color:#0b1b3f}
+#root{display:flex;flex-direction:column;isolation:isolate;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);box-sizing:border-box}
+*{box-sizing:border-box}
+input,textarea,button{font:inherit}
+a{color:inherit}
+input,textarea{outline:none}
+input:focus,textarea:focus,[role=textbox]:focus{outline:none!important;box-shadow:none!important}
+a:focus-visible,button:focus-visible,[role=button]:focus-visible{outline:2px solid #0a45b5;outline-offset:2px}
+.page-status{margin:auto;padding:32px;text-align:center}
+.leaflet-container{font-family:Manrope,Arial,sans-serif}
+
+/* ==========================================================================
+   Clickable Button & Interactive Animation System
+   Subtle, responsive, tactile click effect on every button across the platform
+   ========================================================================== */
+
+/* 1. Base transition & transform origin for all interactive buttons and pressables */
+button,
+[role="button"],
+[role="tab"],
+[role="menuitem"],
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+.btn,
+.button,
+.privacy-button,
+[tabindex="0"][role="button"],
+[data-focusable="true"][role="button"],
+[style*="cursor: pointer"]:not(input):not(textarea):not(select):not([role="textbox"]):not(.leaflet-container):not(.leaflet-tile),
+[style*="cursor:pointer"]:not(input):not(textarea):not(select):not([role="textbox"]):not(.leaflet-container):not(.leaflet-tile) {
+  transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), filter 0.12s ease !important;
+  transform-origin: center center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 2. Tactile clicking effect on press / active (clean, subtle 3% scale-down) */
+button:active,
+[role="button"]:active,
+[role="tab"]:active,
+[role="menuitem"]:active,
+input[type="button"]:active,
+input[type="submit"]:active,
+input[type="reset"]:active,
+.btn:active,
+.button:active,
+.privacy-button:active,
+[tabindex="0"][role="button"]:active,
+[data-focusable="true"][role="button"]:active,
+[style*="cursor: pointer"]:not(input):not(textarea):not(select):not([role="textbox"]):not(.leaflet-container):not(.leaflet-tile):active,
+[style*="cursor:pointer"]:not(input):not(textarea):not(select):not([role="textbox"]):not(.leaflet-container):not(.leaflet-tile):active {
+  transform: scale(0.97) !important;
+  filter: brightness(0.96) !important;
+}
+
+/* 3. Prevent inner text, icons, and svgs from double-scaling */
+button *:active,
+[role="button"] *:active,
+[role="tab"] *:active {
+  transform: none;
+}
+
+/* 4. Disabled buttons state - never scale or animate */
+button:disabled,
+button[disabled],
+[role="button"][aria-disabled="true"],
+[aria-disabled="true"],
+[disabled] {
+  transform: none !important;
+  filter: none !important;
+  cursor: not-allowed !important;
+}

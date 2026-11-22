@@ -15,7 +15,7 @@ export const documentService = {
     if (Platform.OS === "web") formData.append("file", file, fileName);
     else formData.append("file", file);
 
-    const res = await api.post("/documents", formData, {
+    const res = await api.post(`/documents?propertyId=${encodeURIComponent(propertyId)}${options ? `&uploadId=${encodeURIComponent(options.uploadId)}` : ""}`, formData, {
       timeout: 120000,
       onUploadProgress: event => options?.onProgress(Math.round(100 * event.loaded / (event.total || event.loaded || 1))),
       headers: { "Content-Type": "multipart/form-data" }

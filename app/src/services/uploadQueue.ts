@@ -9,7 +9,7 @@ const ids = new WeakMap<object, string>();
 const idFor = (item: object) => { let id = ids.get(item); if (!id) { id = randomUUID(); ids.set(item, id); } return id; };
 
 // Wait for every active task before reporting failure, so a retry cannot overlap it.
-export async function runUploadTasks(tasks: Array<() => Promise<void>>) {
+export async function runUploadTasks(tasks: (() => Promise<void>)[]) {
   let next = 0;
   let failure: unknown;
   let failed = false;

@@ -2,7 +2,7 @@ import mongoose, { Schema, Document } from "mongoose";
 
 export interface IDocument extends Document {
   propertyId: mongoose.Types.ObjectId;
-  type: "Registry" | "Mutation" | "LPC/Jamabandi" | "Map" | "Rent Receipt" | "Owner ID Proof";
+  type: "Registry" | "Mutation" | "LPC/Jamabandi" | "Map" | "Rent Receipt" | "Owner ID Proof" | "Utility or Tax Bill";
   fileName: string;
   fileSize: number;
   fileUrl: string;          // Full-resolution URL (advisor/owner only)
@@ -19,7 +19,7 @@ const DocumentSchema = new Schema<IDocument>(
     propertyId: { type: Schema.Types.ObjectId, ref: "Property", required: true },
     type: {
       type: String,
-      enum: ["Registry", "Mutation", "LPC/Jamabandi", "Map", "Rent Receipt", "Owner ID Proof"],
+      enum: ["Registry", "Mutation", "LPC/Jamabandi", "Map", "Rent Receipt", "Owner ID Proof", "Utility or Tax Bill"],
       required: true,
     },
     fileName: { type: String, required: true },

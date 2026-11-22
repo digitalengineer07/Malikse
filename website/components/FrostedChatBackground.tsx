@@ -6,7 +6,7 @@ import AppBackground from "./AppBackground";
 /** Keep text readable even on platforms where native blur is unavailable. */
 export default function FrostedChatBackground() {
   const target = useRef<View>(null);
-  return <View pointerEvents="none" accessible={false} style={StyleSheet.absoluteFill}>
+  return <View accessible={false} style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}>
     {Platform.OS === "android" && <BlurTargetView ref={target} style={StyleSheet.absoluteFill}><AppBackground /></BlurTargetView>}
     <BlurView tint="light" intensity={55} {...(Platform.OS === "android" ? { blurMethod: "dimezisBlurViewSdk31Plus" as const, blurTarget: target } : {})}
       style={StyleSheet.absoluteFill} />

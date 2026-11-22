@@ -2,8 +2,8 @@ import type { Request, Response, RequestHandler } from "express";
 import { Types } from "mongoose";
 
 export const listFields = "title type location status price totalArea sellableArea negotiable badges media createdAt updatedAt ownerId assignedAdvisorId assignedVerifierId rejectionReason";
-export function cursorFor(row: any) { return Buffer.from(JSON.stringify([new Date(row.createdAt).toISOString(), String(row._id)])).toString("base64url"); }
-export function pageInput(input: any) {
+export function cursorFor(row: any, sortField: "createdAt" | "updatedAt" = "createdAt") { return Buffer.from(JSON.stringify([new Date(row[sortField]).toISOString(), String(row._id)])).toString("base64url"); }
+export function pageInput(input: any, sortField: "createdAt" | "updatedAt" = "createdAt") {
   if (input.limit !== undefined && typeof input.limit !== "string" && typeof input.limit !== "number") throw new Error("Invalid limit");
   const limit = input.limit === undefined ? 50 : Number(input.limit);
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("Limit must be between 1 and 100");
@@ -14,7 +14,7 @@ export function pageInput(input: any) {
     try { value = JSON.parse(Buffer.from(input.cursor, "base64url").toString()); } catch { throw new Error("Invalid cursor"); }
     if (!Array.isArray(value) || value.length !== 2 || typeof value[0] !== "string" || !Number.isFinite(Date.parse(value[0])) || typeof value[1] !== "string" || !/^[a-f0-9]{24}$/i.test(value[1])) throw new Error("Invalid cursor");
     const date = new Date(value[0]);
-    filter = { $or: [{ createdAt: { $lt: date } }, { createdAt: date, _id: { $lt: new Types.ObjectId(value[1]) } }] };
+    filter = { $or: [{ [sortField]: { $lt: date } }, { [sortField]: date, _id: { $lt: new Types.ObjectId(value[1]) } }] };
   }
   return { limit, filter };
 }

@@ -6,7 +6,6 @@ import AppBackground from "./AppBackground";
 export default function AppScreen({ children }: { children: ReactNode }) {
   return (
     <View style={styles.screen}>
-      <AppBackground />
       <View style={styles.content}>{children}</View>
     </View>
   );

@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import NativeLeafletMap from "./NativeLeafletMap";
 import type { RegionGroup } from "../src/services/regionService";
 import type { NativeMapOptions, MapFocus } from "../src/utils/nativeMapHtml";
-import { INDIA_STATES_DATA, type IndiaStateInfo } from "../src/data/indiaStatesData";
+import { INDIA_STATES_DATA, type IndiaStateInfo } from "../src/geo-data/indiaStatesData";
 import type { Property } from "../src/types/property.types";
 import { hasParcelBoundary } from "../src/utils/parcelMap";
 

@@ -1,10 +1,11 @@
+import { removeLeafletMap } from "../src/utils/removeLeafletMap";
 import React, { useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import type { RegionGroup } from "../src/services/regionService";
 import { validMapPoint, type MapFocus } from "../src/utils/nativeMapHtml";
 import { addRegionBoundaries } from "../src/utils/regionBoundaryLayer";
-import { INDIA_STATES_DATA, type IndiaStateInfo } from "../src/data/indiaStatesData";
+import { INDIA_STATES_DATA, type IndiaStateInfo } from "../src/geo-data/indiaStatesData";
 import { currentMapLocation } from "../src/services/currentMapLocation";
 import { hasParcelBoundary } from "../src/utils/parcelMap";
 import type { Property } from "../src/types/property.types";
@@ -112,7 +113,7 @@ export default function PremiumIndiaMap({
       resizeObserver?.disconnect();
       plotMarkersLayerRef.current?.clearLayers();
       stateMarkersLayerRef.current?.clearLayers();
-      mapRef.current?.remove();
+      removeLeafletMap(mapRef.current);
       mapRef.current = null;
     };
   }, []);
@@ -605,7 +606,7 @@ export default function PremiumIndiaMap({
       />
 
       {/* Floating Top-Right Map Controls */}
-      <View style={styles.controlsWrap} pointerEvents="box-none">
+      <View style={[styles.controlsWrap, { pointerEvents: "box-none" }]}>
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="Zoom In"
@@ -652,7 +653,7 @@ export default function PremiumIndiaMap({
       </View>
 
       {/* Floating Bottom-Left Layer Mode Switcher & Quick Focus */}
-      <View style={styles.bottomControlsWrap} pointerEvents="box-none">
+      <View style={[styles.bottomControlsWrap, { pointerEvents: "box-none" }]}>
         {/* Google Maps Authenticity Badge */}
         <View style={styles.googleBrandBadge}>
           <Text style={styles.googleBrandText}>
