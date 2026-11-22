@@ -2,11 +2,13 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,9 +21,26 @@ interface ChatListScreenProps {
   onSelectConversation: (inquiryId: string) => void;
 }
 
+const C = {
+  ink: "#14263E",
+  sun: "#FCC61C",
+  sunSoft: "#FBF2C0",
+  blue: "#0A45B5",
+  bg: "#F4F8FF",
+  line: "#E2ECF8",
+  muted: "#5D7089",
+  green: "#12964C",
+};
+
 function getParticipantId(party: any): string {
   if (!party) return "";
   return typeof party === "object" ? String(party._id || "") : String(party);
+}
+
+function formatLocationPart(value: unknown): string {
+  return typeof value === "string" && value.trim()
+    ? value.trim().toLocaleLowerCase().replace(/(^|[\s-])\p{L}/gu, (start) => start.toLocaleUpperCase())
+    : "";
 }
 
 function formatThreadDate(dateString?: string): string {
@@ -29,27 +48,7 @@ function formatThreadDate(dateString?: string): string {
   try {
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return "";
-
-    const now = new Date();
-    const isToday =
-      d.getDate() === now.getDate() &&
-      d.getMonth() === now.getMonth() &&
-      d.getFullYear() === now.getFullYear();
-
-    if (isToday) {
-      return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
-    }
-
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const isYesterday =
-      d.getDate() === yesterday.getDate() &&
-      d.getMonth() === yesterday.getMonth() &&
-      d.getFullYear() === yesterday.getFullYear();
-
-    if (isYesterday) return "Yesterday";
-
-    return d.toLocaleDateString([], { day: "numeric", month: "short" });
+    return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   } catch {
     return "";
   }
@@ -57,6 +56,9 @@ function formatThreadDate(dateString?: string): string {
 
 export const ChatListScreen: React.FC<ChatListScreenProps> = ({ onSelectConversation }) => {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const houseWidth = Math.min(194, Math.max(0, width - 40) * 0.42);
+
   const user = useAuthStore((s) => s.user);
   const currentUserId = user?.id || "";
 
@@ -114,164 +116,182 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({ onSelectConversa
 
   return (
     <View style={styles.screen}>
-      {/* WhatsApp Styled Dark Green Top Bar */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <View style={styles.headerTopRow}>
-          <Text style={styles.headerTitle}>Chats</Text>
-          <View style={styles.headerBadges}>
-            <View style={styles.statusPill}>
-              <Text style={styles.statusPillText}>{conversations.length} Active</Text>
-            </View>
+      {/* Exact Previous MalikSe Hero Header */}
+      <View style={[styles.heroHeader, { paddingTop: insets.top + 14 }]}>
+        <View style={styles.messagesHeroIntro}>
+          <View style={styles.messagesHeroCopy}>
+            <Text accessibilityRole="header" style={styles.heroTitle}>
+              Messages
+            </Text>
+            <Text style={styles.messagesHeroSubtitle} numberOfLines={2}>
+              Track property enquiries and replies.
+            </Text>
           </View>
+          <Image
+            source={require("../../../assets/images/messages_header_house.png")}
+            resizeMode="contain"
+            accessible={false}
+            style={[styles.messagesHeroHouse, { width: houseWidth, height: houseWidth * (897 / 1754) }]}
+          />
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <MaterialIcons name="search" size={20} color="#8696A0" style={{ marginLeft: 10 }} />
+        {/* Previous Search Pill */}
+        <View style={styles.messagesHeroSearch}>
+          <MaterialIcons name="search" size={20} color={C.ink} />
           <TextInput
-            style={styles.searchInput}
-            placeholder="Search chats or properties..."
-            placeholderTextColor="#8696A0"
+            accessibilityLabel="Search chats, people or properties"
+            placeholder="Search chats, people or properties"
+            placeholderTextColor={C.muted}
             value={searchQuery}
             onChangeText={setSearchQuery}
+            style={styles.messagesHeroSearchInput}
           />
           {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery("")} style={styles.clearSearch}>
-              <MaterialIcons name="close" size={18} color="#8696A0" />
+            <Pressable onPress={() => setSearchQuery("")}>
+              <MaterialIcons name="close" size={18} color={C.muted} />
             </Pressable>
           )}
         </View>
+      </View>
 
-        {/* Filter Pills */}
-        <View style={styles.filterRow}>
-          <Pressable
-            onPress={() => setFilterUnread(false)}
-            style={[styles.filterChip, !filterUnread && styles.filterChipActive]}
-          >
-            <Text style={[styles.filterChipText, !filterUnread && styles.filterChipTextActive]}>
-              All
-            </Text>
-          </Pressable>
+      {/* Filter Tabs: All vs Unread */}
+      <View style={styles.filterWrap}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setFilterUnread(false)}
+          style={[styles.filterButton, !filterUnread && styles.filterButtonActive]}
+        >
+          <Text style={[styles.filterButtonText, !filterUnread && styles.filterButtonTextActive]}>
+            All
+          </Text>
+        </Pressable>
 
-          <Pressable
-            onPress={() => setFilterUnread(true)}
-            style={[styles.filterChip, filterUnread && styles.filterChipActive]}
-          >
-            <Text style={[styles.filterChipText, filterUnread && styles.filterChipTextActive]}>
-              Unread
-            </Text>
-          </Pressable>
-        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setFilterUnread(true)}
+          style={[styles.filterButton, filterUnread && styles.filterButtonActive]}
+        >
+          <Text style={[styles.filterButtonText, filterUnread && styles.filterButtonTextActive]}>
+            Unread
+          </Text>
+        </Pressable>
       </View>
 
       {/* Conversation Thread Feed */}
       {loading && !refreshing ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#008069" />
+          <ActivityIndicator size="large" color={C.blue} />
         </View>
       ) : (
         <FlatList
           data={filtered}
           keyExtractor={(item) => item._id}
+          contentContainerStyle={styles.listContent}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={["#008069"]} />
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[C.blue]} />
           }
           renderItem={({ item }) => {
             const isBuyer = getParticipantId(item.buyerId) === currentUserId;
             const other = isBuyer ? item.staffId : item.buyerId;
-            const otherName =
-              (typeof other === "object" && other?.name) ||
+            const participantName =
+              (typeof other === "object" && other?.name?.trim()) ||
               (isBuyer ? "Property Advisor" : "Buyer");
             const role =
-              typeof other === "object" && other?.role
-                ? other.role.charAt(0).toUpperCase() + other.role.slice(1)
-                : isBuyer
+              !isBuyer
+                ? "Buyer"
+                : typeof other === "object" && other?.role === "advisor"
                 ? "Advisor"
-                : "Client";
+                : typeof other === "object" && other?.role === "verifier"
+                ? "Verifier"
+                : "Property team";
 
             const lastMessage = item.messages?.at(-1);
             const previewText = lastMessage?.text || item.message;
-            const lastSenderId = getParticipantId(lastMessage?.senderId);
-            const isMine = lastSenderId === currentUserId;
             const timestamp = lastMessage?.createdAt || item.updatedAt || item.createdAt;
             const timeFormatted = formatThreadDate(timestamp);
-            const propertyTitle = item.propertyId?.title || "Property Conversation";
+
+            const location = item.propertyId?.location;
+            const address = [location?.block, location?.district].map(formatLocationPart);
+            const listing = [formatLocationPart(item.propertyId?.title), ...new Set(address)]
+              .filter(Boolean)
+              .join(" · ");
+
             const unreadCount = item.unreadCount || (item.unread ? 1 : 0);
 
             return (
               <Pressable
+                key={item._id}
                 accessibilityRole="button"
                 onPress={() => onSelectConversation(item._id)}
-                style={({ pressed }) => [styles.threadItem, pressed && styles.threadItemPressed]}
+                style={({ pressed }) => [styles.threadCard, pressed && { opacity: 0.78 }]}
               >
-                {/* Avatar with initial */}
-                <View style={styles.avatarWrap}>
-                  <View style={styles.avatarCircle}>
-                    <Text style={styles.avatarText}>{otherName.charAt(0).toUpperCase()}</Text>
+                {/* Left Column Avatar with Initials */}
+                <View style={styles.threadAvatarColumn}>
+                  <View style={styles.threadAvatar}>
+                    <Text style={styles.threadAvatarText}>
+                      {Array.from(participantName)[0]?.toLocaleUpperCase()}
+                    </Text>
+                    {item.unread && <View style={styles.threadUnreadDot} />}
                   </View>
-                  {unreadCount > 0 && <View style={styles.unreadDotBadge} />}
                 </View>
 
-                {/* Info Column */}
-                <View style={styles.threadContent}>
-                  <View style={styles.nameRow}>
-                    <Text style={[styles.contactName, unreadCount > 0 && styles.contactNameUnread]} numberOfLines={1}>
-                      {otherName}
+                {/* Center Content Column */}
+                <View style={styles.threadCopy}>
+                  <View style={styles.threadNameRow}>
+                    <Text style={styles.threadName} numberOfLines={1}>
+                      {participantName}
                     </Text>
-                    <Text style={[styles.timestampText, unreadCount > 0 && styles.timestampUnread]}>
-                      {timeFormatted}
-                    </Text>
-                  </View>
-
-                  {/* Property Pill Snippet */}
-                  <View style={styles.propertyRow}>
-                    <MaterialIcons name="apartment" size={13} color="#008069" />
-                    <Text style={styles.propertyTitle} numberOfLines={1}>
-                      {propertyTitle}
-                    </Text>
-                    <View style={styles.roleTag}>
-                      <Text style={styles.roleTagText}>{role}</Text>
+                    <View style={styles.threadRole}>
+                      <Text style={styles.threadRoleText}>{role}</Text>
                     </View>
                   </View>
 
-                  {/* Last Message Preview & Unread Counter */}
-                  <View style={styles.previewRow}>
-                    <View style={styles.previewLeft}>
-                      {isMine && (
-                        <MaterialIcons
-                          name="done-all"
-                          size={15}
-                          color="#53BDEB"
-                          style={{ marginRight: 3 }}
-                        />
-                      )}
-                      <Text
-                        style={[styles.previewText, unreadCount > 0 && styles.previewTextUnread]}
-                        numberOfLines={1}
-                      >
-                        {previewText}
+                  {listing ? (
+                    <View style={styles.threadListing}>
+                      <MaterialIcons name="home" size={15} color={C.muted} />
+                      <Text style={styles.threadListingText} numberOfLines={1}>
+                        {listing}
                       </Text>
                     </View>
+                  ) : null}
 
-                    {unreadCount > 0 && (
-                      <View style={styles.unreadCountBadge}>
-                        <Text style={styles.unreadCountText}>{unreadCount}</Text>
-                      </View>
-                    )}
-                  </View>
+                  <Text style={styles.threadPreview} numberOfLines={1}>
+                    {previewText}
+                  </Text>
                 </View>
+
+                {/* Right Meta Column */}
+                <View style={styles.threadMeta}>
+                  {timeFormatted ? (
+                    <Text style={styles.threadTime}>{timeFormatted}</Text>
+                  ) : null}
+
+                  {item.unread && (
+                    <View style={unreadCount > 0 ? styles.threadCount : styles.threadCountDot}>
+                      {unreadCount > 0 && (
+                        <Text style={styles.threadCountText}>
+                          {unreadCount > 99 ? "99+" : unreadCount}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </View>
+
+                <MaterialIcons name="chevron-right" size={19} color={C.ink} />
               </Pressable>
             );
           }}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <MaterialIcons name="chat-bubble-outline" size={56} color="#B0BEC5" />
-              <Text style={styles.emptyTitle}>No conversations found</Text>
+              <Text style={styles.emptyTitle}>
+                {searchQuery ? "No matching conversations" : "Start a conversation"}
+              </Text>
               <Text style={styles.emptySubtitle}>
                 {searchQuery
-                  ? "Try searching for a different property or advisor."
-                  : "Your inquiries and chats with property advisors will appear here."}
+                  ? "Try another search or filter."
+                  : "Open a verified property and contact its assigned team."}
               </Text>
             </View>
           }
@@ -284,216 +304,229 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({ onSelectConversa
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: C.bg,
   },
-  header: {
-    backgroundColor: "#008069", // WhatsApp dark green
+  heroHeader: {
+    backgroundColor: C.ink,
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 28,
   },
-  headerTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  messagesHeroIntro: {
+    minHeight: 88,
+    justifyContent: "center",
+    position: "relative",
     marginBottom: 12,
   },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: "700",
+  messagesHeroCopy: {
+    width: "66%",
+    gap: 4,
+  },
+  heroTitle: {
+    fontFamily: "Fraunces_400Regular",
+    fontSize: 28,
     color: "#FFFFFF",
-  },
-  headerBadges: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  statusPill: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusPillText: {
-    color: "#FFFFFF",
-    fontSize: 12,
     fontWeight: "600",
   },
-  searchContainer: {
+  messagesHeroSubtitle: {
+    fontFamily: "Manrope_400Regular",
+    fontSize: 13,
+    lineHeight: 18,
+    color: "rgba(255,255,255,0.82)",
+  },
+  messagesHeroHouse: {
+    position: "absolute",
+    bottom: -10,
+    right: -4,
+  },
+  messagesHeroSearch: {
+    minHeight: 44,
     flexDirection: "row",
     alignItems: "center",
+    gap: 10,
+    zIndex: 1,
+    paddingHorizontal: 14,
+    borderRadius: 24,
     backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    height: 40,
-    marginBottom: 10,
-    elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  searchInput: {
+  messagesHeroSearchInput: {
     flex: 1,
-    height: "100%",
+    minWidth: 0,
+    minHeight: 44,
+    fontFamily: "Manrope_400Regular",
     fontSize: 14,
-    color: "#111B21",
-    paddingHorizontal: 10,
+    color: C.ink,
   },
-  clearSearch: {
-    padding: 8,
-  },
-  filterRow: {
+  filterWrap: {
     flexDirection: "row",
     gap: 8,
-    marginTop: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderRadius: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.18)",
-  },
-  filterChipActive: {
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
     backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: C.line,
   },
-  filterChipText: {
+  filterButtonActive: {
+    backgroundColor: C.ink,
+    borderColor: C.ink,
+  },
+  filterButtonText: {
+    fontFamily: "ManropeBold",
     fontSize: 13,
-    fontWeight: "600",
-    color: "#E0F2F1",
+    color: C.ink,
+    fontWeight: "700",
   },
-  filterChipTextActive: {
-    color: "#008069",
+  filterButtonTextActive: {
+    color: "#FFFFFF",
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+  threadCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: C.line,
+    paddingLeft: 13,
+    paddingRight: 9,
+    paddingVertical: 12,
+    shadowColor: C.ink,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  threadAvatarColumn: {
+    alignSelf: "stretch",
+    justifyContent: "center",
+    paddingRight: 11,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderColor: C.line,
+  },
+  threadAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: C.sunSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  threadAvatarText: {
+    fontFamily: "ManropeExtraBold",
+    fontSize: 20,
+    color: C.ink,
+    fontWeight: "800",
+  },
+  threadUnreadDot: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    width: 11,
+    height: 11,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    borderRadius: 6,
+    backgroundColor: C.green,
+  },
+  threadCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  threadNameRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 5,
+  },
+  threadName: {
+    flexShrink: 1,
+    fontFamily: "ManropeExtraBold",
+    fontSize: 15,
+    color: C.ink,
+    fontWeight: "800",
+  },
+  threadRole: {
+    borderRadius: 12,
+    backgroundColor: "#E3F5E9",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  threadRoleText: {
+    color: C.green,
+    fontFamily: "ManropeBold",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  threadListing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  threadListingText: {
+    flexShrink: 1,
+    fontFamily: "ManropeBold",
+    fontSize: 12,
+    color: C.muted,
+  },
+  threadPreview: {
+    fontFamily: "Manrope_400Regular",
+    fontSize: 12,
+    color: C.ink,
+  },
+  threadMeta: {
+    flexDirection: "column",
+    alignItems: "flex-end",
+    gap: 6,
+  },
+  threadTime: {
+    fontFamily: "Manrope_400Regular",
+    fontSize: 10,
+    color: C.muted,
+  },
+  threadCount: {
+    minHeight: 20,
+    minWidth: 20,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.sun,
+  },
+  threadCountText: {
+    fontFamily: "ManropeExtraBold",
+    fontSize: 11,
+    lineHeight: 14,
+    includeFontPadding: false,
+    textAlign: "center",
+    color: C.ink,
+    fontWeight: "800",
+  },
+  threadCountDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: C.sun,
   },
   centerContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-  },
-  threadItem: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-  },
-  threadItemPressed: {
-    backgroundColor: "#F5F5F5",
-  },
-  avatarWrap: {
-    position: "relative",
-    marginRight: 14,
-  },
-  avatarCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#E0F2F1",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#008069",
-  },
-  unreadDotBadge: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#25D366", // WhatsApp bright green
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
-  threadContent: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  nameRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 2,
-  },
-  contactName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#111B21",
-    flex: 1,
-    marginRight: 8,
-  },
-  contactNameUnread: {
-    fontWeight: "700",
-  },
-  timestampText: {
-    fontSize: 12,
-    color: "#667781",
-  },
-  timestampUnread: {
-    color: "#25D366",
-    fontWeight: "600",
-  },
-  propertyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 4,
-  },
-  propertyTitle: {
-    fontSize: 12,
-    color: "#008069",
-    fontWeight: "500",
-    flexShrink: 1,
-  },
-  roleTag: {
-    backgroundColor: "#E8F5E9",
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
-    marginLeft: 4,
-  },
-  roleTagText: {
-    fontSize: 10,
-    color: "#2E7D32",
-    fontWeight: "600",
-  },
-  previewRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  previewLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    marginRight: 8,
-  },
-  previewText: {
-    fontSize: 14,
-    color: "#667781",
-  },
-  previewTextUnread: {
-    color: "#111B21",
-    fontWeight: "600",
-  },
-  unreadCountBadge: {
-    backgroundColor: "#25D366", // WhatsApp green counter
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 6,
-  },
-  unreadCountText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "#E0E0E0",
-    marginLeft: 80,
   },
   emptyContainer: {
     paddingVertical: 60,
@@ -504,14 +537,16 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 17,
     fontWeight: "600",
-    color: "#37474F",
+    color: C.ink,
+    fontFamily: "ManropeBold",
     marginTop: 14,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: "#78909C",
+    color: C.muted,
     textAlign: "center",
     marginTop: 6,
     lineHeight: 20,
+    fontFamily: "Manrope_400Regular",
   },
 });

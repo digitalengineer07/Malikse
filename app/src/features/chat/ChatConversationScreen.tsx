@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   AppState,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,6 +17,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "../../store/authStore";
 import { useNotificationStore, refreshNotificationCount } from "../../store/notificationStore";
+import NotificationBell from "../../../components/NotificationBell";
 import { chatApi } from "./chatApi";
 import { ChatBubble } from "./ChatBubble";
 import type { ChatConversation, ChatMessage } from "./chatTypes";
@@ -25,9 +27,25 @@ interface ChatConversationScreenProps {
   onBack: () => void;
 }
 
+const C = {
+  ink: "#14263E",
+  sun: "#FCC61C",
+  sunSoft: "#FBF2C0",
+  blue: "#0A45B5",
+  bg: "#F4F8FF",
+  line: "#E2ECF8",
+  muted: "#5D7089",
+};
+
 function getParticipantId(party: any): string {
   if (!party) return "";
   return typeof party === "object" ? String(party._id || "") : String(party);
+}
+
+function formatLocationPart(value: unknown): string {
+  return typeof value === "string" && value.trim()
+    ? value.trim().toLocaleLowerCase().replace(/(^|[\s-])\p{L}/gu, (start) => start.toLocaleUpperCase())
+    : "";
 }
 
 export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
@@ -62,7 +80,6 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
     if (isInitial) setLoading(true);
 
     try {
-      // Fetch conversation summary and recent messages in parallel
       const [convData, msgData] = await Promise.all([
         conversation ? Promise.resolve(conversation) : chatApi.getConversation(inquiryId),
         chatApi.getMessages(inquiryId),
@@ -74,13 +91,11 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
         setRecipientReadAt(msgData.recipientReadAt ?? null);
         setNextBefore(msgData.nextBefore);
 
-        // Merge incoming server messages with any optimistic local messages
         setMessages((prev) => {
           const optimisticPending = prev.filter((m) => m.sending || m.sendError);
           const serverList = [...msgData.messages];
 
-          // If nextBefore is null, it means we have reached the very first message.
-          // Check if initial inquiry message needs to be included as the base message
+          // If nextBefore is null, include initial inquiry message
           if (msgData.nextBefore == null && convData && convData.message) {
             const hasInitialInList = serverList.some(
               (m) => m.text === convData.message && m.createdAt === convData.createdAt
@@ -95,8 +110,6 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
             }
           }
 
-          // Combine server messages with pending optimistic messages
-          // In inverted list, newest message is at index 0
           const combined = [...serverList];
           for (const opt of optimisticPending) {
             if (!combined.some((m) => m._id === opt._id || (m.text === opt.text && m.senderId === opt.senderId))) {
@@ -104,7 +117,6 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
             }
           }
 
-          // Sort chronologically ascending, then reverse for inverted FlatList
           combined.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
           return combined.reverse();
         });
@@ -116,16 +128,14 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
     }
   }, [inquiryId, currentUserId, conversation]);
 
-  // Initial mount
   useEffect(() => {
     void loadMessages(true);
   }, [inquiryId]);
 
-  // 2. Real-time Polling & Push Trigger
+  // 2. Periodic Polling & Push Trigger
   useEffect(() => {
     if (!inquiryId || !currentUserId) return;
 
-    // Periodic polling every 4.5 seconds when active
     const interval = setInterval(() => {
       if (AppState.currentState === "active") {
         void loadMessages(false);
@@ -135,7 +145,6 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
     return () => clearInterval(interval);
   }, [inquiryId, currentUserId, loadMessages]);
 
-  // Listen to push notification revision updates
   useEffect(() => {
     if (chatRevision !== lastHandledRevision.current) {
       lastHandledRevision.current = chatRevision;
@@ -147,7 +156,6 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
   useEffect(() => {
     if (!messages.length || !conversation || !currentUserId) return;
 
-    // Find newest message sent by the other party
     const latestIncoming = messages.find((m) => {
       const sender = getParticipantId(m.senderId);
       return sender && sender !== currentUserId;
@@ -167,7 +175,7 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
     }
   }, [messages, conversation, currentUserId, inquiryId]);
 
-  // 4. Load Earlier History (Pagination on scroll)
+  // 4. Pagination
   const handleLoadEarlier = async () => {
     if (nextBefore == null || loadingEarlier || !inquiryId) return;
     setLoadingEarlier(true);
@@ -179,7 +187,6 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
         setMessages((prev) => {
           const existingIds = new Set(prev.map((m) => m._id));
           const newOlder = olderData.messages.filter((m) => !existingIds.has(m._id));
-          // In inverted list, older messages go to the end of the array
           return [...prev, ...newOlder.reverse()];
         });
       } else {
@@ -192,7 +199,7 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
     }
   };
 
-  // 5. Send Message (Optimistic UI Update)
+  // 5. Send Message (Optimistic)
   const handleSend = async () => {
     const draft = text.trim();
     if (!draft || sendLock.current || !inquiryId || !currentUserId) return;
@@ -200,7 +207,7 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
     sendLock.current = true;
     setSending(true);
     setSendError(null);
-    setText(""); // Clear input immediately for snappy feel
+    setText("");
 
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const optimisticMessage: ChatMessage = {
@@ -212,7 +219,6 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
       sending: true,
     };
 
-    // Prepend optimistic message to inverted list (index 0)
     setMessages((prev) => [optimisticMessage, ...prev]);
 
     try {
@@ -230,11 +236,9 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
         })
       );
 
-      // Refresh notification badge
       void refreshNotificationCount();
     } catch (err: any) {
       console.error("[ChatConversationScreen] send failed:", err?.message);
-      // Mark as error and restore draft so user never loses work
       setMessages((prev) =>
         prev.map((m) => {
           if (m._id === tempId || m.clientTempId === tempId) {
@@ -244,7 +248,7 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
         })
       );
       setText(draft);
-      setSendError("Message could not be sent. Check your connection.");
+      setSendError("Couldn’t send your message. Your draft is still here.");
     } finally {
       sendLock.current = false;
       setSending(false);
@@ -254,16 +258,17 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
   // Header Details
   const isBuyer = getParticipantId(conversation?.buyerId) === currentUserId;
   const otherParty = isBuyer ? conversation?.staffId : conversation?.buyerId;
-  const otherName =
-    (typeof otherParty === "object" && otherParty?.name) ||
+  const participantName =
+    (typeof otherParty === "object" && otherParty?.name?.trim()) ||
     (isBuyer ? "Property Advisor" : "Buyer");
-  const otherRole =
-    typeof otherParty === "object" && otherParty?.role
-      ? otherParty.role.charAt(0).toUpperCase() + otherParty.role.slice(1)
-      : isBuyer
-      ? "Advisor"
-      : "Client";
-  const propertyTitle = conversation?.propertyId?.title || "Property Conversation";
+  const participantInitials = participantName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part: string) => Array.from(part)[0])
+    .join("")
+    .toLocaleUpperCase();
+  const isOffer = Boolean(conversation?.dealId) || typeof conversation?.offerAmount === "number";
+  const propertyTitle = formatLocationPart(conversation?.propertyId?.title);
   const dealId = conversation?.dealId
     ? typeof conversation.dealId === "object"
       ? conversation.dealId._id
@@ -273,53 +278,85 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
 
   return (
     <View style={styles.screen}>
-      {/* WhatsApp Styled Top Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
-        <View style={styles.headerContent}>
+      {/* Exact Previous MalikSe Dark Navy Header */}
+      <View style={[styles.conversationHeader, { paddingTop: insets.top + 6 }]}>
+        <View style={styles.conversationHeaderRow}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Back"
+            accessibilityLabel="Back to messages"
+            style={styles.conversationBack}
             onPress={onBack}
-            style={({ pressed }) => [styles.backButton, pressed && { opacity: 0.7 }]}
           >
-            <MaterialIcons name="arrow-back" size={24} color="#FFFFFF" />
+            <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
           </Pressable>
 
-          {/* Contact Avatar */}
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>{otherName.charAt(0).toUpperCase()}</Text>
+          <View style={styles.chatIdentityCard}>
+            <View style={styles.chatIdentityIcon} accessible={false}>
+              {participantInitials ? (
+                <Text style={styles.chatIdentityInitials}>{participantInitials}</Text>
+              ) : (
+                <MaterialIcons name="chat-bubble-outline" size={18} color={C.ink} />
+              )}
+            </View>
+
+            <View style={styles.chatIdentityDetails}>
+              <View style={styles.chatIdentityNameRow}>
+                <Text accessibilityRole="header" style={styles.chatIdentityName} numberOfLines={1} ellipsizeMode="tail">
+                  {participantName || "Property conversation"}
+                </Text>
+                {conversation && (
+                  <View style={[styles.chatCategory, isOffer && styles.chatOffer]}>
+                    <Text style={[styles.chatCategoryText, isOffer && styles.chatOfferText]}>
+                      {isOffer ? "Offer" : "Enquiry"}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {propertyTitle ? (
+                <View style={styles.chatIdentityListing}>
+                  <MaterialIcons name="home-work" size={13} color={C.sun} />
+                  <Text style={styles.chatIdentityProperty} numberOfLines={1}>
+                    {propertyTitle}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           </View>
 
-          {/* Contact Info & Property Pill */}
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {otherName}
-            </Text>
-            <Text style={styles.headerSubtitle} numberOfLines={1}>
-              {otherRole} · {propertyTitle}
-            </Text>
-          </View>
-
-          {/* Optional Deal View Button */}
-          {dealId && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="View Deal"
-              onPress={() => router.push(`/deal/${dealId}` as any)}
-              style={({ pressed }) => [styles.dealButton, pressed && { opacity: 0.8 }]}
-            >
-              <MaterialIcons name="handshake" size={16} color="#008069" />
-              <Text style={styles.dealButtonText}>Deal</Text>
-            </Pressable>
-          )}
+          <NotificationBell />
         </View>
       </View>
 
-      {/* Main Chat Feed */}
-      <View style={styles.chatBackground}>
+      {/* Main Chat Canvas with Floating Watermark */}
+      <View style={styles.chatBody}>
+        {/* Previous Conversation Watermark */}
+        <View pointerEvents="none" accessible={false} style={styles.conversationWatermark}>
+          <Image
+            source={require("../../../assets/images/conversation_watermark.png")}
+            resizeMode="contain"
+            style={styles.conversationWatermarkImage}
+          />
+        </View>
+
+        {/* View Offer & Deal Action Button if Offer is Present */}
+        {dealId && (
+          <View style={styles.dealBannerRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="View offer & deal"
+              style={({ pressed }) => [styles.dealButton, pressed && { opacity: 0.85 }]}
+              onPress={() => router.push(`/deal/${dealId}` as any)}
+            >
+              <MaterialIcons name="handshake" size={16} color={C.ink} />
+              <Text style={styles.dealButtonText}>View offer & deal</Text>
+            </Pressable>
+          </View>
+        )}
+
         {loading && !messages.length ? (
           <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color="#008069" />
+            <ActivityIndicator size="large" color={C.blue} />
           </View>
         ) : (
           <FlatList
@@ -348,7 +385,7 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
             ListFooterComponent={
               loadingEarlier ? (
                 <View style={styles.footerLoader}>
-                  <ActivityIndicator size="small" color="#008069" />
+                  <ActivityIndicator size="small" color={C.blue} />
                 </View>
               ) : undefined
             }
@@ -356,61 +393,61 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
         )}
       </View>
 
-      {/* Send Error Toast */}
+      {/* Error Banner */}
       {sendError && (
-        <View style={styles.errorBanner}>
-          <MaterialIcons name="info-outline" size={16} color="#D32F2F" />
-          <Text style={styles.errorBannerText}>{sendError}</Text>
+        <View style={styles.chatSendErrorBox}>
+          <Text accessibilityRole="alert" style={styles.chatSendError}>
+            {sendError}
+          </Text>
         </View>
       )}
 
-      {/* Read-Only Notice if Property Sold */}
+      {/* Sold Property Lock Banner */}
       {isSold && (
         <View style={styles.soldBanner}>
-          <MaterialIcons name="lock" size={16} color="#555" />
           <Text style={styles.soldBannerText}>This property is sold. Conversation is read-only.</Text>
         </View>
       )}
 
-      {/* WhatsApp Styled Bottom Composer */}
+      {/* Exact Previous Bottom Composer with Gold Button */}
       {!isSold && (
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
         >
-          <View style={[styles.composerArea, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-            <View style={styles.inputPill}>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Type a message..."
-                placeholderTextColor="#8696A0"
-                value={text}
-                onChangeText={(val) => {
-                  setText(val);
-                  if (sendError) setSendError(null);
-                }}
-                multiline
-                maxLength={4000}
-              />
+          <View style={[styles.chatFooter, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+            <View style={styles.chatComposerArea}>
+              <View style={styles.chatComposerRow}>
+                <TextInput
+                  accessibilityLabel="Message"
+                  value={text}
+                  onChangeText={(val) => {
+                    setText(val);
+                    if (sendError) setSendError(null);
+                  }}
+                  style={styles.chatInput}
+                  placeholder="Write a message…"
+                  placeholderTextColor={C.muted}
+                  multiline
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Send message"
+                  disabled={!text.trim() || sending}
+                  style={({ pressed }) => [
+                    styles.chatSend,
+                    (!text.trim() || sending || pressed) && styles.chatSendDimmed,
+                  ]}
+                  onPress={handleSend}
+                >
+                  {sending ? (
+                    <ActivityIndicator size="small" color={C.ink} />
+                  ) : (
+                    <MaterialIcons name="send" size={20} color={C.ink} />
+                  )}
+                </Pressable>
+              </View>
             </View>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Send message"
-              disabled={!text.trim() || sending}
-              onPress={handleSend}
-              style={({ pressed }) => [
-                styles.sendButton,
-                (!text.trim() || sending) && styles.sendButtonDisabled,
-                pressed && { opacity: 0.8 },
-              ]}
-            >
-              {sending ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <MaterialIcons name="send" size={20} color="#FFFFFF" style={{ marginLeft: 2 }} />
-              )}
-            </Pressable>
           </View>
         </KeyboardAvoidingView>
       )}
@@ -421,72 +458,156 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#EFEAE2", // WhatsApp classic background
+    backgroundColor: C.bg,
   },
-  header: {
-    backgroundColor: "#008069", // WhatsApp dark green
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
+  conversationHeader: {
+    backgroundColor: C.ink,
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 28,
   },
-  headerContent: {
+  conversationHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
-    paddingBottom: 10,
     gap: 8,
+    width: "100%",
+    maxWidth: 760,
+    alignSelf: "center",
   },
-  backButton: {
-    padding: 6,
-    borderRadius: 20,
-  },
-  avatarCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "rgba(255, 255, 255, 0.22)",
+  conversationBack: {
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  headerInfo: {
+  chatIdentityCard: {
     flex: 1,
-    justifyContent: "center",
+    minWidth: 0,
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: "#1C3556",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#FFFFFF30",
   },
-  headerTitle: {
-    color: "#FFFFFF",
-    fontSize: 16,
+  chatIdentityIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.sun,
+  },
+  chatIdentityInitials: {
+    color: C.ink,
+    fontFamily: "ManropeExtraBold",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  chatIdentityDetails: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  chatIdentityNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  chatCategory: {
+    flexShrink: 0,
+    borderRadius: 9,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#FFFFFF45",
+    backgroundColor: "#FFFFFF12",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  chatCategoryText: {
+    fontFamily: "ManropeBold",
+    fontSize: 10,
+    color: "#E3ECF8",
     fontWeight: "700",
   },
-  headerSubtitle: {
-    color: "#D1EBE5",
+  chatOffer: {
+    borderColor: "#FCC61C66",
+    backgroundColor: "#FCC61C1A",
+  },
+  chatOfferText: {
+    color: C.sunSoft,
+  },
+  chatIdentityName: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: "Fraunces_400Regular",
+    fontSize: 17,
+    color: "#FFFFFF",
+  },
+  chatIdentityListing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  chatIdentityProperty: {
+    flexShrink: 1,
+    fontFamily: "Manrope_400Regular",
     fontSize: 12,
-    marginTop: 1,
+    color: "#D4DEEC",
+  },
+  chatBody: {
+    flex: 1,
+    backgroundColor: C.bg,
+    position: "relative",
+  },
+  conversationWatermark: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: "flex-end",
+    justifyContent: "flex-end",
+    paddingRight: 8,
+    paddingBottom: 8,
+  },
+  conversationWatermarkImage: {
+    width: "66%",
+    height: "92%",
+    maxWidth: 304,
+    maxHeight: 304,
+    opacity: 0.35,
+  },
+  dealBannerRow: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    alignItems: "center",
   },
   dealButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 16,
-    marginRight: 4,
+    gap: 6,
+    backgroundColor: C.sunSoft,
+    borderColor: C.sun,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: C.ink,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   dealButtonText: {
-    fontSize: 12,
+    fontFamily: "ManropeBold",
+    fontSize: 13,
+    color: C.ink,
     fontWeight: "700",
-    color: "#008069",
-  },
-  chatBackground: {
-    flex: 1,
-    backgroundColor: "#EFEAE2",
   },
   centerContainer: {
     flex: 1,
@@ -495,84 +616,77 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingVertical: 12,
+    paddingHorizontal: 14,
   },
   footerLoader: {
     paddingVertical: 10,
     alignItems: "center",
   },
-  errorBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFEBEE",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    gap: 6,
-    borderTopWidth: 1,
-    borderTopColor: "#FFCDD2",
+  chatSendErrorBox: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    backgroundColor: "#FFF0F2",
   },
-  errorBannerText: {
+  chatSendError: {
+    fontFamily: "Manrope_400Regular",
     fontSize: 12,
-    color: "#D32F2F",
-    flex: 1,
+    color: "#9A2D20",
   },
   soldBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#E0E0E0",
+    backgroundColor: "#F0F4F8",
     paddingVertical: 10,
-    gap: 6,
+    paddingHorizontal: 16,
+    alignItems: "center",
   },
   soldBannerText: {
     fontSize: 13,
-    color: "#424242",
-    fontWeight: "600",
+    color: C.muted,
+    fontFamily: "ManropeBold",
   },
-  composerArea: {
+  chatFooter: {
+    backgroundColor: C.bg,
+    borderTopWidth: 1,
+    borderTopColor: C.line,
+    paddingTop: 8,
+    paddingHorizontal: 14,
+  },
+  chatComposerArea: {
+    gap: 5,
+  },
+  chatComposerRow: {
     flexDirection: "row",
     alignItems: "flex-end",
-    paddingHorizontal: 8,
-    paddingTop: 6,
-    backgroundColor: "transparent",
-    gap: 6,
+    gap: 8,
   },
-  inputPill: {
+  chatInput: {
     flex: 1,
-    minHeight: 46,
-    maxHeight: 120,
+    minHeight: 44,
+    maxHeight: 116,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: C.line,
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  textInput: {
+    fontFamily: "Manrope_400Regular",
     fontSize: 15,
-    color: "#111B21",
-    lineHeight: 20,
-    padding: 0,
-    margin: 0,
+    lineHeight: 21,
+    color: C.ink,
   },
-  sendButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "#00A884", // WhatsApp emerald green
+  chatSend: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
+    backgroundColor: C.sun,
+    shadowColor: C.ink,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  sendButtonDisabled: {
-    backgroundColor: "#8696A0",
+  chatSendDimmed: {
     opacity: 0.6,
   },
 });

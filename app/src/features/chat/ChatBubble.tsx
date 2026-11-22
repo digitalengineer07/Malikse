@@ -12,18 +12,27 @@ interface ChatBubbleProps {
   recipientReadAt?: string | null;
 }
 
+const C = {
+  ink: "#14263E",
+  sunSoft: "#FBF2C0",
+  blue: "#0A45B5",
+  line: "#E2ECF8",
+  muted: "#5D7089",
+  readBlue: "#1766C2",
+};
+
 function formatChatTime(dateString?: string): string {
   if (!dateString) return "";
   try {
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return "";
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+    return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   } catch {
     return "";
   }
 }
 
-function formatCurrency(amount: number): string {
+function formatMoney(amount: number): string {
   try {
     return "₹" + amount.toLocaleString("en-IN");
   } catch {
@@ -40,7 +49,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = React.memo(({
   sendError,
   recipientReadAt,
 }) => {
-  const isRead = Boolean(
+  const read = Boolean(
     mine &&
     createdAt &&
     recipientReadAt &&
@@ -50,123 +59,96 @@ export const ChatBubble: React.FC<ChatBubbleProps> = React.memo(({
   const timeString = formatChatTime(createdAt);
 
   return (
-    <View style={[styles.container, mine ? styles.containerMine : styles.containerTheirs]}>
-      <View
-        style={[
-          styles.bubble,
-          mine ? styles.bubbleMine : styles.bubbleTheirs,
-          sendError && styles.bubbleError,
-        ]}
-      >
-        {/* If this is an offer message, show a WhatsApp-style offer badge */}
-        {Boolean(offer) && (
-          <View style={styles.offerCard}>
-            <MaterialIcons name="local-offer" size={15} color="#008069" />
-            <Text style={styles.offerText}>Proposed Offer: {formatCurrency(offer!)}</Text>
-          </View>
-        )}
+    <View style={[styles.bubble, mine ? styles.mine : styles.theirs, sendError && styles.sendError]}>
+      <Text style={styles.chatMessage} selectable>
+        {text}
+      </Text>
 
-        {/* Message Content */}
-        <Text style={styles.messageText} selectable>
-          {text}
-        </Text>
+      {Boolean(offer) && (
+        <Text style={styles.cardTitle}>Offer: {formatMoney(offer!)}</Text>
+      )}
 
-        {/* Timestamp and Delivery Receipts */}
-        <View style={styles.metaRow}>
-          <Text style={styles.timeText}>
-            {sending ? "Sending..." : timeString}
+      {(sending || createdAt) && (
+        <View style={styles.chatMetadata}>
+          <Text style={styles.chatTime}>
+            {sending ? "Sending…" : timeString}
           </Text>
 
           {mine && (
             <View style={styles.receiptContainer}>
               {sending ? (
-                <MaterialIcons name="access-time" size={13} color="#8696A0" />
+                <MaterialIcons name="access-time" size={13} color={C.muted} />
               ) : sendError ? (
-                <MaterialIcons name="error-outline" size={14} color="#EA4335" />
-              ) : isRead ? (
-                <MaterialIcons name="done-all" size={15} color="#53BDEB" />
+                <MaterialIcons name="error-outline" size={14} color="#D32F2F" />
               ) : (
-                <MaterialIcons name="done-all" size={15} color="#8696A0" />
+                <MaterialIcons name={read ? "done-all" : "done"} size={15} color={read ? C.readBlue : C.muted} />
               )}
             </View>
           )}
         </View>
-      </View>
+      )}
     </View>
   );
 });
 
 const styles = StyleSheet.create({
-  container: {
-    marginVertical: 3,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    width: "100%",
-  },
-  containerMine: {
-    justifyContent: "flex-end",
-  },
-  containerTheirs: {
-    justifyContent: "flex-start",
-  },
   bubble: {
-    maxWidth: "82%",
-    paddingHorizontal: 11,
-    paddingTop: 7,
-    paddingBottom: 6,
-    borderRadius: 12,
-    shadowColor: "#000",
+    alignItems: "stretch",
+    minWidth: 70,
+    maxWidth: "84%",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    marginVertical: 4,
+    gap: 2,
+    shadowColor: "#14263E",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 1.5,
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
     elevation: 1,
   },
-  bubbleMine: {
-    backgroundColor: "#E7FFDB", // WhatsApp light green
-    borderTopRightRadius: 2,
+  mine: {
     alignSelf: "flex-end",
+    backgroundColor: C.sunSoft,
+    borderBottomRightRadius: 4,
   },
-  bubbleTheirs: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 2,
+  theirs: {
     alignSelf: "flex-start",
+    backgroundColor: "#FFFFFF",
+    borderBottomLeftRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: C.line,
   },
-  bubbleError: {
+  sendError: {
     backgroundColor: "#FFF0F0",
     borderColor: "#FFCDD2",
     borderWidth: 1,
   },
-  offerCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 128, 105, 0.08)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginBottom: 6,
-    gap: 6,
-  },
-  offerText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#008069",
-  },
-  messageText: {
+  chatMessage: {
+    fontFamily: "Manrope_400Regular",
+    color: C.ink,
     fontSize: 15,
-    color: "#111B21",
-    lineHeight: 20,
+    lineHeight: 21,
   },
-  metaRow: {
+  cardTitle: {
+    fontFamily: "ManropeBold",
+    fontSize: 13,
+    color: C.blue,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  chatMetadata: {
+    alignSelf: "flex-end",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
-    alignSelf: "flex-end",
-    marginTop: 3,
-    gap: 3,
+    gap: 4,
+    marginTop: 2,
   },
-  timeText: {
+  chatTime: {
+    fontFamily: "Manrope_400Regular",
+    color: C.muted,
     fontSize: 11,
-    color: "#667781",
+    lineHeight: 15,
   },
   receiptContainer: {
     marginLeft: 2,
