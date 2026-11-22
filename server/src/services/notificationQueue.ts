@@ -38,7 +38,8 @@ async function expandListingBroadcast(job: InstanceType<typeof Notification>) {
 }
 
 export async function deliverNotifications() {
-  for (let i = 0; i < 20; i++) {
+  const deadline = Date.now() + 5000;
+  for (let i = 0; i < 128 && Date.now() < deadline; i++) {
     const now = new Date();
     const job = await Notification.findOneAndUpdate(
       {

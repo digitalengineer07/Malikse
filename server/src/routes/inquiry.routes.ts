@@ -1,4 +1,6 @@
 import { User } from "../models/User.model";
+import { createHash } from "node:crypto";
+import { rateLimit } from "express-rate-limit";
 import { Notification } from "../models/Notification.model";
 import { identityApproved } from "../services/security";
 import express from "express";
@@ -19,6 +21,18 @@ import { Property } from "../models/Property.model";
 import { createOffer, changeDeal } from "../services/dealWorkflow";
 const router = express.Router();
 router.use(authGuard);
+const chatReadLimit = rateLimit({
+  windowMs: 60_000, limit: 180,
+  keyGenerator: (req: AuthRequest) => req.user!.id,
+  skip: req => req.method !== "GET" && !(req.method === "POST" && req.path.endsWith("/read")),
+  standardHeaders: "draft-8", legacyHeaders: false,
+  handler(req: AuthRequest, res) {
+    console.warn(JSON.stringify({event:"chat_rate_limit",requestId:res.locals.requestId,
+      key:createHash("sha256").update(req.user!.id).digest("hex").slice(0,16)}));
+    res.status(429).json({message:"Chat refresh limit reached"});
+  },
+});
+router.use(chatReadLimit);
 // Old owner conversations remain archived; never reinterpret their participants.
 router.use("/:id", async (req: any, res, next) => {
   try {
@@ -54,6 +68,7 @@ router.use("/:id", async (req: any, res, next) => {
         { _id: inquiry._id },
         { $set: { staffId: staff._id }, $unset: { staffReadAt: 1 } },
       );
+    res.locals.inquiryBuyer = String(inquiry.buyerId) === req.user.id;
     next();
   } catch (e: any) {
     res
@@ -156,11 +171,12 @@ for (const [route, party, other] of [
       };
       // The first six conversations are always read from the primary. The
       // boundary comes from the primary too, so a secondary never serves them.
-      const newest = await Inquiry.find(membership)
+      const splitReads = replicaReadPreference() === "secondary";
+      const newest = splitReads ? await Inquiry.find(membership)
         .select(`_id ${sortField}`)
         .sort(sort)
         .limit(6)
-        .lean();
+        .lean() : [];
       const primaryIds = newest.map((row) => row._id);
       const pipeline = (match: object, count: number): PipelineStage[] => [
         { $match: match },
@@ -205,7 +221,7 @@ for (const [route, party, other] of [
       ];
       const primaryRows = await Inquiry.aggregate(
         pipeline(
-          { $and: [membership, filter, { _id: { $in: primaryIds } }] },
+          { $and: [membership, filter, ...(splitReads ? [{ _id: { $in: primaryIds } }] : [])] },
           limit + 1,
         ),
       ).option({ maxTimeMS: 5000 });
@@ -312,6 +328,12 @@ router.get("/:id/messages", async (req: AuthRequest, res) => {
     const total = latest[0].total as number;
     if (before === undefined) {
       const viewingAsBuyer = String(latest[0].buyerId) === req.user!.id;
+      const tag = '"' + createHash("sha256").update(JSON.stringify([
+        req.params.id, viewingAsBuyer, total, latest[0].messages.at(-1)?._id,
+        latest[0].buyerReadAt, latest[0].staffReadAt,
+      ])).digest("base64url") + '"';
+      res.setHeader("ETag", tag);
+      if (req.headers["if-none-match"] === tag) return res.status(304).end();
       return res.json({
         messages: latest[0].messages,
         nextBefore: total > 6 ? total - 6 : null,
@@ -425,19 +447,28 @@ router.put("/:id/status", async (req: AuthRequest, res) => {
 // Send a message on an inquiry
 router.post("/:id/message", async (req: AuthRequest, res) => {
   try {
-    const { text } = req.body;
-    console.log(`[SERVER INQUIRY] >>> POST /inquiries/${req.params.id}/message | Sender: ${req.user!.id} | Length: ${text?.length} | Text: "${String(text).slice(0, 80)}"`);
+    const { text, clientMessageId } = req.body;
+    if (clientMessageId !== undefined && (typeof clientMessageId !== "string" || !/^[a-zA-Z0-9_-]{16,80}$/.test(clientMessageId)))
+      return res.status(400).json({ error: "Invalid message key" });
     if (typeof text !== "string" || !text.trim() || text.length > 5000)
       return res
         .status(400)
         .json({ error: "Enter a message between 1 and 5000 characters" });
 
     const session = await mongoose.startSession();
+    const messageId = clientMessageId
+      ? new Types.ObjectId(createHash("sha256").update([req.params.id,req.user!.id,clientMessageId].join("/")).digest().subarray(0,12))
+      : new Types.ObjectId();
     let inquiry: any;
+    let attempt = 0;
     try {
       await session.withTransaction(async () => {
+        if (attempt++ > 0) {
+          console.info(JSON.stringify({event:"chat_transaction_retry",attempt,requestId:res.locals.requestId}));
+          await new Promise(resolve => setTimeout(resolve, Math.random()*Math.min(200, 20*attempt)));
+        }
         const current = await Inquiry.findOne({ _id: req.params.id, staffId: { $exists: true } })
-          .select("propertyId buyerId staffId").session(session).lean();
+          .select({ propertyId:1, buyerId:1, staffId:1, ...(clientMessageId ? {messages:{$elemMatch:{_id:messageId}}} : {}) }).session(session).lean();
         if (!current) throw new OfferError(404, "Conversation not found");
         const property = await Property.findById(current.propertyId)
           .select("status assignedAdvisorId assignedVerifierId").session(session).lean();
@@ -459,10 +490,11 @@ router.post("/:id/message", async (req: AuthRequest, res) => {
               "Approved KYC is required to send messages",
             );
         }
-        const isVerified = await Property.exists({ _id: property._id, status: "verified" }).session(session);
-        if (!isVerified)
-          throw new OfferError(409, "Property is no longer available; retry");
-        const messageId = new Types.ObjectId();
+        if (current.messages?.length) {
+          if (current.messages[0].text !== text.trim()) throw new OfferError(409, "Message key already used");
+          inquiry = {messages:current.messages};
+          return;
+        }
         inquiry = await Inquiry.findOneAndUpdate(
           { _id: current._id, "messages.999": { $exists: false } },
           {
@@ -495,8 +527,7 @@ router.post("/:id/message", async (req: AuthRequest, res) => {
           ],
           { session },
         );
-        console.log(`[SERVER INQUIRY] Message saved (ID: ${messageId}) & notification queued for recipient: ${buyer ? staff._id : current.buyerId}`);
-      });
+      }, {timeoutMS: 8000});
     } finally {
       await session.endSession();
     }
@@ -523,19 +554,10 @@ router.post("/:id/read", async (req: AuthRequest, res) => {
       through.getTime() > Date.now()
     )
       return res.status(400).json({ error: "Invalid read timestamp" });
-    const inquiry = await Inquiry.findOne({
-      _id: req.params.id,
-      $or: [{ buyerId: req.user!.id }, { staffId: req.user!.id }],
-    })
-      .select("buyerId staffId")
-      .lean();
-    if (!inquiry) return res.status(404).json({ error: "Inquiry not found" });
-    const field =
-      inquiry.buyerId.toString() === req.user!.id
-        ? "buyerReadAt"
-        : "staffReadAt";
+    const field = res.locals.inquiryBuyer ? "buyerReadAt" : "staffReadAt";
+    const participant = res.locals.inquiryBuyer ? "buyerId" : "staffId";
     await Inquiry.updateOne(
-      { _id: inquiry._id },
+      { _id:req.params.id, [participant]:req.user!.id, $or:[{[field]:null},{[field]:{$lt:through}}] },
       { $max: { [field]: through } },
       { timestamps: false },
     );
