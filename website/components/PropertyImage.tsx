@@ -8,9 +8,6 @@ export interface PropertyImageProps extends ImageProps {
   thumbnailWidth?: number;
 }
 
-// In-memory cache for private blob URLs to prevent redundant network fetches
-const blobCache = new Map<string, string>();
-
 // Never send account credentials to externally hosted listing images.
 export default function PropertyImage(props: PropertyImageProps) {
   const { isPublic, thumbnailWidth, source: rawSource, ...restProps } = props;
@@ -34,33 +31,23 @@ export default function PropertyImage(props: PropertyImageProps) {
     protectedUri = url.origin === new URL(api.defaults.baseURL!).origin && url.pathname.startsWith("/property-photos/");
   } catch { /* Bundled images and external images need no authentication. */ }
 
-  const [download, setDownload] = useState<{ uri: string; token: string | null; blob: string } | undefined>(() => {
-    if (uri && blobCache.has(uri)) {
-      return { uri, token: accessToken, blob: blobCache.get(uri)! };
-    }
-    return undefined;
-  });
+  const [download, setDownload] = useState<{ uri: string; token: string; blob: string }>();
 
   useEffect(() => {
     // If it's a public listing image, the browser can fetch directly without auth headers
     if (isPublic) return;
     if (Platform.OS !== "web" || !protectedUri || !uri || !accessToken) return;
-    if (blobCache.has(uri)) {
-      setDownload({ uri, token: accessToken, blob: blobCache.get(uri)! });
-      return;
-    }
-
     const controller = new AbortController();
     let objectUrl: string | undefined;
     api.get(uri, { responseType: "blob", signal: controller.signal }).then(response => {
       if (controller.signal.aborted) return;
       objectUrl = URL.createObjectURL(response.data);
-      blobCache.set(uri, objectUrl);
       setDownload({ uri, token: accessToken, blob: objectUrl });
     }).catch(() => {});
 
     return () => {
       controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [uri, protectedUri, accessToken, isPublic]);
 
@@ -70,8 +57,8 @@ export default function PropertyImage(props: PropertyImageProps) {
   }
 
   if (Platform.OS === "web") {
-    const activeBlob = download && download.uri === uri ? download.blob : (uri ? blobCache.get(uri) : undefined);
-    return <Image {...restProps} source={activeBlob ? { uri: activeBlob } : (uri ? { ...source, uri } : rawSource)} />;
+    const activeBlob = download?.uri === uri && download?.token === accessToken ? download?.blob : undefined;
+    return <Image {...restProps} source={activeBlob ? { uri: activeBlob } : undefined} />;
   }
 
   return <Image {...restProps} source={{ ...source, uri, headers: { ...source?.headers, Authorization: `Bearer ${accessToken}` } }} />;

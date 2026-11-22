@@ -20,7 +20,14 @@ dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 let stopping = false;
 let initialized = false;
-const app = createFastifyApp(() => initialized && !stopping && mongoose.connection.readyState === 1);
+let finishStartup!: () => void;
+const startupWait = new Promise<void>(resolve => { finishStartup = resolve; });
+const startupDeadline = setTimeout(finishStartup, 8_000);
+startupDeadline.unref();
+const app = createFastifyApp(
+  () => initialized && !stopping && mongoose.connection.readyState === 1,
+  () => !initialized && !stopping ? startupWait : Promise.resolve(),
+);
 const PORT = positiveInteger("PORT", 5000, 65535);
 mongoose.set("bufferCommands", false);
 
@@ -60,11 +67,22 @@ startListening(PORT).then(() => {
   if (process.env.NODE_ENV !== "production") await createRequiredIndexes();
   else await User.collection.createIndex({ googleId: 1 }, { unique: true, sparse: true });
   await verifyRequiredIndexes();
-  startupStage = "region count initialization";
-  await startRegionCounts();
   initialized = true;
-  const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => { } : startSubmissionWorker();
+  clearTimeout(startupDeadline);
+  finishStartup();
+  const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => {} : startSubmissionWorker();
   const stopDeletionWorker = startAccountDeletionWorker();
+  let regionStartup: Promise<void> | undefined;
+  let regionRetry: NodeJS.Timeout | undefined;
+  const initializeRegions = () => {
+    regionStartup = startRegionCounts().catch(() => {
+      console.error("[RegionCounts] Initialization failed; retrying in 30 seconds");
+      if (!stopping) {
+        regionRetry = setTimeout(initializeRegions, 30_000);
+        regionRetry.unref();
+      }
+    });
+  };
   const startTask = (task: () => Promise<unknown>, interval: number) => {
     let pending: Promise<unknown> | undefined;
     const timer = setInterval(() => { if (!pending) pending = task().catch(() => console.error("Background delivery deferred")).finally(() => { pending = undefined; }); }, interval);
@@ -75,14 +93,17 @@ startListening(PORT).then(() => {
   const stopNotifications = startTask(deliverNotifications, 10000);
   const stopReceipts = startTask(checkPushReceipts, 5 * 60_000);
   console.log("[MalikSe] API ready");
+  initializeRegions();
   const server = app.server;
   const shutdown = async () => {
     if (stopping) return;
     stopping = true;
+    clearTimeout(regionRetry);
 
     const deadline = setTimeout(() => { (server as any).closeAllConnections?.(); process.exit(1); }, 15_000);
     deadline.unref();
     await Promise.all([app.close(), stopWorker(), stopDeletionWorker(), stopNotifications(), stopReceipts(), stopFileCleanup()]);
+    await regionStartup;
     await stopRegionCounts();
     await mongoose.disconnect();
     closeRedis();
@@ -92,6 +113,8 @@ startListening(PORT).then(() => {
   process.once("SIGINT", () => { void shutdown(); });
   process.once("SIGUSR2", () => { void shutdown(); });
 }).catch(async (error: unknown) => {
+  clearTimeout(startupDeadline);
+  finishStartup();
   const cause = error as { name?: string; code?: string; message?: string };
   const message = String(cause?.message || "Unknown error").replace(/mongodb(?:\+srv)?:\/\/[^\s]+/gi, "[redacted MongoDB URI]");
   console.error("[MalikSe] Server startup failed", { stage: startupStage, name: cause?.name, code: cause?.code, message });

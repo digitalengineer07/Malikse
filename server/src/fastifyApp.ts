@@ -39,7 +39,7 @@ function sendPublicResponse(request: FastifyRequest, reply: FastifyReply, value:
 }
 
 /** All property GET routes are native; other APIs remain on Express. */
-export function createFastifyApp(isReady?: () => boolean) {
+export function createFastifyApp(isReady?: () => boolean, waitForStartup?: () => Promise<void>) {
   const { production, origins, trustProxy } = runtimeConfiguration();
   const app = Fastify({
     bodyLimit: 100 * 1024,
@@ -54,26 +54,43 @@ export function createFastifyApp(isReady?: () => boolean) {
   });
   (app.server as any).headersTimeout = 15_000;
   const legacy = createApp(isReady);
+  let waitingForStartup = 0;
 
   // Handoff happens before body parsing so Express JSON and multipart middleware
   // receive the original, unread request stream.
-  app.addHook("onRequest", (request, reply, done) => {
+  app.addHook("onRequest", async (request, reply) => {
     const path = (request.raw.url || "").split("?")[0].replace(/\/$/, "").toLowerCase();
-    if (isReady && !isReady() && path !== "/health" && path !== "/ready") {
+    const requiresReadiness = request.method !== "OPTIONS" && path !== "/health" && path !== "/ready";
+    if (requiresReadiness && isReady && !isReady() && waitForStartup && waitingForStartup < 64) {
+      waitingForStartup++;
+      try { await waitForStartup(); }
+      finally { waitingForStartup--; }
+      if (reply.raw.destroyed) {
+        reply.hijack();
+        return;
+      }
+    }
+    if (requiresReadiness && isReady && !isReady()) {
       const origin = request.headers.origin;
       if (origin && (origins.includes(origin) || (!production && !origins.length))) {
         reply.header("Access-Control-Allow-Origin", origin);
         reply.header("Access-Control-Allow-Credentials", "true");
       }
-      reply.code(503).header("Retry-After", "1").send({ message: "Service is initializing. Please try again shortly." });
-      done();
+      performanceMetrics.requests++;
+      performanceMetrics.completed++;
+      performanceMetrics.serverErrors++;
+      if (process.env.REQUEST_LOGS === "true" || (production && process.env.REQUEST_LOGS !== "false")) {
+        console.warn(JSON.stringify({ event: "api_not_ready", requestId: request.id, method: request.method, status: 503 }));
+      }
+      reply.code(503).header("Retry-After", "2").header("Cache-Control", "no-store")
+        .header("Vary", "Origin").header("Access-Control-Expose-Headers", "X-Request-Id, Retry-After")
+        .header("X-Request-Id", request.id).send({ message: "Service is temporarily unavailable. Please try again shortly." });
       return;
     }
     if (!(request.routeOptions.config as { nativePropertyRead?: boolean }).nativePropertyRead) {
       reply.hijack();
       legacy(request.raw as any, reply.raw as any);
     }
-    done();
   });
 
   app.register(async native => {

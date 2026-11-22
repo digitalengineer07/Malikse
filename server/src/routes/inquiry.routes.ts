@@ -25,13 +25,16 @@ router.use("/:id", async (req: any, res, next) => {
     if (["sent", "received"].includes(req.params.id)) return next();
     if (!isValidObjectId(req.params.id))
       return res.status(400).json({ error: "Invalid inquiry ID" });
+    // Message sends authorize against the same snapshot that they update.
+    if (req.method === "POST" && /^\/message\/?$/i.test(req.path)) return next();
     const inquiry = await Inquiry.findOne({
       _id: req.params.id,
       staffId: { $exists: true },
-    });
+    }).select("buyerId staffId propertyId").lean();
     if (!inquiry)
       return res.status(404).json({ error: "Conversation not found" });
-    const property = await Property.findById(inquiry.propertyId);
+    const property = await Property.findById(inquiry.propertyId)
+      .select("status assignedAdvisorId assignedVerifierId").lean();
     if (!property) return res.status(404).json({ error: "Property not found" });
     const staff = await assignedStaff(property);
     if (![String(inquiry.buyerId), String(staff._id)].includes(req.user.id))
@@ -65,7 +68,7 @@ router.param("id", (_req, res, next, id) =>
 );
 
 // Submit an offer or contact the assigned staff member
-router.post("/", authGuard, async (req: AuthRequest, res) => {
+router.post("/", async (req: AuthRequest, res) => {
   try {
     const { propertyId, message, offerAmount } = req.body;
 
@@ -133,7 +136,7 @@ for (const [route, party, other] of [
   ["/sent", "buyerId", "staffId"],
   ["/received", "staffId", "buyerId"],
 ]) {
-  router.get(route, authGuard, async (req: AuthRequest, res) => {
+  router.get(route, async (req: AuthRequest, res) => {
     try {
       const sortField = req.query.sort === "activity" ? "updatedAt" : "createdAt";
       const sort = { [sortField]: -1, _id: -1 } as const;
@@ -255,7 +258,7 @@ for (const [route, party, other] of [
   });
 }
 
-router.get("/:id", authGuard, async (req: AuthRequest, res) => {
+router.get("/:id", async (req: AuthRequest, res) => {
   try {
     console.log(`[SERVER INQUIRY] GET /inquiries/${req.params.id} | User: ${req.user!.id}`);
     const inquiry = await Inquiry.findOne({
@@ -276,7 +279,7 @@ router.get("/:id", authGuard, async (req: AuthRequest, res) => {
   }
 });
 
-router.get("/:id/messages", authGuard, async (req: AuthRequest, res) => {
+router.get("/:id/messages", async (req: AuthRequest, res) => {
   try {
     const before =
       req.query.before === undefined ? undefined : Number(req.query.before);
@@ -298,17 +301,24 @@ router.get("/:id/messages", authGuard, async (req: AuthRequest, res) => {
         $project: {
           total: { $size: "$messages" },
           messages: { $slice: ["$messages", -6] },
+          buyerId: 1,
+          buyerReadAt: 1,
+          staffReadAt: 1,
         },
       },
     ]).option({ maxTimeMS: 5000 });
     if (!latest.length)
       return res.status(404).json({ error: "Inquiry not found" });
     const total = latest[0].total as number;
-    if (before === undefined)
+    if (before === undefined) {
+      const viewingAsBuyer = String(latest[0].buyerId) === req.user!.id;
       return res.json({
         messages: latest[0].messages,
         nextBefore: total > 6 ? total - 6 : null,
+        recipientReadAt: (viewingAsBuyer ? latest[0].staffReadAt : latest[0].buyerReadAt) ?? null,
+        ownReadAt: (viewingAsBuyer ? latest[0].buyerReadAt : latest[0].staffReadAt) ?? null,
       });
+    }
     const end = Math.min(before, Math.max(0, total - 6));
     const start = Math.max(0, end - 50);
       let rows = await Inquiry.aggregate([
@@ -360,7 +370,7 @@ router.get("/:id/messages", authGuard, async (req: AuthRequest, res) => {
 });
 
 // Reply/update inquiry status (Seller view)
-router.put("/:id/status", authGuard, async (req: AuthRequest, res) => {
+router.put("/:id/status", async (req: AuthRequest, res) => {
   try {
     const { status } = req.body;
     if (!["pending", "accepted", "rejected", "countered"].includes(status)) {
@@ -413,7 +423,7 @@ router.put("/:id/status", authGuard, async (req: AuthRequest, res) => {
 });
 
 // Send a message on an inquiry
-router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
+router.post("/:id/message", async (req: AuthRequest, res) => {
   try {
     const { text } = req.body;
     console.log(`[SERVER INQUIRY] >>> POST /inquiries/${req.params.id}/message | Sender: ${req.user!.id} | Length: ${text?.length} | Text: "${String(text).slice(0, 80)}"`);
@@ -426,22 +436,23 @@ router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
     let inquiry: any;
     try {
       await session.withTransaction(async () => {
-        const current = await Inquiry.findById(req.params.id).session(session);
+        const current = await Inquiry.findOne({ _id: req.params.id, staffId: { $exists: true } })
+          .select("propertyId buyerId staffId").session(session).lean();
         if (!current) throw new OfferError(404, "Conversation not found");
-        const property = await Property.findById(current.propertyId).session(
-          session,
-        );
+        const property = await Property.findById(current.propertyId)
+          .select("status assignedAdvisorId assignedVerifierId").session(session).lean();
         if (!property || property.status !== "verified")
           throw new OfferError(
             409,
             "Property unavailable. Conversation is read-only",
           );
-        const staff = await assignedStaff(property);
+        const staff = await assignedStaff(property, session);
         const buyer = String(current.buyerId) === req.user!.id;
         if (!buyer && String(staff._id) !== req.user!.id)
           throw new OfferError(403, "Not assigned to this property");
         if (buyer) {
-          const account = await User.findById(req.user!.id).session(session);
+          const account = await User.findById(req.user!.id)
+            .select("isVerifiedIdentity demoKycComplete").session(session).lean();
           if (!account || !identityApproved(account))
             throw new OfferError(
               403,
@@ -456,6 +467,7 @@ router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
           { _id: current._id, "messages.999": { $exists: false } },
           {
             $set: { staffId: staff._id },
+            ...(String(current.staffId) !== String(staff._id) ? { $unset: { staffReadAt: 1 } } : {}),
             $push: {
               messages: {
                 _id: messageId,
@@ -501,7 +513,7 @@ router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
 });
 
 // A client acknowledges only the activity it has actually displayed.
-router.post("/:id/read", authGuard, async (req: AuthRequest, res) => {
+router.post("/:id/read", async (req: AuthRequest, res) => {
   try {
     const through = new Date(req.body.through);
     console.log(`[SERVER INQUIRY] POST /inquiries/${req.params.id}/read | User: ${req.user!.id} | Through: ${req.body.through}`);
