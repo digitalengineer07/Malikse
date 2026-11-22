@@ -11,7 +11,7 @@ import api from "../src/services/authService";
 import MiniMapPreview from "./MiniMapPreview";
 import PublicPropertyDetails from "./PublicPropertyDetails";
 import OfferSheet from "./OfferSheet";
-import { inquiryService } from "../src/services/inquiryService";
+import { chatApi } from "../src/features/chat";
 import { userService } from "../src/services/userService";
 import { AppTheme } from "../constants/theme";
 import { hydrateUserAffinity, trackPropertyInteraction } from "../src/services/recommendationEngine";
@@ -107,7 +107,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
     {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}
     {showOffer && <Modal transparent animationType="slide" onRequestClose={() => setShowOffer(false)}><View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "#10233470" }}><ScrollView style={{ maxHeight: "85%", width: "100%", maxWidth: 650, alignSelf: "center", backgroundColor: "white", borderTopLeftRadius: 28, borderTopRightRadius: 28 }}><OfferSheet propertyId={id} askingPrice={property.price} onCancel={() => setShowOffer(false)} onSubmit={async amount => {
       setError("");
-      await inquiryService.submitInquiry({ propertyId: id, message: "I would like to make an offer.", offerAmount: amount }); setShowOffer(false); setOfferResult("Your offer was submitted.");
+      await chatApi.submitInquiry({ propertyId: id, message: "I would like to make an offer.", offerAmount: amount }); setShowOffer(false); setOfferResult("Your offer was submitted.");
     }} /></ScrollView></View></Modal>}
     {!!offerResult && <Text style={ui.text}>{offerResult}</Text>}
   </PublicPropertyDetails>;
@@ -139,7 +139,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
         }} />}
         {publicView && showOffer && <OfferSheet propertyId={id} askingPrice={property.price} onCancel={() => setShowOffer(false)} onSubmit={async amount => {
           setError("");
-          await inquiryService.submitInquiry({ propertyId: id, message: "I would like to make an offer.", offerAmount: amount }); setShowOffer(false); setOfferResult("Your offer was submitted.");
+          await chatApi.submitInquiry({ propertyId: id, message: "I would like to make an offer.", offerAmount: amount }); setShowOffer(false); setOfferResult("Your offer was submitted.");
         }} />}
         {!!offerResult && <Text style={ui.text}>{offerResult}</Text>}
       </View>

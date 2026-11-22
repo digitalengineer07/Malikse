@@ -43,7 +43,6 @@ import { homeFeedBusyMessage, loadHomeRecommendations } from "../src/services/ho
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
 import NotificationBell from "./NotificationBell";
-import { chatBusyMessage, readChat } from "../src/services/chatRequests";
 import { refreshNotificationCount, useNotificationStore } from "../src/store/notificationStore";
 import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
@@ -183,8 +182,7 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
     setLoading(true);
     setError("");
     try {
-      const response = homeScope ? await loadHomeRecommendations(path, homeScope)
-        : path.startsWith("/inquiries") ? await readChat(path) : await api.get(path);
+      const response = homeScope ? await loadHomeRecommendations(path, homeScope) : await api.get(path);
       if (latestRequest.current !== requestKey || sequence !== refreshSequence.current) return;
       setResultKey(requestKey);
       if (keepLoadedPages && loadedPagesKey.current === requestKey) {
@@ -219,7 +217,7 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
       while (cursor && !visited.has(cursor)) {
         visited.add(cursor);
         const pagePath: string = path + (path.includes("?") ? "&" : "?") + "cursor=" + encodeURIComponent(cursor);
-        const response = pagePath.startsWith("/inquiries") ? await readChat(pagePath) : await api.get(pagePath);
+        const response = await api.get(pagePath);
         if (latestRequest.current !== requestKey) return;
         for (const item of response.data) items.set(item._id, item);
         cursor = response.headers["x-next-cursor"] || null;
@@ -1691,30 +1689,6 @@ export function PropertyDetailScreen() {
     </MarketplaceShell>
   );
 }
-function formatChatLocationPart(value: unknown) {
-  return typeof value === "string"
-    ? value.trim().toLocaleLowerCase().replace(/(^|[\s-])\p{L}/gu, start => start.toLocaleUpperCase())
-    : "";
-}
-
-function ChatBubble({ mine, text, createdAt, offer, sending, recipientReadAt }: {
-  mine: boolean; text: string; createdAt?: string; offer?: number; sending?: boolean; recipientReadAt?: string;
-}) {
-  const read = Boolean(createdAt && recipientReadAt &&
-    Date.parse(recipientReadAt) >= Date.parse(createdAt));
-  return <View style={[s.bubble, mine ? s.mine : s.theirs]}>
-    <Text style={s.chatMessage} selectable>{text}</Text>
-    {Boolean(offer) && <Text style={s.cardTitle}>Offer: {money(offer!)}</Text>}
-    {(sending || createdAt) && <View style={s.chatMetadata}>
-      <Text style={s.chatTime}>
-        {sending ? "Sending…" : new Date(createdAt!).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
-      </Text>
-      {mine && !sending && <View accessible accessibilityLabel={read ? "Read" : "Sent"}>
-        <Icon name={read ? "done-all" : "done"} size={15} color={read ? "#1766C2" : C.muted} />
-      </View>}
-    </View>}
-  </View>;
-}
 
 export const ChatsScreen = WhatsAppChatScreen;
 
@@ -2596,15 +2570,6 @@ const s = StyleSheet.create({
     backgroundColor: C.sunSoft, borderRadius: 22,
   },
   homeDistrictLabel: { fontFamily: "ManropeBold", fontSize: 13, color: C.ink, flexShrink: 1 },
-  messagesHeroIntro: { flex: 1, minHeight: 0, justifyContent: "center" },
-  messagesHeroCopy: { width: "66%", gap: 4 },
-  messagesHeroSubtitle: { fontFamily: font, fontSize: 13, lineHeight: 18, color: "rgba(255,255,255,0.82)" },
-  messagesHeroHouse: { position: "absolute", bottom: -12, right: -9 },
-  messagesHeroSearch: {
-    minHeight: 44, flexDirection: "row", alignItems: "center", gap: 10, zIndex: 1,
-    paddingHorizontal: 14, borderRadius: 24, backgroundColor: "#fff",
-  },
-  messagesHeroSearchInput: { flex: 1, minWidth: 0, minHeight: 44, fontFamily: font, fontSize: 14, color: C.ink },
   tag: {
     alignSelf: "flex-start",
     paddingHorizontal: 9,
@@ -2677,29 +2642,6 @@ const s = StyleSheet.create({
     letterSpacing: -0.2,
   },
   link: { fontSize: 12.5, fontWeight: "700", color: C.blue },
-  threadCard: {
-    flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: "#fff",
-    borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, borderColor: C.line,
-    paddingLeft: 13, paddingRight: 9, paddingVertical: 12,
-    shadowColor: C.ink, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.10, shadowRadius: 6, elevation: 2,
-  },
-  threadAvatarColumn: { alignSelf: "stretch", justifyContent: "center", paddingRight: 11, borderRightWidth: StyleSheet.hairlineWidth, borderColor: C.line },
-  threadAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.sunSoft, alignItems: "center", justifyContent: "center" },
-  threadAvatarText: { fontFamily: "ManropeExtraBold", fontSize: 20, color: C.ink },
-  threadUnreadDot: { position: "absolute", right: 0, bottom: 0, width: 11, height: 11, borderWidth: 2, borderColor: "#fff", borderRadius: 6, backgroundColor: "#12964C" },
-  threadCopy: { flex: 1, minWidth: 0, gap: 3 },
-  threadNameRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 5 },
-  threadName: { flexShrink: 1, fontFamily: "ManropeExtraBold", fontSize: 15, color: C.ink },
-  threadRole: { borderRadius: 12, backgroundColor: "#E3F5E9", paddingHorizontal: 6, paddingVertical: 2 },
-  threadRoleText: { color: C.green, fontFamily: "ManropeBold", fontSize: 10 },
-  threadListing: { flexDirection: "row", alignItems: "center", gap: 4 },
-  threadListingText: { flexShrink: 1, fontFamily: "ManropeBold", fontSize: 12, color: C.muted },
-  threadPreview: { fontFamily: font, fontSize: 12, color: C.ink },
-  threadMeta: { flexDirection: "row", alignItems: "center", alignSelf: "stretch", gap: 6 },
-  threadTime: { alignSelf: "flex-start", fontFamily: font, fontSize: 10, color: C.muted },
-  threadCount: { minHeight: 20, minWidth: 20, paddingHorizontal: 4, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: C.sun },
-  threadCountText: { fontFamily: "ManropeExtraBold", fontSize: 11, lineHeight: 14, includeFontPadding: false, textAlign: "center", color: C.ink },
-  threadCountDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.sun },
   dockArtwork: { position: "absolute", left: 0, right: 0, bottom: 0 },
   dockWrapper: {
     position: "absolute",
@@ -2801,66 +2743,6 @@ const s = StyleSheet.create({
   galleryThumb: { width: 82, height: 62, borderRadius: 14, borderWidth: 2, borderColor: C.line, overflow: "hidden" },
   gallerySave: { position: "absolute", top: 12, right: 12, width: 42, height: 42, borderRadius: 21 },
   scrollViewport: { flex: 1 },
-  conversationWatermark: {
-    position: "absolute", top: 0, right: 0, bottom: 0, left: 0,
-    alignItems: "flex-end", justifyContent: "flex-end",
-    paddingRight: 8, paddingBottom: 8,
-  },
-  conversationWatermarkImage: { width: "66%", height: "92%", maxWidth: 304, maxHeight: 304, opacity: 0.4 },
-  conversationHeader: {
-    backgroundColor: C.ink, paddingHorizontal: 14, paddingBottom: 12,
-    borderBottomLeftRadius: 12, borderBottomRightRadius: 28,
-  },
-  conversationHeaderRow: { flexDirection: "row", alignItems: "center", gap: 8, width: "100%", maxWidth: 760, alignSelf: "center" },
-  conversationBack: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  chatIdentityCard: {
-    flex: 1, minWidth: 0, minHeight: 54, flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 7, paddingVertical: 6, borderRadius: 16, backgroundColor: "#1C3556",
-    borderWidth: StyleSheet.hairlineWidth, borderColor: "#FFFFFF30",
-  },
-  chatIdentityIcon: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: C.sun },
-  chatIdentityInitials: { color: C.ink, fontFamily: "ManropeExtraBold", fontSize: 14 },
-  chatIdentityDetails: { flex: 1, minWidth: 0, gap: 2 },
-  chatIdentityNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  chatCategory: {
-    flexShrink: 0, borderRadius: 9, borderWidth: StyleSheet.hairlineWidth, borderColor: "#FFFFFF45",
-    backgroundColor: "#FFFFFF12", paddingHorizontal: 7, paddingVertical: 3,
-  },
-  chatCategoryText: { fontFamily: "ManropeBold", fontSize: 10, color: "#E3ECF8" },
-  chatOffer: { borderColor: "#FCC61C66", backgroundColor: "#FCC61C1A" },
-  chatOfferText: { color: C.sunSoft },
-  chatIdentityName: { flex: 1, minWidth: 0, fontFamily: fontDisplay, fontSize: 18, color: "#fff" },
-  chatIdentityListing: { flexDirection: "row", alignItems: "center", gap: 4 },
-  chatIdentityProperty: { flexShrink: 1, fontFamily: font, fontSize: 12, color: "#D4DEEC" },
-  chatArea: { gap: 7 },
-  bubble: { alignItems: "stretch", minWidth: 66, maxWidth: "84%", paddingHorizontal: 11, paddingVertical: 7, borderRadius: 14, gap: 2 },
-  chatMessage: { fontFamily: font, color: C.ink, fontSize: 15, lineHeight: 21 },
-  chatMetadata: { alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: 4 },
-  chatTime: { fontFamily: font, color: C.muted, fontSize: 11, lineHeight: 15 },
-  mine: {
-    alignSelf: "flex-end",
-    backgroundColor: C.sunSoft,
-    borderBottomRightRadius: 4,
-  },
-  theirs: {
-    alignSelf: "flex-start",
-    backgroundColor: "#ffffff",
-    borderBottomLeftRadius: 4,
-  },
-  chatFooter: { backgroundColor: C.bg, borderTopWidth: 0, paddingTop: 8 },
-  chatComposerArea: { gap: 5 },
-  chatSendError: { fontFamily: font, fontSize: 12, color: "#9A2D20" },
-  chatComposer: { alignItems: "flex-end" },
-  chatInput: {
-    flex: 1, minHeight: 44, maxHeight: 116, paddingVertical: 10, paddingHorizontal: 14,
-    borderRadius: 22, borderWidth: 1, borderColor: C.line, backgroundColor: "transparent",
-    fontFamily: font, fontSize: 15, lineHeight: 21, color: C.ink,
-  },
-  chatSend: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: "center", justifyContent: "center", backgroundColor: C.sun,
-  },
-  chatSendDimmed: { opacity: 0.6 },
   history: {
     padding: 10,
     borderLeftWidth: 3,

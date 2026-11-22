@@ -79,4 +79,17 @@ export const chatApi = {
       console.warn(`[chatApi] markRead(${inquiryId}) non-fatal error:`, err?.message);
     }
   },
+
+  /**
+   * Submit an initial property inquiry or structured offer.
+   */
+  async submitInquiry(data: { propertyId: string; message: string; offerAmount?: number; requestKey?: string }): Promise<ChatConversation> {
+    try {
+      const res = await api.post("/inquiries", data, { timeout: 12000 });
+      return res.data;
+    } catch (err: any) {
+      console.error("[chatApi] submitInquiry error:", err?.response?.data || err.message);
+      throw err;
+    }
+  },
 };
