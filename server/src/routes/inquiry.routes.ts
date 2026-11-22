@@ -408,7 +408,7 @@ router.post("/:id/message", async (req: AuthRequest, res) => {
           .select("propertyId buyerId staffId").session(session).lean();
         if (!current) throw new OfferError(404, "Conversation not found");
         const property = await Property.findById(current.propertyId)
-          .select("status __v assignedAdvisorId assignedVerifierId").session(session).lean();
+          .select("status assignedAdvisorId assignedVerifierId").session(session).lean();
         if (!property || property.status !== "verified")
           throw new OfferError(
             409,
@@ -427,13 +427,6 @@ router.post("/:id/message", async (req: AuthRequest, res) => {
               "Approved KYC is required to send messages",
             );
         }
-        const locked = await Property.updateOne(
-          { _id: property._id, __v: property.__v, status: "verified" },
-          { $inc: { __v: 1 } },
-          { session },
-        );
-        if (!locked.modifiedCount)
-          throw new OfferError(409, "Property assignment changed; retry");
         const messageId = new Types.ObjectId();
         inquiry = await Inquiry.findOneAndUpdate(
           { _id: current._id, "messages.999": { $exists: false } },

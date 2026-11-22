@@ -1797,7 +1797,7 @@ export function ChatsScreen() {
     if (handledChatRevision.current === chatRevision) return;
     handledChatRevision.current = chatRevision;
     if (!userId || !chatFocused || !appActive) return;
-    const timer = setTimeout(selected ? refreshMessages : refreshFeed, 750);
+    const timer = setTimeout(selected ? refreshMessages : refreshFeed, 350);
     return () => clearTimeout(timer);
   }, [chatRevision, userId, chatFocused, appActive, selected, refreshMessages, refreshFeed]);
   useEffect(() => {
@@ -1807,21 +1807,25 @@ export function ChatsScreen() {
     }, (selected ? 15_000 : 30_000) + Math.round(Math.random() * 4_000));
     return () => clearInterval(timer);
   }, [selected, userId, chatFocused, appActive, refreshMessages, refreshFeed]);
+  const latestIncoming = chat.data && messages.data
+    ? messages.data.messages?.slice().reverse().find((message: any) => identity(message.senderId) !== userId)?.createdAt
+      || (identity(chat.data.buyerId) !== userId ? chat.data.createdAt : undefined)
+    : undefined;
+  const ownReadAt = messages.data?.ownReadAt;
   useEffect(() => {
-    if (selected && userId && chatFocused && appActive && chat.data && messages.data) {
-      const viewingAsBuyer = identity(chat.data.buyerId) === userId;
-      const incoming = messages.data.messages?.slice().reverse().find((message: any) => identity(message.senderId) !== userId);
-      const latest = incoming?.createdAt || (!viewingAsBuyer ? chat.data.createdAt : undefined);
-      const ownReadAt = messages.data.ownReadAt;
-      if (!latest || (ownReadAt && Date.parse(ownReadAt) >= Date.parse(latest))) return;
-      const receipt = `${userId}:${selected}:${latest}`;
+    if (selected && userId && chatFocused && appActive && latestIncoming) {
+      if (ownReadAt && Date.parse(ownReadAt) >= Date.parse(latestIncoming)) return;
+      const receipt = `${userId}:${selected}:${latestIncoming}`;
       if (acknowledgedReceipt.current === receipt) return;
-      acknowledgedReceipt.current = receipt;
-      void api.post(`/inquiries/${selected}/read`, { through: latest }).catch(() => {
-        if (acknowledgedReceipt.current === receipt) acknowledgedReceipt.current = "";
-      });
+      const timer = setTimeout(() => {
+        acknowledgedReceipt.current = receipt;
+        void api.post(`/inquiries/${selected}/read`, { through: latestIncoming }).catch(() => {
+          if (acknowledgedReceipt.current === receipt) acknowledgedReceipt.current = "";
+        });
+      }, 800);
+      return () => clearTimeout(timer);
     }
-  }, [messages.data, chat.data, selected, userId, chatFocused, appActive]);
+  }, [latestIncoming, ownReadAt, messages.data, selected, userId, chatFocused, appActive]);
   const c = chat.data,
     other = c && (identity(c.buyerId) === user?.id ? c.staffId : c.buyerId);
   const recipientReadAt = messages.data?.recipientReadAt !== undefined
