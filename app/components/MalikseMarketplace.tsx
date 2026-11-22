@@ -39,6 +39,7 @@ import { currentMapLocation, LocationPermissionBlocked } from "../src/services/c
 import { validMapPoint, type MapFocus, type MapPoint } from "../src/utils/nativeMapHtml";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api, { authService } from "../src/services/authService";
+import { chatTracker } from "../src/services/chatRequestTracker";
 import { homeFeedBusyMessage, loadHomeRecommendations } from "../src/services/homeRecommendations";
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
@@ -1819,7 +1820,11 @@ export function ChatsScreen() {
       const receipt = `${userId}:${selected}:${latest}`;
       if (!latest || acknowledgedReceipt.current === receipt) return;
       acknowledgedReceipt.current = receipt;
-      void api.post(`/inquiries/${selected}/read`, { through: latest }).catch(() => {
+      console.log(`[APP CHAT] Sending read receipt for ${selected} through ${latest}`);
+      void api.post(`/inquiries/${selected}/read`, { through: latest }).then(() => {
+        console.log(`[APP CHAT] Read receipt acknowledged for ${selected}`);
+      }).catch((err) => {
+        console.warn(`[APP CHAT] Read receipt failed for ${selected}:`, err.message);
         if (acknowledgedReceipt.current === receipt) acknowledgedReceipt.current = "";
       });
     }
@@ -1880,11 +1885,15 @@ export function ChatsScreen() {
     const content = draft.trim();
     if (!selected || !content || sendLock.current) return;
     sendLock.current = true;
+    chatTracker.startMessage(content);
+    console.log(`[APP CHAT] User initiated sendMessage to conversation ${selected}: "${content}"`);
     setSendErrorConversation(undefined);
     setPending({ conversation: selected, text: content });
     scrollToLatest();
     try {
+      console.log(`[APP CHAT] Sending POST /inquiries/${selected}/message...`);
       const { data } = await api.post(`/inquiries/${selected}/message`, { text: content });
+      console.log(`[APP CHAT] Successfully sent message. Server returned updated inquiry.`);
       if (activeConversation.current !== selected) return;
       const saved = data.messages?.at(-1);
       if (saved?._id) {
@@ -1892,12 +1901,18 @@ export function ChatsScreen() {
           messages: [...(current?.conversation === selected ? current.messages : []), saved].slice(-6) }));
       }
       setText(current => current === draft ? "" : current);
+      console.log(`[APP CHAT] Refreshing messages after send...`);
       void refreshMessages();
-    } catch {
+    } catch (err: any) {
+      console.error(`[APP CHAT ERROR] Failed to send message:`, err.response?.data || err.message);
       if (activeConversation.current === selected) setSendErrorConversation(selected);
     } finally {
       sendLock.current = false;
       setPending(undefined);
+      // Wait a moment for any cascading refreshes/read-receipts to log summary
+      setTimeout(() => {
+        chatTracker.finishMessage(content);
+      }, 1500);
     }
   }
   const search = query.trim().toLocaleLowerCase();

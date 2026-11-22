@@ -1,22 +1,22 @@
-import { processFileCleanup } from "./services/fileCleanup";
-import path from "path";
 import dotenv from "dotenv";
-dotenv.config();
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
-import { createRequiredIndexes, verifyRequiredIndexes } from "./services/requiredIndexes";
-import { startAccountDeletionWorker } from "./services/accountDeletion";
-import { deliverNotifications } from "./services/notificationQueue";
 import mongoose from "mongoose";
+import path from "path";
 import { createFastifyApp } from "./fastifyApp";
 import { positiveInteger } from "./middleware/runtime.middleware";
+import { User } from "./models/User.model";
+import { startAccountDeletionWorker } from "./services/accountDeletion";
+import { processFileCleanup } from "./services/fileCleanup";
+import { freePort } from "./services/freePort";
 import { mongoPoolOptions } from "./services/mongoPool";
+import { deliverNotifications } from "./services/notificationQueue";
 import { monitorPool } from "./services/performanceMetrics";
+import { checkPushReceipts } from "./services/pushNotifications";
 import { closeRedis } from "./services/redis";
 import { startRegionCounts, stopRegionCounts } from "./services/regionCountStore";
+import { createRequiredIndexes, verifyRequiredIndexes } from "./services/requiredIndexes";
 import { startSubmissionWorker } from "./services/submissionQueue";
-import { checkPushReceipts } from "./services/pushNotifications";
-import { freePort } from "./services/freePort";
-import { User } from "./models/User.model";
+dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 let stopping = false;
 let initialized = false;
@@ -45,8 +45,8 @@ startListening(PORT).then(() => {
   console.log(`[MalikSe] Fastify server running on http://localhost:${PORT}`);
   startupStage = "MongoDB connection";
   return mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/malikse", {
-  autoIndex: false,
-  ...mongoPoolOptions(),
+    autoIndex: false,
+    ...mongoPoolOptions(),
   });
 }).then(async () => {
   monitorPool(mongoose.connection.getClient());
@@ -63,7 +63,7 @@ startListening(PORT).then(() => {
   startupStage = "region count initialization";
   await startRegionCounts();
   initialized = true;
-  const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => {} : startSubmissionWorker();
+  const stopWorker = process.env.SUBMISSION_WORKER_ENABLED === "false" ? async () => { } : startSubmissionWorker();
   const stopDeletionWorker = startAccountDeletionWorker();
   const startTask = (task: () => Promise<unknown>, interval: number) => {
     let pending: Promise<unknown> | undefined;
@@ -80,7 +80,7 @@ startListening(PORT).then(() => {
     if (stopping) return;
     stopping = true;
 
-    const deadline = setTimeout(() => { server.closeAllConnections(); process.exit(1); }, 15_000);
+    const deadline = setTimeout(() => { (server as any).closeAllConnections?.(); process.exit(1); }, 15_000);
     deadline.unref();
     await Promise.all([app.close(), stopWorker(), stopDeletionWorker(), stopNotifications(), stopReceipts(), stopFileCleanup()]);
     await stopRegionCounts();
@@ -95,7 +95,7 @@ startListening(PORT).then(() => {
   const cause = error as { name?: string; code?: string; message?: string };
   const message = String(cause?.message || "Unknown error").replace(/mongodb(?:\+srv)?:\/\/[^\s]+/gi, "[redacted MongoDB URI]");
   console.error("[MalikSe] Server startup failed", { stage: startupStage, name: cause?.name, code: cause?.code, message });
-  await app.close().catch(() => {});
+  await app.close().catch(() => { });
   await stopRegionCounts();
   await mongoose.disconnect();
   closeRedis();

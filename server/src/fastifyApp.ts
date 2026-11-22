@@ -1,26 +1,27 @@
-import { randomUUID } from "crypto";
-import Fastify, { FastifyReply, FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import accepts from "accepts";
+import { randomUUID } from "crypto";
+import Fastify, { FastifyReply, FastifyRequest } from "fastify";
+import { isValidObjectId } from "mongoose";
 import qs from "qs";
 import { createApp } from "./app";
-import { runtimeConfiguration } from "./middleware/runtime.middleware";
-import { pageInput, cursorFor, listFields } from "./services/pagination";
-import { performanceMetrics } from "./services/performanceMetrics";
-import { getPublicSearchResponse } from "./services/propertySearch";
-import { regionCounts } from "./services/propertyRegions";
-import { locationSuggestions } from "./services/propertyLocationSuggestions";
-import { getRecommendationsResponse } from "./services/recommendationService";
-import { PublicResponse, publicResponse } from "./services/publicResponseCache";
-import { assertPublicGeneration } from "./services/publicCacheGeneration";
 import { authenticateRequest } from "./middleware/auth.middleware";
-import { isValidObjectId } from "mongoose";
+import { runtimeConfiguration } from "./middleware/runtime.middleware";
 import { Property } from "./models/Property.model";
 import { User } from "./models/User.model";
-import { canReadProperty, publicFields } from "./services/propertyWorkflow";
 import { publishedFilter } from "./services/marketplace";
+import { cursorFor, listFields, pageInput } from "./services/pagination";
+import { performanceMetrics } from "./services/performanceMetrics";
+import { locationSuggestions } from "./services/propertyLocationSuggestions";
+import { regionCounts } from "./services/propertyRegions";
+import { getPublicSearchResponse } from "./services/propertySearch";
+import { canReadProperty, publicFields } from "./services/propertyWorkflow";
+import { assertPublicGeneration } from "./services/publicCacheGeneration";
+import { PublicResponse, publicResponse } from "./services/publicResponseCache";
 import { replicaReadPreference } from "./services/readReplica";
+import { getRecommendationsResponse } from "./services/recommendationService";
+import { workspaceResponse } from "./services/workspaceResponse";
 
 function sendPublicResponse(request: FastifyRequest, reply: FastifyReply, value: PublicResponse) {
   assertPublicGeneration(value.generation);
@@ -51,7 +52,7 @@ export function createFastifyApp(isReady?: () => boolean) {
       querystringParser: value => qs.parse(value),
     },
   });
-  app.server.headersTimeout = 15_000;
+  (app.server as any).headersTimeout = 15_000;
   const legacy = createApp(isReady);
 
   // Handoff happens before body parsing so Express JSON and multipart middleware
@@ -70,7 +71,7 @@ export function createFastifyApp(isReady?: () => boolean) {
     }
     if (!(request.routeOptions.config as { nativePropertyRead?: boolean }).nativePropertyRead) {
       reply.hijack();
-      legacy(request.raw, reply.raw);
+      legacy(request.raw as any, reply.raw as any);
     }
     done();
   });
@@ -84,9 +85,11 @@ export function createFastifyApp(isReady?: () => boolean) {
         performanceMetrics.completed++;
         if (reply.raw.statusCode >= 500) performanceMetrics.serverErrors++;
         if (process.env.REQUEST_LOGS === "true" || (production && process.env.REQUEST_LOGS !== "false")) {
-          console.log(JSON.stringify({ event: "http_request", requestId: request.id, method: request.method,
+          console.log(JSON.stringify({
+            event: "http_request", requestId: request.id, method: request.method,
             route: request.routeOptions.url, status: reply.raw.statusCode,
-            durationMs: Number(process.hrtime.bigint() - start) / 1e6 }));
+            durationMs: Number(process.hrtime.bigint() - start) / 1e6
+          }));
         }
       });
       reply.raw.once("close", () => { if (!reply.raw.writableFinished) performanceMetrics.aborted++; });
@@ -174,4 +177,4 @@ export function createFastifyApp(isReady?: () => boolean) {
   });
   return app;
 }
-import { workspaceResponse } from "./services/workspaceResponse";
+

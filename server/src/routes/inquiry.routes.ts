@@ -167,21 +167,33 @@ for (const [route, party, other] of [
           $addFields: {
             unreadCount: {
               $let: {
-                vars: { readAt: { $ifNull: [
-                  { $cond: [{ $eq: ["$buyerId", actor] }, "$buyerReadAt", "$staffReadAt"] },
-                  new Date(0),
-                ] } },
-                in: { $add: [
-                  { $cond: [{ $and: [{ $eq: ["$staffId", actor] }, { $gt: ["$createdAt", "$$readAt"] }] }, 1, 0] },
-                  { $size: { $filter: {
-                    input: { $ifNull: ["$messages", []] },
-                    as: "message",
-                    cond: { $and: [
-                      { $ne: ["$$message.senderId", actor] },
-                      { $gt: ["$$message.createdAt", "$$readAt"] },
-                    ] },
-                  } } },
-                ] },
+                vars: {
+                  readAt: {
+                    $ifNull: [
+                      { $cond: [{ $eq: ["$buyerId", actor] }, "$buyerReadAt", "$staffReadAt"] },
+                      new Date(0),
+                    ]
+                  }
+                },
+                in: {
+                  $add: [
+                    { $cond: [{ $and: [{ $eq: ["$staffId", actor] }, { $gt: ["$createdAt", "$$readAt"] }] }, 1, 0] },
+                    {
+                      $size: {
+                        $filter: {
+                          input: { $ifNull: ["$messages", []] },
+                          as: "message",
+                          cond: {
+                            $and: [
+                              { $ne: ["$$message.senderId", actor] },
+                              { $gt: ["$$message.createdAt", "$$readAt"] },
+                            ]
+                          },
+                        }
+                      }
+                    },
+                  ]
+                },
               },
             },
           },
@@ -245,6 +257,7 @@ for (const [route, party, other] of [
 
 router.get("/:id", authGuard, async (req: AuthRequest, res) => {
   try {
+    console.log(`[SERVER INQUIRY] GET /inquiries/${req.params.id} | User: ${req.user!.id}`);
     const inquiry = await Inquiry.findOne({
       _id: req.params.id,
       $or: [{ buyerId: req.user!.id }, { staffId: req.user!.id }],
@@ -267,6 +280,7 @@ router.get("/:id/messages", authGuard, async (req: AuthRequest, res) => {
   try {
     const before =
       req.query.before === undefined ? undefined : Number(req.query.before);
+    console.log(`[SERVER INQUIRY] GET /inquiries/${req.params.id}/messages | User: ${req.user!.id} | Cursor before: ${before ?? 'latest'}`);
     if (before !== undefined && (!Number.isInteger(before) || before < 0))
       return res.status(400).json({ error: "Invalid message cursor" });
     const filter = {
@@ -297,22 +311,39 @@ router.get("/:id/messages", authGuard, async (req: AuthRequest, res) => {
       });
     const end = Math.min(before, Math.max(0, total - 6));
     const start = Math.max(0, end - 50);
-    const rows = await Inquiry.aggregate([
-      { $match: filter },
-      {
-        $project: {
-          messages: {
-            $cond: [
-              { $gt: [end, 0] },
-              { $slice: ["$messages", start, end - start] },
-              [],
-            ],
+      let rows = await Inquiry.aggregate([
+        { $match: filter },
+        {
+          $project: {
+            messages: {
+              $cond: [
+                { $gt: [end, 0] },
+                { $slice: ["$messages", start, end - start] },
+                [],
+              ],
+            },
           },
         },
-      },
-    ])
-      .read(replicaReadPreference())
-      .option({ maxTimeMS: 5000 });
+      ])
+        .read(replicaReadPreference())
+        .option({ maxTimeMS: 5000 });
+    if (!rows.length || rows[0].messages.length !== end - start) {
+      // If secondary has not replicated yet or cluster is single node, fallback to primary before 503
+      rows = await Inquiry.aggregate([
+        { $match: filter },
+        {
+          $project: {
+            messages: {
+              $cond: [
+                { $gt: [end, 0] },
+                { $slice: ["$messages", start, end - start] },
+                [],
+              ],
+            },
+          },
+        },
+      ]).option({ maxTimeMS: 5000 });
+    }
     if (!rows.length || rows[0].messages.length !== end - start) {
       res.setHeader("Retry-After", "1");
       return res
@@ -385,6 +416,7 @@ router.put("/:id/status", authGuard, async (req: AuthRequest, res) => {
 router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
   try {
     const { text } = req.body;
+    console.log(`[SERVER INQUIRY] >>> POST /inquiries/${req.params.id}/message | Sender: ${req.user!.id} | Length: ${text?.length} | Text: "${String(text).slice(0, 80)}"`);
     if (typeof text !== "string" || !text.trim() || text.length > 5000)
       return res
         .status(400)
@@ -416,13 +448,9 @@ router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
               "Approved KYC is required to send messages",
             );
         }
-        const locked = await Property.updateOne(
-          { _id: property._id, __v: property.__v, status: "verified" },
-          { $inc: { __v: 1 } },
-          { session },
-        );
-        if (!locked.modifiedCount)
-          throw new OfferError(409, "Property assignment changed; retry");
+        const isVerified = await Property.exists({ _id: property._id, status: "verified" }).session(session);
+        if (!isVerified)
+          throw new OfferError(409, "Property is no longer available; retry");
         const messageId = new Types.ObjectId();
         inquiry = await Inquiry.findOneAndUpdate(
           { _id: current._id, "messages.999": { $exists: false } },
@@ -455,12 +483,15 @@ router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
           ],
           { session },
         );
+        console.log(`[SERVER INQUIRY] Message saved (ID: ${messageId}) & notification queued for recipient: ${buyer ? staff._id : current.buyerId}`);
       });
     } finally {
       await session.endSession();
     }
+    console.log(`[SERVER INQUIRY] <<< Successfully finished POST /inquiries/${req.params.id}/message`);
     res.json(inquiry);
-  } catch (err) {
+  } catch (err: any) {
+    console.error(`[SERVER INQUIRY ERR] Failed to send message on inquiry ${req.params.id}:`, err.message || err);
     res
       .status(err instanceof OfferError ? err.status : 500)
       .json({
@@ -473,6 +504,7 @@ router.post("/:id/message", authGuard, async (req: AuthRequest, res) => {
 router.post("/:id/read", authGuard, async (req: AuthRequest, res) => {
   try {
     const through = new Date(req.body.through);
+    console.log(`[SERVER INQUIRY] POST /inquiries/${req.params.id}/read | User: ${req.user!.id} | Through: ${req.body.through}`);
     if (
       typeof req.body.through !== "string" ||
       !Number.isFinite(through.getTime()) ||

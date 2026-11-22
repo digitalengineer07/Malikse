@@ -5,6 +5,7 @@ import { useAuthStore } from "../store/authStore";
 import type { UserProfile } from "../types/auth.types";
 import { invalidatePropertySearch } from "./searchCache";
 import { unregisterPushDevice } from "./pushNotifications";
+import { chatTracker } from "./chatRequestTracker";
 
 const configuredApiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
 function resolveApiUrl() {
@@ -42,16 +43,20 @@ api.interceptors.request.use((config) => {
   if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  const reqId = chatTracker.recordRequest(config.method || 'GET', config.url || '');
+  (config as any)._trackerId = reqId;
   return config;
 });
 
 api.interceptors.response.use(
   (response) => {
+    chatTracker.recordResponse((response.config as any)?._trackerId, response.status, response.config?.method, response.config?.url);
     if (Array.isArray(response.data)) (response.data as any).nextCursor = response.headers["x-next-cursor"] || undefined;
     if (["post", "patch", "put", "delete"].includes(response.config.method || "") && /^\/(properties|verification|admin)\b/.test(response.config.url || "")) invalidatePropertySearch();
     return response;
   },
   async (error) => {
+    chatTracker.recordError((error.config as any)?._trackerId, error, error.config?.method, error.config?.url);
     const originalRequest = error.config;
     // This readiness response is sent before handlers run, so replay is safe.
     if (originalRequest && error.response?.status === 503 &&
