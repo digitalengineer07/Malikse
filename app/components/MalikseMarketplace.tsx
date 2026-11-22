@@ -1830,7 +1830,6 @@ export function ChatsScreen() {
       }, 800);
       return () => clearTimeout(timer);
     }
-    }
   }, [latestIncoming, ownReadAt, messages.data, selected, userId, chatFocused, appActive]);
   const c = chat.data,
     other = c && (identity(c.buyerId) === user?.id ? c.staffId : c.buyerId);
