@@ -1,6 +1,5 @@
-import dotenv from "dotenv";
+import "./config/loadEnv";
 import mongoose from "mongoose";
-import path from "path";
 import { createFastifyApp } from "./fastifyApp";
 import { positiveInteger } from "./middleware/runtime.middleware";
 import { User } from "./models/User.model";
@@ -15,8 +14,6 @@ import { closeRedis } from "./services/redis";
 import { startRegionCounts, stopRegionCounts } from "./services/regionCountStore";
 import { createRequiredIndexes, verifyRequiredIndexes } from "./services/requiredIndexes";
 import { startSubmissionWorker } from "./services/submissionQueue";
-dotenv.config();
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 let stopping = false;
 let initialized = false;

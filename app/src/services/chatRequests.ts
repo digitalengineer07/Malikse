@@ -22,6 +22,9 @@ export function readChat(path: string): Promise<AxiosResponse> {
   if (cooldown && Date.now() < cooldown.retryAt) return Promise.reject(new Error(chatBusyMessage));
   const request = api.get(path).catch(error => {
     const status = error.response?.status;
+    if (!status && ["ERR_NETWORK", "ECONNABORTED", "ETIMEDOUT"].includes(error.code)) {
+      throw new Error("Could not reach the server. Chat will retry automatically.");
+    }
     if (status !== 429 && status !== 503) throw error;
     if (pending.get(path) === request) {
       const raw = error.response.headers?.["retry-after"];

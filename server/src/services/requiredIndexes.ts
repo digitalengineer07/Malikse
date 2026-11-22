@@ -48,7 +48,7 @@ export async function createRequiredIndexes() {
   }
 }
 export async function verifyRequiredIndexes() {
-  const concurrency = 4;
+  const concurrency = process.env.NODE_ENV === "production" ? 4 : 1;
   for (let offset = 0; offset < indexedModels.length; offset += concurrency) {
     await Promise.all(indexedModels.slice(offset, offset + concurrency).map(async model => {
       const actual = await mongoose.connection.collection(model.collection.name).indexes();

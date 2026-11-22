@@ -56,13 +56,20 @@ class ChatRequestTracker {
     const duration = tracked ? Date.now() - tracked.startTime : 0;
     const status = error.response?.status || 'ERR';
     const message = error.response?.data?.message || error.message;
+    const transportFailure = !error.response && ['ERR_NETWORK', 'ECONNABORTED', 'ETIMEDOUT', 'ERR_CANCELED'].includes(error.code);
+    const log = transportFailure ? console.log : console.error;
     if (tracked) {
       tracked.durationMs = duration;
       tracked.status = error.response?.status;
       tracked.error = message;
-      console.error(`[APP CHAT ERR] <-- ${status} ${tracked.method} ${tracked.url} (${duration}ms): ${message}`);
+      log(`[APP CHAT ERR] <-- ${status} ${tracked.method} ${tracked.url} (${duration}ms): ${message}`);
     } else {
-      console.error(`[APP HTTP ERR] <-- ${status} ${method || ''} ${url || ''}: ${message}`);
+      // Session restoration handles this response through refresh or sign-in.
+      if (status === 401 && method?.toLowerCase() === "get" && url === "/auth/me") {
+        console.log("[APP AUTH] Saved session needs renewal");
+        return;
+      }
+      log(`[APP HTTP ERR] <-- ${status} ${method || ''} ${url || ''}: ${message}`);
     }
   }
 

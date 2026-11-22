@@ -1,9 +1,9 @@
+import PropertyImage from "./PropertyImage";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   Easing,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -324,7 +324,7 @@ export default function VerifiedHomeScreen() {
                       <BlurView intensity={35} tint="light" style={s.cardInner}>
                         <View style={s.cardImageContainer}>
                           {property.media?.photos?.[0] ? (
-                            <Image
+                            <PropertyImage
                               source={{ uri: property.media.photos[0] }}
                               style={StyleSheet.absoluteFill}
                               resizeMode="cover"

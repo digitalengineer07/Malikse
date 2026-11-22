@@ -63,7 +63,7 @@ export default function PropertyImage(props: PropertyImageProps) {
 
   if (Platform.OS === "web") {
     const activeBlob = download && download.key === cacheKey ? download.blob : cachedBlob;
-    return <Image {...restProps} source={activeBlob ? { uri: activeBlob } : (uri ? { ...source, uri } : rawSource)} />;
+    return <Image {...restProps} source={activeBlob ? { uri: activeBlob } : undefined} />;
   }
 
   return <Image {...restProps} source={{ ...source, uri, headers: { ...source?.headers, Authorization: `Bearer ${accessToken}` } }} />;

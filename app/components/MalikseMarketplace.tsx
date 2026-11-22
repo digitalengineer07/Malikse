@@ -39,13 +39,12 @@ import { currentMapLocation, LocationPermissionBlocked } from "../src/services/c
 import { validMapPoint, type MapFocus, type MapPoint } from "../src/utils/nativeMapHtml";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api, { authService } from "../src/services/authService";
-import { chatTracker } from "../src/services/chatRequestTracker";
 import { homeFeedBusyMessage, loadHomeRecommendations } from "../src/services/homeRecommendations";
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
 import NotificationBell from "./NotificationBell";
 import { chatBusyMessage, readChat } from "../src/services/chatRequests";
-import { useNotificationStore } from "../src/store/notificationStore";
+import { refreshNotificationCount, useNotificationStore } from "../src/store/notificationStore";
 import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
 import EmailChangeForm from "./EmailChangeForm";
@@ -536,7 +535,7 @@ function PropertyCard({
         onPress={() => router.push(`/property/${p._id}` as any)}
       >
         {p.media?.photos?.[0] ? (
-          <Image
+          <PropertyImage
             source={{ uri: p.media.photos[0] }}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
@@ -1557,7 +1556,7 @@ export function PropertyDetailScreen() {
             ]}
           >
             {photos.length ? (
-              <PropertyImage isPublic
+              <PropertyImage
                 source={{ uri: photos[activePhoto] }}
                 style={StyleSheet.absoluteFill}
               />
@@ -1597,7 +1596,7 @@ export function PropertyDetailScreen() {
                   accessibilityLabel={`View photo ${index + 1}`}
                   accessibilityState={{ selected: index === activePhoto }}
                   onPress={() => setGalleryIndex(index)} style={[s.galleryThumb, index === activePhoto && { borderColor: C.sun }]}>
-                  <PropertyImage isPublic source={{ uri }} style={StyleSheet.absoluteFill} />
+                  <PropertyImage source={{ uri }} style={StyleSheet.absoluteFill} />
                 </Pressable>
               ))}
             </ScrollView>
@@ -1824,7 +1823,7 @@ export function ChatsScreen() {
         acknowledgedReceipt.current = receipt;
         console.log(`[APP CHAT] Sending read receipt for ${selected} through ${latestIncoming}`);
         void api.post(`/inquiries/${selected}/read`, { through: latestIncoming }).then(() => {
-          console.log(`[APP CHAT] Read receipt acknowledged for ${selected}`);
+          void refreshNotificationCount();
         }).catch((err: any) => {
           console.warn(`[APP CHAT] Read receipt failed for ${selected}:`, err.message);
           if (acknowledgedReceipt.current === receipt) acknowledgedReceipt.current = "";
@@ -1893,9 +1892,8 @@ export function ChatsScreen() {
     const content = draft.trim();
     if (!selected || !content || sendLock.current) return;
     sendLock.current = true;
-    chatTracker.startMessage(content);
-    console.log(`[APP CHAT] User initiated sendMessage to conversation ${selected}: "${content}"`);
     setSendErrorConversation(undefined);
+    setText("");
     setPending({ conversation: selected, text: content });
     scrollToLatest();
     try {
@@ -1912,17 +1910,16 @@ export function ChatsScreen() {
       } else {
         void refreshMessages();
       }
-      setText(current => current === draft ? "" : current);
+
     } catch (err: any) {
-      console.error(`[APP CHAT ERROR] Failed to send message:`, err.response?.data || err.message);
-      if (activeConversation.current === selected) setSendErrorConversation(selected);
+      console.log(`[APP CHAT] Send failed`, err.response?.status ?? err.code);
+      if (activeConversation.current === selected) {
+        setText(current => current || draft);
+        setSendErrorConversation(selected);
+      }
     } finally {
       sendLock.current = false;
       setPending(undefined);
-      // Wait a moment for any cascading refreshes/read-receipts to log summary
-      setTimeout(() => {
-        chatTracker.finishMessage(content);
-      }, 1500);
     }
   }
   const search = query.trim().toLocaleLowerCase();
@@ -2715,7 +2712,7 @@ export function PostScreen() {
                     uppercaseLabel
                     value={form.description}
                     onChangeText={set("description")}
-                    multiline
+              multiline
                   />
                 </PostSection>
               </>

@@ -8,6 +8,6 @@ export function mongoPoolOptions() {
   const minPoolSize = read("MONGO_MIN_POOL_SIZE", 0, 0, maxPoolSize);
   const production = process.env.NODE_ENV === "production";
   return { maxPoolSize, minPoolSize, maxConnecting: read("MONGO_MAX_CONNECTING", production ? 5 : 2, 1, 10),
-    waitQueueTimeoutMS: read("MONGO_WAIT_QUEUE_TIMEOUT_MS", production ? 10_000 : 2_000, 1, 30000),
+    waitQueueTimeoutMS: read("MONGO_WAIT_QUEUE_TIMEOUT_MS", 10_000, 1, 30000),
     serverSelectionTimeoutMS: 5000, socketTimeoutMS: 20000 };
 }
