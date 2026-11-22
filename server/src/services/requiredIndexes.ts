@@ -35,6 +35,15 @@ function matchesIndex(model: mongoose.Model<any>, index: any, keys: any, options
     && Boolean(index.unique) === Boolean(options.unique) && Boolean(index.sparse) === Boolean(options.sparse)
     && index.expireAfterSeconds === options.expireAfterSeconds;
 }
+export async function ensureActivityIndexes() {
+  const existing = await Inquiry.collection.indexes();
+  for (const [keys, options] of Inquiry.schema.indexes()) {
+    if (!("updatedAt" in keys)) continue;
+    if (!existing.some(index => matchesIndex(Inquiry, index, keys, options))) {
+      await Inquiry.collection.createIndex(keys as mongoose.mongo.IndexSpecification);
+    }
+  }
+}
 export async function createRequiredIndexes() {
   // Additive only: retain legacy seller indexes and reuse equivalent staff aliases.
   for (const model of indexedModels) {

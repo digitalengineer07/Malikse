@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 import path from "path";
 import { createFastifyApp } from "./fastifyApp";
 import { positiveInteger } from "./middleware/runtime.middleware";
-import { Inquiry } from "./models/Inquiry.model";
 import { User } from "./models/User.model";
 import { startAccountDeletionWorker } from "./services/accountDeletion";
 import { processFileCleanup } from "./services/fileCleanup";
@@ -14,7 +13,7 @@ import { monitorPool } from "./services/performanceMetrics";
 import { checkPushReceipts } from "./services/pushNotifications";
 import { closeRedis } from "./services/redis";
 import { startRegionCounts, stopRegionCounts } from "./services/regionCountStore";
-import { createRequiredIndexes, verifyRequiredIndexes } from "./services/requiredIndexes";
+import { createRequiredIndexes, ensureActivityIndexes, verifyRequiredIndexes } from "./services/requiredIndexes";
 import { startSubmissionWorker } from "./services/submissionQueue";
 dotenv.config();
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
@@ -68,10 +67,7 @@ startListening(PORT).then(() => {
   if (process.env.NODE_ENV !== "production") await createRequiredIndexes();
   else {
     await User.collection.createIndex({ googleId: 1 }, { unique: true, sparse: true });
-    await Inquiry.collection.createIndexes([
-      { key: { buyerId: 1, updatedAt: -1, _id: -1 }, name: "inquiry_buyer_activity" },
-      { key: { propertyId: 1, updatedAt: -1, _id: -1 }, name: "inquiry_property_activity" },
-    ]);
+    await ensureActivityIndexes();
   }
   await verifyRequiredIndexes();
   initialized = true;
