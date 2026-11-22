@@ -1910,7 +1910,6 @@ export function ChatsScreen() {
     if (!selected || !content || sendLock.current) return;
     sendLock.current = true;
     chatTracker.startMessage(content);
-    console.log(`[APP CHAT] User initiated sendMessage to conversation ${selected}: "${content}"`);
     setSendErrorConversation(undefined);
     setPending({ conversation: selected, text: content });
     scrollToLatest();
