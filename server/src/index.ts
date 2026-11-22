@@ -12,7 +12,7 @@ import { monitorPool } from "./services/performanceMetrics";
 import { checkPushReceipts } from "./services/pushNotifications";
 import { closeRedis } from "./services/redis";
 import { startRegionCounts, stopRegionCounts } from "./services/regionCountStore";
-import { createRequiredIndexes, verifyRequiredIndexes } from "./services/requiredIndexes";
+import { createRequiredIndexes, ensureActivityIndexes, verifyRequiredIndexes } from "./services/requiredIndexes";
 import { startSubmissionWorker } from "./services/submissionQueue";
 
 let stopping = false;
@@ -62,7 +62,10 @@ startListening(PORT).then(() => {
   }
   startupStage = "required index verification";
   if (process.env.NODE_ENV !== "production") await createRequiredIndexes();
-  else await User.collection.createIndex({ googleId: 1 }, { unique: true, sparse: true });
+  else {
+    await User.collection.createIndex({ googleId: 1 }, { unique: true, sparse: true });
+    await ensureActivityIndexes();
+  }
   await verifyRequiredIndexes();
   initialized = true;
   clearTimeout(startupDeadline);

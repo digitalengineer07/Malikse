@@ -46,6 +46,8 @@ const InquirySchema = new Schema<IInquiry>(
 );
 
 InquirySchema.index({ propertyId: 1 });
+InquirySchema.index({ buyerId: 1, updatedAt: -1, _id: -1 });
+InquirySchema.index({ propertyId: 1, updatedAt: -1, _id: -1 });
 InquirySchema.index({ buyerId: 1 });
 InquirySchema.index({ staffId: 1 });
 InquirySchema.index({ buyerId: 1, createdAt: -1 }, { name: "inquiry_buyer_newest" });

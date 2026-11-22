@@ -55,7 +55,7 @@ export function installRuntimeMiddleware(app: Express) {
   app.use(cors({
     credentials: true,
     origin: (origin, callback) => callback(null, !origin || origins.includes(origin) || (!production && !origins.length)),
-    exposedHeaders: ["X-Request-Id", "X-Search-Cache", "X-Next-Cursor", "RateLimit", "Retry-After"],
+    exposedHeaders: ["X-Request-Id", "X-Search-Cache", "X-Next-Cursor", "RateLimit", "Retry-After", "ETag"],
   }));
   for (const [path, name, limit] of [
     ["/auth/login", "AUTH_LOGIN_LIMIT", 20],

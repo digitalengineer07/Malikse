@@ -67,7 +67,7 @@ const money = (n: number) =>
 const label = (p: any) =>
   p.title || `${p.type} in ${p.location?.district || ""}`;
 const errorText = (e: any) =>
-  e?.response?.data?.message ||
+  e instanceof ChatReadBusy && e.failures < 3 ? "" : e?.response?.data?.message ||
   e?.response?.data?.error ||
   e?.message ||
   "Please retry.";
@@ -180,10 +180,11 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
     if (!path) return;
     const sequence = ++refreshSequence.current;
     setLoading(true);
-    setError("");
+    if (!path.startsWith("/inquiries")) setError("");
     try {
       const response = homeScope ? await loadHomeRecommendations(path, homeScope) : await api.get(path);
       if (latestRequest.current !== requestKey || sequence !== refreshSequence.current) return;
+      setError("");
       setResultKey(requestKey);
       if (keepLoadedPages && loadedPagesKey.current === requestKey) {
         setData((previous: any[]) => {
