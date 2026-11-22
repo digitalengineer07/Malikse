@@ -67,7 +67,7 @@ const money = (n: number) =>
 const label = (p: any) =>
   p.title || `${p.type} in ${p.location?.district || ""}`;
 const errorText = (e: any) =>
-  e instanceof ChatReadBusy && e.failures < 3 ? "" : e?.response?.data?.message ||
+  e?.response?.data?.message ||
   e?.response?.data?.error ||
   e?.message ||
   "Please retry.";
