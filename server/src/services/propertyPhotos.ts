@@ -41,11 +41,15 @@ export async function storePropertyPhoto(buffer: Buffer, propertyId?: string) {
   }
   
   const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db!, { bucketName: "photos" });
+  const mime = `image/${extension === "jpg" ? "jpeg" : extension}`;
   return new Promise<string>((resolve, reject) => {
     const stream = bucket.openUploadStream(name, {
-      contentType: `image/${extension === "jpg" ? "jpeg" : extension}`,
-      metadata: propertyId ? { propertyId: new mongoose.Types.ObjectId(propertyId) } : undefined,
-    });
+      contentType: mime,
+      metadata: {
+        contentType: mime,
+        ...(propertyId ? { propertyId: new mongoose.Types.ObjectId(propertyId) } : {})
+      },
+    } as any);
     stream.on("error", reject);
     stream.on("finish", () => resolve(name));
     stream.end(processedBuffer);

@@ -44,7 +44,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "express-rate-limit": "^8.7.1",
+    "express-rate-limit": "^8.7.5",
     "fastify": "^5.12.7",
     "google-auth-library": "^11.3.4",
     "helmet": "^8.3.0",
@@ -71,5 +71,8 @@
     "pm2": "^7.0.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.3"
+  },
+  "overrides": {
+    "mongodb": "^7.9.1"
   }
 }
