@@ -44,7 +44,7 @@ import { homeFeedBusyMessage, loadHomeRecommendations } from "../src/services/ho
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
 import NotificationBell from "./NotificationBell";
-import { chatBusyMessage, readChat } from "../src/services/chatRequests";
+import { ChatReadBusy, chatPollDelay, readChat } from "../src/services/chatRequests";
 import { useNotificationStore } from "../src/store/notificationStore";
 import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
@@ -68,7 +68,7 @@ const money = (n: number) =>
 const label = (p: any) =>
   p.title || `${p.type} in ${p.location?.district || ""}`;
 const errorText = (e: any) =>
-  e?.response?.data?.message ||
+  e instanceof ChatReadBusy && e.failures < 3 ? "" : e?.response?.data?.message ||
   e?.response?.data?.error ||
   e?.message ||
   "Please retry.";
@@ -181,11 +181,12 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
     if (!path) return;
     const sequence = ++refreshSequence.current;
     setLoading(true);
-    setError("");
+    if (!path.startsWith("/inquiries")) setError("");
     try {
       const response = homeScope ? await loadHomeRecommendations(path, homeScope)
         : path.startsWith("/inquiries") ? await readChat(path) : await api.get(path);
       if (latestRequest.current !== requestKey || sequence !== refreshSequence.current) return;
+      setError("");
       setResultKey(requestKey);
       if (keepLoadedPages && loadedPagesKey.current === requestKey) {
         setData((previous: any[]) => {
@@ -1745,6 +1746,7 @@ export function ChatsScreen() {
   const historyRequest = useRef<string | null>(null);
   const activeConversation = useRef(selected);
   const sendLock = useRef(false);
+  const retryMessage = useRef<{ conversation: string; user: string | undefined; text: string; key: string } | undefined>(undefined);
   const [pending, setPending] = useState<{ conversation: string; text: string }>();
   const [sent, setSent] = useState<{ conversation: string; messages: any[] }>();
   const [history, setHistory] = useState<{ conversation: string; messages: any[]; nextBefore: number | null }>();
@@ -1782,11 +1784,14 @@ export function ChatsScreen() {
   const [previousInquiry, setPreviousInquiry] = useState(params.inquiryId);
   if (params.inquiryId !== previousInquiry) { setPreviousInquiry(params.inquiryId); if (params.inquiryId) setSelected(String(params.inquiryId)); }
   const refreshMessages = messages.refresh;
+  const refreshDetails = chat.refresh;
+  const needsDetails = !!selected && !chat.data;
   const refreshFeed = feed.refresh;
   const userId = user?.id;
   const chatFocused = useIsFocused();
   const chatRevision = useNotificationStore(state => state.chatRevision);
   const handledChatRevision = useRef(chatRevision);
+  const lastPushRefresh = useRef(0);
   const [appActive, setAppActive] = useState(() => AppState.currentState === "active" || AppState.currentState == null);
   const acknowledgedReceipt = useRef("");
   useEffect(() => {
@@ -1800,16 +1805,27 @@ export function ChatsScreen() {
     if (handledChatRevision.current === chatRevision) return;
     handledChatRevision.current = chatRevision;
     if (!userId || !chatFocused || !appActive) return;
-    const timer = setTimeout(selected ? refreshMessages : refreshFeed, 350);
+    const timer = setTimeout(() => {
+      lastPushRefresh.current = Date.now();
+      void (selected ? refreshMessages() : refreshFeed());
+    }, 350);
     return () => clearTimeout(timer);
   }, [chatRevision, userId, chatFocused, appActive, selected, refreshMessages, refreshFeed]);
   useEffect(() => {
     if (!userId || !chatFocused || !appActive) return;
-    const timer = setInterval(() => {
-      void (selected ? refreshMessages() : refreshFeed());
-    }, (selected ? 15_000 : 30_000) + Math.round(Math.random() * 4_000));
-    return () => clearInterval(timer);
-  }, [selected, userId, chatFocused, appActive, refreshMessages, refreshFeed]);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      timer = setTimeout(async () => {
+        if (needsDetails) await refreshDetails();
+        if (!stopped && Date.now() - lastPushRefresh.current >= (selected ? 15_000 : 30_000))
+          await (selected ? refreshMessages() : refreshFeed());
+        if (!stopped) schedule();
+      }, chatPollDelay(selected ? `/inquiries/${selected}/messages` : "/inquiries", selected ? 15_000 : 30_000));
+    };
+    schedule();
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [selected, userId, chatFocused, appActive, refreshMessages, refreshFeed, needsDetails, refreshDetails]);
   const latestIncoming = chat.data && messages.data
     ? messages.data.messages?.slice().reverse().find((message: any) => identity(message.senderId) !== userId)?.createdAt
     || (identity(chat.data.buyerId) !== userId ? chat.data.createdAt : undefined)
@@ -1838,8 +1854,8 @@ export function ChatsScreen() {
   const recipientReadAt = messages.data?.recipientReadAt !== undefined
     ? messages.data.recipientReadAt : c && (identity(c.buyerId) === userId ? c.staffReadAt : c.buyerReadAt);
   const visibleChatError = selected
-    ? [chat, messages].find(request => request.error && (request.error !== chatBusyMessage || !request.data))?.error || action.error
-    : feed.error === chatBusyMessage && feed.data ? "" : feed.error;
+    ? chat.error || messages.error || action.error
+    : feed.error;
   const participantName = other?.name?.trim();
   const isOffer = Boolean(c?.dealId) || typeof c?.offerAmount === "number";
   const propertyTitle = formatChatLocationPart(c?.propertyId?.title);
@@ -1899,9 +1915,11 @@ export function ChatsScreen() {
     setPending({ conversation: selected, text: content });
     scrollToLatest();
     try {
-      console.log(`[APP CHAT] Sending POST /inquiries/${selected}/message...`);
-      const { data } = await api.post(`/inquiries/${selected}/message`, { text: content });
-      console.log(`[APP CHAT] Successfully sent message. Server returned updated inquiry.`);
+      const attempt = retryMessage.current;
+      if (!attempt || attempt.conversation !== selected || attempt.user !== userId || attempt.text !== content)
+        retryMessage.current = { conversation:selected, user:userId, text:content, key:randomUUID() };
+      const { data } = await api.post(`/inquiries/${selected}/message`, { text: content, clientMessageId: retryMessage.current!.key });
+      retryMessage.current = undefined;
       if (activeConversation.current !== selected) return;
       const saved = data.messages?.at(-1);
       if (saved?._id) {
