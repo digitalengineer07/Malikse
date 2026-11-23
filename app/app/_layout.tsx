@@ -1,7 +1,7 @@
 import { renderAppScreen } from "../components/AppScreen";
 import React, { useState, useEffect } from "react";
 import { useFonts } from "expo-font";
-import { Stack, useRouter, type Href } from "expo-router";
+import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { AppState, LogBox, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -15,8 +15,7 @@ import { marketplaceBackground } from "../constants/theme";
 import { hydrateResume } from "../src/store/resumeStore";
 import { preloadStartupResources } from "../src/services/startupPreload";
 import { cachedMapAssets, preloadMapAssets } from "../src/services/mapAssets";
-import { observePushOpens, registerPushDevice } from "../src/services/pushNotifications";
-import { refreshNotificationCount, scheduleNotificationCount, useNotificationStore } from "../src/store/notificationStore";
+import { refreshNotificationCount } from "../src/store/notificationStore";
 import { resumeChatDelivery } from "../src/features/chat/chatDelivery";
 
 LogBox.ignoreLogs([
@@ -73,7 +72,6 @@ export default function RootLayout() {
   const hydrated = useAuthStore(state => state.hydrated);
   const userId = useAuthStore(state => state.user?.id);
   const authenticated = useAuthStore(state => Boolean(state.accessToken));
-  const router = useRouter();
   const [resumeReady, setResumeReady] = useState(Platform.OS === "web");
   useEffect(() => { hydrateResume().finally(() => setResumeReady(true)); }, []);
   useEffect(() => {
@@ -83,7 +81,10 @@ export default function RootLayout() {
     const subscription = AppState.addEventListener("change", state => {
       if (state === "active") void refreshNotificationCount();
     });
-    return () => subscription.remove();
+    const timer = setInterval(() => {
+      if (AppState.currentState === "active") void refreshNotificationCount();
+    }, 30000);
+    return () => { subscription.remove(); clearInterval(timer); };
   }, [hydrated, userId, authenticated]);
 
   useEffect(() => {
@@ -105,26 +106,6 @@ export default function RootLayout() {
     if (hydrated && userId) return resumeChatDelivery(userId);
   }, [hydrated, userId]);
 
-  useEffect(() => {
-    if (!hydrated || !userId || !authenticated || Platform.OS === "web") return;
-    void registerPushDevice(userId);
-    let active = true;
-    let dispose: (() => void) | undefined;
-    void observePushOpens((kind, id) => {
-      if (kind === "inquiry") router.push({ pathname: "/(tabs)/messages", params: { inquiryId: id } });
-      else if (kind === "deal") router.push(`/deal/${id}` as Href);
-      else if (kind === "property") router.push(`/property/${id}` as Href);
-      else router.push("/my-properties" as Href);
-    }, kind => {
-      if (!active) return;
-      scheduleNotificationCount();
-      if (kind === "inquiry" || kind === "deal") {
-        useNotificationStore.setState(state => ({ chatRevision: state.chatRevision + 1 }));
-      }
-    }).then(stop => { if (active) dispose = stop; else stop(); })
-      .catch(error => console.warn("Could not observe push notifications", error));
-    return () => { active = false; dispose?.(); };
-  }, [hydrated, userId, authenticated, router]);
 
   useEffect(() => {
     if ((fontsLoaded || fontError) && resumeReady) SplashScreen.hideAsync().catch(() => {});

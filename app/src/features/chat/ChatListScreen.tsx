@@ -16,7 +16,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useIsFocused } from "expo-router";
 import { useAuthStore } from "../../store/authStore";
-import { useNotificationStore } from "../../store/notificationStore";
 import { chatApi } from "./chatApi";
 import { InboxFeed } from "./inboxFeed";
 import { chatRetryDelay } from "./chatWire";
@@ -103,10 +102,7 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({ onSelectConversa
     }
     schedule(0);
     const app = AppState.addEventListener("change", () => schedule(0));
-    const stop = useNotificationStore.subscribe((next, prev) => {
-      if (next.chatRevision !== prev.chatRevision) schedule(350);
-    });
-    return () => { alive = false; clearTimeout(timer); app.remove(); stop(); };
+    return () => { alive = false; clearTimeout(timer); app.remove(); };
   }, [currentUserId, feed, focused]);
 
   const handleRefresh = () => {

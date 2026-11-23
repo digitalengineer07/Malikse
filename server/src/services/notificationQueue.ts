@@ -3,8 +3,6 @@ import { Notification } from "../models/Notification.model";
 import { Property } from "../models/Property.model";
 import { User } from "../models/User.model";
 import { publishedFilter } from "./marketplace";
-import { notifyUser } from "./pushNotifications";
-import { chatNotificationTitle, findNotificationMessage, genericChatTitle } from "./notificationMessage";
 
 async function expandListingBroadcast(job: InstanceType<typeof Notification>) {
   const session = await mongoose.startSession();
@@ -60,25 +58,6 @@ export async function deliverNotifications() {
         await expandListingBroadcast(job);
         continue;
       }
-      const message = await findNotificationMessage(String(job.recipient), job.data, job.messageId);
-      const sender = job.title === genericChatTitle && message?.senderId
-        ? await User.findOne({ _id: message.senderId, deletionRequestedAt: { $exists: false } })
-          .select("name").maxTimeMS(2000).lean().catch(() => null)
-        : null;
-      const title = job.messageId && !message ? genericChatTitle
-        : sender ? chatNotificationTitle(sender.name) : job.title!;
-      // Bound the push payload while keeping complete Unicode code points.
-      const characters = message ? Array.from(message.text) : [];
-      const body = characters.length > 240 ? characters.slice(0, 240).join("") + "…" : message?.text ?? job.body!;
-      await notifyUser(
-        String(job.recipient),
-        title,
-        body,
-        job.data as any,
-        job,
-      );
-      const updated = await Notification.findById(job._id).select("permanentTokens");
-      if (updated?.permanentTokens.length) throw new Error("Permanent device failure");
       await Notification.updateOne(
         { _id: job._id, leaseUntil: job.leaseUntil },
         { $set: { deliveredAt: new Date() }, $unset: { leaseUntil: 1 } },

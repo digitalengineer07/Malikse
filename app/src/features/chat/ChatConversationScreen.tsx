@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useIsFocused, useRouter } from "expo-router";
 import { useAuthStore } from "../../store/authStore";
-import { useNotificationStore, scheduleNotificationCount } from "../../store/notificationStore";
+import { scheduleNotificationCount } from "../../store/notificationStore";
 import NotificationBell from "../../../components/NotificationBell";
 import { chatApi, transcriptRetryAt } from "./chatApi";
 import { outboxFor } from "./chatDelivery";
@@ -195,12 +195,7 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
       else dirty = true;
       schedule(0);
     });
-    const stop = useNotificationStore.subscribe((next, prev) => {
-      if (next.chatRevision === prev.chatRevision || canWait) return;
-      dirty = true;
-      if (!running) schedule(350);
-    });
-    return () => { mounted = false; controller?.abort(); clearTimeout(timer); app.remove(); stop(); };
+    return () => { mounted = false; controller?.abort(); clearTimeout(timer); app.remove(); };
   }, [inquiryId, currentUserId, loadMessages, focused]);
 
   // 3. Mark Read Receipts
