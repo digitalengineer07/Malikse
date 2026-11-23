@@ -2,6 +2,7 @@ import { User } from "../models/User.model";
 import { createHash } from "node:crypto";
 import { rateLimit } from "express-rate-limit";
 import { messaging } from "./messaging.routes";
+import { waitForChat } from "../services/chatActivity";
 import express from "express";
 import { Inquiry } from "../models/Inquiry.model";
 import { authGuard, AuthRequest } from "../middleware/auth.middleware";
@@ -31,6 +32,18 @@ const chatReadLimit = rateLimit({
   },
 });
 router.use(chatReadLimit);
+router.get("/:id/messages", async (req: AuthRequest, res, next) => {
+  const { live, watch, before } = req.query;
+  if (live !== "1" || typeof watch !== "string" || before !== undefined) return next();
+  try {
+    const result = await waitForChat(req.params.id.toLowerCase(), req.user!.id, watch, res);
+    if (res.destroyed) return;
+    res.locals.chatWaitBusy = result === "busy";
+    // Account and assignment may change while the request is waiting.
+    if (result === "waited") return authGuard(req, res, next);
+    next();
+  } catch (error) { next(error); }
+});
 // Old owner conversations remain archived; never reinterpret their participants.
 router.use("/:id", async (req: any, res, next) => {
   try {
@@ -67,6 +80,7 @@ router.use("/:id", async (req: any, res, next) => {
         { $set: { staffId: staff._id }, $unset: { staffReadAt: 1 } },
       );
     res.locals.inquiryBuyer = String(inquiry.buyerId) === req.user.id;
+    res.locals.chatPeer = String(res.locals.inquiryBuyer ? staff._id : inquiry.buyerId);
     next();
   } catch (e: any) {
     res
