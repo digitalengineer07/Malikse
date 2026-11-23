@@ -1,5 +1,3 @@
-import { identityApproved } from "../services/security";
-import { workspaceResponse } from "../services/workspaceResponse";
 import { Router } from "express";
 import { isValidObjectId } from "mongoose";
 import multer from "multer";
@@ -10,21 +8,24 @@ import { User } from "../models/User.model";
 import { listFields, readPage } from "../services/pagination";
 import { discardPropertyPhoto, storePropertyPhoto } from "../services/propertyPhotos";
 import { activeStaffFilter, canReadProperty, historyEvent, listingFields, mediaInputError, publicFields, transition, validateListing } from "../services/propertyWorkflow";
+import { identityApproved } from "../services/security";
+import { workspaceResponse } from "../services/workspaceResponse";
 
 import { publishedFilter } from "../services/marketplace";
 import { apiOrigin } from "../services/security";
 
+import { normalizeAdvisorCode } from "../services/advisorCodeService";
 import { locationSuggestions } from "../services/propertyLocationSuggestions";
 import { regionCounts } from "../services/propertyRegions";
 import { getPublicSearchResponse } from "../services/propertySearch";
 import { publicResponse, sendPublicResponse } from "../services/publicResponseCache";
-import { enqueueSubmission } from "../services/submissionQueue";
 import { replicaReadPreference } from "../services/readReplica";
-import { normalizeAdvisorCode } from "../services/advisorCodeService";
+import { enqueueSubmission } from "../services/submissionQueue";
 
 const router = Router();
 async function restoreUploadedPhoto(id: string, ownerId: string, url: string) {
-  const result = await Property.updateOne({ _id: id, ownerId, status: { $in: ["draft", "correction_required"] },
+  const result = await Property.updateOne({
+    _id: id, ownerId, status: { $in: ["draft", "correction_required"] },
     $or: [{ "media.photos": url }, { "media.photos.9": { $exists: false } }],
   }, { $addToSet: { "media.photos": url }, $inc: { __v: 1 } });
   return result.matchedCount > 0;
