@@ -12,6 +12,7 @@ import { User } from "../models/User.model";
 import { activeStaffFilter, historyEvent, transition } from "../services/propertyWorkflow";
 import { performanceMetrics } from "../services/performanceMetrics";
 import { AccountDeletion } from "../models/AccountDeletion.model";
+import { generateUniqueAdvisorCode } from "../services/advisorCodeService";
 
 const router = Router();
 router.get("/notification-failures", authGuard, roleGuard("admin"), async (req, res) => {
@@ -49,11 +50,13 @@ router.post("/properties/:id/assign", authGuard, roleGuard("admin"), async (req:
 router.get("/staff", authGuard, roleGuard("admin"), async (req, res) => {
   try {
     const staff = await readPage(User.find({ role: { $in: ["advisor", "verifier"] }, passwordHash: { $exists: true, $ne: "" } })
-      .select("name mobile email role isActive createdAt")
+      .select("name mobile email role advisorCode assignedDistricts isActive createdAt")
       .sort({ createdAt: -1 }), req, res);
     res.json(staff.map((person) => ({
       id: person._id.toString(), name: person.name, mobile: person.mobile,
-      email: person.email, role: person.role, isActive: person.isActive, createdAt: person.createdAt,
+      email: person.email, role: person.role, advisorCode: person.advisorCode,
+      assignedDistricts: person.assignedDistricts || [],
+      isActive: person.isActive, createdAt: person.createdAt,
     })));
   } catch (error: any) {
     res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
@@ -62,7 +65,7 @@ router.get("/staff", authGuard, roleGuard("admin"), async (req, res) => {
 
 router.post("/staff", authGuard, roleGuard("admin"), async (req, res) => {
   try {
-    const { role, name, mobile, email, password } = req.body;
+    const { role, name, mobile, email, password, assignedDistricts } = req.body;
     const cleanName = typeof name === "string" ? name.trim() : "";
     const cleanMobile = typeof mobile === "string" ? mobile.trim() : "";
     const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
@@ -81,16 +84,47 @@ router.post("/staff", authGuard, roleGuard("admin"), async (req, res) => {
     if (await User.exists({ mobile: cleanMobile })) {
       return res.status(409).json({ message: "Mobile number already registered" });
     }
+
+    const districts = Array.isArray(assignedDistricts)
+      ? assignedDistricts.map(d => typeof d === "string" ? d.trim() : "").filter(Boolean)
+      : [];
+
+    let advisorCode: string | undefined;
+    if (role === "advisor") {
+      advisorCode = await generateUniqueAdvisorCode();
+    }
+
     const person = await User.create({
       role, name: cleanName, mobile: cleanMobile, email: cleanEmail || undefined,
+      advisorCode, assignedDistricts: districts,
       passwordHash: await bcrypt.hash(password, 10),
     });
     res.status(201).json({
       id: person._id.toString(), name: person.name, mobile: person.mobile,
-      email: person.email, role: person.role, isActive: person.isActive, createdAt: person.createdAt,
+      email: person.email, role: person.role, advisorCode: person.advisorCode,
+      assignedDistricts: person.assignedDistricts || [],
+      isActive: person.isActive, createdAt: person.createdAt,
     });
   } catch (error: any) {
     if (error.code === 11000) return res.status(409).json({ message: "Mobile number already registered" });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
+  }
+});
+
+// Update staff districts
+router.put("/staff/:staffId/districts", authGuard, roleGuard("admin"), async (req: any, res) => {
+  try {
+    const districts = Array.isArray(req.body.assignedDistricts)
+      ? req.body.assignedDistricts.map((d: any) => typeof d === "string" ? d.trim() : "").filter(Boolean)
+      : [];
+    const staff = await User.findById(req.params.staffId);
+    if (!staff || !["advisor", "verifier"].includes(staff.role)) {
+      return res.status(404).json({ message: "Staff member not found" });
+    }
+    staff.assignedDistricts = districts;
+    await staff.save();
+    res.json({ id: staff._id, name: staff.name, advisorCode: staff.advisorCode, assignedDistricts: staff.assignedDistricts });
+  } catch (error: any) {
     res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });

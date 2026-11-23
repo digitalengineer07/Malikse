@@ -20,6 +20,7 @@ import { getPublicSearchResponse } from "../services/propertySearch";
 import { publicResponse, sendPublicResponse } from "../services/publicResponseCache";
 import { enqueueSubmission } from "../services/submissionQueue";
 import { replicaReadPreference } from "../services/readReplica";
+import { normalizeAdvisorCode } from "../services/advisorCodeService";
 
 const router = Router();
 async function restoreUploadedPhoto(id: string, ownerId: string, url: string) {
@@ -62,6 +63,40 @@ router.get("/search", async (req, res) => {
 router.get("/mine", authGuard, roleGuard("user"), async (req: any, res) => {
   try { res.json(await readPage(Property.find({ ownerId: req.user.id }).select(listFields).read(replicaReadPreference()), req, res)); }
   catch (error: any) { res.status(500).json({ message: "An unexpected server error occurred" }); }
+});
+
+router.get("/advisor-lookup/:code", authGuard, async (req: any, res) => {
+  try {
+    const raw = req.params.code;
+    const normalized = normalizeAdvisorCode(raw);
+    if (!normalized) {
+      return res.status(400).json({ valid: false, message: "Invalid Advisor ID format. Format should be ADV-XXXXXX." });
+    }
+    const advisor = await User.findOne({
+      advisorCode: normalized,
+      role: "advisor",
+      ...activeStaffFilter,
+    }).select("name advisorCode assignedDistricts");
+
+    if (!advisor) {
+      return res.status(404).json({
+        valid: false,
+        message: `No active advisor found with ID ${normalized}. Check the ID or leave blank for automatic assignment.`,
+      });
+    }
+
+    res.json({
+      valid: true,
+      advisor: {
+        id: advisor._id,
+        name: advisor.name,
+        code: advisor.advisorCode,
+        districts: advisor.assignedDistricts || [],
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: "Unable to verify advisor at this time" });
+  }
 });
 
 router.get("/:id/workspace", authGuard, async (req: any, res) => {
@@ -128,7 +163,23 @@ router.post("/:id/submit", authGuard, roleGuard("user"), async (req: any, res) =
     const error = validateListing(property);
     if (error) return res.status(400).json({ message: error });
     if (!property.media?.photos?.length) return res.status(400).json({ message: "Upload at least one property photo before submitting" });
-    if (property.requestedAdvisorId && (!isValidObjectId(property.requestedAdvisorId) || !await User.exists({ _id: property.requestedAdvisorId, role: "advisor", ...activeStaffFilter }))) return res.status(400).json({ message: "Advisor ID is invalid or unavailable. Correct it or leave it blank for Verifier assignment" });
+    const requested = property.requestedAdvisorCode || property.requestedAdvisorId;
+    if (requested) {
+      const raw = typeof requested === "string" ? requested : String(requested);
+      const normalized = normalizeAdvisorCode(raw);
+      const isObjectId = isValidObjectId(raw);
+      const advisorExists = await User.exists({
+        $or: [
+          ...(normalized ? [{ advisorCode: normalized }] : []),
+          ...(isObjectId ? [{ _id: raw }] : []),
+        ],
+        role: "advisor",
+        ...activeStaffFilter,
+      });
+      if (!advisorExists) {
+        return res.status(400).json({ message: "Advisor ID is invalid or unavailable. Correct it or leave it blank for automatic assignment." });
+      }
+    }
     const result = await enqueueSubmission(property, req.user);
     if (!result) return res.status(409).json({ message: "Property changed. Reload and try again" });
     res.status(202).json(result);

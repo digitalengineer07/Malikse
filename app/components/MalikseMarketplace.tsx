@@ -5,8 +5,6 @@ import { isRunningInExpoGo } from "expo";
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
   Linking,
-  AppState,
-  Keyboard,
   KeyboardAvoidingView,
   ActivityIndicator,
   BackHandler,
@@ -43,7 +41,6 @@ import { homeFeedBusyMessage, loadHomeRecommendations } from "../src/services/ho
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
 import NotificationBell from "./NotificationBell";
-import { refreshNotificationCount, useNotificationStore } from "../src/store/notificationStore";
 import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
 import EmailChangeForm from "./EmailChangeForm";
@@ -1888,6 +1885,44 @@ export function PostScreen() {
       media: { photos: [], videos: [] },
     }),
     action = useAction();
+  const [advisorStatus, setAdvisorStatus] = useState<{ loading: boolean; valid?: boolean; name?: string; message?: string }>({ loading: false });
+
+  useEffect(() => {
+    const raw = form.requestedAdvisorId?.trim();
+    const timer = setTimeout(async () => {
+      if (!raw) {
+        setAdvisorStatus({ loading: false });
+        return;
+      }
+      setAdvisorStatus({ loading: true });
+      try {
+        const res = await api.get(`/properties/advisor-lookup/${encodeURIComponent(raw)}`);
+        if (res.data?.valid) {
+          setAdvisorStatus({ loading: false, valid: true, name: res.data.advisor?.name });
+        } else {
+          setAdvisorStatus({ loading: false, valid: false, message: res.data?.message || "Advisor not found." });
+        }
+      } catch (err: any) {
+        setAdvisorStatus({
+          loading: false,
+          valid: false,
+          message: err?.response?.data?.message || "Advisor not found. Leave blank to auto-assign.",
+        });
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [form.requestedAdvisorId]);
+
+  const onAdvisorIdChange = (text: string) => {
+    let clean = text.trim().toUpperCase();
+    if (/^[1-9][0-9]{5}$/.test(clean)) {
+      clean = `ADV-${clean}`;
+    } else if (/^ADV[1-9][0-9]{5}$/.test(clean)) {
+      clean = `ADV-${clean.slice(3)}`;
+    }
+    setForm((f: any) => ({ ...f, requestedAdvisorId: clean }));
+  };
+
   const set = (key: string) => (value: any) =>
     setForm((f: any) => ({ ...f, [key]: value }));
 
@@ -1986,6 +2021,7 @@ export function PostScreen() {
         roadWidth: form.roadWidth ? Number(form.roadWidth) : undefined,
         parcelPoints: points.length ? points : undefined,
         requestedAdvisorId: form.requestedAdvisorId.trim(),
+        requestedAdvisorCode: form.requestedAdvisorId.trim(),
         negotiable: form.negotiable,
         disclosures: {
           hasLoan: form.hasLoan,
@@ -2356,15 +2392,38 @@ export function PostScreen() {
               <PostSection title="Review & submit">
                 <Field
                   uppercaseLabel
-                  title="Advisor ID (optional)"
+                  title="Advisor ID (Optional)"
+                  placeholder="e.g. ADV-482910"
                   value={form.requestedAdvisorId}
-                  onChangeText={set("requestedAdvisorId")}
+                  onChangeText={onAdvisorIdChange}
                 />
-                <Text style={s.muted}>
-                  Enter the ID provided by your Advisor. Leave it blank to
-                  assign an eligible Verifier. This person handles verification,
-                  offers, chats and closure.
-                </Text>
+                {advisorStatus.loading ? (
+                  <View style={[s.row, { marginTop: 6, gap: 6 }]}>
+                    <ActivityIndicator size="small" color={C.blue} />
+                    <Text style={[s.small, { color: C.muted }]}>Verifying Advisor ID...</Text>
+                  </View>
+                ) : advisorStatus.valid ? (
+                  <View style={[s.row, { marginTop: 6, padding: 10, backgroundColor: "#EBF7EE", borderRadius: 8, gap: 6 }]}>
+                    <Icon name="check-circle" color={C.green} size={18} />
+                    <Text style={[s.small, { color: C.green, fontWeight: "600", flex: 1 }]}>
+                      ✓ Verified Advisor: {advisorStatus.name}
+                    </Text>
+                  </View>
+                ) : form.requestedAdvisorId?.trim() ? (
+                  <View style={[s.row, { marginTop: 6, padding: 10, backgroundColor: "#FDF4E7", borderRadius: 8, gap: 6 }]}>
+                    <Icon name="error-outline" color="#B45309" size={18} />
+                    <Text style={[s.small, { color: "#B45309", flex: 1 }]}>
+                      {advisorStatus.message || "Advisor not found. Leave blank to auto-assign."}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={[s.row, { marginTop: 6, padding: 10, backgroundColor: "#F0F5FA", borderRadius: 8, gap: 6 }]}>
+                    <Icon name="bolt" color={C.blue} size={18} />
+                    <Text style={[s.small, { color: C.blue, flex: 1 }]}>
+                      Auto-Assignment: Leave blank to automatically match with an active advisor covering {form.district || "your district"}.
+                    </Text>
+                  </View>
+                )}
                 <Text style={s.cardTitle}>{form.title || `${form.type} in ${form.district || ""}`}</Text>
                 <Text style={s.price}>{money(Number(form.price))}</Text>
                 {points.length >= 3 && (

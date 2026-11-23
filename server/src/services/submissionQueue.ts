@@ -2,7 +2,7 @@ import { identityApproved } from "./security";
 import { createHash, randomUUID } from "crypto";
 import { Property, IProperty } from "../models/Property.model";
 import { User } from "../models/User.model";
-import { availableStaff, historyEvent, listingFields, transition, validateListing } from "./propertyWorkflow";
+import { availableStaff, historyEvent, listingFields, resolvePropertyStaff, transition, validateListing } from "./propertyWorkflow";
 
 const maxAttempts = 5;
 const leaseMs = 60_000;
@@ -38,10 +38,8 @@ export async function processNextSubmission(): Promise<boolean> {
     if (!seller || seller.isActive === false || seller.isSuspended || !identityApproved(seller)) throw new Error("Your account must be active with identity verification complete before submitting.");
     const invalid = validateListing(property);
     if (invalid) throw new Error(invalid);
-    const requested = property.requestedAdvisorId || property.assignedAdvisorId;
-    const advisorId = requested ? (await User.findOne({ _id: requested, role: "advisor", isActive: { $ne: false }, isSuspended: { $ne: true }, passwordHash: { $exists: true } }))?._id : undefined;
-    if (property.requestedAdvisorId && !advisorId) throw new Error("Requested Advisor is unavailable");
-    const verifierId = advisorId ? undefined : await availableStaff("verifier", property.assignedVerifierId);
+    const { advisorId, verifierId } = await resolvePropertyStaff(property);
+    if (!advisorId && !verifierId) throw new Error("No verification staff currently available");
     await Property.updateOne(filter, {
       $set: { status: "pending", assignedAdvisorId: advisorId || null, assignedVerifierId: verifierId || null,
         advisorReview: null, verifierReview: null, rejectionReason: "",

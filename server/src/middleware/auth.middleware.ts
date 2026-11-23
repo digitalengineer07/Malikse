@@ -30,7 +30,7 @@ export async function authenticateRequest(header: string | undefined, requestId?
     return { status: 401, message: "Session expired or invalid. Please sign in again." };
   }
   try {
-    const user = await User.findById(decoded.id).select("sessionVersion role passwordHash googleId isSuspended isActive name mobile email isVerifiedIdentity demoKycComplete createdAt").lean();
+    const user = await User.findById(decoded.id).select("sessionVersion role passwordHash googleId isSuspended isActive name mobile email advisorCode assignedDistricts isVerifiedIdentity demoKycComplete createdAt").lean();
     if (!user) {
       return { status: 401, message: "Account session not found. Please sign in again." };
     }

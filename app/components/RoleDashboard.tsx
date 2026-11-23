@@ -2,7 +2,7 @@ import NotificationFailures from "./NotificationFailures";
 import NotificationBell from "./NotificationBell";
 import { marketplaceBackground } from "../constants/theme";
 import React from "react";
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View, Linking, Share } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useIsFocused, useRouter, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -87,6 +87,54 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
         </View>
 
       </View>
+      {role === 'advisor' && (
+        <View style={styles.advisorCard}>
+          <View style={styles.advisorCardHeader}>
+            <View style={styles.advisorBadge}>
+              <MaterialIcons name="verified-user" size={16} color={navy} />
+              <Text style={styles.advisorBadgeText}>YOUR UNIQUE ADVISOR ID</Text>
+            </View>
+            <Text style={styles.advisorDistrictText}>
+              {user.assignedDistricts?.length ? "Districts: " + user.assignedDistricts.join(", ") : "Coverage: All Districts"}
+            </Text>
+          </View>
+          <Text style={styles.advisorCodeText}>{user.advisorCode || "ADV-Pending"}</Text>
+          <Text style={styles.advisorHelpText}>
+            Share this ID with property sellers so their listings are assigned directly to you for review, offers, and chat.
+          </Text>
+          <View style={styles.advisorActionRow}>
+            <TouchableOpacity
+              style={styles.advisorShareBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Share on WhatsApp"
+              onPress={() => {
+                if (user.advisorCode) {
+                  const msg = "Hi! You can use my MalikSe Advisor ID *" + user.advisorCode + "* when listing your property on MalikSe to assign me directly as your advisor.";
+                  Linking.openURL("https://wa.me/?text=" + encodeURIComponent(msg)).catch(() => {});
+                }
+              }}
+            >
+              <MaterialIcons name="chat" size={18} color="#fff" />
+              <Text style={styles.advisorShareLabel}>Share on WhatsApp</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.advisorCopyBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Share Advisor ID"
+              onPress={() => {
+                if (user.advisorCode) {
+                  Share.share({
+                    message: "My MalikSe Advisor ID is " + user.advisorCode + ". Enter this ID when submitting your property on MalikSe.",
+                  }).catch(() => {});
+                }
+              }}
+            >
+              <MaterialIcons name="share" size={18} color={navy} />
+              <Text style={styles.advisorCopyLabel}>Share ID</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
       <View style={styles.sectionHeading}><View><Text style={styles.eyebrow}>YOUR TOOLS</Text><Text accessibilityRole="header" style={styles.sectionTitle}>Make your next move.</Text></View><Text style={styles.sectionNote}>Built around your role</Text></View>
       <View style={styles.grid}>{sections.map((section, index) => <TouchableOpacity key={section.title} accessibilityRole="button" accessibilityState={{ disabled: !section.route }} style={[styles.card, { width: cardWidth }, index === 0 && styles.primaryCard, !section.route && styles.disabledCard]} disabled={!section.route} onPress={() => section.route && router.push(section.route)}>
         <View style={styles.cardTop}><View style={[styles.iconBox, index === 0 && styles.primaryIcon]}><MaterialIcons name={icons[index % icons.length]} size={24} color={navy} /></View><Text style={styles.cardIndex}>{String(index + 1).padStart(2, "0")}</Text></View>
@@ -176,4 +224,88 @@ const styles = StyleSheet.create({
   signOut: { paddingHorizontal: 14, minHeight: 44, borderRadius: 24, justifyContent: "center", borderWidth: 1, borderColor: "rgba(20,38,62,0.16)" },
   signOutLabel: { color: navy, fontSize: 13, fontFamily: "ManropeBold" },
   accessPanel: { ...surface, width: "100%", maxWidth: 550, alignSelf: "center", padding: 20, gap: 10 },
+  advisorCard: {
+    backgroundColor: navy,
+    borderRadius: 20,
+    padding: 20,
+    gap: 12,
+    borderWidth: 2,
+    borderColor: yellow,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  advisorCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  advisorBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: yellow,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  advisorBadgeText: {
+    fontSize: 11,
+    fontFamily: "ManropeExtraBold",
+    color: navy,
+    letterSpacing: 0.5,
+  },
+  advisorDistrictText: {
+    fontSize: 12,
+    fontFamily: "ManropeBold",
+    color: "#E2E8F0",
+  },
+  advisorCodeText: {
+    fontSize: 32,
+    fontFamily: "ManropeExtraBold",
+    color: yellow,
+    letterSpacing: 2,
+  },
+  advisorHelpText: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: "Manrope",
+    color: "#CBD5E1",
+  },
+  advisorActionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 4,
+  },
+  advisorShareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#25D366",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  advisorShareLabel: {
+    color: "#fff",
+    fontSize: 13,
+    fontFamily: "ManropeBold",
+  },
+  advisorCopyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  advisorCopyLabel: {
+    color: navy,
+    fontSize: 13,
+    fontFamily: "ManropeBold",
+  },
+
 });

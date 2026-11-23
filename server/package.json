@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "test:account-deletion": "npm run build && node load/test-account-deletion.cjs",
+    "test:advisor-codes": "npm run build && node load/test-advisor-codes.cjs",
     "test:password-reset": "npm run build && node load/test-password-reset.cjs",
     "test:fastify-property-reads": "npm run build && node load/test-fastify-property-reads.cjs",
     "db:region-counts": "npm run build && node dist/scripts/rebuildRegionCounts.js",
