@@ -216,7 +216,7 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
               scheduleNotificationCount();
             })
             .catch(() => { if (readReceiptSent.current === receiptKey) readReceiptSent.current = ""; });
-        }, 600);
+        }, 1500);
         return () => clearTimeout(timer);
       }
     }

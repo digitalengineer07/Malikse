@@ -72,10 +72,12 @@ router.get("/notifications", authGuard, async (req: AuthRequest, res, next) => {
 router.get("/notifications/unread", authGuard, async (req: AuthRequest, res, next) => {
   res.set("Cache-Control", "private, no-store");
   try {
-    const [count] = await Notification.aggregate([
-      ...visibleNotifications(req.user!.id, true), { $count: "unread" },
-    ]);
-    res.json({ unread: count?.unread ?? 0 });
+    const unread = await Notification.countDocuments({
+      recipient: req.user!.id,
+      readAt: null,
+      listingBroadcast: { $ne: true },
+    });
+    res.json({ unread });
   } catch (error) {
     next(error);
   }

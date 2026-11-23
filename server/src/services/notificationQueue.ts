@@ -84,9 +84,9 @@ export async function deliverNotifications() {
         { $set: { deliveredAt: new Date() }, $unset: { leaseUntil: 1 } },
       );
     } catch {
-      if (job.attempts >= 5) {
-        await Notification.updateOne({ _id: job._id, leaseUntil: job.leaseUntil }, { $set: { failedAt: new Date(), lastError: "Delivery failed after five attempts; check provider credentials and device outcomes" }, $unset: { leaseUntil: 1 } });
-        console.error("[Push] ACTION REQUIRED: notification retries exhausted", { notificationId: job._id });
+      if (job.attempts >= 3) {
+        await Notification.updateOne({ _id: job._id, leaseUntil: job.leaseUntil }, { $set: { failedAt: new Date(), lastError: "Delivery failed after retries" }, $unset: { leaseUntil: 1 } });
+        console.error("[Push] Notification retries exhausted", { notificationId: job._id });
         continue;
       }
       await Notification.updateOne(
@@ -94,8 +94,7 @@ export async function deliverNotifications() {
         {
           $set: {
             nextAttemptAt: new Date(
-              Date.now() +
-                Math.min(3600000, 1000 * 2 ** Math.min(job.attempts, 12)),
+              Date.now() + Math.min(60000, 1000 * 2 ** job.attempts),
             ),
           },
           $unset: { leaseUntil: 1 },

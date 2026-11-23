@@ -65,35 +65,49 @@ messaging.post("/:id/message", async (req: AuthRequest, res) => {
       throw new OfferError(400, "Invalid message key");
     const messageId = clientMessageId ? new Types.ObjectId(createHash("sha256")
       .update([req.params.id, actor, clientMessageId].join("/")).digest().subarray(0, 12)) : new Types.ObjectId();
-    const result = await mongoose.connection.getClient().withSession(session => session.withTransaction(async () => {
-      const thread = await Inquiry.findOne({ _id: req.params.id, staffId: { $exists: true } })
-        .select({ buyerId: 1, staffId: 1, propertyId: 1, messages: { $elemMatch: { _id: messageId } } })
-        .session(session).lean();
-      if (!thread) throw new OfferError(404, "Conversation not found");
-      const listing = await Property.findById(thread.propertyId).select("status assignedAdvisorId assignedVerifierId").session(session).lean();
-      if (!listing || listing.status !== "verified") throw new OfferError(409, "Property unavailable. Conversation is read-only");
-      const staff = await assignedStaff(listing, session);
-      const buyer = String(thread.buyerId) === actor;
-      if (!buyer && String(staff._id) !== actor) throw new OfferError(403, "Not assigned to this property");
-      if (buyer) {
-        const user = await User.findById(actor).select("isVerifiedIdentity demoKycComplete").session(session).lean();
-        if (!user || !identityApproved(user)) throw new OfferError(403, "Approved KYC is required to send messages");
-      }
-      if (thread.messages?.length) {
-        if (thread.messages[0].text !== text.trim()) throw new OfferError(409, "Message key already used");
-        return Inquiry.findById(thread._id).select({ messages: { $elemMatch: { _id: messageId } } }).session(session).lean();
-      }
-      const message = { _id: messageId, senderId: actor, text: text.trim(), createdAt: new Date() };
-      const updated = await Inquiry.findOneAndUpdate({ _id: thread._id, "messages.999": { $exists: false } },
-        { $push: { messages: message }, $set: { staffId: staff._id },
-          ...(String(thread.staffId) === String(staff._id) ? {} : { $unset: { staffReadAt: 1 } }) },
-        { new: true, session, runValidators: true }).select({ messages: { $slice: -1 } }).lean();
-      if (!updated) throw new OfferError(409, "Conversation message limit reached");
-      await Notification.create([{ recipient: buyer ? staff._id : thread.buyerId, title: chatNotificationTitle(req.account?.name),
-        body: "You have a new property message.", messageId, data: { kind: "inquiry", id: String(thread._id) } }], { session });
-      return updated;
-    }, { timeoutMS: 8000 }));
-    return res.json(result);
+
+    const thread = await Inquiry.findOne({ _id: req.params.id, staffId: { $exists: true } })
+      .select({ buyerId: 1, staffId: 1, propertyId: 1, messages: { $elemMatch: { _id: messageId } } })
+      .lean();
+    if (!thread) throw new OfferError(404, "Conversation not found");
+
+    const listing = await Property.findById(thread.propertyId).select("status assignedAdvisorId assignedVerifierId").lean();
+    if (!listing || listing.status !== "verified") throw new OfferError(409, "Property unavailable. Conversation is read-only");
+
+    const staff = await assignedStaff(listing);
+    const buyer = String(thread.buyerId) === actor;
+    if (!buyer && String(staff._id) !== actor) throw new OfferError(403, "Not assigned to this property");
+
+    if (buyer) {
+      const user = await User.findById(actor).select("isVerifiedIdentity demoKycComplete").lean();
+      if (!user || !identityApproved(user)) throw new OfferError(403, "Approved KYC is required to send messages");
+    }
+
+    if (thread.messages?.length) {
+      if (thread.messages[0].text !== text.trim()) throw new OfferError(409, "Message key already used");
+      return res.json(await Inquiry.findById(thread._id).select({ messages: { $elemMatch: { _id: messageId } } }).lean());
+    }
+
+    const message = { _id: messageId, senderId: actor, text: text.trim(), createdAt: new Date() };
+    const updated = await Inquiry.findOneAndUpdate({ _id: thread._id, "messages.999": { $exists: false } },
+      { $push: { messages: message }, $set: { staffId: staff._id },
+        ...(String(thread.staffId) === String(staff._id) ? {} : { $unset: { staffReadAt: 1 } }) },
+      { new: true, runValidators: true }).select({ messages: { $slice: -1 } }).lean();
+
+    if (!updated) throw new OfferError(409, "Conversation message limit reached");
+
+    // Queue push notification non-blockingly
+    void Notification.create([{
+      recipient: buyer ? staff._id : thread.buyerId,
+      title: chatNotificationTitle(req.account?.name),
+      body: "You have a new property message.",
+      messageId,
+      data: { kind: "inquiry", id: String(thread._id) }
+    }]).catch(err => {
+      console.warn("[messaging] Notification queue error:", err?.message || err);
+    });
+
+    return res.json(updated);
   } catch (error) { return respondError(error, res); }
 });
 
@@ -108,6 +122,11 @@ messaging.post("/:id/read", async (req: AuthRequest, res) => {
     await Inquiry.updateOne({ _id: req.params.id, [buyer ? "buyerId" : "staffId"]: req.user!.id,
       $or: [{ [field]: null }, { [field]: { $lt: through } }] },
       { $max: { [field]: through } }, { timestamps: false });
+    // Also mark notifications read for this inquiry so badge counts update instantly
+    void Notification.updateMany(
+      { recipient: req.user!.id, "data.kind": "inquiry", "data.id": req.params.id, readAt: null },
+      { $set: { readAt: through } }
+    ).catch(() => {});
     return res.json({ success: true });
   } catch (error) { return respondError(error, res); }
 });
