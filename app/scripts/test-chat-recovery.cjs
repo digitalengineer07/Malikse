@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { setTimeout: sleep } = require("node:timers/promises");
 const { ChatOutbox } = require("../src/features/chat/chatOutbox.ts");
 const { InboxFeed } = require("../src/features/chat/inboxFeed.ts");
-const { parseInbox, confirmedMessage, retryDelay, chatRetryDelay } = require("../src/features/chat/chatWire.ts");
+const { parseInbox, confirmedMessage, retryDelay, chatRetryDelay, sendRetryDelay } = require("../src/features/chat/chatWire.ts");
 
 const draft = id => ({ id, thread: "thread", key: "key-" + id, text: "test",
   createdAt: new Date().toISOString(), attempts: 0, retryAt: 0 });
@@ -70,6 +70,27 @@ test("transcript confirmation cancels replay and only clears the matching messag
   assert.deepEqual(box.snapshot().map(row => row.id), ["b"]);
 });
 
+test("a burst queues behind the first in-flight send and drains in one ordered batch", async t => {
+  const calls = [];
+  let finishFirst;
+  const transport = disk(async item => {
+    calls.push(item.id);
+    await new Promise(resolve => { finishFirst = resolve; });
+    return ack(item);
+  });
+  transport.batchSize = () => 8;
+  transport.sendBatch = async items => { calls.push(items.map(item => item.id)); return items.map(ack); };
+  const box = new ChatOutbox(transport);
+  t.after(() => box.close());
+  box.setActive(true);
+  await box.enqueue(draft("first"));
+  await until(() => finishFirst);
+  for (const id of ["a", "b", "c", "d", "e"]) await box.enqueue(draft(id));
+  finishFirst();
+  await until(() => !box.snapshot().length);
+  assert.deepEqual(calls, ["first", ["a", "b", "c", "d", "e"]]);
+});
+
 test("rejected sends stop, later messages continue, and a manual retry reuses its key", async t => {
   const calls = [];
   const box = new ChatOutbox(disk(async item => {
@@ -97,6 +118,9 @@ test("a missing or unrelated acknowledgement cannot confirm a send and Retry-Aft
   assert(chatRetryDelay(0, 429) >= 30000);
   assert(chatRetryDelay(1, 429) >= 60000);
   assert(chatRetryDelay(2, 429, "300") >= 300000);
+  assert(sendRetryDelay(0, 429) >= 3000 && sendRetryDelay(0, 429) < 4000);
+  assert(sendRetryDelay(1, 429) >= 6000);
+  assert(sendRetryDelay(0, 429, "120") >= 120000);
 });
 
 test("a throttled transcript suppresses poll and history requests until Retry-After expires", async () => {

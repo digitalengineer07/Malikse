@@ -16,7 +16,7 @@ export function scheduleNotificationCount() {
   countTimer = setTimeout(() => {
     countTimer = undefined;
     if (useAuthStore.getState().user?.id === actor) {
-      nextCountCheck = Date.now() + 5000;
+      nextCountCheck = Date.now() + 15000;
       void refreshNotificationCount();
     }
   }, Math.max(1200, nextCountCheck - Date.now()));

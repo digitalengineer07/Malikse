@@ -15,6 +15,8 @@ interface Transport {
   read(): Promise<Outgoing[]>;
   save(items: Outgoing[]): Promise<void>;
   send(item: Outgoing, signal: AbortSignal): Promise<ChatMessage>;
+  sendBatch?(items: Outgoing[], signal: AbortSignal): Promise<ChatMessage[]>;
+  batchSize?(): number;
   classify(error: unknown, attempts: number): { delay: number } | { failure: string };
 }
 
@@ -111,9 +113,29 @@ export class ChatOutbox {
         }
         if (!head) break;
         const item = head;
-        let saved: ChatMessage;
+        const group = [item];
+        let saved: ChatMessage[];
         try {
-          saved = await this.transport.send(item, this.controller.signal);
+          const maxBatch = this.transport.batchSize?.() ?? 1;
+          if (maxBatch > 1 && this.transport.sendBatch) {
+            const ready = this.items.slice(this.items.indexOf(item)).filter(row => row.thread === item.thread && !row.failure);
+            for (const row of ready.slice(1, maxBatch)) {
+              if (row.retryAt > Date.now() || row.attempts > 0) break;
+              group.push(row);
+            }
+          }
+          if (group.length > 1 && this.transport.sendBatch) {
+            try {
+              saved = await this.transport.sendBatch(group, this.controller.signal);
+            } catch (batchError) {
+              // Resolve the head individually if another row was rejected.
+              // Committed keys can be replayed even after a partial response.
+              if (this.closed || "delay" in this.transport.classify(batchError, item.attempts)) throw batchError;
+              saved = [await this.transport.send(item, this.controller.signal)];
+            }
+          } else {
+            saved = [await this.transport.send(item, this.controller.signal)];
+          }
         } catch (error) {
           if (this.closed) break;
           const outcome = this.transport.classify(error, item.attempts);
@@ -125,8 +147,9 @@ export class ChatOutbox {
           continue;
         }
         if (this.closed) break;
-        this.deliveries.forEach(fn => fn(item.thread, saved));
-        await this.change(items => items.filter(row => row.id !== item.id));
+        for (const message of saved) this.deliveries.forEach(fn => fn(item.thread, message));
+        const confirmed = new Set(saved.map(message => message._id));
+        await this.change(items => items.filter(row => !confirmed.has(row.id)));
       }
     } catch {
       // A keystore failure must never discard a pending entry or start a tight loop.

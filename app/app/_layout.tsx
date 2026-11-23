@@ -72,19 +72,19 @@ export default function RootLayout() {
   const [showOpeningScreen, setShowOpeningScreen] = useState(!openingCompleted);
   const hydrated = useAuthStore(state => state.hydrated);
   const userId = useAuthStore(state => state.user?.id);
-  const accessToken = useAuthStore(state => state.accessToken);
+  const authenticated = useAuthStore(state => Boolean(state.accessToken));
   const router = useRouter();
   const [resumeReady, setResumeReady] = useState(Platform.OS === "web");
   useEffect(() => { hydrateResume().finally(() => setResumeReady(true)); }, []);
   useEffect(() => {
     if (!hydrated) return;
     void refreshNotificationCount();
-    if (!userId || !accessToken) return;
+    if (!userId || !authenticated) return;
     const subscription = AppState.addEventListener("change", state => {
       if (state === "active") void refreshNotificationCount();
     });
     return () => subscription.remove();
-  }, [hydrated, userId, accessToken]);
+  }, [hydrated, userId, authenticated]);
 
   useEffect(() => {
     if (Platform.OS === "web") return;
@@ -106,7 +106,7 @@ export default function RootLayout() {
   }, [hydrated, userId]);
 
   useEffect(() => {
-    if (!hydrated || !userId || !accessToken || Platform.OS === "web") return;
+    if (!hydrated || !userId || !authenticated || Platform.OS === "web") return;
     void registerPushDevice(userId);
     let active = true;
     let dispose: (() => void) | undefined;
@@ -124,7 +124,7 @@ export default function RootLayout() {
     }).then(stop => { if (active) dispose = stop; else stop(); })
       .catch(error => console.warn("Could not observe push notifications", error));
     return () => { active = false; dispose?.(); };
-  }, [hydrated, userId, accessToken, router]);
+  }, [hydrated, userId, authenticated, router]);
 
   useEffect(() => {
     if ((fontsLoaded || fontError) && resumeReady) SplashScreen.hideAsync().catch(() => {});

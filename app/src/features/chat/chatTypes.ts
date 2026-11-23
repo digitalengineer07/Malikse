@@ -52,4 +52,5 @@ export interface MessagePageResponse {
   nextBefore: number | null;
   recipientReadAt?: string | null;
   ownReadAt?: string | null;
+  live?: { cursor: string; count: number; more: boolean; canWait: boolean };
 }

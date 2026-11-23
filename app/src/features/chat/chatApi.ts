@@ -5,6 +5,7 @@ import type { ChatConversation, MessagePageResponse } from "./chatTypes";
 import { chatRetryDelay, confirmedMessage, InvalidChatResponse, parseInbox } from "./chatWire";
 
 const cooldown = new Map<string, { until: number; failures: number }>();
+let maxBatch = 1;
 useAuthStore.subscribe((state, previous) => {
   if (state.user?.id !== previous.user?.id) cooldown.clear();
 });
@@ -19,6 +20,17 @@ function reportRequestFailure(operation: string, error: unknown) {
 }
 
 export const chatApi = {
+  batchSize: () => maxBatch,
+  async sendBatch(thread: string, items: {text: string; key: string; id: string}[], signal: AbortSignal) {
+    try {
+      const batch = items.map(item => ({ text: item.text, clientMessageId: item.key }));
+      const { data } = await api.post(`/inquiries/${thread}/message`, { batch }, { timeout: 12000, signal });
+      return items.map(item => confirmedMessage(data, item.id));
+    } catch (error) {
+      reportRequestFailure("sendBatch", error);
+      throw error;
+    }
+  },
   /**
    * Fetch all conversations for current user.
    */
@@ -45,13 +57,14 @@ export const chatApi = {
    * Fetch messages for a conversation.
    * If before is omitted, returns latest 6 messages + read timestamps + nextBefore cursor.
    */
-  async getMessages(inquiryId: string, before?: number): Promise<MessagePageResponse> {
+  async getMessages(inquiryId: string, before?: number, sync?: { since?: number; watch?: string; signal: AbortSignal }): Promise<MessagePageResponse> {
     if (Date.now() < transcriptRetryAt(inquiryId)) throw new Error("Transcript refresh deferred");
     const actor = useAuthStore.getState().user?.id;
     try {
       const res = await api.get(`/inquiries/${inquiryId}/messages`, {
-        params: before !== undefined ? { before } : undefined,
-        timeout: 10000,
+        params: before !== undefined ? { before } : sync ? { live: 1, since: sync.since, watch: sync.watch } : undefined,
+        signal: sync?.signal,
+        timeout: sync?.watch ? 30000 : 10000,
       });
       if (!Array.isArray(res.data?.messages)) throw new InvalidChatResponse("Invalid transcript response");
       if (actor === useAuthStore.getState().user?.id && Date.now() >= transcriptRetryAt(inquiryId)) cooldown.delete(inquiryId);
@@ -60,8 +73,11 @@ export const chatApi = {
         nextBefore: typeof res.data?.nextBefore === "number" ? res.data.nextBefore : null,
         recipientReadAt: res.data?.recipientReadAt ?? null,
         ownReadAt: res.data?.ownReadAt ?? null,
+        live: typeof res.data.liveCursor === "string" && Number.isSafeInteger(res.data.messageCount)
+          ? { cursor: res.data.liveCursor, count: res.data.messageCount, more: res.data.more === true, canWait: res.data.canWait === true } : undefined,
       };
     } catch (err: any) {
+      if (sync?.signal.aborted) throw err;
       const status = err.response?.status;
       if (actor === useAuthStore.getState().user?.id && (!status || status === 408 || status === 429 || status >= 500)) {
         const failures = cooldown.get(inquiryId)?.failures ?? 0;
@@ -79,6 +95,7 @@ export const chatApi = {
   async sendMessage(inquiryId: string, text: string, clientMessageId: string, expectedId: string, signal: AbortSignal) {
     try {
       const res = await api.post(`/inquiries/${inquiryId}/message`, { text, clientMessageId }, { timeout: 12000, signal });
+      maxBatch = res.data?.maxBatch === 8 ? 8 : 1;
       return confirmedMessage(res.data, expectedId);
     } catch (error) {
       reportRequestFailure("send", error);

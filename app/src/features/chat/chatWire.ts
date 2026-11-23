@@ -30,3 +30,10 @@ export function chatRetryDelay(attempt: number, status?: number, retryAfter?: st
   // Some gateways return 429 without a reset time. Give that bucket time to refill.
   return status === 429 && !retryAfter ? Math.max(delay, Math.min(120000, 30000 * 2 ** Math.min(attempt, 2)) + Math.random() * 1000) : delay;
 }
+
+// A write is durable and idempotent. Retry the first interruption promptly,
+// then space out successive attempts while respecting any server cooldown.
+export function sendRetryDelay(attempt: number, status?: number, retryAfter?: string) {
+  const delay = retryDelay(attempt, retryAfter);
+  return status === 429 ? Math.max(delay, Math.min(60000, 3000 * 2 ** Math.min(attempt, 5)) + Math.random() * 800) : delay;
+}

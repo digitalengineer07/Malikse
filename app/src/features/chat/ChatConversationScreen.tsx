@@ -22,7 +22,7 @@ import NotificationBell from "../../../components/NotificationBell";
 import { chatApi, transcriptRetryAt } from "./chatApi";
 import { outboxFor } from "./chatDelivery";
 import { ChatBubble } from "./ChatBubble";
-import type { ChatConversation, ChatMessage } from "./chatTypes";
+import type { ChatConversation, ChatMessage, MessagePageResponse } from "./chatTypes";
 
 interface ChatConversationScreenProps {
   inquiryId: string;
@@ -88,22 +88,22 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const sendLock = useRef<boolean>(false);
-  const refreshInFlight = useRef(false);
+  const liveState = useRef<MessagePageResponse["live"]>(undefined);
   const [composerError, setComposerError] = useState("");
   const readReceiptSent = useRef<string>("");
   const ownReadThrough = useRef(0);
 
   // 1. Initial Load & Refresh
-  const loadMessages = useCallback(async () => {
-    if (!inquiryId || !currentUserId || refreshInFlight.current) return;
-    refreshInFlight.current = true;
-
+  const loadMessages = useCallback(async (signal: AbortSignal, wait: boolean) => {
+    const previous = liveState.current;
     try {
       const [convData, msgData] = await Promise.all([
         summaryRef.current ?? chatApi.getConversation(inquiryId),
-        chatApi.getMessages(inquiryId),
+        chatApi.getMessages(inquiryId, undefined, { since: previous?.count,
+          watch: wait && previous?.canWait && !previous.more ? previous.cursor : undefined, signal }),
       ]);
-
+      if (signal.aborted) return;
+      liveState.current = msgData.live;
       if (convData) {
         summaryRef.current = convData;
         setConversation(convData);
@@ -112,7 +112,7 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
       if (msgData) {
         if (msgData.ownReadAt) ownReadThrough.current = Math.max(ownReadThrough.current, Date.parse(msgData.ownReadAt));
         setRecipientReadAt(msgData.recipientReadAt ?? null);
-        if (!historyLoaded.current) setNextBefore(msgData.nextBefore);
+        if (!historyLoaded.current && (!previous || !msgData.live)) setNextBefore(msgData.nextBefore);
         void box.reconcile(inquiryId, msgData.messages).catch(() => {});
 
         setMessages((prev) => {
@@ -145,13 +145,13 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
           return combined.reverse();
         });
       }
+      return msgData.live;
     } catch (err: any) {
-      console.warn("[ChatConversationScreen] loadMessages error:", err.message);
+      if (!signal.aborted) console.warn("[ChatConversationScreen] loadMessages error:", err.message);
     } finally {
-      refreshInFlight.current = false;
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
-  }, [inquiryId, currentUserId, box]);
+  }, [inquiryId, box]);
 
   // 2. Periodic Polling & Push Trigger
   useEffect(() => {
@@ -159,6 +159,8 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
     let mounted = true;
     let running = false;
     let dirty = false;
+    let canWait = false;
+    let controller: AbortController | undefined;
     let lastStart = 0;
     let timer: ReturnType<typeof setTimeout>;
     let scheduledAt = Infinity;
@@ -166,7 +168,7 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
     const schedule = (delay: number) => {
       if (!active()) { clearTimeout(timer); scheduledAt = Infinity; return; }
       const now = Date.now();
-      const at = Math.max(now + delay, transcriptRetryAt(inquiryId), lastStart + 2500);
+      const at = Math.max(now + delay, transcriptRetryAt(inquiryId), lastStart + (canWait ? 750 : 2500));
       if (scheduledAt <= at) return;
       clearTimeout(timer);
       scheduledAt = at;
@@ -179,20 +181,26 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
       running = true;
       dirty = false;
       lastStart = Date.now();
-      try { await loadMessages(); }
+      controller = new AbortController();
+      try { const live = await loadMessages(controller.signal, canWait); canWait = Boolean(live?.canWait || live?.more); }
       finally {
         running = false;
-        schedule(dirty ? 350 : 15000 + Math.random() * 4000);
+        schedule(canWait || dirty ? 50 : 15000 + Math.random() * 4000);
       }
     }
     schedule(0);
-    const app = AppState.addEventListener("change", () => schedule(0));
+    const app = AppState.addEventListener("change", state => {
+      canWait = false;
+      if (state !== "active") controller?.abort();
+      else dirty = true;
+      schedule(0);
+    });
     const stop = useNotificationStore.subscribe((next, prev) => {
-      if (next.chatRevision === prev.chatRevision) return;
+      if (next.chatRevision === prev.chatRevision || canWait) return;
       dirty = true;
       if (!running) schedule(350);
     });
-    return () => { mounted = false; clearTimeout(timer); app.remove(); stop(); };
+    return () => { mounted = false; controller?.abort(); clearTimeout(timer); app.remove(); stop(); };
   }, [inquiryId, currentUserId, loadMessages, focused]);
 
   // 3. Mark Read Receipts

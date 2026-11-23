@@ -4,7 +4,7 @@ import { AppState, Platform } from "react-native";
 import { useAuthStore } from "../../store/authStore";
 import { chatApi } from "./chatApi";
 import { ChatOutbox, type Outgoing } from "./chatOutbox";
-import { chatRetryDelay, InvalidChatResponse } from "./chatWire";
+import { sendRetryDelay, InvalidChatResponse } from "./chatWire";
 
 function storage(key: string) {
   return {
@@ -48,6 +48,11 @@ export function outboxFor(actor: string) {
   const box = new ChatOutbox({
     read: async () => { await cleanup; return disk.read(); },
     save: items => disk.save(items),
+    batchSize: chatApi.batchSize,
+    async sendBatch(items, signal) {
+      if (useAuthStore.getState().user?.id !== actor) throw new Error("Session changed");
+      return chatApi.sendBatch(items[0].thread, items, signal);
+    },
     async send(item, signal) {
       if (useAuthStore.getState().user?.id !== actor) throw new Error("Session changed");
       return chatApi.sendMessage(item.thread, item.text, item.key, item.id, signal);
@@ -56,7 +61,7 @@ export function outboxFor(actor: string) {
       const status = isAxiosError(error) ? error.response?.status : undefined;
       if (error instanceof InvalidChatResponse || (isAxiosError(error) &&
           (!status || status === 408 || status === 429 || status >= 500))) {
-        return { delay: chatRetryDelay(attempts, status, isAxiosError(error) ? error.response?.headers?.["retry-after"] : undefined) };
+        return { delay: sendRetryDelay(attempts, status, isAxiosError(error) ? error.response?.headers?.["retry-after"] : undefined) };
       }
       const reason = isAxiosError(error) ? error.response?.data?.error || error.response?.data?.message : undefined;
       return { failure: typeof reason === "string" ? reason : "Unable to send this message" };
