@@ -91,6 +91,8 @@ export const ChatBubble: React.FC<ChatBubbleProps> = React.memo(({
   );
 });
 
+ChatBubble.displayName = "ChatBubble";
+
 const styles = StyleSheet.create({
   bubble: {
     alignItems: "stretch",

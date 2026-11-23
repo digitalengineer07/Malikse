@@ -93,6 +93,10 @@ api.interceptors.response.use(
       try {
         const { data } = await axios.post(`${API_URL}/auth/refresh`, Platform.OS === "web" ? {} : { refreshToken }, { timeout: 10000, ...(Platform.OS === "web" ? { withCredentials: true, headers: { "X-Session-Mode": "cookie" } } : {}) });
         if (useAuthStore.getState().refreshToken !== refreshToken || useAuthStore.getState().accessToken !== previousAccess) throw new Error("Session changed during refresh");
+        if (typeof data?.accessToken !== "string" || !data.accessToken ||
+            (Platform.OS !== "web" && (typeof data.refreshToken !== "string" || !data.refreshToken))) {
+          throw new axios.AxiosError("Invalid session renewal response", "ERR_BAD_RESPONSE");
+        }
         
         useAuthStore.getState().setTokens({ 
           accessToken: data.accessToken, 
@@ -173,15 +177,18 @@ export const authService = {
   },
 
   async getMe() {
-    try {
-      const res = await api.get("/auth/me");
-      useAuthStore.getState().setUser(res.data);
-      useAuthStore.getState().setAuthState("AUTHENTICATED");
-      return res.data;
-    } catch (e) { throw e; }
+    const actor = useAuthStore.getState().user?.id;
+    const res = await api.get("/auth/me");
+    if (typeof res.data?.id !== "string" || (actor && res.data.id !== actor) || useAuthStore.getState().user?.id !== actor) {
+      throw new Error("Invalid account response or session changed");
+    }
+    useAuthStore.getState().setUser(res.data);
+    useAuthStore.getState().setAuthState("AUTHENTICATED");
+    return res.data;
   },
 
   async logout() {
+    const actor = useAuthStore.getState().user?.id;
     try {
       await unregisterPushDevice().catch(() => {});
       // Best effort backend logout to invalidate refresh token
@@ -189,6 +196,10 @@ export const authService = {
     } catch {
       console.warn("Backend logout failed, clearing local session anyway.");
     } finally {
+      if (actor) {
+        await import("../features/chat/chatDelivery").then(({ discardChatOutbox }) => discardChatOutbox(actor))
+          .catch(() => console.warn("Could not clear queued messages on logout."));
+      }
       useAuthStore.getState().clearSession();
     }
   }

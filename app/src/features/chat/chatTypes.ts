@@ -26,6 +26,7 @@ export interface ChatMessage {
   clientTempId?: string;
   sending?: boolean;
   sendError?: boolean;
+  failureReason?: string;
 }
 
 export interface ChatConversation {

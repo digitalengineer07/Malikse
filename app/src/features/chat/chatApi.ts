@@ -1,21 +1,30 @@
+import { isAxiosError } from "axios";
 import api from "../../services/authService";
+import { useAuthStore } from "../../store/authStore";
 import type { ChatConversation, MessagePageResponse } from "./chatTypes";
+import { chatRetryDelay, confirmedMessage, InvalidChatResponse, parseInbox } from "./chatWire";
+
+const cooldown = new Map<string, { until: number; failures: number }>();
+useAuthStore.subscribe((state, previous) => {
+  if (state.user?.id !== previous.user?.id) cooldown.clear();
+});
+export function transcriptRetryAt(thread: string) { return cooldown.get(thread)?.until ?? 0; }
+
+function reportRequestFailure(operation: string, error: unknown) {
+  const response = isAxiosError(error) ? error.response : undefined;
+  console.warn("[chat transport]", JSON.stringify({ operation, status: response?.status,
+    code: isAxiosError(error) ? error.code : "invalid_response", requestId: response?.headers["x-request-id"],
+    server: response?.headers.server, contentType: response?.headers["content-type"],
+    retryAfter: response?.headers["retry-after"], rateLimit: response?.headers.ratelimit }));
+}
 
 export const chatApi = {
   /**
    * Fetch all conversations for current user.
    */
   async getConversations(sort: "activity" | "created" = "activity"): Promise<ChatConversation[]> {
-    try {
-      const res = await api.get("/inquiries", {
-        params: { sort },
-        timeout: 10000,
-      });
-      return Array.isArray(res.data) ? res.data : [];
-    } catch (err: any) {
-      console.warn("[chatApi] getConversations error:", err?.response?.data || err.message);
-      throw err;
-    }
+    const res = await api.get("/inquiries", { params: { sort }, timeout: 10000 });
+    return parseInbox(res.data);
   },
 
   /**
@@ -24,6 +33,7 @@ export const chatApi = {
   async getConversation(inquiryId: string): Promise<ChatConversation> {
     try {
       const res = await api.get(`/inquiries/${inquiryId}`, { timeout: 10000 });
+      if (res.data?._id !== inquiryId) throw new InvalidChatResponse("Invalid conversation response");
       return res.data;
     } catch (err: any) {
       console.warn(`[chatApi] getConversation(${inquiryId}) error:`, err?.response?.data || err.message);
@@ -36,19 +46,29 @@ export const chatApi = {
    * If before is omitted, returns latest 6 messages + read timestamps + nextBefore cursor.
    */
   async getMessages(inquiryId: string, before?: number): Promise<MessagePageResponse> {
+    if (Date.now() < transcriptRetryAt(inquiryId)) throw new Error("Transcript refresh deferred");
+    const actor = useAuthStore.getState().user?.id;
     try {
       const res = await api.get(`/inquiries/${inquiryId}/messages`, {
         params: before !== undefined ? { before } : undefined,
         timeout: 10000,
       });
+      if (!Array.isArray(res.data?.messages)) throw new InvalidChatResponse("Invalid transcript response");
+      if (actor === useAuthStore.getState().user?.id && Date.now() >= transcriptRetryAt(inquiryId)) cooldown.delete(inquiryId);
       return {
-        messages: Array.isArray(res.data?.messages) ? res.data.messages : [],
+        messages: res.data.messages,
         nextBefore: typeof res.data?.nextBefore === "number" ? res.data.nextBefore : null,
         recipientReadAt: res.data?.recipientReadAt ?? null,
         ownReadAt: res.data?.ownReadAt ?? null,
       };
     } catch (err: any) {
-      console.warn(`[chatApi] getMessages(${inquiryId}) error:`, err?.response?.data || err.message);
+      const status = err.response?.status;
+      if (actor === useAuthStore.getState().user?.id && (!status || status === 408 || status === 429 || status >= 500)) {
+        const failures = cooldown.get(inquiryId)?.failures ?? 0;
+        cooldown.set(inquiryId, { failures: failures + 1, until: Math.max(transcriptRetryAt(inquiryId),
+          Date.now() + chatRetryDelay(failures, status, err.response?.headers?.["retry-after"])) });
+      }
+      reportRequestFailure("transcript", err);
       throw err;
     }
   },
@@ -56,15 +76,13 @@ export const chatApi = {
   /**
    * Send a new message in a conversation.
    */
-  async sendMessage(inquiryId: string, text: string): Promise<ChatConversation> {
-    const trimmed = text.trim();
-    if (!trimmed) throw new Error("Message cannot be empty");
+  async sendMessage(inquiryId: string, text: string, clientMessageId: string, expectedId: string, signal: AbortSignal) {
     try {
-      const res = await api.post(`/inquiries/${inquiryId}/message`, { text: trimmed }, { timeout: 12000 });
-      return res.data;
-    } catch (err: any) {
-      console.error(`[chatApi] sendMessage(${inquiryId}) error:`, err?.response?.data || err.message);
-      throw err;
+      const res = await api.post(`/inquiries/${inquiryId}/message`, { text, clientMessageId }, { timeout: 12000, signal });
+      return confirmedMessage(res.data, expectedId);
+    } catch (error) {
+      reportRequestFailure("send", error);
+      throw error;
     }
   },
 
@@ -75,8 +93,9 @@ export const chatApi = {
     try {
       await api.post(`/inquiries/${inquiryId}/read`, { through: throughIsoString }, { timeout: 8000 });
     } catch (err: any) {
-      // Non-fatal, just log
+      // Let the conversation retry an unacknowledged receipt.
       console.warn(`[chatApi] markRead(${inquiryId}) non-fatal error:`, err?.message);
+      throw err;
     }
   },
 

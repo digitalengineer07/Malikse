@@ -16,7 +16,8 @@ import { hydrateResume } from "../src/store/resumeStore";
 import { preloadStartupResources } from "../src/services/startupPreload";
 import { cachedMapAssets, preloadMapAssets } from "../src/services/mapAssets";
 import { observePushOpens, registerPushDevice } from "../src/services/pushNotifications";
-import { refreshNotificationCount, useNotificationStore } from "../src/store/notificationStore";
+import { refreshNotificationCount, scheduleNotificationCount, useNotificationStore } from "../src/store/notificationStore";
+import { resumeChatDelivery } from "../src/features/chat/chatDelivery";
 
 LogBox.ignoreLogs([
   '"shadow*" style props are deprecated. Use "boxShadow".',
@@ -101,6 +102,10 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
+    if (hydrated && userId) return resumeChatDelivery(userId);
+  }, [hydrated, userId]);
+
+  useEffect(() => {
     if (!hydrated || !userId || !accessToken || Platform.OS === "web") return;
     void registerPushDevice(userId);
     let active = true;
@@ -112,7 +117,7 @@ export default function RootLayout() {
       else router.push("/my-properties" as Href);
     }, kind => {
       if (!active) return;
-      void refreshNotificationCount();
+      scheduleNotificationCount();
       if (kind === "inquiry" || kind === "deal") {
         useNotificationStore.setState(state => ({ chatRevision: state.chatRevision + 1 }));
       }

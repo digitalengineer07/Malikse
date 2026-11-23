@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState, useSyncExternalStore } from "react";
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   Image,
   Pressable,
@@ -13,9 +14,21 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useIsFocused } from "expo-router";
 import { useAuthStore } from "../../store/authStore";
+import { useNotificationStore } from "../../store/notificationStore";
 import { chatApi } from "./chatApi";
-import type { ChatConversation } from "./chatTypes";
+import { InboxFeed } from "./inboxFeed";
+import { chatRetryDelay } from "./chatWire";
+
+let inbox: { owner: string; feed: InboxFeed } | undefined;
+useAuthStore.subscribe((state, previous) => {
+  if (state.user?.id !== previous.user?.id) inbox = undefined;
+});
+function inboxFor(owner: string) {
+  if (inbox?.owner !== owner) inbox = { owner, feed: new InboxFeed(() => chatApi.getConversations()) };
+  return inbox.feed;
+}
 
 interface ChatListScreenProps {
   onSelectConversation: (inquiryId: string) => void;
@@ -62,40 +75,47 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({ onSelectConversa
   const user = useAuthStore((s) => s.user);
   const currentUserId = user?.id || "";
 
-  const [conversations, setConversations] = useState<ChatConversation[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const feed = inboxFor(currentUserId);
+  const { rows, failures } = useSyncExternalStore(feed.subscribe, feed.snapshot, feed.snapshot);
+  const focused = useIsFocused();
+  const loading = !rows && !failures;
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterUnread, setFilterUnread] = useState<boolean>(false);
 
-  const loadConversations = useCallback(async () => {
-    if (!currentUserId) {
-      setConversations([]);
-      setLoading(false);
-      return;
-    }
-    try {
-      const data = await chatApi.getConversations("activity");
-      setConversations(data);
-    } catch (err: any) {
-      console.warn("[ChatListScreen] loadConversations error:", err.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [currentUserId]);
-
   useEffect(() => {
-    void loadConversations();
-  }, [loadConversations]);
+    if (!focused || !currentUserId) return;
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
+    let eligibleAt = 0;
+    const active = () => alive && (AppState.currentState == null || AppState.currentState === "active");
+    const schedule = (delay: number) => {
+      clearTimeout(timer);
+      if (active()) timer = setTimeout(refresh, Math.max(delay, eligibleAt - Date.now()));
+    };
+    async function refresh() {
+      if (!active()) return;
+      await feed.refresh();
+      const state = feed.snapshot();
+      const delay = state.failures ? chatRetryDelay(state.failures - 1, state.status, state.retryAfter) : 30000 + Math.random() * 4000;
+      eligibleAt = state.failures ? Date.now() + delay : 0;
+      schedule(delay);
+    }
+    schedule(0);
+    const app = AppState.addEventListener("change", () => schedule(0));
+    const stop = useNotificationStore.subscribe((next, prev) => {
+      if (next.chatRevision !== prev.chatRevision) schedule(350);
+    });
+    return () => { alive = false; clearTimeout(timer); app.remove(); stop(); };
+  }, [currentUserId, feed, focused]);
 
   const handleRefresh = () => {
     setRefreshing(true);
-    void loadConversations();
+    void feed.refresh().finally(() => setRefreshing(false));
   };
 
   // Filter threads
-  const filtered = conversations.filter((c) => {
+  const filtered = (rows ?? []).filter((c) => {
     if (filterUnread && !c.unread && (!c.unreadCount || c.unreadCount <= 0)) return false;
 
     if (!searchQuery.trim()) return true;
@@ -286,13 +306,14 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({ onSelectConversa
             <View style={styles.emptyContainer}>
               <MaterialIcons name="chat-bubble-outline" size={56} color="#B0BEC5" />
               <Text style={styles.emptyTitle}>
-                {searchQuery ? "No matching conversations" : "Start a conversation"}
+                {!rows ? "Reconnecting to your chats" : searchQuery ? "No matching conversations" : filterUnread ? "No unread conversations" : "Start a conversation"}
               </Text>
               <Text style={styles.emptySubtitle}>
-                {searchQuery
+                {!rows ? "Your inbox will refresh automatically." : searchQuery || filterUnread
                   ? "Try another search or filter."
                   : "Open a verified property and contact its assigned team."}
               </Text>
+              {!rows && <Pressable accessibilityRole="button" onPress={handleRefresh}><Text style={styles.emptySubtitle}>Retry now</Text></Pressable>}
             </View>
           }
         />

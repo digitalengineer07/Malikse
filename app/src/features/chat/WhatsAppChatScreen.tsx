@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -21,15 +21,7 @@ export const WhatsAppChatScreen: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const params = useLocalSearchParams<{ inquiryId?: string }>();
 
-  const [activeInquiryId, setActiveInquiryId] = useState<string | null>(
-    params.inquiryId ? String(params.inquiryId) : null
-  );
-
-  useEffect(() => {
-    if (params.inquiryId) {
-      setActiveInquiryId(String(params.inquiryId));
-    }
-  }, [params.inquiryId]);
+  const activeInquiryId = params.inquiryId ? String(params.inquiryId) : null;
 
   // Guest State - Exactly matches previous MalikSe Protected guest UI
   if (!user) {
@@ -57,9 +49,9 @@ export const WhatsAppChatScreen: React.FC = () => {
   if (activeInquiryId) {
     return (
       <ChatConversationScreen
+        key={`${user?.id}:${activeInquiryId}`}
         inquiryId={activeInquiryId}
         onBack={() => {
-          setActiveInquiryId(null);
           router.setParams({ inquiryId: "" });
         }}
       />
@@ -69,8 +61,9 @@ export const WhatsAppChatScreen: React.FC = () => {
   // Inbox List Screen
   return (
     <ChatListScreen
+      key={user.id}
       onSelectConversation={(id) => {
-        setActiveInquiryId(id);
+        router.setParams({ inquiryId: id });
       }}
     />
   );
