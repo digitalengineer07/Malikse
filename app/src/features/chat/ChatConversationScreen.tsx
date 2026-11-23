@@ -39,6 +39,18 @@ const C = {
   muted: "#5D7089",
 };
 
+type ConversationSnapshot = {
+  conversation: ChatConversation | null;
+  messages: ChatMessage[];
+  nextBefore: number | null;
+  recipientReadAt: string | null;
+  live: NonNullable<MessagePageResponse["live"]>;
+};
+const recentConversations = new Map<string, ConversationSnapshot>();
+useAuthStore.subscribe((state, previous) => {
+  if (state.user?.id !== previous.user?.id) recentConversations.clear();
+});
+
 function getParticipantId(party: any): string {
   if (!party) return "";
   return typeof party === "object" ? String(party._id || "") : String(party);
@@ -63,24 +75,38 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
   const pending = useSyncExternalStore(box.subscribe, box.snapshot, box.snapshot);
 
   // State
-  const [conversation, setConversation] = useState<ChatConversation | null>(null);
-  const summaryRef = useRef<ChatConversation | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [nextBefore, setNextBefore] = useState<number | null>(null);
-  const [recipientReadAt, setRecipientReadAt] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const cacheKey = `${currentUserId}:${inquiryId}`;
+  const [cached] = useState(() => recentConversations.get(cacheKey));
+  const [conversation, setConversation] = useState<ChatConversation | null>(cached?.conversation ?? null);
+  const summaryRef = useRef(conversation);
+  const [messages, setMessages] = useState<ChatMessage[]>(cached?.messages ?? []);
+  const [nextBefore, setNextBefore] = useState<number | null>(cached?.nextBefore ?? null);
+  const [recipientReadAt, setRecipientReadAt] = useState<string | null>(cached?.recipientReadAt ?? null);
+  const [loading, setLoading] = useState(!cached);
+  const [accessLost, setAccessLost] = useState(false);
+  const liveState = useRef<MessagePageResponse["live"]>(cached?.live);
   const [loadingEarlier, setLoadingEarlier] = useState<boolean>(false);
+  const [historyError, setHistoryError] = useState("");
+  const [transcriptError, setTranscriptError] = useState("");
   const [text, setText] = useState<string>("");
   const [sending, setSending] = useState<boolean>(false);
-  const historyLoaded = useRef(false);
+  const historyLoaded = useRef(Boolean(cached));
   const paging = useRef(false);
+  useEffect(() => {
+    const live = liveState.current;
+    if (accessLost || !messages.length || !live || useAuthStore.getState().user?.id !== currentUserId) return;
+    recentConversations.delete(cacheKey);
+    recentConversations.set(cacheKey, { conversation, messages, nextBefore, recipientReadAt, live });
+    if (recentConversations.size > 4) recentConversations.delete(recentConversations.keys().next().value!);
+  }, [accessLost, cacheKey, conversation, currentUserId, messages, nextBefore, recipientReadAt]);
   const visibleMessages = useMemo(() => {
+    if (accessLost) return [];
     const confirmed = new Set(messages.map(message => message._id));
     const queued: ChatMessage[] = pending.filter(row => row.thread === inquiryId && !confirmed.has(row.id))
       .map(row => ({ _id: row.id, clientTempId: row.key, text: row.text, createdAt: row.createdAt,
         senderId: currentUserId, sending: !row.failure, sendError: Boolean(row.failure), failureReason: row.failure }));
     return [...queued.reverse(), ...messages].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-  }, [pending, messages, inquiryId, currentUserId]);
+  }, [accessLost, pending, messages, inquiryId, currentUserId]);
   useEffect(() => box.onDelivered((thread, saved) => {
     if (thread === inquiryId) setMessages(prev => [saved, ...prev.filter(m => m._id !== saved._id)]);
   }), [inquiryId, box]);
@@ -88,7 +114,8 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const sendLock = useRef<boolean>(false);
-  const liveState = useRef<MessagePageResponse["live"]>(undefined);
+  const summaryPending = useRef(false);
+  const summaryFresh = useRef(false);
   const [composerError, setComposerError] = useState("");
   const readReceiptSent = useRef<string>("");
   const ownReadThrough = useRef(0);
@@ -96,18 +123,23 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
   // 1. Initial Load & Refresh
   const loadMessages = useCallback(async (signal: AbortSignal, wait: boolean) => {
     const previous = liveState.current;
+    if (!summaryFresh.current && !summaryPending.current) {
+      summaryPending.current = true;
+      void chatApi.getConversation(inquiryId).then(summary => {
+        if (signal.aborted) return;
+        summaryFresh.current = true;
+        summaryRef.current = summary;
+        setConversation(summary);
+        setMessages(current => current.length ? current : (summary.messages ?? []).slice().reverse());
+      }).catch(() => {}).finally(() => { summaryPending.current = false; });
+    }
     try {
-      const [convData, msgData] = await Promise.all([
-        summaryRef.current ?? chatApi.getConversation(inquiryId),
-        chatApi.getMessages(inquiryId, undefined, { since: previous?.count,
-          watch: wait && previous?.canWait && !previous.more ? previous.cursor : undefined, signal }),
-      ]);
+      const msgData = await chatApi.getMessages(inquiryId, undefined, { since: previous?.count,
+        watch: wait && previous?.canWait && !previous.more ? previous.cursor : undefined, signal });
       if (signal.aborted) return;
+      setTranscriptError("");
       liveState.current = msgData.live;
-      if (convData) {
-        summaryRef.current = convData;
-        setConversation(convData);
-      }
+      const convData = summaryRef.current;
 
       if (msgData) {
         if (msgData.ownReadAt) ownReadThrough.current = Math.max(ownReadThrough.current, Date.parse(msgData.ownReadAt));
@@ -147,15 +179,25 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
       }
       return msgData.live;
     } catch (err: any) {
-      if (!signal.aborted) console.warn("[ChatConversationScreen] loadMessages error:", err.message);
+      if (signal.aborted) return;
+      if ([401, 403, 404].includes(err.response?.status)) {
+        recentConversations.delete(cacheKey);
+        setAccessLost(true);
+        setConversation(null);
+        setMessages([]);
+        setNextBefore(null);
+        setTranscriptError("This conversation is unavailable. Return to Chats and open it again.");
+        return;
+      }
+      setTranscriptError("Could not refresh messages. Retrying automatically.");
     } finally {
       if (!signal.aborted) setLoading(false);
     }
-  }, [inquiryId, box]);
+  }, [inquiryId, box, cacheKey]);
 
   // 2. Periodic Polling & Push Trigger
   useEffect(() => {
-    if (!inquiryId || !currentUserId || !focused) return;
+    if (!inquiryId || !currentUserId || !focused || accessLost) return;
     let mounted = true;
     let running = false;
     let dirty = false;
@@ -188,6 +230,13 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
         schedule(canWait || dirty ? 50 : 15000 + Math.random() * 4000);
       }
     }
+    if (Date.now() < transcriptRetryAt(inquiryId)) {
+      setTimeout(() => {
+        if (!active()) return;
+        setLoading(false);
+        setTranscriptError("Waiting to reconnect. Messages will refresh automatically.");
+      }, 0);
+    }
     schedule(0);
     const app = AppState.addEventListener("change", state => {
       canWait = false;
@@ -196,7 +245,7 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
       schedule(0);
     });
     return () => { mounted = false; controller?.abort(); clearTimeout(timer); app.remove(); };
-  }, [inquiryId, currentUserId, loadMessages, focused]);
+  }, [inquiryId, currentUserId, loadMessages, focused, accessLost]);
 
   // 3. Mark Read Receipts
   useEffect(() => {
@@ -227,9 +276,14 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
 
   // 4. Pagination
   const handleLoadEarlier = async () => {
-    if (nextBefore == null || paging.current || !inquiryId || Date.now() < transcriptRetryAt(inquiryId)) return;
+    if (nextBefore == null || paging.current || !inquiryId) return;
+    if (Date.now() < transcriptRetryAt(inquiryId)) {
+      setHistoryError("Chat updates are temporarily limited. Try again shortly.");
+      return;
+    }
     paging.current = true;
     setLoadingEarlier(true);
+    setHistoryError("");
 
     try {
       const olderData = await chatApi.getMessages(inquiryId, nextBefore);
@@ -239,13 +293,21 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
         setMessages((prev) => {
           const existingIds = new Set(prev.map((m) => m._id));
           const newOlder = olderData.messages.filter((m) => !existingIds.has(m._id));
+          const summary = summaryRef.current;
+          if (olderData.nextBefore == null && summary?.message && !existingIds.has(`initial_${summary._id}`) &&
+              ![...prev, ...newOlder].some(m => m.text === summary.message && m.createdAt === summary.createdAt)) {
+            newOlder.unshift({
+              _id: `initial_${summary._id}`, senderId: getParticipantId(summary.buyerId),
+              text: summary.message, createdAt: summary.createdAt,
+            });
+          }
           return [...prev, ...newOlder.reverse()];
         });
       } else {
         setNextBefore(null);
       }
-    } catch (err: any) {
-      console.warn("[ChatConversationScreen] handleLoadEarlier error:", err.message);
+    } catch {
+      setHistoryError("Could not load older messages. Try again.");
     } finally {
       paging.current = false;
       setLoadingEarlier(false);
@@ -404,12 +466,17 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
               );
             }}
             contentContainerStyle={styles.listContent}
-            onEndReached={handleLoadEarlier}
-            onEndReachedThreshold={0.2}
             ListFooterComponent={
               loadingEarlier ? (
                 <View style={styles.footerLoader}>
                   <ActivityIndicator size="small" color={C.blue} />
+                </View>
+              ) : nextBefore != null ? (
+                <View style={styles.footerLoader}>
+                  {historyError ? <Text accessibilityRole="alert" style={styles.chatSendError}>{historyError}</Text> : null}
+                  <Pressable accessibilityRole="button" onPress={handleLoadEarlier}>
+                    <Text style={{ color: C.blue, padding: 12 }}>Load older messages</Text>
+                  </Pressable>
                 </View>
               ) : undefined
             }
@@ -417,6 +484,7 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
         )}
       </View>
 
+      {transcriptError && !visibleMessages.length ? <Text accessibilityRole="alert" style={styles.chatSendError}>{transcriptError}</Text> : null}
       {composerError ? <Text accessibilityRole="alert" style={styles.chatSendError}>{composerError}</Text> : null}
 
       {/* Sold Property Lock Banner */}
@@ -427,7 +495,7 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
       )}
 
       {/* Exact Previous Bottom Composer with Gold Button */}
-      {!isSold && (
+      {!isSold && !accessLost && (
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}

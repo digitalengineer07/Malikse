@@ -28,7 +28,8 @@ export default function PropertyImage(props: PropertyImageProps) {
   let protectedUri = false;
   try {
     const url = new URL(uri || "");
-    protectedUri = url.origin === new URL(api.defaults.baseURL!).origin && url.pathname.startsWith("/property-photos/");
+    const base = api.defaults.baseURL || (typeof window !== "undefined" ? window.location.origin : "https://malikseserver.devoxa.in");
+    protectedUri = url.origin === new URL(base, typeof window !== "undefined" ? window.location.origin : undefined).origin && url.pathname.startsWith("/property-photos/");
   } catch { /* Bundled images and external images need no authentication. */ }
 
   const [download, setDownload] = useState<{ uri: string; token: string; blob: string }>();

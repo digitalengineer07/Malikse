@@ -17,7 +17,8 @@ export function runtimeConfiguration() {
   if (production && !origins.length) throw new Error("Configure CORS_ORIGINS in production");
   for (const origin of origins) {
     const url = new URL(origin);
-    if (url.origin !== origin || !["http:", "https:"].includes(url.protocol) || (production && url.protocol !== "https:")) throw new Error("CORS_ORIGINS must contain exact HTTP(S) origins (HTTPS in production)");
+    const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    if (url.origin !== origin || !["http:", "https:"].includes(url.protocol) || (production && url.protocol !== "https:" && !isLocalhost)) throw new Error("CORS_ORIGINS must contain exact HTTP(S) origins (HTTPS in production)");
   }
   const proxies = (process.env.TRUSTED_PROXIES || "").split(",").map(value => value.trim()).filter(Boolean);
   const hops = process.env.TRUST_PROXY_HOPS?.trim();
@@ -54,7 +55,12 @@ export function installRuntimeMiddleware(app: Express) {
   app.use(helmet());
   app.use(cors({
     credentials: true,
-    origin: (origin, callback) => callback(null, !origin || origins.includes(origin) || (!production && !origins.length)),
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (origins.includes(origin)) return callback(null, true);
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return callback(null, true);
+      return callback(null, !production && !origins.length);
+    },
     exposedHeaders: ["X-Request-Id", "X-Search-Cache", "X-Next-Cursor", "RateLimit", "Retry-After", "ETag"],
   }));
   for (const [path, name, limit] of [

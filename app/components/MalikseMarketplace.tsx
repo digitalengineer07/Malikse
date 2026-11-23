@@ -161,6 +161,47 @@ function Field({
     </View>
   );
 }
+let searchRetryAt = 0;
+const searchBusy = "Search is temporarily limited. Tap Retry search to try again.";
+const isPropertySearch = (path: string | null) => Boolean(path?.startsWith("/properties/search?"));
+
+async function waitForSearch(delay: number, signal?: AbortSignal) {
+  if (signal?.aborted) throw new Error("Search canceled");
+  if (delay <= 0) return;
+  await new Promise<void>((resolve, reject) => {
+    const stop = () => { clearTimeout(timer); reject(new Error("Search canceled")); };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", stop);
+      resolve();
+    }, delay);
+    signal?.addEventListener("abort", stop, { once: true });
+  });
+}
+
+async function getData(path: string, signal?: AbortSignal) {
+  if (!isPropertySearch(path)) return api.get(path);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const remaining = searchRetryAt - Date.now();
+    if (remaining > 60_000) break;
+    await waitForSearch(remaining, signal);
+    try {
+      return await api.get(path, { signal });
+    } catch (error: any) {
+      if (error.response?.status !== 429) throw error;
+      const headers = error.response.headers;
+      const raw = String(headers?.["retry-after"] ?? "");
+      const now = Date.now();
+      const delay = /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - now;
+      searchRetryAt = Math.max(searchRetryAt, now + (Number.isFinite(delay) && delay > 0 ? delay : 15_000));
+      console.warn("[Property search] Rate limited", {
+        requestId: headers?.["x-request-id"], edgeRequestId: headers?.["x-hcdn-request-id"],
+        server: headers?.server, retryAfter: headers?.["retry-after"],
+      });
+    }
+  }
+  throw new Error(searchBusy);
+}
+
 function useData(path: string | null, deps: any[] = [], homeScope?: string, keepLoadedPages = false) {
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
@@ -170,17 +211,23 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
   const latestRequest = useRef(requestKey);
   const refreshSequence = useRef(0);
   const loadedPagesKey = useRef<string | null>(null);
+  const pagingRequest = useRef<{ key: string; signal?: AbortSignal } | null>(null);
+  const searchScope = useRef<AbortController | null>(null);
+  const searchRefresh = useRef<AbortSignal | null>(null);
   useEffect(() => { latestRequest.current = requestKey; }, [requestKey]);
   const [resultKey, setResultKey] = useState(requestKey);
   const refresh = useCallback(async () => {
     const [path, , homeScope] = JSON.parse(requestKey);
     if (!path) return;
+    const signal = isPropertySearch(path) ? searchScope.current?.signal : undefined;
+    if (signal && (searchRefresh.current === signal || pagingRequest.current?.signal === signal)) return;
+    if (signal) searchRefresh.current = signal;
     const sequence = ++refreshSequence.current;
     setLoading(true);
     if (!path.startsWith("/inquiries")) setError("");
     try {
-      const response = homeScope ? await loadHomeRecommendations(path, homeScope) : await api.get(path);
-      if (latestRequest.current !== requestKey || sequence !== refreshSequence.current) return;
+      const response = homeScope ? await loadHomeRecommendations(path, homeScope) : await getData(path, signal);
+      if (signal?.aborted || latestRequest.current !== requestKey || sequence !== refreshSequence.current) return;
       setError("");
       setResultKey(requestKey);
       if (keepLoadedPages && loadedPagesKey.current === requestKey) {
@@ -194,20 +241,29 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
         setNextCursor(response.headers["x-next-cursor"] || null);
       }
     } catch (e) {
-      if (latestRequest.current === requestKey && sequence === refreshSequence.current) setError(errorText(e));
+      if (!signal?.aborted && latestRequest.current === requestKey && sequence === refreshSequence.current) setError(errorText(e));
     } finally {
+      if (signal && searchRefresh.current === signal) searchRefresh.current = null;
       if (latestRequest.current === requestKey && sequence === refreshSequence.current) setLoading(false);
     }
   }, [requestKey, keepLoadedPages]);
   useFocusEffect(
     useCallback(() => {
+      const scope = isPropertySearch(path) ? new AbortController() : null;
+      searchScope.current = scope;
       void refresh();
-    }, [refresh]),
+      return () => scope?.abort();
+    }, [path, refresh]),
   );
 
   const loadPages = async (all: boolean) => {
-    if (!path || !nextCursor || loading || resultKey !== requestKey) return;
+    const signal = isPropertySearch(path) ? searchScope.current?.signal : undefined;
+    if (!path || !nextCursor || loading || resultKey !== requestKey ||
+        (pagingRequest.current?.key === requestKey && !pagingRequest.current.signal?.aborted)) return;
+    const request = { key: requestKey, signal };
+    pagingRequest.current = request;
     setLoading(true);
+    setError("");
     try {
       let cursor: string | null = nextCursor;
       const items = new Map<string, any>(data.map((item: any) => [item._id, item]));
@@ -215,10 +271,15 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
       while (cursor && !visited.has(cursor)) {
         visited.add(cursor);
         const pagePath: string = path + (path.includes("?") ? "&" : "?") + "cursor=" + encodeURIComponent(cursor);
-        const response = await api.get(pagePath);
-        if (latestRequest.current !== requestKey) return;
+        if (signal && visited.size > 1) await waitForSearch(300, signal);
+        const response = await getData(pagePath, signal);
+        if (signal?.aborted || latestRequest.current !== requestKey) return;
         for (const item of response.data) items.set(item._id, item);
         cursor = response.headers["x-next-cursor"] || null;
+        if (path.startsWith("/properties/search?")) {
+          setData([...items.values()]);
+          setNextCursor(cursor);
+        }
         if (!all) break;
       }
       if (keepLoadedPages) {
@@ -232,9 +293,10 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
       } else setData([...items.values()]);
       setNextCursor(cursor);
     } catch (e) {
-      if (latestRequest.current === requestKey) setError(errorText(e));
+      if (!signal?.aborted && latestRequest.current === requestKey) setError(errorText(e));
     } finally {
-      if (latestRequest.current === requestKey) setLoading(false);
+      if (pagingRequest.current === request) pagingRequest.current = null;
+      if (!signal?.aborted && latestRequest.current === requestKey) setLoading(false);
     }
   };
   return {
@@ -775,14 +837,6 @@ export function SearchScreen() {
   const feed = useData(
     `/properties/search?limit=50&location=${encodeURIComponent(nearby ? "" : submitted)}${type ? "&type=" + type : ""}${max ? "&maxPrice=" + max : ""}${nearbyQuery}`,
   );
-  const nearbyLoad = useRef("");
-  const nearbyLoadKey = `${nearbyQuery}:${type}:${max}`;
-  const { data: searchResults, nextCursor: searchCursor, loading: searchLoading, loadAll } = feed;
-  useEffect(() => {
-    if (!nearbyQuery || !searchResults || !searchCursor || searchLoading || nearbyLoad.current === nearbyLoadKey) return;
-    nearbyLoad.current = nearbyLoadKey;
-    void loadAll();
-  }, [nearbyQuery, nearbyLoadKey, searchResults, searchCursor, searchLoading, loadAll]);
   const select = useCallback((p: any) => setSelected(p), []);
   const [mapGestureActive, setMapGestureActive] = useState(false);
   const [mapFitVersion, setMapFitVersion] = useState(0);
@@ -814,14 +868,19 @@ export function SearchScreen() {
   const directionsUrl = validMapPoint(destination)
     ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${destination.lat},${destination.lng}`)}&dir_action=navigate`
     : null;
+  const recordedSearch = useRef("");
   useEffect(() => {
-    if (submitted && feed.data)
-      for (const property of feed.data.slice(0, 5))
-        void api
-          .post(`/recommendations/${property._id}/activity`, { kind: "search" })
-          .catch(() => { });
-  }, [feed.data, submitted]);
+    const activityKey = JSON.stringify([user?.id, submitted]);
+    if (!user?.id || !submitted || !feed.data?.length || recordedSearch.current === activityKey) return;
+    recordedSearch.current = activityKey;
+    for (const property of feed.data.slice(0, 5))
+      void api.post(`/recommendations/${property._id}/activity`, { kind: "search" }).catch(() => {});
+  }, [feed.data, submitted, user?.id]);
   const search = () => {
+    if (!nearby && query === submitted) {
+      void feed.refresh();
+      return;
+    }
     setNearby(undefined);
     setSelected(null);
     setSubmitted(query);
@@ -924,6 +983,7 @@ export function SearchScreen() {
         <Button title="Clear nearby" secondary onPress={() => { setNearby(undefined); setSelected(null); }} />
       </View>}
       <ErrorBox text={feed.error} />
+      {!!feed.error && <Button title="Retry search" secondary disabled={feed.loading} onPress={() => void feed.refresh()} />}
       <ErrorBox text={locationAction.error} />
       {locationPermissionBlocked && locationAction.error && <Button title="Open app settings" icon="settings" secondary
         onPress={() => void locationAction.run(() => Linking.openSettings())} />}
@@ -947,7 +1007,6 @@ export function SearchScreen() {
                 setLocationPermissionBlocked(error instanceof LocationPermissionBlocked);
                 throw error;
               }
-              nearbyLoad.current = "";
               setSelected(null);
               setNearby({ ...point, zoom: 9 });
             })}>
@@ -1886,8 +1945,10 @@ export function PostScreen() {
     }),
     action = useAction();
   const [advisorStatus, setAdvisorStatus] = useState<{ loading: boolean; valid?: boolean; name?: string; message?: string }>({ loading: false });
+  const canPost = user?.role === "user" && approved(user);
 
   useEffect(() => {
+    if (!canPost) return;
     const raw = form.requestedAdvisorId?.trim();
     const timer = setTimeout(async () => {
       if (!raw) {
@@ -1911,7 +1972,7 @@ export function PostScreen() {
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [form.requestedAdvisorId]);
+  }, [canPost, form.requestedAdvisorId]);
 
   const onAdvisorIdChange = (text: string) => {
     let clean = text.trim().toUpperCase();
@@ -1945,7 +2006,7 @@ export function PostScreen() {
   const runAction = action.run;
   const editorUserId = user?.id;
   useEffect(() => {
-    if (params.id && editorUserId)
+    if (canPost && params.id && editorUserId)
       void runAction(async () => {
         const p = (await api.get(`/properties/${params.id}/workspace`)).data;
         if (p.parcelPoints && Array.isArray(p.parcelPoints)) {
@@ -1965,7 +2026,7 @@ export function PostScreen() {
           requestedAdvisorId: p.requestedAdvisorId || "",
         });
       });
-  }, [params.id, editorUserId, runAction]);
+  }, [canPost, params.id, editorUserId, runAction]);
   const pick = async (documentType?: PostDocumentType) => {
     const result = await DocumentPicker.getDocumentAsync({
       type: documentType
@@ -1994,6 +2055,7 @@ export function PostScreen() {
   };
   const submit = () =>
     action.run(async () => {
+      if (!canPost) throw new Error("A verified buyer/seller account is required to post property.");
       if (!consent)
         throw new Error("Accept the declaration before submitting.");
       if (points.length > 0 && points.length < 3)
@@ -2074,7 +2136,17 @@ export function PostScreen() {
       await api.post(`/properties/${id}/submit`, { consent: true });
       setDone(true);
     });
-  const canPost = Boolean(user && approved(user));
+  if (user && user.role !== "user") {
+    return (
+      <MarketplaceShell title="Post property" back>
+        <Empty
+          title="Posting requires a buyer/seller account"
+          text="Use a verified buyer/seller account to create a listing. Use your staff dashboard to manage assigned listings."
+          action={<Button title="Staff dashboard" onPress={() => router.push(dashboardRoutes[user.role] as any)} />}
+        />
+      </MarketplaceShell>
+    );
+  }
   return (
     <MarketplaceShell
       title="Post property"
