@@ -46,6 +46,10 @@ yarn-error.*
 !**/.env.sample
 !**/.env.template
 
+# IDE
+.idea/
+*.iml
+
 # typescript
 *.tsbuildinfo
 
