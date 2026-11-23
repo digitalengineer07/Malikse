@@ -169,7 +169,7 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
           chatApi.markRead(inquiryId, latestIncoming.createdAt)
             .then(() => void refreshNotificationCount())
             .catch(() => {});
-        }, 600);
+        }, 1500);
         return () => clearTimeout(timer);
       }
     }

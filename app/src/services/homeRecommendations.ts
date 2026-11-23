@@ -40,7 +40,7 @@ export function loadHomeRecommendations(path: string, scope: string): Promise<Fe
         const retryAfter = error.response.headers?.["retry-after"];
         const delay = retryAfter == null ? NaN : /^\d+$/.test(String(retryAfter))
           ? Number(retryAfter) * 1000 : Date.parse(String(retryAfter)) - Date.now();
-        retryAt = Date.now() + (Number.isFinite(delay) ? Math.max(1000, delay) : 15_000);
+        retryAt = Date.now() + (Number.isFinite(delay) ? Math.min(3000, Math.max(1000, delay)) : 3_000);
         if (fallback) return fallback;
         throw new HomeFeedBusy();
       }

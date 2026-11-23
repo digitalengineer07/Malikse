@@ -18,7 +18,7 @@ export async function notifyUser(userId: string, title: string, body: string, da
       body: JSON.stringify(batch.map(device => ({
         to: device.token, title, body, data, sound: "default", channelId: "updates",
       }))),
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(4000),
     });
     if (!response.ok) throw new Error(`Expo push service returned ${response.status}`);
     const result = await response.json() as { data?: PushTicket[] };
