@@ -239,6 +239,33 @@ export default function RoleDashboard({
         </View>
         {role === "admin" && <NotificationFailures />}
 
+        {role === "advisor" && (
+          <View style={{
+            backgroundColor: "#0B192C",
+            borderRadius: 16,
+            padding: 24,
+            marginBottom: 24,
+            borderWidth: 1,
+            borderColor: "#E5A93C",
+          }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+              <View style={{ backgroundColor: "#E5A93C", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <MaterialIcons name="verified-user" size={16} color="#0B192C" />
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#0B192C" }}>YOUR UNIQUE ADVISOR ID</Text>
+              </View>
+              <Text style={{ color: "#94A3B8", fontSize: 13 }}>
+                {user?.assignedDistricts?.length ? "Districts: " + user.assignedDistricts.join(", ") : "Coverage: All Districts"}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 32, fontWeight: "800", color: "#E5A93C", letterSpacing: 2, marginBottom: 8 }}>
+              {user?.advisorCode || "Loading ID..."}
+            </Text>
+            <Text style={{ color: "#CBD5E1", fontSize: 14 }}>
+              Share this ID with property sellers so their listings are assigned directly to you for review, offers, and chat.
+            </Text>
+          </View>
+        )}
+
         {/* KPI Performance & Portfolio Metrics Bar */}
         <View style={styles.metricsGrid}>
           {/* Card 1: My Listings */}

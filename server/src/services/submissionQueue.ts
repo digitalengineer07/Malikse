@@ -2,6 +2,8 @@ import { identityApproved } from "./security";
 import { createHash, randomUUID } from "crypto";
 import { Property, IProperty } from "../models/Property.model";
 import { User } from "../models/User.model";
+import { Notification } from "../models/Notification.model";
+import { deliverNotifications } from "./notificationQueue";
 import { availableStaff, historyEvent, listingFields, resolvePropertyStaff, transition, validateListing } from "./propertyWorkflow";
 
 const maxAttempts = 5;
@@ -49,6 +51,46 @@ export async function processNextSubmission(): Promise<boolean> {
       $inc: { __v: 1 },
       $push: { verificationHistory: historyEvent({ id: property.ownerId.toString(), role: "user" }, "queued", "pending", "submitted", { assignedAdvisorId: advisorId, consent: true, submissionId: property.submission!.id }) },
     });
+
+    // Notify both Seller (User) and Assigned Staff (Advisor / Verifier)
+    try {
+      const targetStaffId = advisorId || verifierId;
+      const isAdvisor = Boolean(advisorId);
+      const advisor = isAdvisor ? await User.findById(advisorId).select("name mobile advisorCode").lean() : null;
+      const propertyTitle = Array.from(property.title || "Your Property").slice(0, 100).join("");
+
+      const advisorLabel = advisor?.advisorCode
+        ? `Advisor ${advisor.name || ""} (${advisor.advisorCode})`.trim()
+        : (isAdvisor ? "an Advisor" : "a Verification Officer");
+
+      const sellerTitle = "Property Assigned for Verification";
+      const sellerBody = property.requestedAdvisorCode
+        ? `Your listing "${propertyTitle}" has been submitted and assigned to your requested ${advisorLabel}.`
+        : `Your listing "${propertyTitle}" has been submitted and assigned to ${advisorLabel} for verification.`;
+
+      const staffTitle = "New Property Assigned";
+      const staffBody = property.requestedAdvisorCode
+        ? `A client entered your Advisor ID for listing "${propertyTitle}". Review and verify this property.`
+        : `New listing "${propertyTitle}" (${property.location?.district || "Area"}) has been assigned to you for verification.`;
+
+      await Notification.create([
+        {
+          recipient: property.ownerId,
+          title: sellerTitle,
+          body: sellerBody,
+          data: { kind: "listings", id: property._id.toString() },
+        },
+        ...(targetStaffId ? [{
+          recipient: targetStaffId,
+          title: staffTitle,
+          body: staffBody,
+          data: { kind: "property", id: property._id.toString() },
+        }] : []),
+      ]);
+      void deliverNotifications().catch(() => {});
+    } catch (notifErr: any) {
+      console.warn("[submission-worker] Could not queue assignment notifications:", notifErr?.message || notifErr);
+    }
   } catch (error) {
     const exhausted = property.submission!.attempts >= maxAttempts;
     const message = "Submission could not be processed. Check your account and listing, then submit again.";

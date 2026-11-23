@@ -42,6 +42,29 @@ router.post("/properties/:id/assign", authGuard, roleGuard("admin"), async (req:
     const field = staff.role === "advisor" ? "assignedAdvisorId" : "assignedVerifierId";
     const updated = await transition(property, { assignedAdvisorId: null, assignedVerifierId: null, [field]: staff._id, ...(property.status === "advisor_verified" ? { status: "pending" } : {}) }, historyEvent(req.user, property.status, property.status, "assigned", { staffId: staff._id, assignedRole: staff.role }));
     if (!updated) return res.status(409).json({ message: "Property changed. Refresh and try again" });
+
+    // Notify both the seller and the assigned staff member
+    try {
+      const propertyTitle = Array.from(property.title || "Your Property").slice(0, 100).join("");
+      const staffLabel = staff.role === "advisor"
+        ? `Advisor ${staff.name || ""} (${staff.advisorCode || ""})`.trim()
+        : `Verifier ${staff.name || ""}`.trim();
+      void Notification.create([
+        {
+          recipient: property.ownerId,
+          title: "Property Assigned for Verification",
+          body: `Your listing "${propertyTitle}" has been assigned to ${staffLabel}.`,
+          data: { kind: "listings", id: property._id.toString() },
+        },
+        {
+          recipient: staff._id,
+          title: "New Property Assigned",
+          body: `Listing "${propertyTitle}" (${property.location?.district || "Area"}) has been assigned to you.`,
+          data: { kind: "property", id: property._id.toString() },
+        },
+      ]).catch(() => {});
+    } catch {}
+
     res.json(updated);
   } catch (error: any) { res.status(400).json({ message: error.message }); }
 });

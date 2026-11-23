@@ -104,7 +104,7 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
               {user.assignedDistricts?.length ? "Districts: " + user.assignedDistricts.join(", ") : "Coverage: All Districts"}
             </Text>
           </View>
-          <Text style={styles.advisorCodeText}>{user.advisorCode || "ADV-Pending"}</Text>
+          <Text style={styles.advisorCodeText}>{user.advisorCode || "Loading ID..."}</Text>
           <Text style={styles.advisorHelpText}>
             Share this ID with property sellers so their listings are assigned directly to you for review, offers, and chat.
           </Text>

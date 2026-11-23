@@ -163,12 +163,12 @@ router.post("/:id/submit", authGuard, roleGuard("user"), async (req: any, res) =
     const error = validateListing(property);
     if (error) return res.status(400).json({ message: error });
     if (!property.media?.photos?.length) return res.status(400).json({ message: "Upload at least one property photo before submitting" });
-    const requested = property.requestedAdvisorCode || property.requestedAdvisorId;
+    const requested = req.body?.requestedAdvisorCode || property.requestedAdvisorCode || property.requestedAdvisorId;
     if (requested) {
       const raw = typeof requested === "string" ? requested : String(requested);
       const normalized = normalizeAdvisorCode(raw);
       const isObjectId = isValidObjectId(raw);
-      const advisorExists = await User.exists({
+      const advisor = await User.findOne({
         $or: [
           ...(normalized ? [{ advisorCode: normalized }] : []),
           ...(isObjectId ? [{ _id: raw }] : []),
@@ -176,8 +176,12 @@ router.post("/:id/submit", authGuard, roleGuard("user"), async (req: any, res) =
         role: "advisor",
         ...activeStaffFilter,
       });
-      if (!advisorExists) {
+      if (!advisor) {
         return res.status(400).json({ message: "Advisor ID is invalid or unavailable. Correct it or leave it blank for automatic assignment." });
+      }
+      if (normalized && property.requestedAdvisorCode !== normalized) {
+        property.requestedAdvisorCode = normalized;
+        await property.save();
       }
     }
     const result = await enqueueSubmission(property, req.user);
