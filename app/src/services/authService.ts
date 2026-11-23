@@ -4,7 +4,6 @@ import { Platform } from "react-native";
 import { useAuthStore } from "../store/authStore";
 import type { UserProfile } from "../types/auth.types";
 import { invalidatePropertySearch } from "./searchCache";
-import { unregisterPushDevice } from "./pushNotifications";
 
 const configuredApiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
 function resolveApiUrl() {
@@ -190,7 +189,6 @@ export const authService = {
   async logout() {
     const actor = useAuthStore.getState().user?.id;
     try {
-      await unregisterPushDevice().catch(() => {});
       // Best effort backend logout to invalidate refresh token
       await api.post("/auth/logout", undefined, { timeout: 10000 });
     } catch {

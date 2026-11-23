@@ -8,7 +8,6 @@ import { User } from "../models/User.model";
 import { Inquiry } from "../models/Inquiry.model";
 import { assignedStaff, offerProperty, OfferError } from "./marketplace";
 import { identityApproved } from "./security";
-import { sendPush } from "./pushNotifications";
 
 export async function createOffer(
   buyerId: string,

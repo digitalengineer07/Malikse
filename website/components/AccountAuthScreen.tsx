@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   useWindowDimensions,
-  Image,
   ScrollView,
   Platform,
   ActivityIndicator,
@@ -49,12 +48,7 @@ function GoogleLogo({ size = 18 }: { size?: number }) {
       </svg>
     );
   }
-  return (
-    <Image
-      source={{ uri: "https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" }}
-      style={{ width: size, height: size }}
-    />
-  );
+  return null;
 }
 
 export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {

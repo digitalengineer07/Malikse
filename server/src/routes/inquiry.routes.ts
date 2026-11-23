@@ -14,7 +14,7 @@ import {
 import mongoose, { isValidObjectId, Types, PipelineStage } from "mongoose";
 import { pageInput, cursorFor } from "../services/pagination";
 import { replicaReadPreference } from "../services/readReplica";
-import { sendPush } from "../services/pushNotifications";
+import { createNotification } from "../services/notificationMessage";
 
 import { Property } from "../models/Property.model";
 import { createOffer, changeDeal } from "../services/dealWorkflow";
@@ -142,7 +142,7 @@ router.post("/", async (req: AuthRequest, res) => {
         .json({ error: "Property changed; refresh and retry" });
     }
     res.status(201).json(inquiry);
-    sendPush(
+    createNotification(
       String(staff._id),
       "New property inquiry",
       "Someone sent an inquiry about your property.",
@@ -345,7 +345,7 @@ router.put("/:id/status", async (req: AuthRequest, res) => {
         .status(404)
         .json({ error: "Inquiry not found or unauthorized" });
     res.json(inquiry);
-    sendPush(
+    createNotification(
       inquiry.buyerId.toString(),
       "Inquiry update",
       `Your inquiry was ${status}.`,

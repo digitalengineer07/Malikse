@@ -1,3 +1,4 @@
+import { Notification } from "../models/Notification.model";
 import { isObjectIdOrHexString, Types } from "mongoose";
 import { Inquiry } from "../models/Inquiry.model";
 
@@ -19,4 +20,8 @@ export async function findNotificationMessage(
     $or: [{ buyerId: recipient }, { staffId: recipient }],
   }, { messages: { $elemMatch: { _id: messageId } } }).lean();
   return inquiry?.messages?.[0];
+}
+
+export function createNotification(recipient: string, title: string, body: string, data: { kind: string; id: string }) {
+  void Notification.create({ recipient, title, body, data }).catch(() => console.error("[Notifications] Could not save notification"));
 }

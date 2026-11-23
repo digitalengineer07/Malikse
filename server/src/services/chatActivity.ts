@@ -7,6 +7,13 @@ type Channel = { cursor: string; listeners: Set<() => void> };
 const channels = new Map<string, Channel>();
 const active = new Map<string, number>();
 let held = 0;
+const maxWaits = Number(process.env.CHAT_MAX_LIVE_WAITS ?? 24);
+if (!Number.isInteger(maxWaits) || maxWaits < 1 || maxWaits > 2048)
+  throw new Error("CHAT_MAX_LIVE_WAITS must be between 1 and 2048");
+
+export function canWaitForChat(actor: string) {
+  return held < maxWaits && (active.get(actor) ?? 0) < 2;
+}
 
 export function chatCursor(thread: string, actor: string) {
   const key = thread + "/" + actor;
@@ -35,7 +42,7 @@ export async function waitForChat(thread: string, actor: string, cursor: string,
   const channel = channels.get(thread + "/" + actor);
   if (!channel || channel.cursor !== cursor) return "changed";
   // Reserve connections for sends and other routes on shared hosting.
-  if (held >= 24 || (active.get(actor) ?? 0) >= 2) return "busy";
+  if (!canWaitForChat(actor)) return "busy";
   held++;
   active.set(actor, (active.get(actor) ?? 0) + 1);
   await new Promise<void>(resolve => {
