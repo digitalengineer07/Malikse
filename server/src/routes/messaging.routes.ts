@@ -85,16 +85,24 @@ messaging.post("/:id/message", async (req: AuthRequest, res) => {
 
     if (thread.messages?.length) {
       if (thread.messages[0].text !== text.trim()) throw new OfferError(409, "Message key already used");
-      return res.json(await Inquiry.findById(thread._id).select({ messages: { $elemMatch: { _id: messageId } } }).lean());
+      return res.json({ _id: thread._id, messages: thread.messages });
     }
 
     const message = { _id: messageId, senderId: actor, text: text.trim(), createdAt: new Date() };
-    const updated = await Inquiry.findOneAndUpdate({ _id: thread._id, "messages.999": { $exists: false } },
+    // Concurrent requests can both miss the initial lookup. Only the winning
+    // append may enqueue a notification, including after a response was lost.
+    const updated = await Inquiry.findOneAndUpdate({ _id: thread._id, "messages._id": { $ne: messageId }, "messages.999": { $exists: false } },
       { $push: { messages: message }, $set: { staffId: staff._id },
         ...(String(thread.staffId) === String(staff._id) ? {} : { $unset: { staffReadAt: 1 } }) },
       { new: true, runValidators: true }).select({ messages: { $slice: -1 } }).lean();
 
-    if (!updated) throw new OfferError(409, "Conversation message limit reached");
+    if (!updated) {
+      const replay = await Inquiry.findOne({ _id: thread._id, "messages._id": messageId })
+        .select({ messages: { $elemMatch: { _id: messageId } } }).read("primary").lean();
+      if (!replay?.messages.length) throw new OfferError(409, "Conversation message limit reached");
+      if (replay.messages[0].text !== text.trim()) throw new OfferError(409, "Message key already used");
+      return res.json(replay);
+    }
 
     // Queue push notification non-blockingly
     void Notification.create([{

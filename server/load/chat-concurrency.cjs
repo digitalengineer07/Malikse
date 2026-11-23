@@ -131,6 +131,12 @@ async function main() {
       const row=await Inquiry.findById(threads[0]._id).lean();
       assert.equal(row.messages.filter(m=>m.text===payload.text).length,1);
       assert.equal(await Notification.countDocuments({messageId:replies[0].messages[0]._id}),1);
+      const conflict = await fetch(base + path + "/message", { method: "POST",
+        headers: { Authorization: "Bearer " + tokens[0], "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "different text", clientMessageId: key }) });
+      assert.equal(conflict.status, 409);
+      assert.equal((await conflict.json()).error, "Message key already used");
+      console.log("PASS six overlapping retries persisted one message, queued one notification, and rejected a changed payload");
       const through=new Date().toISOString();
       await call(1,"ack",path+"/read",{through});
       await call(1,"ack",path+"/read",{through:new Date(1).toISOString()});
