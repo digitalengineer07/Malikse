@@ -1,7 +1,7 @@
-import { Property, IProperty } from "../models/Property.model";
-import { User } from "../models/User.model";
-import { AssignmentCursor } from "../models/AssignmentCursor.model";
 import { isValidObjectId, Types } from "mongoose";
+import { AssignmentCursor } from "../models/AssignmentCursor.model";
+import { IProperty, Property } from "../models/Property.model";
+import { User } from "../models/User.model";
 import { normalizeAdvisorCode } from "./advisorCodeService";
 
 export const editableFields = ["requestedAdvisorId", "requestedAdvisorCode", "title", "description", "bedrooms", "bathrooms", "furnishing", "streetAddress", "type", "location", "parcelPoints", "khata", "khesra", "holdingNumber", "totalArea", "sellableArea", "boundary", "roadWidth", "price", "negotiable", "media", "disclosures"];

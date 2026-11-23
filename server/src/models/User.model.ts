@@ -66,7 +66,6 @@ const UserSchema = new Schema<IUser>(
 );
 
 UserSchema.index({ role: 1, createdAt: -1 }, { name: "user_role_newest" });
-UserSchema.index({ advisorCode: 1 }, { unique: true, sparse: true, name: "user_advisor_code" });
 UserSchema.index({ role: 1, assignedDistricts: 1 }, { name: "user_role_districts" });
 UserSchema.index({ isSuspended: 1 }, { name: "user_suspension" });
 UserSchema.index({ isActive: 1 }, { name: "user_active" });

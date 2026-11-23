@@ -28,9 +28,15 @@ function matchesIndex(model: mongoose.Model<any>, index: any, keys: any, options
     (options.name === "inquiry_staff_newest" && index.name === "inquiry_seller_newest") ||
     (options.name === "inquiry_staff_cursor" && index.name === "inquiry_seller_cursor")
   );
+  const aliasName = legacyName || (
+    model.modelName === "User" && (
+      (options.name === "user_advisor_code" && index.name === "advisorCode_1") ||
+      (options.name === "advisorCode_1" && index.name === "user_advisor_code")
+    )
+  );
   return (Object.values(keys).includes("text")
     ? Object.keys(index.weights || {}).sort().join(",") === Object.keys(keys).filter(key => keys[key] === "text").sort().join(",")
-    : isDeepStrictEqual(index.key, keys)) && (!options.name || index.name === options.name || legacyName)
+    : isDeepStrictEqual(index.key, keys)) && (!options.name || index.name === options.name || aliasName)
     && isDeepStrictEqual(index.partialFilterExpression, options.partialFilterExpression)
     && Boolean(index.unique) === Boolean(options.unique) && Boolean(index.sparse) === Boolean(options.sparse)
     && index.expireAfterSeconds === options.expireAfterSeconds;
