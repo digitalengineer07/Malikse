@@ -9,6 +9,7 @@ export interface AuthRequest extends Request {
 }
 
 import { ACCESS_SECRET, publicUser } from "../services/security";
+import { generateUniqueAdvisorCode } from "../services/advisorCodeService";
 
 /**
  * Verifies the Bearer JWT in the Authorization header.
@@ -43,6 +44,15 @@ export async function authenticateRequest(header: string | undefined, requestId?
     }
     if (user.isActive === false) {
       return { status: 403, message: "Your staff account has been deactivated." };
+    }
+    if (user.role === "advisor" && !user.advisorCode) {
+      try {
+        const code = await generateUniqueAdvisorCode();
+        await User.updateOne({ _id: user._id }, { $set: { advisorCode: code } });
+        (user as any).advisorCode = code;
+      } catch (err: any) {
+        console.warn("[auth.middleware] Auto-generating advisor code warning:", err?.message);
+      }
     }
     return { user: { id: user._id.toString(), role: user.role }, account: publicUser(user) };
   } catch (error) {

@@ -32,6 +32,12 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
   const cardWidth = compact ? "100%" : width < 1000 || sections.length === 2 ? "48%" : "31.8%";
   const hasAccess = authState === "AUTHENTICATED" && user?.role === role;
 
+  React.useEffect(() => {
+    if (hasAccess) {
+      void authService.getMe().catch(() => {});
+    }
+  }, [hasAccess]);
+
   return <View style={styles.screen}>
     {focused && <StatusBar style="light" />}
     <ScrollView contentContainerStyle={{ paddingBottom: hasAccess ? 20 : insets.bottom + 20 }}>

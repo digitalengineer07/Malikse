@@ -14,6 +14,7 @@ import { closeRedis } from "./services/redis";
 import { startRegionCounts, stopRegionCounts } from "./services/regionCountStore";
 import { createRequiredIndexes, ensureActivityIndexes, verifyRequiredIndexes } from "./services/requiredIndexes";
 import { startSubmissionWorker } from "./services/submissionQueue";
+import { migrateAdvisorCodes } from "./scripts/migrateAdvisorCodes";
 
 let stopping = false;
 let initialized = false;
@@ -67,6 +68,7 @@ startListening(PORT).then(() => {
     await ensureActivityIndexes();
   }
   await verifyRequiredIndexes();
+  await migrateAdvisorCodes().catch(err => console.warn("[MalikSe] Advisor code migration warning:", err?.message));
   initialized = true;
   clearTimeout(startupDeadline);
   finishStartup();

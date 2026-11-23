@@ -13,6 +13,7 @@ import { User } from "../models/User.model";
 
 import { REFRESH_SECRET, accountEnabled, generateTokens, publicUser, tokenDigest, refreshExpiry } from "../services/security";
 import { sendEmailOtp, sendPasswordChangeConfirmationEmail } from "../services/mailer";
+import { generateUniqueAdvisorCode } from "../services/advisorCodeService";
 
 const router = Router();
 router.use((req, res, next) => {
@@ -509,6 +510,9 @@ router.post("/login", async (req, res) => {
 
     // Existing buyer/owner accounts now share the User role.
     if (["buyer", "owner"].includes(user.role as string)) user.role = "user";
+    if (user.role === "advisor" && !user.advisorCode) {
+      user.advisorCode = await generateUniqueAdvisorCode();
+    }
 
     const { accessToken, refreshToken } = generateTokens(user);
 
