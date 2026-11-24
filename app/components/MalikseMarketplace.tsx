@@ -1213,21 +1213,22 @@ export function ProfileScreen() {
     </>
   ) : undefined;
   return (
-    <MarketplaceShell title="Profile" subtitle="Keep your property journey in one place." profileHeader={profileHeader}
+    <MarketplaceShell profileHeader={profileHeader}
       headerContent={!user ? (
-        <View style={s.guestProfileFeatures}>
-          <View style={s.guestProfileFeature}>
-            <Icon name="favorite-border" color={C.sun} size={17} />
-            <Text style={s.guestProfileFeatureLabel}>Save favourites</Text>
-          </View>
-          <View style={s.guestProfileFeature}>
-            <Icon name="manage-accounts" color={C.sun} size={18} />
-            <Text style={s.guestProfileFeatureLabel}>Manage your account</Text>
+        <View style={s.guestProfileIntro}>
+          <View pointerEvents="none" style={s.guestProfileAccent} />
+          <View style={s.guestProfileIntroCopy}>
+            <Text accessibilityRole="header" style={s.heroTitle}>Profile</Text>
+            <Text style={s.heroSubtitle}>Pick up where you left off with your saved homes, listings and enquiries.</Text>
           </View>
         </View>
       ) : undefined}
       scrollFooter={!user ? bottomExtension => <AccountArtworkFooter bottomExtension={bottomExtension} /> : undefined}>
-      <Protected>
+      <Protected guest={{
+        title: "Welcome to your MalikSe account",
+        text: "Sign in to see your activity or create an account to start saving properties.",
+        icon: "bookmark-border",
+      }}>
         {user && (
           <>
             <View style={s.profileStats}>
@@ -2939,13 +2940,12 @@ const s = StyleSheet.create({
   postDocumentIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   footer: { backgroundColor: "#fff", borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 20, paddingTop: 12 },
   profileHero: { paddingBottom: 82 },
-  guestProfileFeatures: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4, marginBottom: 6 },
-  guestProfileFeature: {
-    maxWidth: "100%", minHeight: 38, flexDirection: "row", alignItems: "center", gap: 7,
-    paddingHorizontal: 11, paddingVertical: 7, borderRadius: 14,
-    backgroundColor: "#243C5D", borderWidth: 1, borderColor: "#FFFFFF38",
+  guestProfileIntro: {
+    flexDirection: "row", gap: 12, paddingVertical: 14, paddingHorizontal: 16,
+    borderRadius: 18, backgroundColor: "#102138B3", borderWidth: 1, borderColor: "#FFFFFF29",
   },
-  guestProfileFeatureLabel: { flexShrink: 1, color: "#fff", fontFamily: "ManropeBold", fontSize: 12 },
+  guestProfileAccent: { width: 3, borderRadius: 2, backgroundColor: C.sun, marginVertical: 4 },
+  guestProfileIntroCopy: { flex: 1, minWidth: 0, gap: 5, maxWidth: 410 },
   profileHeaderCopy: { flexShrink: 1, minWidth: 0 },
   profileHeaderTitle: { fontSize: 27, lineHeight: 29 },
   profileHeroCaption: { fontSize: 13, lineHeight: 15 },
