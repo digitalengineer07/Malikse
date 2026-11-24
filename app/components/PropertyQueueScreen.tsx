@@ -14,7 +14,7 @@ import AccountArtworkFooter from "./AccountArtworkFooter";
 import { AccountHeaderBackdrop, accountHeaderStyle } from "./AccountHeaderBackdrop";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 
-const advisorPageSize = 10;
+const reviewPageSize = 10;
 
 const advisorFilters = [
   { id: "all", label: "All" },
@@ -23,6 +23,13 @@ const advisorFilters = [
   { id: "verified", label: "Published" },
   { id: "rejected", label: "Rejected" },
   { id: "sold", label: "Sold" },
+] as const;
+
+const adminFilters = [
+  ...advisorFilters,
+  { id: "draft", label: "Draft" },
+  { id: "queued", label: "Queued" },
+  { id: "advisor_verified", label: "Awaiting verifier" },
 ] as const;
 
 const neutralReview = { surface: "#FFFFFF", border: "#DEDCD5", badge: "#F0EEE8", ink: "#536174" };
@@ -56,14 +63,17 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
   const [filter, setFilter] = useState("all");
   const [revision, setRevision] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [advisorFiltersExpanded, setAdvisorFiltersExpanded] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [pageCursors, setPageCursors] = useState<(string | undefined)[]>([undefined]);
   const listRef = useRef<FlatList<Listing>>(null);
-  const advisorCursor = role === "advisor" ? pageCursors[pageCursors.length - 1] : undefined;
-  const advisorStatus = role === "advisor" && filter !== "all" ? filter : undefined;
-  const advisorPageKey = JSON.stringify([user?.id, advisorStatus, advisorCursor]);
+  const isAdmin = role === "admin";
+  const isReviewQueue = role === "advisor" || isAdmin;
+  const reviewFilters = isAdmin ? adminFilters : advisorFilters;
+  const pageCursor = isReviewQueue ? pageCursors[pageCursors.length - 1] : undefined;
+  const pageStatus = isReviewQueue && filter !== "all" ? filter : undefined;
+  const pageKey = JSON.stringify([user?.id, pageStatus, pageCursor]);
   const [loadedPageKey, setLoadedPageKey] = useState<string>();
-  const currentAdvisorPage = advisorPageKey === loadedPageKey;
+  const currentPage = pageKey === loadedPageKey;
 
   
   useFocusEffect(useCallback(() => {
@@ -71,18 +81,18 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     if (user?.role !== role || authState !== "AUTHENTICATED") return;
     setLoading(true); setError("");
-    const refresh = () => workflowService.queue(role, advisorCursor,
-      role === "advisor" ? { limit: advisorPageSize, status: advisorStatus } : undefined).then(data => {
+    const refresh = () => workflowService.queue(role, pageCursor,
+      isReviewQueue ? { limit: reviewPageSize, status: pageStatus } : undefined).then(data => {
       if (!active) return;
       setQueueOwner(user.id); setProperties(data); setNextCursor(data.nextCursor);
-      if (role === "advisor") setLoadedPageKey(advisorPageKey);
-      if (role !== "advisor" && data.some(property => property.status === "queued")) timer = setTimeout(refresh, 3000);
-    }).catch((cause) => { if (active) { if (role !== "advisor") setProperties([]); setError(cause.response?.data?.message || "Could not load properties"); } }).finally(() => { if (active) setLoading(false); });
+      if (isReviewQueue) setLoadedPageKey(pageKey);
+      if (!isReviewQueue && data.some(property => property.status === "queued")) timer = setTimeout(refresh, 3000);
+    }).catch((cause) => { if (active) { if (!isReviewQueue) setProperties([]); setError(cause.response?.data?.message || "Could not load properties"); } }).finally(() => { if (active) setLoading(false); });
     void refresh();
     return () => { active = false; clearTimeout(timer); };
   // Refresh on account changes and explicit reloads, even when the role is unchanged.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, user?.role, authState, role, revision, advisorCursor, advisorStatus, advisorPageKey]));
+  }, [user?.id, user?.role, authState, role, revision, isReviewQueue, pageCursor, pageStatus, pageKey]));
   const filtered = useMemo(() => queueOwner === user?.id
     ? properties.filter(property => matchesQueueFilter(property.status, filter, role))
     : [], [filter, properties, queueOwner, role, user?.id]);
@@ -101,24 +111,24 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
     try { const rows = await workflowService.queue(role, nextCursor); setProperties(old => [...old, ...rows]); setNextCursor(rows.nextCursor); }
     catch { setError("Could not load the next page. Please try again."); } finally { setBusy(false); }
   };
-  const filterOptions = ["all", "draft", "queued", "pending", "advisor_verified", "correction_required", "rejected", "verified"].filter(status => role === "user" || role === "admin" || !["draft", "queued"].includes(status));
+  const filterOptions = ["all", "draft", "queued", "pending", "advisor_verified", "correction_required", "rejected", "verified"].filter(status => role === "user" || !["draft", "queued"].includes(status));
   
-  if (role === "advisor") {
+  if (isReviewQueue) {
     const changePage = (cursors: (string | undefined)[]) => {
       setLoading(true);
       setError("");
       setPageCursors(cursors);
       listRef.current?.scrollToOffset({ offset: 0, animated: false });
     };
-    const backToDashboard = () => router.dismissTo(dashboardRoutes.advisor);
+    const backToDashboard = () => router.dismissTo(isAdmin ? dashboardRoutes.admin : dashboardRoutes.advisor);
     return (
-      <View style={localStyles.advisorScreen}>
+      <View style={localStyles.reviewScreen}>
         {focused && <StatusBar style="light" />}
-        <View style={[localStyles.advisorHeader, { paddingTop: insets.top + 14 }]}>
+        <View style={[localStyles.reviewHeader, { paddingTop: insets.top + 14 }]}>
           <AccountHeaderBackdrop top={insets.top + 4} />
-          <View style={localStyles.advisorHeaderInner}>
-            <View style={localStyles.advisorTop}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Back to Advisor dashboard" onPress={backToDashboard} style={localStyles.headerIcon}>
+          <View style={localStyles.reviewHeaderInner}>
+            <View style={localStyles.reviewToolbar}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Back to dashboard" onPress={backToDashboard} style={localStyles.headerIcon}>
                 <MaterialIcons name="arrow-back" size={22} color="#fff" />
               </Pressable>
               <BrandLockup style={localStyles.queueBrand} />
@@ -128,14 +138,14 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
               </Pressable>
             </View>
             <View style={accountHeaderStyle.titleGroup}>
-              <Text accessibilityRole="header" style={[localStyles.queueTitle, accountHeaderStyle.heading]}>Advisor review queue</Text>
-              <Text style={localStyles.queueHint}>Review assigned properties and find past decisions.</Text>
+              <Text accessibilityRole="header" style={[localStyles.queueTitle, accountHeaderStyle.heading]}>{isAdmin ? "Property verification" : "Advisor review queue"}</Text>
+              <Text style={localStyles.queueHint}>{isAdmin ? "Track reviews and assign staff." : "Review assigned properties and find past decisions."}</Text>
             </View>
           </View>
         </View>
         <FlatList
           ref={listRef}
-          data={currentAdvisorPage ? filtered.slice(0, advisorPageSize) : []}
+          data={currentPage ? filtered.slice(0, reviewPageSize) : []}
           keyExtractor={property => property._id}
           initialNumToRender={6}
           maxToRenderPerBatch={8}
@@ -143,20 +153,20 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
           ListHeaderComponent={
             <View style={localStyles.queueFilters}>
               <View style={localStyles.filterToolbar}>
-                <Text accessibilityRole="header" style={localStyles.filterHeading}>Review status</Text>
-                {!advisorFiltersExpanded && <Text style={localStyles.reviewMeta}>
-                  {advisorFilters.find(option => option.id === filter)?.label}
+                <Text accessibilityRole="header" style={localStyles.filterHeading}>{isAdmin ? "Filter by status" : "Review status"}</Text>
+                {!filtersExpanded && <Text style={localStyles.reviewMeta}>
+                  {reviewFilters.find(option => option.id === filter)?.label}
                 </Text>}
                 <Pressable accessibilityRole="button"
-                  accessibilityLabel={advisorFiltersExpanded ? "Hide review status filters" : "Show review status filters"}
-                  accessibilityState={{ expanded: advisorFiltersExpanded }}
-                  onPress={() => setAdvisorFiltersExpanded(expanded => !expanded)}
+                  accessibilityLabel={filtersExpanded ? "Hide review status filters" : "Show review status filters"}
+                  accessibilityState={{ expanded: filtersExpanded }}
+                  onPress={() => setFiltersExpanded(expanded => !expanded)}
                   style={localStyles.filterChevron}>
-                  <MaterialIcons name={advisorFiltersExpanded ? "expand-less" : "expand-more"} size={21} color="#14263E" />
+                  <MaterialIcons name={filtersExpanded ? "expand-less" : "expand-more"} size={21} color="#14263E" />
                 </Pressable>
               </View>
-              {advisorFiltersExpanded && <View style={localStyles.filterOptions}>
-                {advisorFilters.map(({ id, label }) => (
+              {filtersExpanded && <View style={localStyles.filterOptions}>
+                {reviewFilters.map(({ id, label }) => (
                   <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: id === filter }}
                     style={[localStyles.filterOption, id === filter && localStyles.selectedOption]}
                     onPress={() => {
@@ -176,13 +186,13 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
             ? <Text style={localStyles.emptyQueue}>No properties match this status.</Text>
             : undefined}
           renderItem={({ item: property }) => {
-            const unassigned = !actorId(property.assignedAdvisorId);
-            const actionLabel = unassigned ? "Claim review" : "Open review";
+            const unassigned = !isAdmin && !actorId(property.assignedAdvisorId);
+            const actionLabel = isAdmin ? "View property details and history" : unassigned ? "Claim review" : "Open review";
             const sellerName = property.sellerName?.trim() ||
               (typeof property.ownerId === "object" ? property.ownerId?.name?.trim() : undefined);
             const appearance = reviewAppearance[property.status];
             const colors = appearance ?? neutralReview;
-            const status = appearance?.label ?? statusLabels[property.status] ?? property.status;
+            const status = (isAdmin && property.status === "advisor_verified" ? "Awaiting verifier" : appearance?.label) ?? statusLabels[property.status] ?? property.status;
             return (
               <Pressable accessibilityRole="button" accessibilityLabel={`${actionLabel}, ${property.title || property.type}`}
                 disabled={unassigned && busy} style={[localStyles.reviewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -197,10 +207,10 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
                   </View>
                 </View>
                 <View style={localStyles.reviewDetails}>
-                  <View style={localStyles.reviewMetaRow}>
+                  {(!isAdmin || sellerName) && <View style={localStyles.reviewMetaRow}>
                     <MaterialIcons name="person-outline" size={17} color="#536174" />
                     <Text style={localStyles.reviewMeta}>Seller: {sellerName || (unassigned ? "Available after claiming" : "Name unavailable")}</Text>
-                  </View>
+                  </View>}
                   <View style={localStyles.reviewMetaRow}>
                     <MaterialIcons name="place" size={17} color="#536174" />
                     <Text style={localStyles.reviewMeta}>
@@ -220,7 +230,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
               </Pressable>
             );
           }}
-          ListFooterComponent={pageCursors.length > 1 || (currentAdvisorPage && nextCursor) ? (
+          ListFooterComponent={pageCursors.length > 1 || (currentPage && nextCursor) ? (
             <View style={localStyles.pagination}>
               <Pressable accessibilityRole="button" style={localStyles.queueFilter} disabled={loading || busy || pageCursors.length === 1}
                 accessibilityState={{ disabled: loading || busy || pageCursors.length === 1 }}
@@ -228,8 +238,8 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
                 <Text style={localStyles.queueLabel}>Previous</Text>
               </Pressable>
               <Text style={localStyles.reviewMeta}>Page {pageCursors.length}</Text>
-              <Pressable accessibilityRole="button" style={localStyles.queueFilter} disabled={loading || busy || !currentAdvisorPage || !nextCursor}
-                accessibilityState={{ disabled: loading || busy || !currentAdvisorPage || !nextCursor }}
+              <Pressable accessibilityRole="button" style={localStyles.queueFilter} disabled={loading || busy || !currentPage || !nextCursor}
+                accessibilityState={{ disabled: loading || busy || !currentPage || !nextCursor }}
                 onPress={() => { if (nextCursor) changePage([...pageCursors, nextCursor]); }}>
                 <Text style={localStyles.queueLabel}>Next</Text>
               </Pressable>
@@ -243,7 +253,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
     );
   }
 
-  return <WorkflowScreen title={role === "user" ? "My listings" : role === "admin" ? "Property verification tracking" : `Verifier review queue`}>
+  return <WorkflowScreen title={role === "user" ? "My listings" : "Verifier review queue"}>
     <View style={[ui.row, { justifyContent: "space-between", zIndex: 10 }]}>
       <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
         <Action title="My dashboard" secondary onPress={() => router.push(dashboardRoutes[role])} />
@@ -279,7 +289,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
         <Text style={ui.text}>{statusLabels[property.status] || property.status}</Text>
         <Text style={ui.muted}>{property.location.district}, {property.location.state} · ₹{property.price.toLocaleString("en-IN")}</Text>
         {property.rejectionReason ? <Text style={ui.error}>{property.rejectionReason}</Text> : null}
-        {unassigned ? <Action title="Claim review" disabled={busy} onPress={() => claim(property._id)} /> : <Action title={role === "user" || role === "admin" ? "Details and history" : "Open review"} onPress={() => router.push({ pathname: "/verification/[id]", params: { id: property._id } })} />}
+        {unassigned ? <Action title="Claim review" disabled={busy} onPress={() => claim(property._id)} /> : <Action title={role === "user" ? "Details and history" : "Open review"} onPress={() => router.push({ pathname: "/verification/[id]", params: { id: property._id } })} />}
         {role === "user" && ["draft", "correction_required"].includes(property.status) ? <Action title={property.status === "draft" ? "Continue listing" : "Correct and resubmit"} secondary onPress={() => router.push({ pathname: "/listing/create", params: { id: property._id } })} /> : null}
       </View>;
     })}
@@ -288,10 +298,10 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
 }
 
 const localStyles = StyleSheet.create({
-  advisorScreen: { flex: 1, backgroundColor: "#F5F2E9" },
-  advisorHeader: { backgroundColor: "#14263E", borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: "hidden" },
-  advisorHeaderInner: { width: "100%", maxWidth: 900, alignSelf: "center", paddingHorizontal: 20, paddingBottom: 20, gap: 14 },
-  advisorTop: { flexDirection: "row", alignItems: "center", gap: 10 },
+  reviewScreen: { flex: 1, backgroundColor: "#F5F2E9" },
+  reviewHeader: { backgroundColor: "#14263E", borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: "hidden" },
+  reviewHeaderInner: { width: "100%", maxWidth: 900, alignSelf: "center", paddingHorizontal: 20, paddingBottom: 20, gap: 14 },
+  reviewToolbar: { flexDirection: "row", alignItems: "center", gap: 10 },
   queueBrand: { flex: 1 },
   headerIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#244268", alignItems: "center", justifyContent: "center" },
   queueTitle: { color: "#fff", fontFamily: "Fraunces" },
