@@ -36,20 +36,23 @@ import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
 import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import WebFooter from "./WebFooter";
 const C = {
-  bg: "#f3f7ff",
-  ink: "#0b1b3f",
-  muted: "#475a82",
-  blue: "#0a45b5",
-  line: "#dce5f5",
-  green: "#0b5a3a",
+  bg: "#F7F4EC",
+  ink: "#14263E",
+  muted: "rgba(20, 38, 62, 0.62)",
+  blue: "#14263E",
+  sun: "#FCC61C",
+  sunSoft: "#FFF1C0",
+  sunDeep: "#E8AE00",
+  line: "rgba(20, 38, 62, 0.08)",
+  green: "#0B8A3E",
 };
 const font =
   Platform.OS === "web"
-    ? "'Plus Jakarta Sans', Manrope, -apple-system, BlinkMacSystemFont, sans-serif"
+    ? "'Manrope', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif"
     : "PoppinsRegular";
 const fontDisplay =
   Platform.OS === "web"
-    ? "'Plus Jakarta Sans', PoppinsBold, Manrope, sans-serif"
+    ? "'Fraunces', Georgia, serif"
     : "PoppinsBold";
 
 const money = (n: number) =>
@@ -298,6 +301,7 @@ export function MarketplaceShell({
   subtitle,
   children,
   back = false,
+  fullBleed = false,
 }: any) {
   const insets = useSafeAreaInsets();
   const router = useRouter(),
@@ -318,17 +322,23 @@ export function MarketplaceShell({
         contentContainerStyle={{ flexGrow: 1 }}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={s.scroll}>
-          <View style={s.content}>
-            {!!title && (
-              <View style={{ gap: 6 }}>
-                <Text style={s.h1}>{title}</Text>
-                {!!subtitle && <Text style={s.muted}>{subtitle}</Text>}
-              </View>
-            )}
+        {fullBleed ? (
+          <View style={{ flex: 1 }}>
             {children}
           </View>
-        </View>
+        ) : (
+          <View style={s.scroll}>
+            <View style={s.content}>
+              {!!title && (
+                <View style={{ gap: 6 }}>
+                  <Text style={s.h1}>{title}</Text>
+                  {!!subtitle && <Text style={s.muted}>{subtitle}</Text>}
+                </View>
+              )}
+              {children}
+            </View>
+          </View>
+        )}
         {isDesktop && <WebFooter />}
       </ScrollView>
 
@@ -351,14 +361,14 @@ export function MarketplaceShell({
                 <Icon
                   name={icon}
                   color={
-                    url === "/post" ? "white" : path === url ? C.blue : C.muted
+                    url === "/post" ? "#14263E" : path === url ? "#14263E" : C.muted
                   }
                 />
               </View>
               <Text
                 style={[
                   s.navText,
-                  path === url && { color: C.blue, fontWeight: "800" },
+                  path === url && { color: "#14263E", fontWeight: "800" },
                 ]}
               >
                 {text}
@@ -399,6 +409,8 @@ function Protected({ children, kyc = false }: any) {
 function PropertyCard({
   property: p,
   compact = false,
+  horizontal = false,
+  freshTag,
   onSaved,
   initiallySaved = false,
   style,
@@ -438,10 +450,146 @@ function PropertyCard({
     router.push(`/property/${p._id}` as any);
   };
 
+  const toggleSave = (e?: any) => {
+    e?.stopPropagation?.();
+    if (gate()) {
+      void action.run(async () => {
+        const result = await userService.toggleWishlist(p._id);
+        setSaved(result.isWishlisted);
+        if (result.isWishlisted)
+          void api
+            .post(`/recommendations/${p._id}/activity`, {
+              kind: "save",
+            })
+            .catch(() => { });
+        onSaved?.();
+      });
+    }
+  };
+
+  const areaSqFt = Number(p.sellableArea || p.totalArea || 0);
+  const perSqFt = areaSqFt > 0 && p.price > 0 ? Math.round(p.price / areaSqFt) : 0;
+  const typeLabel =
+    p.type === "flat"
+      ? "Apartment"
+      : p.type === "land"
+        ? "Plot / Land"
+        : p.type === "house"
+          ? "House"
+          : p.type === "shop"
+            ? "Commercial"
+            : p.type === "office"
+              ? "Office"
+              : p.type || "Property";
+
+  if (horizontal) {
+    return (
+      <Pressable
+        onPress={openProperty}
+        style={({ hovered }: any) => [
+          s.card,
+          {
+            flexDirection: "row",
+            padding: 16,
+            gap: 18,
+            alignItems: "stretch",
+            borderRadius: 22,
+          },
+          Platform.OS === "web" && ({
+            transition: "transform 0.24s cubic-bezier(.2,.7,.2,1), box-shadow 0.24s",
+            ...(hovered ? { transform: [{ translateY: -4 }], boxShadow: "0 1px 0 rgba(20,38,62,.05), 0 26px 44px -20px rgba(20,38,62,.35)" } : {}),
+          } as any),
+          style,
+        ]}
+      >
+        <View
+          style={{
+            width: 158,
+            height: 146,
+            borderRadius: 16,
+            overflow: "hidden",
+            backgroundColor: "#E9E4D5",
+            flexShrink: 0,
+            position: "relative",
+          }}
+        >
+          {p.media?.photos?.[0] ? (
+            <Image
+              source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], 450) }}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, s.placeholder]}>
+              <Icon name="home-work" size={38} color="#94A3B8" />
+            </View>
+          )}
+          <View
+            style={{
+              position: "absolute",
+              top: 10,
+              left: 10,
+              backgroundColor: "#FCC61C",
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              borderRadius: 999,
+            }}
+          >
+            <Text style={{ fontFamily: font, fontSize: 11.5, fontWeight: "800", color: "#14263E" }}>
+              {freshTag || "New"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ flex: 1, minWidth: 0, justifyContent: "space-between", paddingVertical: 2 }}>
+          <View style={{ gap: 6 }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+              <Text style={{ fontFamily: font, fontSize: 17.5, fontWeight: "800", color: "#14263E", flex: 1 }} numberOfLines={2}>
+                {label(p)}
+              </Text>
+              <Pressable
+                accessibilityLabel={saved ? "Remove from wishlist" : "Save property"}
+                disabled={action.busy}
+                onPress={toggleSave}
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 19,
+                  backgroundColor: saved ? "#FCC61C" : "#F7F4EC",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon name={saved ? "favorite" : "favorite-border"} size={18} color="#14263E" />
+              </Pressable>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+              <Icon name="location-on" size={14} color="rgba(20, 38, 62, 0.55)" />
+              <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "600", color: "rgba(20, 38, 62, 0.62)" }} numberOfLines={1}>
+                {p.location?.district}, {p.location?.state || "Bihar"}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ gap: 2, marginTop: 10 }}>
+            <Text style={{ fontFamily: font, fontSize: 23, fontWeight: "800", color: "#14263E", letterSpacing: -0.5 }}>
+              {money(p.price)}
+            </Text>
+            <Text style={{ fontFamily: font, fontSize: 13, fontWeight: "700", color: "rgba(20, 38, 62, 0.6)" }}>
+              {typeLabel}
+              {areaSqFt > 0 ? ` · ${areaSqFt.toLocaleString("en-IN")} sq.ft` : ""}
+              {p.negotiable ? " · Negotiable" : ""}
+            </Text>
+          </View>
+        </View>
+      </Pressable>
+    );
+  }
+
   return (
     <View style={[s.card, compact && { flexDirection: "row" }, style]}>
       <Pressable
-        style={compact ? { width: 112, minHeight: 130 } : s.photo}
+        style={compact ? { width: 120, minHeight: 136 } : s.photo}
         onPress={openProperty}
       >
         {p.media?.photos?.[0] ? (
@@ -452,48 +600,146 @@ function PropertyCard({
           />
         ) : (
           <View style={[StyleSheet.absoluteFill, s.placeholder]}>
-            <Icon name="home-work" size={48} color="#91a9d4" />
+            <Icon name="home-work" size={48} color="#94A3B8" />
           </View>
         )}
+        {!compact && (
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              ...(Platform.OS === "web"
+                ? { backgroundImage: "linear-gradient(to top, rgba(20,38,62,0.58) 0%, rgba(20,38,62,0.06) 52%, rgba(20,38,62,0.14) 100%)" }
+                : { backgroundColor: "rgba(20,38,62,0.1)" }),
+            } as any}
+          />
+        )}
         <View style={s.imageTags}>
-          <Tag green>✓ Verified</Tag>
-        </View>
-      </Pressable>
-      <View style={[s.cardBody, compact && { flex: 1 }]}>
-        <View style={s.between}>
-          <Text style={s.price}>{money(p.price)}</Text>
-          <Pressable
-            accessibilityLabel={
-              saved ? "Remove from wishlist" : "Save property"
-            }
-            disabled={action.busy}
-            onPress={() => {
-              if (gate())
-                void action.run(async () => {
-                  const result = await userService.toggleWishlist(p._id);
-                  setSaved(result.isWishlisted);
-                  if (result.isWishlisted)
-                    void api
-                      .post(`/recommendations/${p._id}/activity`, {
-                        kind: "save",
-                      })
-                      .catch(() => { });
-                  onSaved?.();
-                });
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              backgroundColor: "rgba(255, 255, 255, 0.96)",
+              paddingHorizontal: 9,
+              paddingVertical: 4,
+              borderRadius: 999,
+              ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(20,38,62,0.14)" } }),
             }}
           >
-            <Icon name={saved ? "favorite" : "favorite-border"} />
-          </Pressable>
+            <Icon name="verified-user" size={13} color="#0B8A3E" />
+            <Text style={{ fontFamily: font, fontSize: 12, fontWeight: "800", color: "#0B8A3E" }}>
+              Verified
+            </Text>
+          </View>
         </View>
+
+        {!compact && (
+          <>
+            <Pressable
+              accessibilityLabel={saved ? "Remove from wishlist" : "Save property"}
+              disabled={action.busy}
+              onPress={toggleSave}
+              style={{
+                position: "absolute",
+                top: 14,
+                right: 14,
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: saved ? "#FCC61C" : "rgba(255, 255, 255, 0.94)",
+                alignItems: "center",
+                justifyContent: "center",
+                ...Platform.select({ web: { boxShadow: "0 4px 12px rgba(20,38,62,0.2)" } }),
+              }}
+            >
+              <Icon name={saved ? "favorite" : "favorite-border"} size={18} color="#14263E" />
+            </Pressable>
+
+            <View
+              style={{
+                position: "absolute",
+                bottom: 14,
+                left: 14,
+                backgroundColor: "#FCC61C",
+                paddingHorizontal: 12,
+                paddingVertical: 5,
+                borderRadius: 999,
+              }}
+            >
+              <Text style={{ fontFamily: font, fontSize: 12, fontWeight: "800", color: "#14263E" }}>
+                0% Brokerage
+              </Text>
+            </View>
+          </>
+        )}
+      </Pressable>
+
+      <View style={[s.cardBody, compact && { flex: 1 }]}>
+        <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+          <Text style={s.price}>{money(p.price)}</Text>
+          {perSqFt > 0 ? (
+            <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "700", color: "rgba(20, 38, 62, 0.52)" }}>
+              ₹{perSqFt.toLocaleString("en-IN")}/sq.ft
+            </Text>
+          ) : compact ? (
+            <Pressable
+              accessibilityLabel={saved ? "Remove from wishlist" : "Save property"}
+              disabled={action.busy}
+              onPress={toggleSave}
+            >
+              <Icon name={saved ? "favorite" : "favorite-border"} color="#14263E" />
+            </Pressable>
+          ) : null}
+        </View>
+
         <Pressable onPress={openProperty}>
-          <Text style={s.cardTitle}>{label(p)}</Text>
+          <Text style={s.cardTitle} numberOfLines={1}>{label(p)}</Text>
         </Pressable>
-        <Text style={s.muted}>
-          {p.location?.district}, {p.location?.state}
-        </Text>
-        <View style={s.row}>
-          <Tag>{p.type}</Tag>
-          <Text style={s.small}>{p.sellableArea || p.totalArea} sq ft</Text>
+
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+          <Icon name="location-on" size={14} color="rgba(20, 38, 62, 0.55)" />
+          <Text style={s.muted} numberOfLines={1}>
+            {p.location?.district}, {p.location?.state || "Bihar"}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            marginTop: 6,
+            paddingTop: 12,
+            borderTopWidth: 1,
+            borderTopColor: "rgba(20, 38, 62, 0.08)",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <Icon name="category" size={14} color="rgba(20, 38, 62, 0.55)" />
+            <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "700", color: "#14263E" }}>
+              {typeLabel}
+            </Text>
+          </View>
+          {Number(p.bedrooms) > 0 && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Icon name="bed" size={14} color="rgba(20, 38, 62, 0.55)" />
+              <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "700", color: "#14263E" }}>
+                {p.bedrooms} Beds
+              </Text>
+            </View>
+          )}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Icon name="square-foot" size={14} color="rgba(20, 38, 62, 0.55)" />
+            <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "700", color: "#14263E" }}>
+              {areaSqFt > 0 ? `${areaSqFt.toLocaleString("en-IN")} sq.ft` : "Verified"}
+            </Text>
+          </View>
         </View>
         <ErrorBox text={action.error} />
       </View>
@@ -509,8 +755,8 @@ const sSlide = StyleSheet.create({
   },
   scrollContent: {
     flexDirection: "row",
-    gap: 18,
-    paddingVertical: 6,
+    gap: 22,
+    paddingVertical: 8,
     paddingHorizontal: 2,
     alignItems: "stretch",
   },
@@ -523,55 +769,158 @@ const sSlide = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: "#FFFFFF",
     borderWidth: 1.5,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(20, 38, 62, 0.1)",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 40,
-    boxShadow: "0 6px 20px rgba(11, 27, 63, 0.18)",
+    boxShadow: "0 10px 24px rgba(20, 38, 62, 0.16)",
     elevation: 8,
     cursor: "pointer" as any,
   },
   floatingArrowBtnHover: {
-    backgroundColor: "#F8FAFC",
-    borderColor: "#0A45B5",
-    transform: [{ scale: 1.08 }],
+    backgroundColor: "#FCC61C",
+    borderColor: "#FCC61C",
+    transform: [{ scale: 1.06 }],
   },
   headerArrowBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#F1F5F9",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(20, 38, 62, 0.12)",
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer" as any,
   },
   arrowBtnDisabled: {
     opacity: 0.35,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#F7F4EC",
   },
   headerRefreshBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingVertical: 5,
-    paddingHorizontal: 9,
-    borderRadius: 14,
-    backgroundColor: "#EFF6FF",
+    gap: 5,
+    paddingVertical: 7,
+    paddingHorizontal: 13,
+    borderRadius: 999,
+    backgroundColor: "#FFF1C0",
     borderWidth: 1,
-    borderColor: "#DBEAFE",
+    borderColor: "rgba(232, 174, 0, 0.35)",
     cursor: "pointer" as any,
   },
   headerRefreshText: {
     fontFamily: font,
-    fontSize: 12,
-    fontWeight: "700",
-    color: C.blue,
+    fontSize: 12.5,
+    fontWeight: "800",
+    color: "#14263E",
   },
 });
 
+function deduplicateProperties(rawList: any[], typeFilter?: string) {
+  const seenKeys = new Set<string>();
+  const deduplicatedList: any[] = [];
+  for (const p of rawList || []) {
+    if (!p?._id) continue;
+    const key = `${(p.title || "").trim().toLowerCase()}|${(p.location?.district || "").trim().toLowerCase()}|${p.price || 0}`;
+    if (!seenKeys.has(p._id) && !seenKeys.has(key)) {
+      seenKeys.add(p._id);
+      seenKeys.add(key);
+      deduplicatedList.push(p);
+    }
+  }
+  return deduplicatedList.filter((p: any) => !typeFilter || p.type === typeFilter);
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  sub,
+  right,
+}: {
+  eyebrow?: string;
+  title: string;
+  sub?: string;
+  right?: React.ReactNode;
+}) {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 640;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+      <View style={{ flex: 1, minWidth: 220, gap: 6 }}>
+        {!!eyebrow && (
+          <Text
+            style={{
+              fontFamily: font,
+              fontSize: 12.5,
+              fontWeight: "800",
+              letterSpacing: 1.8,
+              color: "rgba(20, 38, 62, 0.5)",
+              textTransform: "uppercase",
+            }}
+          >
+            {eyebrow}
+          </Text>
+        )}
+        <Text
+          style={{
+            fontFamily: fontDisplay,
+            fontSize: isCompact ? 32 : 42,
+            lineHeight: isCompact ? 36 : 46,
+            fontWeight: "700",
+            color: "#14263E",
+            letterSpacing: -0.6,
+          }}
+        >
+          {title}
+        </Text>
+        {!!sub && (
+          <Text
+            style={{
+              fontFamily: font,
+              fontSize: 16,
+              lineHeight: 24,
+              fontWeight: "500",
+              color: "rgba(20, 38, 62, 0.62)",
+              maxWidth: 580,
+            }}
+          >
+            {sub}
+          </Text>
+        )}
+      </View>
+      {right}
+    </View>
+  );
+}
+
+function ViewAllPill({ onPress, labelText = "View all" }: { onPress: () => void; labelText?: string }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+    >
+      <Text style={{ fontFamily: font, fontSize: 15, fontWeight: "800", color: "#14263E" }}>
+        {labelText}
+      </Text>
+      <View
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 16,
+          backgroundColor: "#FCC61C",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Icon name="chevron-right" size={18} color="#14263E" />
+      </View>
+    </Pressable>
+  );
+}
+
 function PropertySlideRow({
+  eyebrow,
   title,
   sub,
   badge,
@@ -582,6 +931,7 @@ function PropertySlideRow({
   emptyTitle = "Properties are on their way",
   emptyText = "Verified listings will appear here as they become available.",
 }: {
+  eyebrow?: string;
   title: string;
   sub: string;
   badge?: string;
@@ -599,27 +949,11 @@ function PropertySlideRow({
   const [containerWidth, setContainerWidth] = useState(0);
   const [contentWidth, setContentWidth] = useState(0);
 
-  const cardWidth = width > 1100 ? 350 : width > 768 ? 310 : 280;
-  const gap = 18;
+  const cardWidth = width > 1100 ? 372 : width > 768 ? 330 : 292;
+  const gap = 22;
   const slideStep = cardWidth + gap;
 
-  const rawList = feed?.data || [];
-  // Deduplicate properties by _id and normalized title + district + price
-  const seenKeys = new Set<string>();
-  const deduplicatedList: any[] = [];
-  for (const p of rawList) {
-    if (!p?._id) continue;
-    const key = `${(p.title || "").trim().toLowerCase()}|${(p.location?.district || "").trim().toLowerCase()}|${p.price || 0}`;
-    if (!seenKeys.has(p._id) && !seenKeys.has(key)) {
-      seenKeys.add(p._id);
-      seenKeys.add(key);
-      deduplicatedList.push(p);
-    }
-  }
-
-  const properties = deduplicatedList
-    .filter((p: any) => !typeFilter || p.type === typeFilter)
-    .slice(0, 24);
+  const properties = deduplicateProperties(feed?.data || [], typeFilter).slice(0, 24);
 
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(properties.length >= 4);
@@ -689,91 +1023,86 @@ function PropertySlideRow({
   const buttonSideOffset = width > 1240 ? -14 : 6;
 
   return (
-    <View style={{ gap: 14, position: "relative" }}>
-      <View style={s.between}>
-        <View style={{ flex: 1, paddingRight: 8 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <Text style={s.h2}>{title}</Text>
+    <View style={{ gap: 22, position: "relative" }}>
+      <SectionHeading
+        eyebrow={eyebrow}
+        title={title}
+        sub={sub}
+        right={
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             {!!badge && (
               <View
                 style={{
-                  backgroundColor: "#EFF6FF",
-                  paddingHorizontal: 10,
-                  paddingVertical: 3,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: "#DBEAFE",
+                  backgroundColor: "#FFF1C0",
+                  paddingHorizontal: 12,
+                  paddingVertical: 5,
+                  borderRadius: 999,
                 }}
               >
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#0A45B5", fontFamily: font }}>
+                <Text style={{ fontSize: 12, fontWeight: "800", color: "#14263E", fontFamily: font }}>
                   {badge}
                 </Text>
               </View>
             )}
+            {properties.length > 0 && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={`Previous ${title}`}
+                  disabled={!canScrollLeft}
+                  onPress={() => slide("left")}
+                  style={[
+                    sSlide.headerArrowBtn,
+                    !canScrollLeft && sSlide.arrowBtnDisabled,
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons
+                    name="chevron-left"
+                    size={20}
+                    color={canScrollLeft ? "#14263E" : "#94a3b8"}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={`Next ${title}`}
+                  disabled={!canScrollRight}
+                  onPress={() => slide("right")}
+                  style={[
+                    sSlide.headerArrowBtn,
+                    !canScrollRight && sSlide.arrowBtnDisabled,
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={20}
+                    color={canScrollRight ? "#14263E" : "#94a3b8"}
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
+            {!!onRefresh && (
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Refresh recommendations"
+                onPress={onRefresh}
+                style={sSlide.headerRefreshBtn}
+                activeOpacity={0.75}
+              >
+                <MaterialIcons name="refresh" size={16} color="#14263E" />
+                <Text style={sSlide.headerRefreshText}>Refresh</Text>
+              </TouchableOpacity>
+            )}
+            {headerRight || (
+              <ViewAllPill onPress={() => router.push("/search")} />
+            )}
           </View>
-          <Text style={s.small}>{sub}</Text>
-        </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          {properties.length > 0 && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel={`Previous ${title}`}
-                disabled={!canScrollLeft}
-                onPress={() => slide("left")}
-                style={[
-                  sSlide.headerArrowBtn,
-                  !canScrollLeft && sSlide.arrowBtnDisabled,
-                ]}
-                activeOpacity={0.7}
-              >
-                <MaterialIcons
-                  name="chevron-left"
-                  size={20}
-                  color={canScrollLeft ? C.blue : "#94a3b8"}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel={`Next ${title}`}
-                disabled={!canScrollRight}
-                onPress={() => slide("right")}
-                style={[
-                  sSlide.headerArrowBtn,
-                  !canScrollRight && sSlide.arrowBtnDisabled,
-                ]}
-                activeOpacity={0.7}
-              >
-                <MaterialIcons
-                  name="chevron-right"
-                  size={20}
-                  color={canScrollRight ? C.blue : "#94a3b8"}
-                />
-              </TouchableOpacity>
-            </View>
-          )}
-          {!!onRefresh && (
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel="Refresh recommendations"
-              onPress={onRefresh}
-              style={sSlide.headerRefreshBtn}
-              activeOpacity={0.7}
-            >
-              <MaterialIcons name="refresh" size={16} color={C.blue} />
-              <Text style={sSlide.headerRefreshText}>Refresh</Text>
-            </TouchableOpacity>
-          )}
-          {headerRight || (
-            <Pressable onPress={() => router.push("/search")}>
-              <Text style={s.link}>View all →</Text>
-            </Pressable>
-          )}
-        </View>
-      </View>
+        }
+      />
 
       {feed?.loading ? (
-        <ActivityIndicator color={C.blue} style={{ padding: 24 }} />
+        <ActivityIndicator color="#14263E" style={{ padding: 28 }} />
       ) : feed?.error ? (
         <ErrorBox text={feed.error} onRetry={feed.refresh} />
       ) : !properties.length ? (
@@ -792,7 +1121,7 @@ function PropertySlideRow({
                 hovered && sSlide.floatingArrowBtnHover,
               ]}
             >
-              <MaterialIcons name="chevron-left" size={28} color="#0A45B5" />
+              <MaterialIcons name="chevron-left" size={28} color="#14263E" />
             </Pressable>
           )}
 
@@ -808,7 +1137,7 @@ function PropertySlideRow({
                 hovered && sSlide.floatingArrowBtnHover,
               ]}
             >
-              <MaterialIcons name="chevron-right" size={28} color="#0A45B5" />
+              <MaterialIcons name="chevron-right" size={28} color="#14263E" />
             </Pressable>
           )}
 
@@ -982,333 +1311,1196 @@ export function HomeScreen() {
     trending = useData("/recommendations?mode=trending"),
     { width } = useWindowDimensions();
 
+  const isMobile = width < 640;
+  const isTablet = width >= 640 && width < 960;
+  const isDesktop = width >= 960;
+  const showHeroShowcase = width >= 1100;
+
+  const recommendedList = deduplicateProperties(personal.data || [], type).slice(0, 6);
+  const newPropertiesList = deduplicateProperties(recent.data || [], type).slice(0, 4);
+
+  const heroPool = deduplicateProperties(
+    [...(personal.data || []), ...(trending.data || []), ...(recent.data || [])]
+  );
+  const showcasePrimary = heroPool[0];
+  const showcaseSecondary = heroPool[1];
+
+  const browseCategories = [
+    { id: "", title: "All Spaces", count: "Verified only", icon: "domain" },
+    { id: "flat", title: "Apartments", count: "Flats & 2/3 BHK", icon: "apartment" },
+    { id: "house", title: "Houses", count: "Homes & Villas", icon: "home" },
+    { id: "land", title: "Plots & Land", count: "Residential & agri", icon: "landscape" },
+    { id: "shop", title: "Commercial", count: "Retail & shops", icon: "storefront" },
+    { id: "office", title: "Offices", count: "Workspaces", icon: "business" },
+  ];
+
+  const wrapContainer = {
+    width: "100%" as const,
+    maxWidth: 1240,
+    alignSelf: "center" as const,
+    paddingHorizontal: isMobile ? 16 : 24,
+  };
+
   return (
-    <MarketplaceShell>
-      <View style={s.heroContainer}>
-        {/* Top Trust Eyebrow */}
-        <View style={s.heroBadgeRow}>
-          <View style={s.heroBadge}>
-            <Icon name="verified" size={14} color={C.blue} />
-            <Text style={s.heroBadgeText}>
-              100% ON-GROUND & DOCUMENT-VERIFIED SPACES
-            </Text>
-          </View>
-        </View>
-
-        {/* Heading & Subtitle */}
-        <View style={{ gap: 6 }}>
-          <Text style={s.heroHeading}>
-            {`Hello, ${user ? user.name.split(" ")[0] : "welcome"} 👋`}
-          </Text>
-          <Text style={s.heroSubheading}>
-            Find verified plots, homes & commercial spaces in Bihar with transparent pricing and legal clarity.
-          </Text>
-        </View>
-
-        {/* Segmented Luxury Search Console */}
+    <MarketplaceShell fullBleed>
+      {/* ═══════════════════════════════════════════════════════════════
+          1. HERO SECTION (Deep Navy #14263E with Sun Orb & Search Console)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View
+        style={{
+          backgroundColor: "#14263E",
+          position: "relative",
+          overflow: "hidden",
+          paddingTop: isMobile ? 36 : 58,
+          paddingBottom: isMobile ? 84 : 112,
+        }}
+      >
+        {/* Signature Geometric Accents (.whero::before / ::after) */}
         <View
-          style={[
-            s.searchConsole,
-            width < 768 && { flexDirection: "column", alignItems: "stretch", padding: 10 },
-          ]}
-        >
-          <View
-            style={[
-              s.searchSegmentLocation,
-              { flex: 1 },
-              focusedField === "location" && s.searchSegmentFocused,
-            ]}
-          >
-            <View
-              style={[
-                s.searchSegmentIconWrap,
-                focusedField === "location" && { backgroundColor: "#DBEAFE" },
-              ]}
-            >
-              <Icon name="location-on" size={19} color={C.blue} />
-            </View>
-            <View style={{ flex: 1, gap: 1 }}>
-              <Text
-                style={[
-                  s.searchSegmentLabel,
-                  focusedField === "location" && { color: "#0A45B5" },
-                ]}
-              >
-                LOCATION
-              </Text>
-              <TextInput
-                accessibilityLabel="Location or District"
-                placeholder="District (e.g. Patna, Gaya...)"
-                placeholderTextColor="#94a3b8"
-                value={locationInput}
-                onChangeText={setLocationInput}
-                onFocus={() => setFocusedField("location")}
-                onBlur={() => setFocusedField(null)}
-                style={s.searchTextInput}
-                onSubmitEditing={handleSearch}
-              />
-            </View>
-            {!!locationInput && (
-              <TouchableOpacity
-                onPress={() => setLocationInput("")}
-                style={s.searchClearBtn}
-                accessibilityLabel="Clear location"
-              >
-                <Icon name="close" size={14} color="#64748B" />
-              </TouchableOpacity>
-            )}
-          </View>
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            right: isMobile ? -120 : -110,
+            top: isMobile ? -170 : -190,
+            width: isMobile ? 340 : 500,
+            height: isMobile ? 340 : 500,
+            borderRadius: 250,
+            backgroundColor: "#FCC61C",
+          }}
+        />
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            right: isMobile ? 90 : 300,
+            top: isMobile ? 60 : 80,
+            width: isMobile ? 110 : 190,
+            height: isMobile ? 340 : 620,
+            borderRadius: 100,
+            backgroundColor: "#1C3556",
+            transform: [{ rotate: "-30deg" }],
+          }}
+        />
 
-          {width >= 768 ? (
-            <View style={s.searchDivider} />
-          ) : (
-            <View style={{ height: 1, backgroundColor: "#e2e8f0", marginVertical: 6 }} />
-          )}
-
-          <View
-            style={[
-              s.searchSegmentInput,
-              { flex: 1.4 },
-              focusedField === "query" && s.searchSegmentFocused,
-              width < 768 && { paddingHorizontal: 4 },
-            ]}
-          >
-            <View
-              style={[
-                s.searchSegmentIconWrap,
-                focusedField === "query" && { backgroundColor: "#DBEAFE" },
-              ]}
-            >
-              <Icon
-                name="search"
-                size={19}
-                color={focusedField === "query" ? C.blue : "#64748B"}
-              />
-            </View>
-            <View style={{ flex: 1, gap: 1 }}>
-              <Text
-                style={[
-                  s.searchSegmentLabel,
-                  focusedField === "query" && { color: "#0A45B5" },
-                ]}
-              >
-                SEARCH PROPERTY
-              </Text>
-              <TextInput
-                accessibilityLabel="Search property"
-                placeholder="City, locality, road corridor or ID..."
-                placeholderTextColor="#94a3b8"
-                value={query}
-                onChangeText={setQuery}
-                onFocus={() => setFocusedField("query")}
-                onBlur={() => setFocusedField(null)}
-                style={s.searchTextInput}
-                onSubmitEditing={handleSearch}
-              />
-            </View>
-            {!!query && (
-              <TouchableOpacity
-                onPress={() => setQuery("")}
-                style={s.searchClearBtn}
-                accessibilityLabel="Clear query"
-              >
-                <Icon name="close" size={14} color="#64748B" />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Search"
-            onPress={handleSearch}
-            style={[s.searchSubmitBtn, width < 768 && { marginTop: 8, justifyContent: "center" }]}
-            activeOpacity={0.85}
-          >
-            <Icon name="search" size={18} color="white" />
-            <Text style={s.searchSubmitBtnText}>Search</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Quick Popular Districts Selector */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingVertical: 2, alignItems: "center" }}
-        >
-          <Text
-            style={{
-              fontSize: 11,
-              fontWeight: "700",
-              color: "#64748B",
-              marginRight: 4,
-              fontFamily: font,
-            }}
-          >
-            Popular:
-          </Text>
-          {popularDistricts.map((d) => {
-            const isSelected =
-              (d === "All Bihar" && (!locationInput || locationInput.toLowerCase() === "all bihar")) ||
-              locationInput.toLowerCase() === d.toLowerCase();
-            return (
-              <TouchableOpacity
-                key={d}
-                onPress={() => {
-                  const nextVal = d === "All Bihar" ? "" : d;
-                  setLocationInput(nextVal);
-                  if (nextVal) saveInterest(nextVal, type);
-                  setRefreshSeed(Date.now());
-                }}
+        <View style={[wrapContainer, { position: "relative", zIndex: 2 }]}>
+          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 36 }}>
+            {/* Left Editorial + Interactive Search Console */}
+            <View style={{ flex: 1, maxWidth: showHeroShowcase ? 740 : "100%", gap: 22 }}>
+              {/* Trust Badge Pill */}
+              <View
                 style={{
-                  paddingVertical: 5,
-                  paddingHorizontal: 12,
-                  borderRadius: 14,
-                  backgroundColor: isSelected ? "#0A45B5" : "#FFFFFF",
+                  alignSelf: "flex-start",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  backgroundColor: "rgba(255, 255, 255, 0.10)",
                   borderWidth: 1,
-                  borderColor: isSelected ? "#0A45B5" : "#E2E8F0",
+                  borderColor: "rgba(255, 255, 255, 0.16)",
+                  paddingHorizontal: 15,
+                  paddingVertical: 8,
+                  borderRadius: 999,
                 }}
+              >
+                <Icon name="verified-user" size={16} color="#FCC61C" />
+                <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "700", color: "#FCC61C" }}>
+                  {user
+                    ? `Hello, ${user.name.split(" ")[0]} · Verified owner-to-buyer marketplace`
+                    : "India's verified owner-to-buyer marketplace"}
+                </Text>
+              </View>
+
+              {/* Editorial Fraunces Hero Headline */}
+              <View style={{ gap: 14 }}>
+                <Text
+                  style={{
+                    fontFamily: fontDisplay,
+                    fontSize: isMobile ? 42 : 64,
+                    lineHeight: isMobile ? 45 : 67,
+                    fontWeight: "700",
+                    color: "#FFFFFF",
+                    letterSpacing: -1.4,
+                  }}
+                >
+                  {"Find a home,\n"}
+                  <Text style={{ color: "#FCC61C" }}>direct from the owner.</Text>
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: font,
+                    fontSize: isMobile ? 16 : 18.5,
+                    lineHeight: isMobile ? 25 : 28,
+                    fontWeight: "500",
+                    color: "rgba(255, 255, 255, 0.74)",
+                    maxWidth: 540,
+                  }}
+                >
+                  No brokers. No commission. Every owner and every title is verified before you ever see the listing.
+                </Text>
+              </View>
+
+              {/* Interactive Search Console Card */}
+              <View
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 22,
+                  padding: 12,
+                  gap: 10,
+                  marginTop: 6,
+                  maxWidth: 750,
+                  ...Platform.select({
+                    web: {
+                      boxShadow: "0 1px 0 rgba(20,38,62,.05), 0 24px 48px -18px rgba(12,26,44,.55)",
+                    },
+                  }),
+                }}
+              >
+                {/* Segmented Category Quick-Tabs (.seg) */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{
+                    flexDirection: "row",
+                    gap: 4,
+                    backgroundColor: "#F7F4EC",
+                    padding: 4,
+                    borderRadius: 14,
+                  }}
+                >
+                  {[
+                    ["", "All"],
+                    ["flat", "Apartments"],
+                    ["house", "Houses"],
+                    ["land", "Plots"],
+                    ["shop", "Commercial"],
+                  ].map(([id, labelTxt]) => {
+                    const active = type === id;
+                    return (
+                      <Pressable
+                        key={id || "all"}
+                        onPress={() => {
+                          const next = active && id !== "" ? "" : id;
+                          setType(next);
+                          if (next) saveInterest(locationInput, next);
+                          setRefreshSeed(Date.now());
+                        }}
+                        style={{
+                          paddingHorizontal: 18,
+                          paddingVertical: 9,
+                          borderRadius: 11,
+                          backgroundColor: active ? "#14263E" : "transparent",
+                          ...Platform.select({
+                            web: active ? { boxShadow: "0 8px 16px -8px rgba(20,38,62,.6)" } : {},
+                          }),
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontFamily: font,
+                            fontSize: 13.5,
+                            fontWeight: "800",
+                            color: active ? "#FCC61C" : "rgba(20, 38, 62, 0.62)",
+                          }}
+                        >
+                          {labelTxt}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Inputs + Sun Gold Search CTA */}
+                <View
+                  style={{
+                    flexDirection: isMobile ? "column" : "row",
+                    alignItems: isMobile ? "stretch" : "center",
+                    gap: 6,
+                  }}
+                >
+                  <View
+                    style={[
+                      s.searchSegmentLocation,
+                      { flex: 1, minWidth: 160 },
+                      focusedField === "location" && { backgroundColor: "#F7F4EC" },
+                    ]}
+                  >
+                    <Icon name="location-on" size={22} color="rgba(20, 38, 62, 0.55)" />
+                    <View style={{ flex: 1, gap: 1 }}>
+                      <Text style={{ fontFamily: font, fontSize: 11, fontWeight: "800", letterSpacing: 1.4, color: "rgba(20, 38, 62, 0.45)" }}>
+                        LOCATION
+                      </Text>
+                      <TextInput
+                        accessibilityLabel="Location or District"
+                        placeholder="District (Patna, Gaya...)"
+                        placeholderTextColor="rgba(20, 38, 62, 0.42)"
+                        value={locationInput}
+                        onChangeText={setLocationInput}
+                        onFocus={() => setFocusedField("location")}
+                        onBlur={() => setFocusedField(null)}
+                        style={s.searchTextInput}
+                        onSubmitEditing={handleSearch}
+                      />
+                    </View>
+                    {!!locationInput && (
+                      <TouchableOpacity
+                        onPress={() => setLocationInput("")}
+                        style={s.searchClearBtn}
+                        accessibilityLabel="Clear location"
+                      >
+                        <Icon name="close" size={14} color="#14263E" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {!isMobile ? (
+                    <View style={{ width: 1, height: 38, backgroundColor: "rgba(20, 38, 62, 0.12)" }} />
+                  ) : (
+                    <View style={{ height: 1, backgroundColor: "rgba(20, 38, 62, 0.1)" }} />
+                  )}
+
+                  <View
+                    style={[
+                      s.searchSegmentInput,
+                      { flex: 1.35 },
+                      focusedField === "query" && { backgroundColor: "#F7F4EC" },
+                    ]}
+                  >
+                    <Icon name="search" size={22} color="rgba(20, 38, 62, 0.55)" />
+                    <View style={{ flex: 1, gap: 1 }}>
+                      <Text style={{ fontFamily: font, fontSize: 11, fontWeight: "800", letterSpacing: 1.4, color: "rgba(20, 38, 62, 0.45)" }}>
+                        PROPERTY OR AREA
+                      </Text>
+                      <TextInput
+                        accessibilityLabel="Search property"
+                        placeholder="Locality, road corridor or ID..."
+                        placeholderTextColor="rgba(20, 38, 62, 0.42)"
+                        value={query}
+                        onChangeText={setQuery}
+                        onFocus={() => setFocusedField("query")}
+                        onBlur={() => setFocusedField(null)}
+                        style={s.searchTextInput}
+                        onSubmitEditing={handleSearch}
+                      />
+                    </View>
+                    {!!query && (
+                      <TouchableOpacity
+                        onPress={() => setQuery("")}
+                        style={s.searchClearBtn}
+                        accessibilityLabel="Clear query"
+                      >
+                        <Icon name="close" size={14} color="#14263E" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Search"
+                    onPress={handleSearch}
+                    activeOpacity={0.88}
+                    style={{
+                      height: 58,
+                      paddingHorizontal: 26,
+                      borderRadius: 16,
+                      backgroundColor: "#FCC61C",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      ...Platform.select({
+                        web: {
+                          boxShadow: "0 14px 24px -12px rgba(232,174,0,.9), inset 0 1px 0 rgba(255,255,255,.5)",
+                        },
+                      }),
+                    }}
+                  >
+                    <Icon name="search" size={19} color="#14263E" />
+                    <Text style={{ fontFamily: font, fontSize: 16, fontWeight: "800", color: "#14263E" }}>
+                      Search
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Quick Popular Bihar Districts Selector */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingVertical: 2, alignItems: "center" }}
               >
                 <Text
                   style={{
                     fontSize: 12,
-                    fontWeight: isSelected ? "700" : "600",
-                    color: isSelected ? "#FFFFFF" : "#475569",
+                    fontWeight: "800",
+                    color: "rgba(255, 255, 255, 0.65)",
+                    marginRight: 4,
                     fontFamily: font,
                   }}
                 >
-                  {d}
+                  Popular:
                 </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                {popularDistricts.map((d) => {
+                  const isSelected =
+                    (d === "All Bihar" && (!locationInput || locationInput.toLowerCase() === "all bihar")) ||
+                    locationInput.toLowerCase() === d.toLowerCase();
+                  return (
+                    <TouchableOpacity
+                      key={d}
+                      onPress={() => {
+                        const nextVal = d === "All Bihar" ? "" : d;
+                        setLocationInput(nextVal);
+                        if (nextVal) saveInterest(nextVal, type);
+                        setRefreshSeed(Date.now());
+                      }}
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 14,
+                        borderRadius: 999,
+                        backgroundColor: isSelected ? "#FCC61C" : "rgba(255, 255, 255, 0.10)",
+                        borderWidth: 1,
+                        borderColor: isSelected ? "#FCC61C" : "rgba(255, 255, 255, 0.16)",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 12.5,
+                          fontWeight: isSelected ? "800" : "600",
+                          color: isSelected ? "#14263E" : "rgba(255, 255, 255, 0.85)",
+                          fontFamily: font,
+                        }}
+                      >
+                        {d}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
 
-        {/* Category Filter Pills */}
-        <View style={s.categoryPillsRow}>
-          {types.map(([id, text, icon]) => {
-            const isSelected = type === id;
-            return (
-              <Pressable
-                key={id}
-                onPress={() => {
-                  const nextType = isSelected ? "" : id;
-                  setType(nextType);
-                  if (nextType) saveInterest(locationInput, nextType);
-                  setRefreshSeed(Date.now());
-                }}
-                style={[
-                  s.categoryPill,
-                  isSelected && s.categoryPillActive,
-                ]}
-              >
-                <Icon
-                  name={icon}
-                  color={isSelected ? "white" : "#475569"}
-                  size={15}
-                />
-                <Text
-                  style={[
-                    s.categoryPillText,
-                    isSelected && s.categoryPillTextActive,
-                  ]}
+            {/* Right Desktop Floating Verified Property Cards Cluster */}
+            {showHeroShowcase && (
+              <View style={{ width: 420, height: 470, position: "relative", flexShrink: 0 }}>
+                {/* Top-Right Rotated Card */}
+                <Pressable
+                  onPress={() => showcasePrimary?._id ? router.push(`/property/${showcasePrimary._id}` as any) : router.push("/search")}
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: 6,
+                    width: 276,
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: 22,
+                    overflow: "hidden",
+                    transform: [{ rotate: "3deg" }],
+                    ...Platform.select({
+                      web: { boxShadow: "0 24px 48px -16px rgba(12, 26, 44, 0.5)" },
+                    }),
+                  }}
                 >
-                  {text}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+                  <View style={{ height: 176, backgroundColor: "#E9E4D5", position: "relative" }}>
+                    <Image
+                      source={{
+                        uri:
+                          getOptimizedPhotoUrl(showcasePrimary?.media?.photos?.[0], 500) ||
+                          "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80",
+                      }}
+                      style={StyleSheet.absoluteFill}
+                      resizeMode="cover"
+                    />
+                    <View
+                      style={{
+                        position: "absolute",
+                        top: 12,
+                        left: 12,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                        backgroundColor: "rgba(255,255,255,0.96)",
+                        paddingHorizontal: 9,
+                        paddingVertical: 4,
+                        borderRadius: 999,
+                      }}
+                    >
+                      <Icon name="verified-user" size={13} color="#0B8A3E" />
+                      <Text style={{ fontFamily: font, fontSize: 12, fontWeight: "800", color: "#0B8A3E" }}>
+                        Verified
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ padding: 15 }}>
+                    <Text style={{ fontFamily: font, fontSize: 21, fontWeight: "800", color: "#14263E" }}>
+                      {showcasePrimary ? money(showcasePrimary.price) : "₹65 Lakh"}
+                    </Text>
+                    <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "700", color: "rgba(20,38,62,0.7)", marginTop: 2 }} numberOfLines={1}>
+                      {showcasePrimary
+                        ? `${label(showcasePrimary)} · ${showcasePrimary.location?.district || "Bihar"}`
+                        : "Verified 3 BHK · Patna"}
+                    </Text>
+                  </View>
+                </Pressable>
 
-        {/* Trust Points Strip */}
-        <View style={s.heroTrustStrip}>
-          <View style={s.trustItem}>
-            <Icon name="check-circle" size={15} color="#10b981" />
-            <Text style={s.trustItemText}>Title & Deed Verified</Text>
-          </View>
-          <View style={s.trustDot} />
-          <View style={s.trustItem}>
-            <Icon name="my-location" size={15} color={C.blue} />
-            <Text style={s.trustItemText}>Cadastral Map Boundary</Text>
-          </View>
-          <View style={s.trustDot} />
-          <View style={s.trustItem}>
-            <Icon name="support-agent" size={15} color="#f59e0b" />
-            <Text style={s.trustItemText}>Dedicated Property Verifier</Text>
+                {/* Bottom-Left Rotated Card */}
+                <Pressable
+                  onPress={() => showcaseSecondary?._id ? router.push(`/property/${showcaseSecondary._id}` as any) : router.push("/search")}
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: 244,
+                    width: 244,
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: 22,
+                    overflow: "hidden",
+                    transform: [{ rotate: "-4deg" }],
+                    ...Platform.select({
+                      web: { boxShadow: "0 24px 48px -16px rgba(12, 26, 44, 0.5)" },
+                    }),
+                  }}
+                >
+                  <View style={{ height: 132, backgroundColor: "#E9E4D5", position: "relative" }}>
+                    <Image
+                      source={{
+                        uri:
+                          getOptimizedPhotoUrl(showcaseSecondary?.media?.photos?.[0], 450) ||
+                          "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80",
+                      }}
+                      style={StyleSheet.absoluteFill}
+                      resizeMode="cover"
+                    />
+                    <View
+                      style={{
+                        position: "absolute",
+                        top: 10,
+                        left: 10,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                        backgroundColor: "rgba(255,255,255,0.96)",
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 999,
+                      }}
+                    >
+                      <Icon name="verified-user" size={12} color="#0B8A3E" />
+                      <Text style={{ fontFamily: font, fontSize: 11.5, fontWeight: "800", color: "#0B8A3E" }}>
+                        Verified
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ padding: 14 }}>
+                    <Text style={{ fontFamily: font, fontSize: 19, fontWeight: "800", color: "#14263E" }}>
+                      {showcaseSecondary ? money(showcaseSecondary.price) : "₹42 Lakh"}
+                    </Text>
+                    <Text style={{ fontFamily: font, fontSize: 13, fontWeight: "700", color: "rgba(20,38,62,0.7)", marginTop: 2 }} numberOfLines={1}>
+                      {showcaseSecondary
+                        ? `${label(showcaseSecondary)} · ${showcaseSecondary.location?.district || "Bihar"}`
+                        : "Verified Plot · Danapur"}
+                    </Text>
+                  </View>
+                </Pressable>
+
+                {/* Bottom-Right Floating Legal Seal Pill */}
+                <View
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: 322,
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: 20,
+                    paddingHorizontal: 18,
+                    paddingVertical: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                    ...Platform.select({
+                      web: { boxShadow: "0 20px 40px -12px rgba(12, 26, 44, 0.45)" },
+                    }),
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 22,
+                      backgroundColor: "#FCC61C",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Icon name="verified-user" size={22} color="#14263E" />
+                  </View>
+                  <View>
+                    <Text style={{ fontFamily: font, fontSize: 14.5, fontWeight: "800", color: "#14263E" }}>
+                      Title verified
+                    </Text>
+                    <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "600", color: "rgba(20,38,62,0.58)" }}>
+                      by MalikSe legal team
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
           </View>
         </View>
       </View>
 
-      {/* Live Search Results Section (Renders immediately when searching/filtering on Home) */}
-      {hasActiveSearch && (
-        <PropertySlideRow
-          title="Search Results"
-          badge={`${liveSearchResults.data?.length ?? 0} Found`}
-          sub={
-            `${query.trim() ? `Matching "${query.trim()}"` : "All listings"}${activeDistrictParam ? ` in ${activeDistrictParam}` : ""
-            }${type ? ` · ${types.find((t) => t[0] === type)?.[1] || type}` : ""}`
-          }
-          feed={liveSearchResults}
-          emptyTitle="No properties found"
-          emptyText={`No matching verified spaces for "${query || activeDistrictParam}". Try searching by another district or keyword.`}
-          headerRight={
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <TouchableOpacity
-                onPress={() => {
-                  setQuery("");
-                  setLocationInput("");
-                  setType("");
-                }}
+      {/* ═══════════════════════════════════════════════════════════════
+          2. FLOATING 4-COLUMN STATS RIBBON (-mt-14 overlapping hero)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapContainer, { marginTop: -46, position: "relative", zIndex: 10 }]}>
+        <View
+          style={{
+            backgroundColor: "#FFFFFF",
+            borderRadius: 22,
+            borderWidth: 1,
+            borderColor: "rgba(20, 38, 62, 0.06)",
+            paddingVertical: isMobile ? 20 : 28,
+            paddingHorizontal: 12,
+            flexDirection: "row",
+            flexWrap: "wrap",
+            ...Platform.select({
+              web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 18px 38px -18px rgba(20,38,62,.32)" },
+            }),
+          }}
+        >
+          {[
+            ["100% KYC", "Verified owners"],
+            ["₹0", "Brokerage, always"],
+            ["48 hrs", "Legal title check"],
+            ["38 Districts", "Serving all Bihar"],
+          ].map(([stat, desc], idx) => (
+            <View
+              key={stat}
+              style={{
+                width: isDesktop ? "25%" : "50%",
+                alignItems: "center",
+                paddingHorizontal: 14,
+                paddingVertical: isDesktop ? 4 : 12,
+                borderRightWidth: isDesktop && idx < 3 ? 1 : 0,
+                borderRightColor: "rgba(20, 38, 62, 0.08)",
+              }}
+            >
+              <Text
                 style={{
-                  paddingVertical: 4,
-                  paddingHorizontal: 10,
-                  backgroundColor: "#F1F5F9",
-                  borderRadius: 10,
+                  fontFamily: font,
+                  fontSize: isMobile ? 26 : 34,
+                  fontWeight: "800",
+                  color: "#14263E",
+                  letterSpacing: -0.6,
                 }}
               >
-                <Text style={{ fontSize: 12, fontWeight: "600", color: "#475569", fontFamily: font }}>
-                  Reset Filters
+                {stat}
+              </Text>
+              <Text
+                style={{
+                  fontFamily: font,
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: "rgba(20, 38, 62, 0.56)",
+                  marginTop: 4,
+                  textAlign: "center",
+                }}
+              >
+                {desc}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          3. LIVE SEARCH RESULTS (Shown dynamically when filtering)
+      ═══════════════════════════════════════════════════════════════ */}
+      {hasActiveSearch && (
+        <View style={[wrapContainer, { marginTop: 48 }]}>
+          <PropertySlideRow
+            eyebrow="LIVE RESULTS"
+            title="Search Results"
+            badge={`${liveSearchResults.data?.length ?? 0} Found`}
+            sub={
+              `${query.trim() ? `Matching "${query.trim()}"` : "All listings"}${activeDistrictParam ? ` in ${activeDistrictParam}` : ""
+              }${type ? ` · ${types.find((t) => t[0] === type)?.[1] || type}` : ""}`
+            }
+            feed={liveSearchResults}
+            emptyTitle="No properties found"
+            emptyText={`No matching verified spaces for "${query || activeDistrictParam}". Try searching by another district or keyword.`}
+            headerRight={
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setQuery("");
+                    setLocationInput("");
+                    setType("");
+                  }}
+                  style={{
+                    paddingVertical: 7,
+                    paddingHorizontal: 13,
+                    backgroundColor: "#FFF1C0",
+                    borderRadius: 999,
+                  }}
+                >
+                  <Text style={{ fontSize: 12.5, fontWeight: "800", color: "#14263E", fontFamily: font }}>
+                    Reset Filters
+                  </Text>
+                </TouchableOpacity>
+                <ViewAllPill onPress={handleSearch} labelText="Open in Map" />
+              </View>
+            }
+          />
+        </View>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+          4. BROWSE BY TYPE (6 Interactive Property Cards)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapContainer, { marginTop: isMobile ? 48 : 76, gap: 28 }]}>
+        <SectionHeading
+          eyebrow="BROWSE BY TYPE"
+          title="What are you looking for?"
+          right={<ViewAllPill onPress={() => router.push("/search")} />}
+        />
+
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 18,
+          }}
+        >
+          {browseCategories.map((cat) => {
+            const isSelected = type === cat.id && cat.id !== "";
+            const cardBasis = width >= 1060 ? "15.1%" : isTablet ? "31.2%" : "47%";
+            return (
+              <Pressable
+                key={cat.title}
+                onPress={() => {
+                  const nextType = cat.id === "" ? "" : isSelected ? "" : cat.id;
+                  setType(nextType);
+                  if (nextType) saveInterest(locationInput, nextType);
+                  setRefreshSeed(Date.now());
+                }}
+                style={({ hovered }: any) => [
+                  {
+                    flexGrow: 1,
+                    flexBasis: cardBasis as any,
+                    minWidth: 140,
+                    backgroundColor: isSelected ? "#14263E" : "#FFFFFF",
+                    borderRadius: 22,
+                    paddingVertical: 24,
+                    paddingHorizontal: 14,
+                    alignItems: "center",
+                    gap: 12,
+                    borderWidth: 1,
+                    borderColor: isSelected ? "#14263E" : "rgba(20, 38, 62, 0.06)",
+                    ...Platform.select({
+                      web: {
+                        boxShadow: hovered
+                          ? "0 1px 0 rgba(20,38,62,.05), 0 26px 44px -20px rgba(20,38,62,.35)"
+                          : "0 1px 0 rgba(20,38,62,.04), 0 16px 34px -20px rgba(20,38,62,.28)",
+                        transition: "transform 0.24s cubic-bezier(.2,.7,.2,1), box-shadow 0.24s",
+                        ...(hovered ? { transform: [{ translateY: -4 }] } : {}),
+                      } as any,
+                    }),
+                  },
+                ]}
+              >
+                <View
+                  style={{
+                    width: 62,
+                    height: 62,
+                    borderRadius: 20,
+                    backgroundColor: "#FCC61C",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Icon name={cat.icon} size={30} color="#14263E" />
+                </View>
+                <Text
+                  style={{
+                    fontFamily: font,
+                    fontSize: 16.5,
+                    fontWeight: "800",
+                    color: isSelected ? "#FFFFFF" : "#14263E",
+                    textAlign: "center",
+                  }}
+                >
+                  {cat.title}
                 </Text>
-              </TouchableOpacity>
-              <Pressable onPress={handleSearch}>
-                <Text style={s.link}>Open in Map / Explore →</Text>
+                <Text
+                  style={{
+                    fontFamily: font,
+                    fontSize: 13,
+                    fontWeight: "600",
+                    color: isSelected ? "#FCC61C" : "rgba(20, 38, 62, 0.52)",
+                    textAlign: "center",
+                  }}
+                >
+                  {cat.count}
+                </Text>
               </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          5. RECOMMENDED FOR YOU ("Homes picked for you" 3-Column Grid)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapContainer, { marginTop: isMobile ? 56 : 84, gap: 28 }]}>
+        <SectionHeading
+          eyebrow="RECOMMENDED"
+          title="Homes picked for you"
+          sub={
+            activeDistrictParam || prefs.district
+              ? `Based on what you explored in ${activeDistrictParam || prefs.district} and nearby.`
+              : "Inspired by verified searches and top owner listings."
+          }
+          right={
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Refresh recommendations"
+                onPress={() => setRefreshSeed(Date.now())}
+                style={sSlide.headerRefreshBtn}
+                activeOpacity={0.75}
+              >
+                <MaterialIcons name="refresh" size={16} color="#14263E" />
+                <Text style={sSlide.headerRefreshText}>Refresh</Text>
+              </TouchableOpacity>
+              <ViewAllPill onPress={() => router.push("/search")} />
             </View>
           }
         />
-      )}
 
-      {[
-        [
-          "Recommended for You",
-          "Inspired by your searches and wishlist",
-          personal,
-          true,
-        ],
-        ["New Properties", "Recently verified and published", recent, false],
-        [
-          "Trending Properties",
-          "Popular with property seekers this week",
-          trending,
-          false,
-        ],
-      ].map(([title, sub, feed, isRec]: any) => (
-        <PropertySlideRow
-          key={title}
-          title={title}
-          sub={sub}
-          feed={feed}
-          typeFilter={type}
-          onRefresh={isRec ? () => setRefreshSeed(Date.now()) : undefined}
+        {personal.loading ? (
+          <ActivityIndicator color="#14263E" style={{ padding: 36 }} />
+        ) : personal.error ? (
+          <ErrorBox text={personal.error} onRetry={personal.refresh} />
+        ) : !recommendedList.length ? (
+          <Empty
+            title="Properties are on their way"
+            text="Verified recommendations will appear here as listings match your criteria."
+          />
+        ) : isDesktop ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 24 }}>
+            {recommendedList.map((p: any) => (
+              <View key={p._id} style={{ width: "31.7%", minWidth: 300, flexGrow: 1 }}>
+                <PropertyCard property={p} style={{ flex: 1 }} />
+              </View>
+            ))}
+          </View>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 18, paddingVertical: 6 }}>
+            {recommendedList.map((p: any) => (
+              <View key={p._id} style={{ width: 296 }}>
+                <PropertyCard property={p} style={{ flex: 1 }} />
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          6. HOW IT WORKS ("Buy direct in three steps")
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapContainer, { marginTop: isMobile ? 64 : 96, gap: 32 }]}>
+        <SectionHeading
+          eyebrow="HOW IT WORKS"
+          title="Buy direct in three steps"
         />
-      ))}
-      <View style={[s.panel, s.row]}>
-        <Icon name="handshake" size={34} />
-        <View style={{ flex: 1 }}>
-          <Text style={s.cardTitle}>Real people, every step of the way</Text>
-          <Text style={s.muted}>
-            Your assigned team helps with questions, offers and deal closure.
-          </Text>
+
+        <View
+          style={{
+            flexDirection: isDesktop ? "row" : "column",
+            gap: 28,
+            paddingTop: 18,
+          }}
+        >
+          {[
+            {
+              step: "1",
+              icon: "search",
+              title: "Search verified homes",
+              desc: "Browse listings posted directly by owners. Each one carries a Verified badge you can trust.",
+            },
+            {
+              step: "2",
+              icon: "chat-bubble-outline",
+              title: "Talk to your advisor",
+              desc: "A dedicated MalikSe advisor handles documents, negotiation, and site visits for every property.",
+            },
+            {
+              step: "3",
+              icon: "verified-user",
+              title: "Close with zero brokerage",
+              desc: "Pay the owner, not a middleman. We check the title and paperwork until the deal is done.",
+            },
+          ].map((item) => (
+            <View
+              key={item.step}
+              style={{
+                flex: 1,
+                backgroundColor: "#FFFFFF",
+                borderRadius: 22,
+                padding: 30,
+                paddingTop: 34,
+                borderWidth: 1,
+                borderColor: "rgba(20, 38, 62, 0.06)",
+                position: "relative",
+                ...Platform.select({
+                  web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 16px 34px -20px rgba(20,38,62,.28)" },
+                }),
+              }}
+            >
+              {/* Numbered Badge Overlapping Top-Left */}
+              <View
+                style={{
+                  position: "absolute",
+                  top: -20,
+                  left: 28,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: "#14263E",
+                  borderWidth: 4,
+                  borderColor: "#F7F4EC",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ fontFamily: font, fontSize: 17, fontWeight: "800", color: "#FCC61C" }}>
+                  {item.step}
+                </Text>
+              </View>
+
+              <View
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 16,
+                  backgroundColor: "#FFF1C0",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon name={item.icon} size={28} color="#14263E" />
+              </View>
+
+              <Text
+                style={{
+                  fontFamily: fontDisplay,
+                  fontSize: 25,
+                  lineHeight: 30,
+                  fontWeight: "700",
+                  color: "#14263E",
+                  marginTop: 20,
+                }}
+              >
+                {item.title}
+              </Text>
+              <Text
+                style={{
+                  fontFamily: font,
+                  fontSize: 15.5,
+                  lineHeight: 24,
+                  fontWeight: "500",
+                  color: "rgba(20, 38, 62, 0.65)",
+                  marginTop: 8,
+                }}
+              >
+                {item.desc}
+              </Text>
+            </View>
+          ))}
         </View>
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          7. WHY MALIKSE (Full-Bleed Dark Navy Showcase Section)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View
+        style={{
+          marginTop: isMobile ? 64 : 96,
+          backgroundColor: "#14263E",
+          position: "relative",
+          overflow: "hidden",
+          paddingVertical: isMobile ? 56 : 84,
+        }}
+      >
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: -96,
+            top: -96,
+            width: 360,
+            height: 360,
+            borderRadius: 180,
+            backgroundColor: "#1C3556",
+          }}
+        />
+
+        <View
+          style={[
+            wrapContainer,
+            {
+              flexDirection: isDesktop ? "row" : "column",
+              alignItems: isDesktop ? "center" : "stretch",
+              gap: isDesktop ? 56 : 36,
+              position: "relative",
+              zIndex: 2,
+            },
+          ]}
+        >
+          {/* Left Editorial Column */}
+          <View style={{ flex: 1, gap: 16 }}>
+            <Text style={{ fontFamily: font, fontSize: 13, fontWeight: "800", letterSpacing: 2, color: "#FCC61C" }}>
+              WHY MALIKSE
+            </Text>
+            <Text
+              style={{
+                fontFamily: fontDisplay,
+                fontSize: isMobile ? 38 : 50,
+                lineHeight: isMobile ? 41 : 54,
+                fontWeight: "700",
+                color: "#FFFFFF",
+                letterSpacing: -0.8,
+              }}
+            >
+              {"Trust is built into\nevery listing."}
+            </Text>
+            <Text
+              style={{
+                fontFamily: font,
+                fontSize: 17,
+                lineHeight: 27,
+                fontWeight: "500",
+                color: "rgba(255, 255, 255, 0.72)",
+                maxWidth: 480,
+              }}
+            >
+              Property fraud is the biggest fear in Indian real estate. We check the person and the paperwork before anything goes live.
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() => router.push("/search")}
+              activeOpacity={0.88}
+              style={{
+                marginTop: 12,
+                alignSelf: "flex-start",
+                height: 54,
+                paddingHorizontal: 30,
+                borderRadius: 999,
+                backgroundColor: "#FCC61C",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                ...Platform.select({
+                  web: { boxShadow: "0 14px 24px -12px rgba(232,174,0,.9), inset 0 1px 0 rgba(255,255,255,.5)" },
+                }),
+              }}
+            >
+              <Text style={{ fontFamily: font, fontSize: 16, fontWeight: "800", color: "#14263E" }}>
+                Start exploring
+              </Text>
+              <Icon name="chevron-right" size={20} color="#14263E" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Right 2x2 Glassmorphic Feature Grid */}
+          <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
+            {[
+              { icon: "badge", title: "Owner KYC", desc: "Identity & ownership matched for every seller." },
+              { icon: "description", title: "Title check", desc: "Legal & revenue team verifies deeds in 48 hrs." },
+              { icon: "support-agent", title: "Advisor on call", desc: "One assigned advisor per property, start to finish." },
+              { icon: "bolt", title: "Zero brokerage", desc: "Save lakhs in commission on every direct deal." },
+            ].map((feat) => (
+              <View
+                key={feat.title}
+                style={{
+                  width: isMobile ? "100%" : "47.5%",
+                  flexGrow: 1,
+                  backgroundColor: "rgba(255, 255, 255, 0.07)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255, 255, 255, 0.14)",
+                  borderRadius: 24,
+                  padding: 24,
+                  gap: 10,
+                }}
+              >
+                <View
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 15,
+                    backgroundColor: "#FCC61C",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 4,
+                  }}
+                >
+                  <Icon name={feat.icon} size={24} color="#14263E" />
+                </View>
+                <Text style={{ fontFamily: font, fontSize: 18, fontWeight: "800", color: "#FFFFFF" }}>
+                  {feat.title}
+                </Text>
+                <Text style={{ fontFamily: font, fontSize: 14.5, lineHeight: 22, fontWeight: "500", color: "rgba(255, 255, 255, 0.68)" }}>
+                  {feat.desc}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          8. FOR OWNERS CTA BANNER ("List your property free.")
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapContainer, { marginTop: isMobile ? 56 : 84 }]}>
+        <View
+          style={{
+            backgroundColor: "#FCC61C",
+            borderRadius: 34,
+            paddingHorizontal: isMobile ? 26 : 56,
+            paddingVertical: isMobile ? 40 : 56,
+            position: "relative",
+            overflow: "hidden",
+            ...Platform.select({
+              web: { boxShadow: "0 36px 56px -34px rgba(232, 174, 0, 0.95)" },
+            }),
+          }}
+        >
+          {/* Decorative Navy Circle & Capsule */}
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              right: isMobile ? -120 : -64,
+              bottom: isMobile ? -140 : -96,
+              width: isMobile ? 280 : 360,
+              height: isMobile ? 280 : 360,
+              borderRadius: 180,
+              backgroundColor: "#14263E",
+            }}
+          />
+          {!isMobile && (
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                right: 250,
+                top: -64,
+                width: 115,
+                height: 340,
+                borderRadius: 60,
+                backgroundColor: "rgba(20, 38, 62, 0.92)",
+                transform: [{ rotate: "30deg" }],
+              }}
+            />
+          )}
+
+          <View style={{ maxWidth: 560, position: "relative", zIndex: 2, gap: 12 }}>
+            <Text style={{ fontFamily: font, fontSize: 13, fontWeight: "800", letterSpacing: 2, color: "rgba(20, 38, 62, 0.72)" }}>
+              FOR OWNERS
+            </Text>
+            <Text
+              style={{
+                fontFamily: fontDisplay,
+                fontSize: isMobile ? 38 : 52,
+                lineHeight: isMobile ? 41 : 54,
+                fontWeight: "700",
+                color: "#14263E",
+                letterSpacing: -0.8,
+              }}
+            >
+              List your property free.
+            </Text>
+            <Text
+              style={{
+                fontFamily: font,
+                fontSize: isMobile ? 16 : 18,
+                lineHeight: 26,
+                fontWeight: "600",
+                color: "rgba(20, 38, 62, 0.78)",
+              }}
+            >
+              Reach verified buyers across Bihar. No brokers, no commission, and an advisor to handle every enquiry.
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() =>
+                router.push(
+                  user
+                    ? "/post"
+                    : ({ pathname: "/login", params: { returnTo: "/post" } } as any)
+                )
+              }
+              activeOpacity={0.88}
+              style={{
+                marginTop: 14,
+                alignSelf: "flex-start",
+                height: 54,
+                paddingHorizontal: 30,
+                borderRadius: 999,
+                backgroundColor: "#14263E",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                ...Platform.select({
+                  web: { boxShadow: "0 14px 24px -12px rgba(20, 38, 62, 0.8)" },
+                }),
+              }}
+            >
+              <Text style={{ fontFamily: font, fontSize: 16, fontWeight: "800", color: "#FCC61C" }}>
+                Post your property
+              </Text>
+              <Icon name="chevron-right" size={20} color="#FCC61C" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          9. FRESH ON THE MARKET (2-Column Horizontal Cards Grid)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapContainer, { marginTop: isMobile ? 56 : 84, gap: 28 }]}>
+        <SectionHeading
+          eyebrow={activeDistrictParam ? `NEW IN ${activeDistrictParam.toUpperCase()}` : "NEW LISTINGS"}
+          title="Fresh on the market"
+          sub="Recently verified and published."
+          right={<ViewAllPill onPress={() => router.push("/search")} />}
+        />
+
+        {recent.loading ? (
+          <ActivityIndicator color="#14263E" style={{ padding: 28 }} />
+        ) : recent.error ? (
+          <ErrorBox text={recent.error} onRetry={recent.refresh} />
+        ) : !newPropertiesList.length ? (
+          <Empty
+            title="New listings coming soon"
+            text="Freshly verified properties will appear here as soon as they are published."
+          />
+        ) : (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 20 }}>
+            {newPropertiesList.map((p: any) => (
+              <View key={p._id} style={{ width: isDesktop ? "48.8%" : "100%", flexGrow: 1 }}>
+                <PropertyCard property={p} horizontal freshTag="New" />
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          10. TRENDING PROPERTIES (Horizontal Carousel)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapContainer, { marginTop: isMobile ? 56 : 84 }]}>
+        <PropertySlideRow
+          eyebrow="TRENDING THIS WEEK"
+          title="Popular properties"
+          sub="Most viewed and wishlisted listings right now."
+          feed={trending}
+          typeFilter={type}
+        />
       </View>
     </MarketplaceShell>
   );
@@ -10395,33 +11587,33 @@ const s = StyleSheet.create({
     color: C.ink,
   },
   button: {
-    minHeight: 46,
-    paddingHorizontal: 18,
+    minHeight: 48,
+    paddingHorizontal: 22,
     paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: C.blue,
+    borderRadius: 999,
+    backgroundColor: "#14263E",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
   secondary: {
-    backgroundColor: "#eaf1ff",
+    backgroundColor: "#FFF1C0",
     borderWidth: 1,
-    borderColor: C.line,
+    borderColor: "rgba(232, 174, 0, 0.35)",
   },
   buttonText: {
     fontFamily: font,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "white",
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#FCC61C",
   },
   input: {
     fontFamily: font,
     minHeight: 48,
     borderWidth: 1,
     borderColor: C.line,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     backgroundColor: "white",
@@ -10432,12 +11624,12 @@ const s = StyleSheet.create({
     padding: 28,
     gap: 18,
     borderRadius: 24,
-    backgroundColor: "#e5efff",
+    backgroundColor: "#14263E",
     borderWidth: 1,
-    borderColor: "#d0e0ff",
+    borderColor: "rgba(255,255,255,0.1)",
   },
   heroTitle: {
-    fontFamily: Platform.OS === "web" ? "Fraunces, Georgia" : "PoppinsBold",
+    fontFamily: fontDisplay,
     fontSize: 40,
     color: C.ink,
     letterSpacing: -1,
@@ -10447,60 +11639,66 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
-    backgroundColor: "#eaf1ff",
+    backgroundColor: "#FFF1C0",
   },
-  tagText: { fontFamily: font, fontSize: 11, fontWeight: "700", color: C.blue },
+  tagText: { fontFamily: font, fontSize: 11.5, fontWeight: "800", color: "#14263E" },
   typeChip: {
     padding: 14,
     borderWidth: 1,
     borderColor: C.line,
-    borderRadius: 14,
+    borderRadius: 16,
     backgroundColor: "white",
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
   panel: {
-    padding: 22,
-    borderRadius: 20,
+    padding: 24,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: C.line,
     backgroundColor: "white",
     gap: 16,
+    ...Platform.select({
+      web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 16px 34px -20px rgba(20,38,62,.24)" },
+    }),
   },
   card: {
     backgroundColor: "white",
     borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 20,
+    borderColor: "rgba(20, 38, 62, 0.06)",
+    borderRadius: 22,
     overflow: "hidden",
+    ...Platform.select({
+      web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 16px 34px -20px rgba(20,38,62,.3)" },
+    }),
   },
-  photo: { height: 220, backgroundColor: "#dce7fa" },
+  photo: { height: 220, backgroundColor: "#E9E4D5" },
   placeholder: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#e0eaff",
+    backgroundColor: "#E9E4D5",
   },
-  imageTags: { position: "absolute", top: 12, left: 12 },
-  cardBody: { padding: 18, gap: 9 },
-  price: { fontFamily: font, fontSize: 25, fontWeight: "800", color: C.ink },
+  imageTags: { position: "absolute", top: 14, left: 14 },
+  cardBody: { padding: 20, gap: 9 },
+  price: { fontFamily: font, fontSize: 25, fontWeight: "800", color: C.ink, letterSpacing: -0.5 },
   cardTitle: {
     fontFamily: font,
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: 17,
+    lineHeight: 24,
     fontWeight: "700",
     color: C.ink,
   },
-  link: { fontSize: 13, fontWeight: "700", color: C.blue },
+  link: { fontSize: 14, fontWeight: "800", color: C.ink },
   avatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#e2ecff",
+    backgroundColor: "#FFF1C0",
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontWeight: "800", color: C.blue, fontSize: 17 },
+  avatarText: { fontWeight: "800", color: "#14263E", fontSize: 17 },
   nav: {
     minHeight: 76,
     paddingBottom: Platform.OS === "web" ? 10 : 22,
@@ -10518,14 +11716,14 @@ const s = StyleSheet.create({
     justifyContent: "center",
     gap: 4,
   },
-  navText: { fontSize: 11, color: C.muted },
+  navText: { fontSize: 11, fontWeight: "700", color: C.muted },
   postCircle: {
-    height: 50,
-    width: 50,
-    borderRadius: 25,
+    height: 52,
+    width: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: C.blue,
+    backgroundColor: "#FCC61C",
     borderWidth: 4,
     borderColor: C.bg,
   },

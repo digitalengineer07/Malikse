@@ -68,7 +68,7 @@ export default function AppHeader(props: AppHeaderProps) {
                 else router.replace((props.fallbackRoute || "/home") as any);
               }}
             >
-              <MaterialIcons name="arrow-back" size={20} color="#0B1B3F" />
+              <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           )}
 
@@ -80,11 +80,11 @@ export default function AppHeader(props: AppHeaderProps) {
             style={styles.brandLockup}
           >
             <View style={styles.logoIcon}>
-              <MaterialIcons name="roofing" size={20} color="#FFFFFF" />
+              <MaterialIcons name="roofing" size={22} color="#14263E" />
             </View>
             <View style={styles.brandTextCol}>
               <Text style={styles.brandTitle}>
-                MalikSe<Text style={{ color: "#10B981" }}>.</Text>
+                Malik<Text style={{ color: "#FCC61C" }}>Se</Text>
               </Text>
               {width >= 640 && (
                 <Text style={styles.brandTagline} numberOfLines={1}>
@@ -178,7 +178,7 @@ export default function AppHeader(props: AppHeaderProps) {
               }
               activeOpacity={0.85}
             >
-              <MaterialIcons name="add" size={16} color="#FFFFFF" />
+              <MaterialIcons name="add" size={16} color="#14263E" />
               <Text style={styles.topPostBtnText}>
                 {language === "hi" ? "प्रॉपर्टी पोस्ट करें" : "Post Property"}
               </Text>
@@ -205,7 +205,7 @@ export default function AppHeader(props: AppHeaderProps) {
                 <MaterialIcons
                   name="keyboard-arrow-down"
                   size={16}
-                  color={isProfileActive ? "#FFFFFF" : "#64748B"}
+                  color={isProfileActive ? "#14263E" : "rgba(255,255,255,0.7)"}
                 />
               </View>
             )}
@@ -218,45 +218,38 @@ export default function AppHeader(props: AppHeaderProps) {
   );
 }
 
-const font = Platform.OS === "web" ? "'Plus Jakarta Sans', Manrope, -apple-system, BlinkMacSystemFont, sans-serif" : "PoppinsRegular";
-const fontDisplay = Platform.OS === "web" ? "'Plus Jakarta Sans', PoppinsBold, Manrope, sans-serif" : "PoppinsBold";
+const font = Platform.OS === "web" ? "'Manrope', system-ui, -apple-system, sans-serif" : "PoppinsRegular";
+const fontDisplay = Platform.OS === "web" ? "'Fraunces', Georgia, serif" : "PoppinsBold";
 
 const styles = StyleSheet.create({
   headerWrapper: {
     width: "100%",
-    paddingTop: 14,
-    paddingHorizontal: 20,
-    paddingBottom: 4,
-    backgroundColor: "transparent",
+    paddingTop: 10,
+    paddingHorizontal: 24,
+    paddingBottom: 10,
+    backgroundColor: "#14263E",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
     zIndex: 100,
+    ...Platform.select({
+      web: {
+        position: "sticky" as any,
+        top: 0,
+      },
+    }),
   },
   header: {
     width: "100%",
     maxWidth: 1240,
     alignSelf: "center",
-    minHeight: 66,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    minHeight: 56,
+    paddingHorizontal: 0,
+    paddingVertical: 4,
+    backgroundColor: "transparent",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 16,
-    ...Platform.select({
-      web: {
-        boxShadow: "0 4px 20px rgba(11, 27, 63, 0.05)",
-      },
-      default: {
-        shadowColor: "#0B1B3F",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.06,
-        shadowRadius: 14,
-        elevation: 3,
-      },
-    }),
   },
   leftGroup: {
     flexDirection: "row",
@@ -264,30 +257,30 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   backBtn: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 10,
-    backgroundColor: "#F8FAFC",
+    borderRadius: 19,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(255, 255, 255, 0.16)",
   },
   brandLockup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 11,
   },
   logoIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    backgroundColor: "#0A45B5",
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#FCC61C",
     alignItems: "center",
     justifyContent: "center",
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 8px rgba(10, 69, 181, 0.22)",
+        boxShadow: "0 6px 18px rgba(252, 198, 28, 0.28)",
       },
       default: {
         elevation: 2,
@@ -299,18 +292,18 @@ const styles = StyleSheet.create({
   },
   brandTitle: {
     fontFamily: fontDisplay,
-    fontSize: 23,
-    fontWeight: "900",
-    color: "#0B1B3F",
-    letterSpacing: -0.7,
-    lineHeight: 27,
+    fontSize: 25,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: -0.4,
+    lineHeight: 28,
   },
   brandTagline: {
     fontFamily: font,
     fontSize: 10,
     fontWeight: "700",
-    color: "#64748B",
-    letterSpacing: 0.3,
+    color: "rgba(255, 255, 255, 0.62)",
+    letterSpacing: 0.4,
     lineHeight: 14,
     textTransform: "uppercase",
   },
@@ -318,25 +311,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "rgba(255, 255, 255, 0.07)",
     paddingVertical: 4,
     paddingHorizontal: 6,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#F1F5F9",
+    borderColor: "rgba(255, 255, 255, 0.1)",
   },
   topNavItem: {
     paddingVertical: 7,
-    paddingHorizontal: 16,
+    paddingHorizontal: 15,
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
   },
   topNavItemActive: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FCC61C",
     ...Platform.select({
       web: {
-        boxShadow: "0 1px 4px rgba(0, 0, 0, 0.06)",
+        boxShadow: "0 4px 12px rgba(252, 198, 28, 0.3)",
       },
       default: {
         elevation: 2,
@@ -345,31 +338,31 @@ const styles = StyleSheet.create({
   },
   topNavText: {
     fontFamily: font,
-    fontSize: 13.5,
-    fontWeight: "600",
-    color: "#64748B",
+    fontSize: 14,
+    fontWeight: "700",
+    color: "rgba(255, 255, 255, 0.8)",
     letterSpacing: -0.1,
   },
   topNavTextActive: {
-    color: "#0A45B5",
-    fontWeight: "700",
+    color: "#14263E",
+    fontWeight: "800",
   },
   rightGroup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
   topPostBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#0A45B5",
-    paddingVertical: 8,
+    backgroundColor: "#FCC61C",
+    paddingVertical: 9,
     paddingHorizontal: 18,
-    borderRadius: 20,
+    borderRadius: 999,
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 8px rgba(10, 69, 181, 0.22)",
+        boxShadow: "0 10px 20px -8px rgba(232, 174, 0, 0.7), inset 0 1px 0 rgba(255,255,255,0.45)",
       },
       default: {
         elevation: 3,
@@ -377,49 +370,49 @@ const styles = StyleSheet.create({
     }),
   },
   topPostBtnText: {
-    fontFamily: fontDisplay,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontFamily: font,
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#14263E",
     letterSpacing: -0.1,
   },
   topProfileBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     paddingVertical: 4,
     paddingLeft: 4,
-    paddingRight: 10,
-    borderRadius: 20,
+    paddingRight: 11,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(255, 255, 255, 0.18)",
   },
   topProfileBtnActive: {
-    backgroundColor: "#0A45B5",
-    borderColor: "#0A45B5",
+    backgroundColor: "#FCC61C",
+    borderColor: "#FCC61C",
   },
   avatarSmall: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#0A45B5",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#FCC61C",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarSmallText: {
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: "#14263E",
     fontSize: 13,
   },
   topProfileName: {
     fontFamily: font,
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#0F172A",
-    maxWidth: 90,
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    maxWidth: 96,
   },
   topProfileNameActive: {
-    color: "#FFFFFF",
+    color: "#14263E",
   },
 });
