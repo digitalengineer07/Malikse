@@ -1,7 +1,13 @@
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Linking, Modal, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Image from "./PropertyImage";
-import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
+import { MaterialIcons } from "@expo/vector-icons";
+import { StatusBar } from "expo-status-bar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BrandLockup } from "./BrandLockup";
+import { AccountHeaderBackdrop, accountHeaderStyle } from "./AccountHeaderBackdrop";
+import { dashboardRoutes } from "../src/utils/accountRoutes";
 import * as Location from "expo-location";
 import { Action, Check, Field, ui, WorkflowScreen } from "./WorkflowUI";
 import { useAuthStore } from "../src/store/authStore";
@@ -23,6 +29,8 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(rawId) ? rawId[0] : rawId;
   const router = useRouter();
+  const focused = useIsFocused();
+  const insets = useSafeAreaInsets();
   const { user, authState, hydrated } = useAuthStore();
   const [property, setProperty] = useState<Listing | null>(null);
   const [docCursor, setDocCursor] = useState<string>();
@@ -111,21 +119,59 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
     }} /></ScrollView></View></Modal>}
     {!!offerResult && <Text style={ui.text}>{offerResult}</Text>}
   </PublicPropertyDetails>;
-  return <WorkflowScreen title={publicView ? "Property details" : "Verification workspace"}>
-    <Action title="Refresh" secondary onPress={() => setRevision(value => value + 1)} disabled={busy} />
+  const refresh = () => setRevision(value => value + 1);
+  const workspaceHeader = !publicView ? (
+    <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
+      {focused && <StatusBar style="light" />}
+      <AccountHeaderBackdrop top={insets.top + 4} />
+      <View style={styles.headerInner}>
+        <View style={styles.toolbar}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Go back" style={styles.headerButton}
+            onPress={() => router.canGoBack() ? router.back() : router.replace(user?.role === "advisor" ? "/advisor/properties" : dashboardRoutes[user?.role ?? "user"])}>
+            <MaterialIcons name="arrow-back" size={22} color="#fff" />
+          </Pressable>
+          <BrandLockup style={styles.brand} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Refresh verification" disabled={busy || loading} onPress={refresh} style={styles.headerButton}>
+            <MaterialIcons name="refresh" size={22} color="#fff" />
+          </Pressable>
+        </View>
+        <View style={accountHeaderStyle.titleGroup}>
+          <Text accessibilityRole="header" style={[styles.heading, accountHeaderStyle.heading]}>Verification workspace</Text>
+          <Text style={styles.headerHint}>Review property details, records and inspection history.</Text>
+        </View>
+      </View>
+    </View>
+  ) : undefined;
+  return <WorkflowScreen title={publicView ? "Property details" : "Verification workspace"} header={workspaceHeader}>
+    {publicView && <Action title="Refresh" secondary onPress={refresh} disabled={busy} />}
     {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}
     {loading && <ActivityIndicator color={AppTheme.colors.primary} />}
     {!loading && property && <>
-      <View style={ui.card}>
-        <Text style={ui.heading}>{property.title || `${property.type} in ${property.location.district}`}</Text>
-        <Text style={ui.text}>{statusLabels[property.status]}</Text>
-        <Text style={ui.heading}>₹{property.price.toLocaleString("en-IN")}</Text>
-        <Text style={ui.text}>{property.type} · {property.location.district}, {property.location.state}</Text>
-        <Text style={ui.text}>Total: {property.totalArea} sq.ft · Sellable: {property.sellableArea} sq.ft · {property.negotiable ? "Negotiable" : "Fixed price"}</Text>
+      <View style={styles.card}>
+        <View style={styles.summaryTop}>
+          <Text accessibilityRole="header" style={styles.propertyTitle}>{property.title || `${property.type} in ${property.location.district}`}</Text>
+          <View style={[styles.statusBadge, property.status === "verified" && styles.publishedBadge]}>
+            <Text style={styles.statusText}>{property.status === "verified" ? "Verified · Published" : statusLabels[property.status] || property.status}</Text>
+          </View>
+        </View>
+        <Text style={styles.price}>₹{property.price.toLocaleString("en-IN")}</Text>
+        <View style={styles.location}>
+          <MaterialIcons name="place" size={17} color="#536174" />
+          <Text style={[ui.muted, styles.locationText]}>
+            {[property.streetAddress, property.location.district, property.location.state].filter(Boolean).join(", ")}
+          </Text>
+        </View>
+        <View style={styles.facts}>
+          <Text style={ui.text}>{property.type} · {property.negotiable ? "Negotiable" : "Fixed price"}</Text>
+          <Text style={ui.muted}>Total {property.totalArea} sq.ft · Sellable {property.sellableArea} sq.ft</Text>
+        </View>
         {!!property.description && <Text style={ui.text}>{property.description}</Text>}
         <Text style={ui.text}>Boundary: {property.boundary || "Not provided"} · Road width: {property.roadWidth ?? "Not provided"}</Text>
         <Text style={ui.text}>Loan: {property.disclosures?.hasLoan ? "Yes" : "No"} · Dispute: {property.disclosures?.hasDispute ? "Yes" : "No"} · Possession: {property.disclosures?.possessionStatus || "Not provided"}</Text>
-        <Text style={ui.muted}>GPS: {property.location.lat}, {property.location.lng}</Text>
+      </View>
+      <View style={styles.card}>
+        <Text accessibilityRole="header" style={ui.heading}>Location and boundary</Text>
+        <Text selectable style={ui.muted}>GPS: {property.location.lat}, {property.location.lng}</Text>
         <MiniMapPreview property={{ id: property._id, type: property.type, status: property.status, price: property.price, location: property.location, parcelPoints: property.parcelPoints }} />
         {!!property.parcelPoints?.length && <Text style={ui.muted}>Recorded boundary: {property.parcelPoints.map(point => `${point.lat}, ${point.lng}`).join(" → ")}</Text>}
         <Action title="Open location in maps" secondary onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${property.location.lat},${property.location.lng}`).catch(() => setError("Could not open maps"))} />
@@ -144,7 +190,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
         {!!offerResult && <Text style={ui.text}>{offerResult}</Text>}
       </View>
       {!publicView && <>
-        <View style={ui.card}>
+        <View style={styles.card}>
           <Text style={ui.heading}>Seller and property records</Text>
           {property.ownerId && typeof property.ownerId === "object" ? <Text style={ui.text}>{property.ownerId.name} · {property.ownerId.mobile}</Text> : null}
           <Text style={ui.text}>Block: {property.location.block || "—"} · Mauza: {property.location.mauza || "—"} · Police station: {property.location.policeStation || "—"}</Text>
@@ -162,14 +208,14 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
         {([
           ["advisor", property.advisorReview],
           ["verifier", property.verifierReview],
-        ] as const).map(([role, report]) => report ? <View key={role} style={ui.card}>
+        ] as const).map(([role, report]) => report ? <View key={role} style={styles.card}>
           <Text style={ui.heading}>{role === "advisor" ? "Advisor" : "Verifier"} report · {report.decision}</Text>
           <Text style={ui.text}>{report.notes}</Text>
           <Text style={ui.muted}>Signed: {report.signature} · {new Date(report.submittedAt).toLocaleString()}</Text>
           {Object.entries(report.checklist || {}).map(([key, value]) => <Text key={key} style={ui.text}>{value ? "✓" : "—"} {checks[key] || key}</Text>)}
           {report.gpsCheckIn && <Text style={ui.text}>Site check-in: {report.gpsCheckIn.lat}, {report.gpsCheckIn.lng} · {new Date(report.gpsCheckIn.timestamp).toLocaleString()}</Text>}
         </View> : null)}
-        {canReview && <View style={ui.card}>
+        {canReview && <View style={styles.card}>
           <Text style={ui.heading}>{user?.role === "advisor" ? "Advisor inspection" : "Verifier inspection"}</Text>
           {keys.map(key => <Check key={key} label={checks[key]} checked={!!checklist[key]} onPress={() => setChecklist(previous => ({ ...previous, [key]: !previous[key] }))} />)}
           {["advisor", "verifier"].includes(user?.role || "") && <><Action title="Capture site GPS check-in (if visited)" secondary disabled={busy} onPress={captureGps} />{gps && <Text style={ui.text}>{gps.lat}, {gps.lng}</Text>}</>}
@@ -185,13 +231,13 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
           })()}
           <View style={ui.row}>{(["approve", "correction", "reject"] as const).map(decision => <Action key={decision} title={decision === "approve" ? "Approve and publish" : decision === "correction" ? "Request corrections" : "Reject"} disabled={busy || signature.trim().length < 2 || notes.trim().length < 5 || (decision === "approve" && keys.some(key => !checklist[key]))} secondary={decision !== "approve"} onPress={() => run(() => workflowService.review(id, { decision, notes, signature, checklist, gpsCheckIn: gps }))} />)}</View>
         </View>}
-        {user?.role === "admin" && ["pending", "advisor_verified", "verified", "correction_required"].includes(property.status) && <View style={ui.card}>
+        {user?.role === "admin" && ["pending", "advisor_verified", "verified", "correction_required"].includes(property.status) && <View style={styles.card}>
           <Text style={ui.heading}>Assign / reassign reviewer</Text>
           {!staff.some(person => person.isActive !== false && ["advisor", "verifier"].includes(person.role)) && <Text style={ui.muted}>Create an account for this reviewer role first.</Text>}
           {staff.filter(person => ["advisor", "verifier"].includes(person.role)).map(person => <Action key={person.id} title={`${person.name} (${person.mobile})`} secondary disabled={busy} onPress={() => run(() => workflowService.assign(id, person.id))} />)}
           <Action title="Manage staff accounts" secondary onPress={() => router.push("/admin/staff")} />
         </View>}
-        <View style={ui.card}>
+        <View style={styles.card}>
           <Text style={ui.heading}>Verification history</Text>
           {!property.verificationHistory?.length && <Text style={ui.muted}>No recorded review events yet.</Text>}
           {property.verificationHistory?.map((event, index) => <View key={index} style={{ gap: 4 }}>
@@ -205,3 +251,23 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
     </>}
   </WorkflowScreen>;
 }
+
+const styles = StyleSheet.create({
+  header: { backgroundColor: "#14263E", borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: "hidden" },
+  headerInner: { width: "100%", maxWidth: 1000, alignSelf: "center", paddingHorizontal: 20, paddingBottom: 20, gap: 14 },
+  toolbar: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#244268", alignItems: "center", justifyContent: "center" },
+  brand: { flex: 1 },
+  heading: { color: "#fff", fontFamily: "Fraunces" },
+  headerHint: { color: "#E7EDF5", fontFamily: "Manrope", fontSize: 13, lineHeight: 19 },
+  card: { backgroundColor: "#fff", borderRadius: 18, borderWidth: 1, borderColor: "#DEDCD5", padding: 16, gap: 11 },
+  summaryTop: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
+  propertyTitle: { flexGrow: 1, flexShrink: 1, flexBasis: 110, color: "#14263E", fontFamily: "Fraunces", fontSize: 23 },
+  statusBadge: { marginStart: "auto", maxWidth: "100%", backgroundColor: "#FFF1C0", borderRadius: 12, paddingHorizontal: 9, paddingVertical: 5 },
+  publishedBadge: { backgroundColor: "#E1F2E7" },
+  statusText: { color: "#14263E", fontFamily: "ManropeBold", fontSize: 12 },
+  price: { color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 20 },
+  location: { flexDirection: "row", alignItems: "flex-start", gap: 7 },
+  locationText: { flexShrink: 1 },
+  facts: { backgroundColor: "#F7F4EC", borderRadius: 12, padding: 10, gap: 2 },
+});
