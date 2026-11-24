@@ -1132,7 +1132,7 @@ export function WishlistScreen() {
           </View>
         </View>
       ) : undefined}
-      subtitle={user ? "Revisit and compare your saved listings." : "Tap the heart on a listing to save it for later."}
+      subtitle="Keep a shortlist of properties to revisit."
       headerAction={false}
       headerContent={user ? (
         <View style={s.wishlistToolbar}>
@@ -1166,11 +1166,18 @@ export function WishlistScreen() {
           )}
         </View>
       ) : (
-        <Pressable accessibilityRole="button" onPress={() => router.navigate("/(tabs)/search")}
-          style={({ pressed }) => [s.wishlistHeaderLink, pressed && { opacity: 0.75 }]}>
-          <Text style={s.wishlistHeaderLinkText}>Browse properties</Text>
-          <Icon name="arrow-forward" size={16} color={C.sun} />
-        </Pressable>
+        <View style={s.wishlistGuestToolbar}>
+          <Pressable accessibilityRole="button" onPress={() => router.navigate("/(tabs)/search")}
+            style={({ pressed }) => [s.wishlistHeaderBrowse, pressed && { opacity: 0.8 }]}>
+            <Icon name="search" size={18} />
+            <Text style={s.wishlistSortText}>Browse properties</Text>
+            <Icon name="arrow-forward" size={16} />
+          </Pressable>
+          <View style={s.wishlistSaveTip}>
+            <Icon name="favorite-border" color={C.sun} size={17} />
+            <Text style={s.wishlistSaveTipText}>Tap a heart to save a listing.</Text>
+          </View>
+        </View>
       )}
       back
       onBack={goToChats}
@@ -2687,10 +2694,13 @@ const s = StyleSheet.create({
   scroll: { paddingBottom: 108 },
   scrollWithArtwork: { flexGrow: 1, paddingBottom: 0 },
   fitArtworkToViewport: { flex: 1 },
-  wishlistHeaderLink: {
-    alignSelf: "flex-start", minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8,
+  wishlistGuestToolbar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  wishlistHeaderBrowse: {
+    minHeight: 44, maxWidth: "100%", flexDirection: "row", alignItems: "center", gap: 7,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: C.sun,
   },
-  wishlistHeaderLinkText: { color: C.sun, fontFamily: "ManropeBold", fontSize: 14, flexShrink: 1 },
+  wishlistSaveTip: { flexGrow: 1, flexBasis: 104, maxWidth: 158, flexDirection: "row", alignItems: "center", gap: 6 },
+  wishlistSaveTipText: { flexShrink: 1, color: "#E7EDF5", fontFamily: font, fontSize: 12, lineHeight: 17 },
   wishlistToolbar: {
     flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between",
     gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#FFFFFF26",
