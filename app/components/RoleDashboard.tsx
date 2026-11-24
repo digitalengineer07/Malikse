@@ -43,8 +43,9 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
 
   return <View style={styles.screen}>
     {focused && <StatusBar style="light" />}
+    {isAdvisor && <View pointerEvents="none" style={[styles.advisorStatusInset, { height: insets.top }]} />}
     <ScrollView contentContainerStyle={{ paddingBottom: hasAccess ? 20 : insets.bottom + 20 }}>
-      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
+      <View style={[styles.header, { paddingTop: isAdvisor ? 14 : insets.top + 14 }]}>
         <View style={styles.sun} pointerEvents="none" />
         <View style={styles.ray} pointerEvents="none" />
         <View style={[styles.headerInner, compact && styles.horizontalCompact]}>
@@ -154,12 +155,36 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
         </View>
       )}
       {isAdvisor ? <Text accessibilityRole="header" style={styles.sectionTitle}>Workspace tools</Text> : <View style={styles.sectionHeading}><View><Text style={styles.eyebrow}>YOUR TOOLS</Text><Text accessibilityRole="header" style={styles.sectionTitle}>Make your next move.</Text></View><Text style={styles.sectionNote}>Built around your role</Text></View>}
+      {isAdvisor ? (
+        <View style={styles.advisorTools}>
+          {sections.map((section, index) => (
+            <TouchableOpacity
+              key={section.title}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !section.route }}
+              disabled={!section.route}
+              onPress={() => section.route && router.push(section.route)}
+              style={[styles.card, styles.advisorTool, index === 0 && styles.primaryCard]}
+            >
+              <View style={[styles.iconBox, index === 0 && styles.primaryIcon]}>
+                <MaterialIcons name={index === 0 ? "fact-check" : "home-work"} size={22} color={navy} />
+              </View>
+              <View style={styles.advisorToolCopy}>
+                <Text style={styles.cardTitle}>{section.title}</Text>
+                <Text style={styles.cardDescription}>{section.description}</Text>
+              </View>
+              <MaterialIcons name={section.route ? "chevron-right" : "schedule"} size={22} color={navy} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : (
       <View style={styles.grid}>{sections.map((section, index) => <TouchableOpacity key={section.title} accessibilityRole="button" accessibilityState={{ disabled: !section.route }} style={[styles.card, { width: cardWidth }, index === 0 && styles.primaryCard, !section.route && styles.disabledCard]} disabled={!section.route} onPress={() => section.route && router.push(section.route)}>
-        <View style={styles.cardTop}><View style={[styles.iconBox, index === 0 && styles.primaryIcon]}><MaterialIcons name={icons[index % icons.length]} size={24} color={navy} /></View>{!isAdvisor && <Text style={styles.cardIndex}>{String(index + 1).padStart(2, "0")}</Text>}</View>
+        <View style={styles.cardTop}><View style={[styles.iconBox, index === 0 && styles.primaryIcon]}><MaterialIcons name={icons[index % icons.length]} size={24} color={navy} /></View><Text style={styles.cardIndex}>{String(index + 1).padStart(2, "0")}</Text></View>
         <Text style={styles.cardTitle}>{section.title}</Text><Text style={styles.cardDescription}>{section.description}</Text>
         <View style={styles.cardBottom}><Text style={styles.cardAction}>{section.route ? "Open workspace" : "Coming later"}</Text><View style={styles.arrowCircle}><MaterialIcons name={section.route ? "north-east" : "schedule"} size={18} color="#111827" /></View></View>
       </TouchableOpacity>)}</View>
-      <View style={[styles.accountBar, compact && styles.accountCompact]}><View style={styles.accountIdentity}><View style={styles.accountIcon}><MaterialIcons name="person-outline" size={24} color="#345A76" /></View><View><Text style={styles.accountTitle}>Your account</Text><Text style={styles.accountDescription}>Profile details and session settings</Text></View></View>
+      )}
+      <View style={[styles.accountBar, compact && styles.accountCompact, isAdvisor && styles.advisorAccount]}><View style={styles.accountIdentity}><View style={styles.accountIcon}><MaterialIcons name="person-outline" size={24} color="#345A76" /></View><View><Text style={styles.accountTitle}>Your account</Text><Text style={styles.accountDescription}>{isAdvisor ? "Manage your profile or sign out" : "Profile details and session settings"}</Text></View></View>
         <View style={styles.accountActions}><TouchableOpacity accessibilityRole="button" style={styles.profileButton} onPress={() => router.push("/profile")}><Text style={styles.buttonLabel}>My profile</Text><MaterialIcons name="north-east" size={15} color={navy} /></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.signOut} onPress={() => { authService.logout().finally(() => router.replace("/login")); }}><Text style={styles.signOutLabel}>Sign out</Text></TouchableOpacity></View>
       </View>
       </>}
@@ -248,7 +273,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#14263E", borderWidth: 1, borderColor: "#FFFFFF70",
   },
   advisorMarketplaceLabel: { color: "#fff" },
-  advisorCard: { gap: 12 },
+  advisorStatusInset: { backgroundColor: navy },
+  advisorTools: { gap: 10 },
+  advisorTool: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
+  advisorToolCopy: { flex: 1, minWidth: 0, gap: 3 },
+  advisorAccount: { gap: 10 },
+  advisorCard: { gap: 10 },
   advisorCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   advisorCodePanel: { flex: 1, minWidth: 0, gap: 2 },
   advisorCodeLabel: { color: muted, fontFamily: "ManropeBold", fontSize: 13 },
