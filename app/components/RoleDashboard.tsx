@@ -141,14 +141,14 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
               <TouchableOpacity
                 accessibilityRole="button"
                 accessibilityLabel="Share Advisor ID on WhatsApp"
-                style={styles.advisorMarketplaceButton}
+                style={styles.profileButton}
                 onPress={() => {
                   const message = `Use my MalikSe Advisor ID *${user.advisorCode}* when posting your property on MalikSe.`;
                   Linking.openURL("https://wa.me/?text=" + encodeURIComponent(message)).catch(() => {});
                 }}
               >
-                <MaterialIcons name="chat" size={17} color="#fff" />
-                <Text style={[styles.buttonLabel, styles.advisorMarketplaceLabel]}>WhatsApp</Text>
+                <MaterialIcons name="chat" size={17} color={navy} />
+                <Text style={styles.buttonLabel}>WhatsApp</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -164,16 +164,14 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
               accessibilityState={{ disabled: !section.route }}
               disabled={!section.route}
               onPress={() => section.route && router.push(section.route)}
-              style={[styles.advisorTool, index > 0 && styles.advisorToolDivider]}
+              style={[styles.advisorTool, index === 0 && styles.advisorReviewTile]}
             >
-              <View style={[styles.iconBox, index === 0 && styles.primaryIcon]}>
-                <MaterialIcons name={index === 0 ? "fact-check" : "home-work"} size={22} color={navy} />
+              <View style={styles.advisorTileTop}>
+                <MaterialIcons name={index === 0 ? "fact-check" : "home-work"} size={24} color={navy} />
+                <MaterialIcons name={section.route ? "north-east" : "schedule"} size={17} color={muted} />
               </View>
-              <View style={styles.advisorToolCopy}>
-                <Text style={styles.cardTitle}>{section.title}</Text>
-                <Text style={styles.cardDescription}>{index === 0 ? "Review assigned listings and past decisions." : section.description}</Text>
-              </View>
-              <MaterialIcons name={section.route ? "chevron-right" : "schedule"} size={22} color={navy} />
+              <Text style={styles.cardTitle}>{index === 0 ? "Reviews" : "Marketplace"}</Text>
+              <Text style={styles.cardDescription}>{index === 0 ? "Assigned work and history" : "Browse verified properties"}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -275,18 +273,18 @@ const styles = StyleSheet.create({
   },
   advisorMarketplaceLabel: { color: "#fff" },
   advisorStatusInset: { backgroundColor: navy },
-  advisorTools: { ...surface, overflow: "hidden" },
-  advisorTool: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
-  advisorToolDivider: { borderTopWidth: 1, borderTopColor: "rgba(20,38,62,0.12)" },
-  advisorToolCopy: { flex: 1, minWidth: 0, gap: 3 },
-  advisorAccount: { flexWrap: "wrap", alignItems: "center", flexDirection: "row", gap: 10 },
-  advisorCard: {
-    borderRadius: 22, padding: 16, gap: 12, backgroundColor: navy,
-    borderTopWidth: 3, borderTopColor: yellow,
+  advisorTools: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  advisorTool: { ...surface, flexGrow: 1, flexBasis: 138, minWidth: 0, padding: 14, gap: 7 },
+  advisorReviewTile: { backgroundColor: "#FFF1C0", borderColor: "#E9CB65" },
+  advisorTileTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
+  advisorAccount: {
+    flexWrap: "wrap", alignItems: "center", flexDirection: "row", gap: 10,
+    backgroundColor: "transparent", borderWidth: 0, shadowOpacity: 0, elevation: 0, paddingHorizontal: 0,
   },
+  advisorCard: { ...surface, backgroundColor: "#FFFCF4", padding: 16, gap: 12 },
   advisorCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
-  advisorCodePanel: { flex: 1, minWidth: 0, gap: 2 },
-  advisorCodeLabel: { color: "#E7EDF5", fontFamily: "ManropeBold", fontSize: 13 },
-  advisorCodeText: { color: yellow, fontFamily: "ManropeExtraBold", fontSize: 23, letterSpacing: 1 },
-  advisorCardDescription: { color: "#E7EDF5", fontFamily: "Manrope", fontSize: 13, lineHeight: 20 },
+  advisorCodePanel: { flex: 1, minWidth: 0, gap: 3, borderStartWidth: 2, borderStartColor: yellow, paddingStart: 12 },
+  advisorCodeLabel: { color: muted, fontFamily: "ManropeBold", fontSize: 13 },
+  advisorCodeText: { color: navy, fontFamily: "ManropeExtraBold", fontSize: 23, letterSpacing: 1 },
+  advisorCardDescription: { color: muted, fontFamily: "Manrope", fontSize: 13, lineHeight: 20 },
 });
