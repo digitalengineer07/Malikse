@@ -56,7 +56,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
   const [filter, setFilter] = useState("all");
   const [revision, setRevision] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [advisorFiltersExpanded, setAdvisorFiltersExpanded] = useState(true);
+  const [advisorFiltersExpanded, setAdvisorFiltersExpanded] = useState(false);
   const [pageCursors, setPageCursors] = useState<(string | undefined)[]>([undefined]);
   const listRef = useRef<FlatList<Listing>>(null);
   const advisorCursor = role === "advisor" ? pageCursors[pageCursors.length - 1] : undefined;
