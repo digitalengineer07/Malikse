@@ -48,6 +48,17 @@ function readableLabel(value: string) {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+const historyStatusLabels: Record<string, string> = {
+  queued: "Queued for processing",
+  pending: "Awaiting staff review",
+  advisor_verified: "Awaiting verifier review",
+  verified: "Verified · Published",
+};
+
+function historyStatus(status: string) {
+  return historyStatusLabels[status] || statusLabels[status] || status;
+}
+
 export default function PropertyWorkspaceScreen({ publicView = false }: { publicView?: boolean }) {
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(rawId) ? rawId[0] : rawId;
@@ -304,7 +315,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
             const eventKey = `${property._id}-${event.at}-${event.action}-${index}`;
             const expanded = expandedEvent === eventKey;
             const action = event.action === "approve" ? "Approved" : event.action === "reject" ? "Rejected" : readableLabel(event.action);
-            const status = statusLabels[event.toStatus] || event.toStatus;
+            const status = historyStatus(event.toStatus);
             return (
               <View key={eventKey} style={[styles.historyEntry, expanded && styles.historyEntryExpanded]}>
                 <Pressable accessibilityRole="button" accessibilityState={{ expanded }}
@@ -319,17 +330,32 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
                   <MaterialIcons name={expanded ? "expand-less" : "expand-more"} size={21} color="#536174" />
                 </Pressable>
                 {expanded && <View style={styles.historyDetails}>
-                  <Metadata fields={[
-                    ["Previous status", statusLabels[event.fromStatus] || event.fromStatus],
-                    ["Resulting status", status],
-                    ...(event.actorId ? [["Actor ID", event.actorId] as [string, string]] : []),
-                    ...(event.staffId ? [["Assigned staff ID", event.staffId] as [string, string]] : []),
-                    ...(event.report?.signature ? [["Signed by", event.report.signature] as [string, string]] : []),
-                  ]} />
-                  {!!event.report?.notes && <>
-                    <Text style={styles.detailHeading}>Report notes</Text>
-                    <Text selectable style={ui.text}>{event.report.notes}</Text>
-                  </>}
+                  <View style={styles.historyTransition}>
+                    <Text style={styles.historyDetailLabel}>Status update</Text>
+                    {event.fromStatus && event.fromStatus !== event.toStatus ? (
+                      <>
+                        <Text style={styles.historyDetailValue}>From {historyStatus(event.fromStatus)}</Text>
+                        <Text style={styles.historyStatus}>To {status || "Not recorded"}</Text>
+                      </>
+                    ) : <Text style={styles.historyStatus}>{status || "Not recorded"}</Text>}
+                  </View>
+                  {!!event.report?.signature && <View style={styles.historyDetailRow}>
+                    <Text style={styles.historyDetailLabel}>Signed by</Text>
+                    <Text selectable style={styles.historyDetailValue}>{event.report.signature}</Text>
+                  </View>}
+                  {!!event.report?.notes && <View style={styles.historyDetailRow}>
+                    <Text style={styles.historyDetailLabel}>Report notes</Text>
+                    <Text selectable style={styles.historyDetailValue}>{event.report.notes}</Text>
+                  </View>}
+                  {[
+                    ["Actor ID", event.actorId],
+                    ["Assigned staff ID", event.staffId],
+                  ].map(([label, value]) => value ? (
+                    <View key={label} style={styles.historyIdRow}>
+                      <Text style={styles.historyDetailLabel}>{label}</Text>
+                      <Text selectable style={styles.historyCaption}>{value}</Text>
+                    </View>
+                  ) : null)}
                 </View>}
               </View>
             );
@@ -370,5 +396,10 @@ const styles = StyleSheet.create({
   historyCopy: { flex: 1, minWidth: 0, gap: 3 },
   historyCaption: { color: "#536174", fontFamily: "Manrope", fontSize: 12, lineHeight: 17 },
   historyStatus: { color: "#14263E", fontFamily: "ManropeBold", fontSize: 12, lineHeight: 17 },
-  historyDetails: { padding: 11, gap: 8, borderTopWidth: 1, borderTopColor: "#E5E0D4" },
+  historyDetails: { padding: 13, gap: 11, borderTopWidth: 1, borderTopColor: "#E5E0D4", backgroundColor: "#FFFCF6" },
+  historyTransition: { gap: 5, backgroundColor: "#F4EFE2", borderRadius: 10, padding: 10 },
+  historyDetailRow: { gap: 4 },
+  historyIdRow: { gap: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#E5E0D4" },
+  historyDetailLabel: { color: "#536174", fontFamily: "ManropeBold", fontSize: 13, lineHeight: 18 },
+  historyDetailValue: { color: "#14263E", fontFamily: "Manrope", fontSize: 14, lineHeight: 21 },
 });
