@@ -1213,151 +1213,147 @@ export function ProfileScreen() {
     </>
   ) : undefined;
   return (
-    <MarketplaceShell profileHeader={profileHeader}
-      headerContent={!user ? (
-        <View style={s.guestProfileIntro}>
-          <View pointerEvents="none" style={s.guestProfileAccent} />
-          <View style={s.guestProfileIntroCopy}>
-            <Text accessibilityRole="header" style={s.heroTitle}>Profile</Text>
-            <Text style={s.heroSubtitle}>Pick up where you left off with your saved homes, listings and enquiries.</Text>
-          </View>
-        </View>
-      ) : undefined}
+    <MarketplaceShell title="Profile" subtitle="Your saved homes and account settings." profileHeader={profileHeader}
       scrollFooter={!user ? bottomExtension => <AccountArtworkFooter bottomExtension={bottomExtension} /> : undefined}>
-      <Protected guest={{
-        title: "Welcome to your MalikSe account",
-        text: "Sign in to see your activity or create an account to start saving properties.",
-        icon: "bookmark-border",
-      }}>
-        {user && (
-          <>
-            <View style={s.profileStats}>
-              {[
-                { label: "Listings", value: listingCount, onPress: user.role === "user" ? () => router.push("/my-properties") : undefined },
-                { label: "Saved", value: savedCount, onPress: () => router.push("/saved") },
-                { label: "Rating", value: null, onPress: undefined },
-              ].map(({ label, value, onPress }) => (
-                <Pressable key={label} disabled={!onPress} accessibilityRole={onPress ? "button" : undefined}
-                  accessibilityLabel={value == null ? `${label} unavailable` : `${value} ${label}`}
-                  style={[s.profileStat, label !== "Listings" && s.profileDivider]} onPress={onPress}>
-                  <Text style={s.profileStatValue}>{value ?? "—"}</Text>
-                  <Text style={s.muted}>{label}</Text>
-                </Pressable>
-              ))}
+      {user ? (
+        <>
+          <View style={s.profileStats}>
+            {[
+              { label: "Listings", value: listingCount, onPress: user.role === "user" ? () => router.push("/my-properties") : undefined },
+              { label: "Saved", value: savedCount, onPress: () => router.push("/saved") },
+              { label: "Rating", value: null, onPress: undefined },
+            ].map(({ label, value, onPress }) => (
+              <Pressable key={label} disabled={!onPress} accessibilityRole={onPress ? "button" : undefined}
+                accessibilityLabel={value == null ? `${label} unavailable` : `${value} ${label}`}
+                style={[s.profileStat, label !== "Listings" && s.profileDivider]} onPress={onPress}>
+                <Text style={s.profileStatValue}>{value ?? "—"}</Text>
+                <Text style={s.muted}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={s.profileMenu}>
+            {[
+              { title: "Profile", icon: "person-outline", sub: "Name, phone and email", onPress: openEditor },
+              ...(user.role === "user" ? [{
+                title: "My listings", icon: "apartment", sub: listingSummary, badge: listingCount,
+                onPress: () => router.push("/my-properties"),
+              }] : []),
+              { title: "KYC verification", icon: "badge", sub: "Identity and documents", badge: kycLabel, onPress: () => router.push("/kyc") },
+              { title: "Wishlist", icon: "favorite-border", sub: savedCount == null ? "Your saved properties" : `${savedCount} saved properties`, badge: savedCount, onPress: () => router.push("/saved") },
+            ].map(({ title, icon, sub, badge, onPress }, index) => (
+              <Pressable key={title} accessibilityRole="button" onPress={onPress}
+                style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
+                <View style={s.preferenceIcon}><Icon name={icon} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.profileMenuTitle}>{title}</Text>
+                  <Text style={s.muted}>{sub}</Text>
+                </View>
+                {badge != null ? (
+                  <View style={[s.profileBadge, title === "KYC verification" && s.profileKycBadge]}>
+                    <Text style={[s.profileBadgeText, title === "KYC verification" && { color: C.ink }]}>{badge}</Text>
+                  </View>
+                ) : (
+                  <View style={s.profileChevron}><Icon name="chevron-right" size={19} /></View>
+                )}
+              </Pressable>
+            ))}
+          </View>
+          {editing && (
+            <View style={s.panel}>
+              <Text style={s.h2}>Edit profile</Text>
+              <Field title="Full name" value={name} onChangeText={setName} />
+              <Field title="New email" value={email} onChangeText={setEmail} />
+              <EmailChangeForm email={email} />
+              <Button
+                title="Save profile"
+                disabled={action.busy}
+                onPress={() =>
+                  action.run(async () => {
+                    await userService.updateProfile({ name });
+                    await authService.getMe();
+                    setEditing(false);
+                  })
+                }
+              />
             </View>
-            <View style={s.profileMenu}>
-              {[
-                { title: "Profile", icon: "person-outline", sub: "Name, phone and email", onPress: openEditor },
-                ...(user.role === "user" ? [{
-                  title: "My listings", icon: "apartment", sub: listingSummary, badge: listingCount,
-                  onPress: () => router.push("/my-properties"),
-                }] : []),
-                { title: "KYC verification", icon: "badge", sub: "Identity and documents", badge: kycLabel, onPress: () => router.push("/kyc") },
-                { title: "Wishlist", icon: "favorite-border", sub: savedCount == null ? "Your saved properties" : `${savedCount} saved properties`, badge: savedCount, onPress: () => router.push("/saved") },
-              ].map(({ title, icon, sub, badge, onPress }, index) => (
-                <Pressable key={title} accessibilityRole="button" onPress={onPress}
-                  style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
+          )}
+          <Text style={s.h2}>Preferences</Text>
+          <View style={s.profileMenu}>
+            {[
+              {
+                title: "Notifications", subtitle: "Advisor replies & deal updates", icon: "notifications-none",
+                expanded: notificationSettingsAvailable ? undefined : openPreference === "notifications",
+                onPress: () => {
+                  if (notificationSettingsAvailable) void action.run(() => Linking.openSettings());
+                  else setOpenPreference(current => current === "notifications" ? null : "notifications");
+                },
+              },
+              {
+                title: "Language", subtitle: "English · हिंदी", icon: "language",
+                expanded: openPreference === "language",
+                onPress: () => setOpenPreference(current => current === "language" ? null : "language"),
+              },
+              {
+                title: "Help & support", subtitle: "Talk to the MalikSe team", icon: "help-outline",
+                onPress: () => void action.run(() => Linking.openURL("mailto:support@malikse.in")),
+              },
+            ].map(({ title, subtitle, icon, expanded, onPress }, index) => (
+              <React.Fragment key={title}>
+                <Pressable accessibilityRole="button" accessibilityState={{ expanded }}
+                  onPress={onPress} style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
                   <View style={s.preferenceIcon}><Icon name={icon} /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.profileMenuTitle}>{title}</Text>
-                    <Text style={s.muted}>{sub}</Text>
+                    <Text style={s.muted}>{subtitle}</Text>
                   </View>
-                  {badge != null ? (
-                    <View style={[s.profileBadge, title === "KYC verification" && s.profileKycBadge]}>
-                      <Text style={[s.profileBadgeText, title === "KYC verification" && { color: C.ink }]}>{badge}</Text>
-                    </View>
-                  ) : (
-                    <View style={s.profileChevron}><Icon name="chevron-right" size={19} /></View>
-                  )}
+                  <View style={s.profileChevron}><Icon name={expanded ? "expand-less" : "chevron-right"} size={19} /></View>
                 </Pressable>
-              ))}
+                {expanded && title === "Notifications" && (
+                  <Text style={[s.muted, s.preferenceDetails]}>Push notifications are available in the installed MalikSe app.</Text>
+                )}
+                {expanded && title === "Language" && (
+                  <View style={[s.wrap, s.preferenceDetails]}>
+                    {([{ id: "en", label: "English" }, { id: "hi", label: "हिंदी" }] as const).map(option => (
+                      <Pressable key={option.id} accessibilityRole="radio" accessibilityState={{ checked: language === option.id }}
+                        onPress={() => { setLanguage(option.id); setOpenPreference(null); }}
+                        style={[s.typeChip, language === option.id && { backgroundColor: C.sunSoft }]}>
+                        <Text style={s.cardTitle}>{option.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </React.Fragment>
+            ))}
+          </View>
+          <Button title="Conversations" icon="chat-bubble-outline" secondary onPress={() => router.push("/messages")} />
+          {user.role !== "user" && <Button title="Staff dashboard" icon="dashboard" secondary onPress={() => router.push(dashboardRoutes[user.role] as any)} />}
+          <Button title="Privacy policy" secondary onPress={() => action.run(() => Linking.openURL("https://malikse.devoxa.in/privacy-policy"))} />
+          {user.role === "user" && <Button title="Delete account" secondary onPress={() => router.push("/delete-account" as any)} />}
+          <ErrorBox text={action.error} />
+          <Button
+            title="Log out of MalikSe"
+            secondary
+            icon="logout"
+            onPress={() =>
+              action.run(async () => {
+                await authService.logout();
+                router.replace("/home");
+              })
+            }
+          />
+        </>
+      ) : (
+        <View style={[s.card, s.guestAccountCard]}>
+          <View style={s.guestAccountHeading}>
+            <Text accessibilityRole="header" style={s.guestAccountTitle}>Make yourself at home</Text>
+            <View style={s.guestAccountIcon} accessible={false}>
+              <Icon name="vpn-key" color={C.ink} size={22} />
             </View>
-            {editing && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Edit profile</Text>
-                <Field title="Full name" value={name} onChangeText={setName} />
-                <Field title="New email" value={email} onChangeText={setEmail} />
-                <EmailChangeForm email={email} />
-                <Button
-                  title="Save profile"
-                  disabled={action.busy}
-                  onPress={() =>
-                    action.run(async () => {
-                      await userService.updateProfile({ name });
-                      await authService.getMe();
-                      setEditing(false);
-                    })
-                  }
-                />
-              </View>
-            )}
-            <Text style={s.h2}>Preferences</Text>
-            <View style={s.profileMenu}>
-              {[
-                {
-                  title: "Notifications", subtitle: "Advisor replies & deal updates", icon: "notifications-none",
-                  expanded: notificationSettingsAvailable ? undefined : openPreference === "notifications",
-                  onPress: () => {
-                    if (notificationSettingsAvailable) void action.run(() => Linking.openSettings());
-                    else setOpenPreference(current => current === "notifications" ? null : "notifications");
-                  },
-                },
-                {
-                  title: "Language", subtitle: "English · हिंदी", icon: "language",
-                  expanded: openPreference === "language",
-                  onPress: () => setOpenPreference(current => current === "language" ? null : "language"),
-                },
-                {
-                  title: "Help & support", subtitle: "Talk to the MalikSe team", icon: "help-outline",
-                  onPress: () => void action.run(() => Linking.openURL("mailto:support@malikse.in")),
-                },
-              ].map(({ title, subtitle, icon, expanded, onPress }, index) => (
-                <React.Fragment key={title}>
-                  <Pressable accessibilityRole="button" accessibilityState={{ expanded }}
-                    onPress={onPress} style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
-                    <View style={s.preferenceIcon}><Icon name={icon} /></View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.profileMenuTitle}>{title}</Text>
-                      <Text style={s.muted}>{subtitle}</Text>
-                    </View>
-                    <View style={s.profileChevron}><Icon name={expanded ? "expand-less" : "chevron-right"} size={19} /></View>
-                  </Pressable>
-                  {expanded && title === "Notifications" && (
-                    <Text style={[s.muted, s.preferenceDetails]}>Push notifications are available in the installed MalikSe app.</Text>
-                  )}
-                  {expanded && title === "Language" && (
-                    <View style={[s.wrap, s.preferenceDetails]}>
-                      {([{ id: "en", label: "English" }, { id: "hi", label: "हिंदी" }] as const).map(option => (
-                        <Pressable key={option.id} accessibilityRole="radio" accessibilityState={{ checked: language === option.id }}
-                          onPress={() => { setLanguage(option.id); setOpenPreference(null); }}
-                          style={[s.typeChip, language === option.id && { backgroundColor: C.sunSoft }]}>
-                          <Text style={s.cardTitle}>{option.label}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  )}
-                </React.Fragment>
-              ))}
-            </View>
-            <Button title="Conversations" icon="chat-bubble-outline" secondary onPress={() => router.push("/messages")} />
-            {user.role !== "user" && <Button title="Staff dashboard" icon="dashboard" secondary onPress={() => router.push(dashboardRoutes[user.role] as any)} />}
-            <Button title="Privacy policy" secondary onPress={() => action.run(() => Linking.openURL("https://malikse.devoxa.in/privacy-policy"))} />
-            {user.role === "user" && <Button title="Delete account" secondary onPress={() => router.push("/delete-account" as any)} />}
-            <ErrorBox text={action.error} />
-            <Button
-              title="Log out of MalikSe"
-              secondary
-              icon="logout"
-              onPress={() =>
-                action.run(async () => {
-                  await authService.logout();
-                  router.replace("/home");
-                })
-              }
-            />
-          </>
-        )}
-      </Protected>
+          </View>
+          <Text style={s.guestAccountDescription}>Sign in to revisit saved listings and manage your enquiries.</Text>
+          <Button title="Sign in / Register" onPress={() => router.push({ pathname: "/login", params: { returnTo: "/profile" } })} />
+        </View>
+      )}
     </MarketplaceShell>
   );
 }
@@ -2940,12 +2936,11 @@ const s = StyleSheet.create({
   postDocumentIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   footer: { backgroundColor: "#fff", borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 20, paddingTop: 12 },
   profileHero: { paddingBottom: 82 },
-  guestProfileIntro: {
-    flexDirection: "row", gap: 12, paddingVertical: 14, paddingHorizontal: 16,
-    borderRadius: 18, backgroundColor: "#102138B3", borderWidth: 1, borderColor: "#FFFFFF29",
-  },
-  guestProfileAccent: { width: 3, borderRadius: 2, backgroundColor: C.sun, marginVertical: 4 },
-  guestProfileIntroCopy: { flex: 1, minWidth: 0, gap: 5, maxWidth: 410 },
+  guestAccountCard: { padding: 20, gap: 14, backgroundColor: "#FFFDF7" },
+  guestAccountHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  guestAccountTitle: { flex: 1, fontFamily: fontDisplay, fontSize: 25, lineHeight: 30, color: C.ink },
+  guestAccountIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.sunSoft, alignItems: "center", justifyContent: "center" },
+  guestAccountDescription: { fontFamily: font, fontSize: 14, lineHeight: 21, color: C.muted },
   profileHeaderCopy: { flexShrink: 1, minWidth: 0 },
   profileHeaderTitle: { fontSize: 27, lineHeight: 29 },
   profileHeroCaption: { fontSize: 13, lineHeight: 15 },
