@@ -87,6 +87,14 @@ export const WhatsAppChatScreen: React.FC = () => {
             <Text numberOfLines={1} style={styles.searchText}>{searchLabel}</Text>
           </Pressable>
             )}
+            {user?.role === "verifier" && (
+              <Pressable accessibilityRole="button" onPress={() => router.navigate("/support")}
+                style={({ pressed }) => [styles.adminChatLink, pressed && { opacity: 0.8 }]}>
+                <MaterialIcons name="support-agent" color={C.ink} size={21} />
+                <Text style={styles.adminChatLabel}>Message admin</Text>
+                <MaterialIcons name="chevron-right" color={C.ink} size={20} />
+              </Pressable>
+            )}
           </View>
         }
       >
@@ -130,6 +138,11 @@ const styles = StyleSheet.create({
     alignSelf: "center", width: "100%", maxWidth: 188, height: 152, opacity: 0.72,
   },
   adminEmptyArtwork: { maxWidth: 262, height: 210, marginTop: 12 },
+  adminChatLink: {
+    alignSelf: "flex-start", maxWidth: "100%", minHeight: 44, flexDirection: "row", alignItems: "center",
+    gap: 8, marginTop: 10, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 13, backgroundColor: "#FFF1C0",
+  },
+  adminChatLabel: { flexShrink: 1, color: C.ink, fontFamily: "ManropeBold", fontSize: 14 },
   heroHouse: {
     position: "absolute",
     bottom: "100%",
