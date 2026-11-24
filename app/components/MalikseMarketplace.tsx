@@ -1134,26 +1134,38 @@ export function WishlistScreen() {
       ) : undefined}
       subtitle="Keep your favourite homes together and compare them later."
       headerAction={false}
-      headerContent={user ? (
+      headerContent={
         <View style={s.wishlistToolbar}>
           <View style={s.wishlistSummary}>
             <Icon name="favorite" size={16} color={C.sun} />
             <Text style={s.wishlistSummaryText}>
-              {feed.data ? `${savedCount} saved ${rows.length === 1 && !feed.nextCursor ? "property" : "properties"}` : "Saved properties"}
+              {user && feed.data
+                ? `${savedCount} saved ${rows.length === 1 && !feed.nextCursor ? "property" : "properties"}`
+                : "Tap the heart on a listing to save it."}
             </Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={sort ? "Show newest saved first" : "Sort by lowest price"}
-            disabled={rows.length < 2}
-            onPress={() => setSort(current => !current)}
-            style={({ pressed }) => [s.wishlistSort, rows.length < 2 && s.wishlistSortDisabled, pressed && { opacity: 0.8 }]}
-          >
-            <Icon name="sort" size={17} />
-            <Text style={s.wishlistSortText}>{sort ? "Newest saved" : "Sort by price"}</Text>
-          </Pressable>
+          {rows.length > 1 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={sort ? "Show newest saved first" : "Sort by lowest price"}
+              onPress={() => setSort(current => !current)}
+              style={({ pressed }) => [s.wishlistSort, pressed && { opacity: 0.8 }]}
+            >
+              <Icon name="sort" size={17} />
+              <Text style={s.wishlistSortText}>{sort ? "Newest saved" : "Sort by price"}</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.navigate("/(tabs)/search")}
+              style={({ pressed }) => [s.wishlistSort, s.wishlistBrowse, pressed && { opacity: 0.8 }]}
+            >
+              <Icon name="search" size={17} />
+              <Text style={s.wishlistSortText}>Browse properties</Text>
+            </Pressable>
+          )}
         </View>
-      ) : undefined}
+      }
       back
       onBack={goToChats}
     >
@@ -2679,7 +2691,7 @@ const s = StyleSheet.create({
     minHeight: 44, maxWidth: "100%", paddingHorizontal: 13, paddingVertical: 8,
     flexDirection: "row", alignItems: "center", gap: 7, borderRadius: 22, backgroundColor: "#fff",
   },
-  wishlistSortDisabled: { opacity: 0.65 },
+  wishlistBrowse: { backgroundColor: C.sunSoft },
   wishlistSortText: { flexShrink: 1, fontFamily: "ManropeBold", fontSize: 13, color: C.ink },
   wishlistArtwork: { flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" },
   wishlistWatermarkFrame: { width: "86%", maxWidth: 335, height: "95%" },
