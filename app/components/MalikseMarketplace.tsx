@@ -13,6 +13,7 @@ import {
   Image,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   type ScrollViewInstance,
   type ScrollViewProps,
@@ -218,7 +219,7 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
   const searchRefresh = useRef<AbortSignal | null>(null);
   useEffect(() => { latestRequest.current = requestKey; }, [requestKey]);
   const [resultKey, setResultKey] = useState(requestKey);
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (forceHomeRefresh = false) => {
     const [path, , homeScope] = JSON.parse(requestKey);
     if (!path) return;
     const signal = isPropertySearch(path) ? searchScope.current?.signal : undefined;
@@ -228,7 +229,7 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
     setLoading(true);
     if (!path.startsWith("/inquiries")) setError("");
     try {
-      const response = homeScope ? await loadHomeRecommendations(path, homeScope) : await getData(path, signal);
+      const response = homeScope ? await loadHomeRecommendations(path, homeScope, forceHomeRefresh) : await getData(path, signal);
       if (signal?.aborted || latestRequest.current !== requestKey || sequence !== refreshSequence.current) return;
       setError("");
       setResultKey(requestKey);
@@ -368,6 +369,7 @@ export function MarketplaceShell({
   scrollFooter,
   dockArtwork = false,
   scrollEnabled = true,
+  refreshControl,
   step,
 }: {
   title?: React.ReactNode;
@@ -392,6 +394,7 @@ export function MarketplaceShell({
   scrollFooter?: (dockClearance: number) => React.ReactElement;
   dockArtwork?: boolean;
   scrollEnabled?: boolean;
+  refreshControl?: ScrollViewProps["refreshControl"];
   step?: number;
 }) {
   const insets = useSafeAreaInsets();
@@ -499,6 +502,7 @@ export function MarketplaceShell({
           {...transcriptEvents}
           scrollEventThrottle={transcriptEvents ? 16 : undefined}
           scrollEnabled={scrollEnabled}
+          refreshControl={refreshControl}
           style={{ flex: 1 }}
           contentContainerStyle={[s.scroll, !showDock && { paddingBottom: 12 }, scrollFooter && s.scrollWithArtwork,
           !scrollEnabled && scrollFooter && s.fitArtworkToViewport,
@@ -708,11 +712,28 @@ export function HomeScreen() {
       scope,
     ),
     { width } = useWindowDimensions();
+  const [refreshingHome, setRefreshingHome] = useState(false);
+  const homeRefreshPending = useRef(false);
+  const refreshHome = async () => {
+    if (homeRefreshPending.current) return;
+    homeRefreshPending.current = true;
+    setRefreshingHome(true);
+    try {
+      await Promise.all([personal.refresh(true), recent.refresh(true), trending.refresh(true)]);
+    } finally {
+      homeRefreshPending.current = false;
+      setRefreshingHome(false);
+    }
+  };
   const homeBusy = [personal, recent, trending].some(feed => feed.error === homeFeedBusyMessage);
   return (
     <MarketplaceShell
       title={<>Find your next home.{"\n"}<Text style={{ color: C.sun }}>Direct from owners.</Text></>}
       subtitle="Explore homes and plots by locality, property type, and budget."
+      refreshControl={Platform.OS !== "web" ? (
+        <RefreshControl refreshing={refreshingHome} onRefresh={() => void refreshHome()}
+          tintColor={C.sun} colors={[C.ink]} progressBackgroundColor={C.sunSoft} />
+      ) : undefined}
     >
       <View style={s.panel}>
         <View style={s.row}>
@@ -770,11 +791,7 @@ export function HomeScreen() {
       </View>
       {homeBusy && <View style={s.panel}>
         <Text accessibilityRole="alert" style={s.body}>{homeFeedBusyMessage}</Text>
-        <Button title="Retry listings" secondary onPress={() => {
-          void personal.refresh();
-          void recent.refresh();
-          void trending.refresh();
-        }} />
+        <Button title="Retry listings" secondary disabled={refreshingHome} onPress={() => void refreshHome()} />
       </View>}
       {[
         [
