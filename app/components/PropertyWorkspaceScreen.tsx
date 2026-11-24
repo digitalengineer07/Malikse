@@ -218,12 +218,21 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
       <View style={styles.card}>
         <Text accessibilityRole="header" style={ui.heading}>Location and boundary</Text>
         <Text selectable style={ui.muted}>GPS: {property.location.lat}, {property.location.lng}</Text>
-        <MiniMapPreview property={{ id: property._id, type: property.type, status: property.status, price: property.price, location: property.location, parcelPoints: property.parcelPoints }} />
+        <MiniMapPreview fixedPreview={!publicView} property={{ id: property._id, type: property.type, status: property.status, price: property.price, location: property.location, parcelPoints: property.parcelPoints }} />
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Open property location in Google Maps"
+          style={({ pressed }) => [styles.mapsButton, pressed && { opacity: 0.85 }]}
+          onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${property.location.lat},${property.location.lng}`).catch(() => setError("Could not open maps"))}
+        >
+          <MaterialIcons name="place" size={20} color="#14263E" />
+          <Text style={styles.mapsButtonText}>Open location in Maps</Text>
+          <MaterialIcons name="open-in-new" size={17} color="#14263E" />
+        </Pressable>
         {!!property.parcelPoints?.length && <>
           <Text style={styles.detailHeading}>Recorded boundary</Text>
           <Metadata fields={property.parcelPoints.map((point, index) => [`Point ${index + 1}`, `${point.lat}, ${point.lng}`])} />
         </>}
-        <Action title="Open location in maps" secondary onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${property.location.lat},${property.location.lng}`).catch(() => setError("Could not open maps"))} />
       </View>
       {Boolean(property.media?.photos?.length || property.media?.videos?.length) && <View style={styles.card}>
         <Text accessibilityRole="header" style={ui.heading}>Listing media</Text>
@@ -383,6 +392,11 @@ const styles = StyleSheet.create({
   price: { color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 20 },
   location: { flexDirection: "row", alignItems: "flex-start", gap: 7 },
   locationText: { flexShrink: 1 },
+  mapsButton: {
+    minHeight: 46, flexDirection: "row", alignItems: "center", gap: 9,
+    backgroundColor: "#FFF1C0", borderRadius: 13, paddingHorizontal: 13, paddingVertical: 9,
+  },
+  mapsButtonText: { flex: 1, color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 14 },
   metadata: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   metadataItem: { flexGrow: 1, flexBasis: 126, minWidth: 0, padding: 10, gap: 3, backgroundColor: "#F7F4EC", borderRadius: 11 },
   metadataLabel: { color: "#536174", fontFamily: "ManropeBold", fontSize: 12 },

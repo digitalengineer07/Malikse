@@ -21,7 +21,7 @@ export const propertyZoomStyles = `
 .property-zoom-map .leaflet-control-zoom a:focus-visible { background: #FCC61C; }
 .property-zoom-map .leaflet-control-zoom a.leaflet-disabled { color: #536174; background: #E8EAF0; }
 `;
-export type NativeMapOptions = { pins?: MapPin[]; points?: MapPoint[]; parcels?: { id: string; points: MapPoint[] }[]; satellite?: boolean; editable?: boolean; marketplace?: boolean; zoomControls?: boolean; twoFingerPan?: boolean; focus?: MapFocus; regions?: RegionBoundaryOptions };
+export type NativeMapOptions = { pins?: MapPin[]; points?: MapPoint[]; parcels?: { id: string; points: MapPoint[] }[]; satellite?: boolean; editable?: boolean; marketplace?: boolean; zoomControls?: boolean; twoFingerPan?: boolean; fixedPreview?: boolean; focus?: MapFocus; regions?: RegionBoundaryOptions };
 
 export function validMapPoint(point: MapPoint): boolean {
   return !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat) <= 90 && Math.abs(point.lng) <= 180;
@@ -43,7 +43,7 @@ function send(type,payload){window.ReactNativeWebView && window.ReactNativeWebVi
 try {
 const data=${data};
 if(data.twoFingerPan)document.getElementById('map').style.touchAction='pan-y';
-const map=L.map('map',{scrollWheelZoom:false,zoomControl:!!data.zoomControls,...(data.editable?{touchZoom:false,doubleClickZoom:false,boxZoom:false}:{}),...(data.twoFingerPan?{dragging:false,touchZoom:true,doubleClickZoom:false,boxZoom:false}:{}),...(data.marketplace?{minZoom:3.8,maxZoom:18,maxBounds:[[4,64],[39,101]]}:{})}).setView([25.6,85.1],7);
+const map=L.map('map',{scrollWheelZoom:false,zoomControl:!!data.zoomControls,...(data.editable?{touchZoom:false,doubleClickZoom:false,boxZoom:false}:{}),...(data.twoFingerPan?{dragging:false,touchZoom:true,doubleClickZoom:false,boxZoom:false}:{}),...(data.fixedPreview?{dragging:false,touchZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,zoomControl:false}:{}),...(data.marketplace?{minZoom:3.8,maxZoom:18,maxBounds:[[4,64],[39,101]]}:{})}).setView([25.6,85.1],7);
 window.focusMap=(lat,lng,zoom)=>map.setView([lat,lng],zoom);
 window.zoomParcelMap=(delta)=>map.setZoom(map.getZoom()+delta);
 let tiles;
@@ -132,7 +132,7 @@ document.body.appendChild(controls);
 ` : ""}
 points.forEach(p=>bounds.push([p.lat,p.lng]));
 if(data.focus && Number.isFinite(data.focus.lat) && Number.isFinite(data.focus.lng) && Math.abs(data.focus.lat)<=90 && Math.abs(data.focus.lng)<=180 && Number.isFinite(data.focus.zoom))map.setView([data.focus.lat,data.focus.lng],Math.max(1,Math.min(19,data.focus.zoom)));
-else if(bounds.length)map.fitBounds(bounds,{padding:[50,50],maxZoom:points.length || data.parcels?.length ?18:14});
+else if(bounds.length)map.fitBounds(bounds,data.fixedPreview ? {padding:[38,38],maxZoom:points.length>=3?17:14,animate:false} : {padding:[50,50],maxZoom:points.length || data.parcels?.length ?18:14});
 if(data.editable){
  const tools=document.createElement('div');tools.className='tools';
  let editMode='boundary', pin;
