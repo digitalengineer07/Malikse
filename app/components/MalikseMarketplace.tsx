@@ -1213,22 +1213,20 @@ export function ProfileScreen() {
     </>
   ) : undefined;
   return (
-    <MarketplaceShell profileHeader={profileHeader}
+    <MarketplaceShell title="Profile" subtitle="Keep your property journey in one place." profileHeader={profileHeader}
       headerContent={!user ? (
-        <View style={s.guestProfileIntro}>
-          <View style={s.guestProfileIntroCopy}>
-            <Text accessibilityRole="header" style={s.heroTitle}>Profile</Text>
-            <Text style={s.heroSubtitle}>Find your saved homes and manage your account.</Text>
+        <View style={s.guestProfileFeatures}>
+          <View style={s.guestProfileFeature}>
+            <Icon name="favorite-border" color={C.sun} size={17} />
+            <Text style={s.guestProfileFeatureLabel}>Save favourites</Text>
           </View>
-          <Image
-            source={require("../assets/images/modern_house_with_location_pin.png")}
-            style={s.guestProfileArtwork}
-            resizeMode="contain"
-            accessible={false}
-          />
+          <View style={s.guestProfileFeature}>
+            <Icon name="manage-accounts" color={C.sun} size={18} />
+            <Text style={s.guestProfileFeatureLabel}>Manage your account</Text>
+          </View>
         </View>
       ) : undefined}
-      scrollFooter={!user ? bottomExtension => <AccountArtworkFooter wavesOnly bottomExtension={bottomExtension} /> : undefined}>
+      scrollFooter={!user ? bottomExtension => <AccountArtworkFooter bottomExtension={bottomExtension} /> : undefined}>
       <Protected>
         {user && (
           <>
@@ -2941,12 +2939,13 @@ const s = StyleSheet.create({
   postDocumentIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   footer: { backgroundColor: "#fff", borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 20, paddingTop: 12 },
   profileHero: { paddingBottom: 82 },
-  guestProfileIntro: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    gap: 12, minHeight: 106, paddingBottom: 4, maxWidth: 560,
+  guestProfileFeatures: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4, marginBottom: 6 },
+  guestProfileFeature: {
+    maxWidth: "100%", minHeight: 38, flexDirection: "row", alignItems: "center", gap: 7,
+    paddingHorizontal: 11, paddingVertical: 7, borderRadius: 14,
+    backgroundColor: "#243C5D", borderWidth: 1, borderColor: "#FFFFFF38",
   },
-  guestProfileIntroCopy: { flex: 1, minWidth: 0, gap: 4 },
-  guestProfileArtwork: { width: "36%", maxWidth: 174, height: 104 },
+  guestProfileFeatureLabel: { flexShrink: 1, color: "#fff", fontFamily: "ManropeBold", fontSize: 12 },
   profileHeaderCopy: { flexShrink: 1, minWidth: 0 },
   profileHeaderTitle: { fontSize: 27, lineHeight: 29 },
   profileHeroCaption: { fontSize: 13, lineHeight: 15 },
