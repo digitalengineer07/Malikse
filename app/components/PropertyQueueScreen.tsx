@@ -25,6 +25,18 @@ const advisorFilters = [
   { id: "sold", label: "Sold" },
 ] as const;
 
+const neutralReview = { surface: "#FFFFFF", border: "#DEDCD5", badge: "#F0EEE8", ink: "#536174" };
+const inReview = { label: "In review", surface: "#FFFCF2", border: "#E9D6A1", badge: "#FFF1C0", ink: "#705213" };
+const reviewAppearance: Record<string, (typeof neutralReview & { label: string }) | undefined> = {
+  verified: { label: "Verified · Published", surface: "#F7FCF8", border: "#C5DDCC", badge: "#E1F2E7", ink: "#245A3B" },
+  rejected: { label: "Rejected", surface: "#FFF8F8", border: "#E9C8CE", badge: "#FBE7EA", ink: "#882A40" },
+  pending: inReview,
+  advisor_verified: inReview,
+  queued: { ...inReview, label: "Queued" },
+  correction_required: { label: "Corrections requested", surface: "#FFF9F3", border: "#EFD0B2", badge: "#FCEBD9", ink: "#8C4518" },
+  sold: { label: "Sold", surface: "#F7F9FD", border: "#CFD9EB", badge: "#E7EDF8", ink: "#304F7D" },
+};
+
 function matchesQueueFilter(status: string, filter: string, role: UserRole) {
   return filter === "all" || status === filter ||
     (role === "advisor" && filter === "pending" && status === "advisor_verified");
@@ -168,18 +180,20 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
             const actionLabel = unassigned ? "Claim review" : "Open review";
             const sellerName = property.sellerName?.trim() ||
               (typeof property.ownerId === "object" ? property.ownerId?.name?.trim() : undefined);
-            const status = property.status === "verified" ? "Verified · Published" : statusLabels[property.status] || property.status;
+            const appearance = reviewAppearance[property.status];
+            const colors = appearance ?? neutralReview;
+            const status = appearance?.label ?? statusLabels[property.status] ?? property.status;
             return (
               <Pressable accessibilityRole="button" accessibilityLabel={`${actionLabel}, ${property.title || property.type}`}
-                disabled={unassigned && busy} style={localStyles.reviewCard}
+                disabled={unassigned && busy} style={[localStyles.reviewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
                 onPress={() => unassigned ? void claim(property._id) : router.push({ pathname: "/verification/[id]", params: { id: property._id } })}>
                 <View style={localStyles.reviewTop}>
                   <View style={localStyles.reviewIdentity}>
                     <View style={localStyles.reviewIcon}><MaterialIcons name="home-work" size={19} color="#14263E" /></View>
                     <Text style={localStyles.reviewTitle}>{property.title || `${property.type} in ${property.location.district}`}</Text>
                   </View>
-                  <View style={[localStyles.reviewStatusBadge, property.status === "verified" && localStyles.publishedBadge]}>
-                    <Text style={localStyles.reviewStatus}>{status}</Text>
+                  <View style={[localStyles.reviewStatusBadge, { backgroundColor: colors.badge }]}>
+                    <Text style={[localStyles.reviewStatus, { color: colors.ink }]}>{status}</Text>
                   </View>
                 </View>
                 <View style={localStyles.reviewDetails}>
@@ -315,7 +329,6 @@ const localStyles = StyleSheet.create({
   reviewFooterAction: { marginStart: "auto", flexDirection: "row", alignItems: "center", gap: 6 },
   reviewPrice: { color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 15 },
   reviewStatusBadge: { marginStart: "auto", maxWidth: "100%", paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, backgroundColor: "#F5F2E9" },
-  publishedBadge: { backgroundColor: "#E6F4EA" },
   reviewStatus: { color: "#254C3A", fontFamily: "ManropeBold", fontSize: 12 },
   reviewMeta: { flexShrink: 1, color: "#536174", fontFamily: "Manrope", fontSize: 13 },
   dropdownToggle: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F2F6F9", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24, borderWidth: 1, borderColor: "#E2E8F0" },
