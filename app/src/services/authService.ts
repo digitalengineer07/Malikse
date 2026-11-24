@@ -189,6 +189,8 @@ export const authService = {
   async logout() {
     const actor = useAuthStore.getState().user?.id;
     try {
+      if (actor) await import("./pushNotifications").then(({ unregisterPushDevice }) => unregisterPushDevice(actor))
+        .catch(() => console.warn("[Device alerts] Device removal deferred"));
       // Best effort backend logout to invalidate refresh token
       await api.post("/auth/logout", undefined, { timeout: 10000 });
     } catch {

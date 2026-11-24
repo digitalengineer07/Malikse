@@ -1,3 +1,4 @@
+import { BrandLockup, brandHeader } from "./BrandLockup";
 import NotificationFailures from "./NotificationFailures";
 import NotificationBell from "./NotificationBell";
 import { marketplaceBackground } from "../constants/theme";
@@ -45,15 +46,14 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
         <View style={styles.sun} pointerEvents="none" />
         <View style={styles.ray} pointerEvents="none" />
         <View style={[styles.headerInner, compact && styles.horizontalCompact]}>
-          <View style={styles.topline}>
+          <View style={[styles.topline, hasAccess && styles.toplineWithContent]}>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back" style={styles.back}
               onPress={() => router.canGoBack() ? router.back() : router.replace("/home")}>
               <MaterialIcons name="arrow-back" size={22} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="MalikSe home" style={styles.brand}
               onPress={() => router.replace("/home")}>
-              <View style={styles.brandIcon}><MaterialIcons name="roofing" size={20} color={navy} /></View>
-              <Text style={styles.brandText}>MalikSe<Text style={{ color: yellow }}>.</Text></Text>
+              <BrandLockup />
             </TouchableOpacity>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={language === "en" ? "Switch to Hindi" : "Switch to English"}
               style={styles.language} onPress={toggleLanguage}>
@@ -66,7 +66,7 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
               <Text style={[styles.eyebrow, styles.onNavy]}>MALIKSE / YOUR WORKSPACE</Text>
               <View style={styles.rolePill}><View style={styles.roleDot} /><Text style={styles.roleText}>{role}</Text></View>
             </View>
-            <Text accessibilityRole="header" style={[styles.title, compact && styles.titleCompact]}>{title}</Text>
+            <Text accessibilityRole="header" style={styles.title}>{title}</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>
           </>}
         </View>
@@ -178,17 +178,15 @@ const styles = StyleSheet.create({
   topline: { flexDirection: "row", gap: 10, alignItems: "center", marginBottom: 10 },
   back: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#244268", alignItems: "center", justifyContent: "center" },
   brand: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 },
-  brandIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: yellow, alignItems: "center", justifyContent: "center" },
-  brandText: { color: "#fff", fontFamily: "Fraunces", fontSize: 24 },
   language: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#FFF1C0", alignItems: "center", justifyContent: "center" },
+  toplineWithContent: { marginBottom: brandHeader.gap - 8 },
   workspace: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" },
   eyebrow: { color: muted, fontFamily: "ManropeExtraBold", fontSize: 10, letterSpacing: 1.3 },
   onNavy: { color: "#E7EDF5" },
   rolePill: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: "#FFF1C0", borderRadius: 20 },
   roleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: navy },
   roleText: { textTransform: "capitalize", color: navy, fontSize: 12, fontFamily: "ManropeBold" },
-  title: { color: "#fff", fontSize: 38, fontFamily: "Fraunces" },
-  titleCompact: { fontSize: 31 },
+  title: { color: "#fff", fontSize: brandHeader.headingSize, lineHeight: brandHeader.headingLineHeight, fontFamily: "Fraunces" },
   subtitle: { color: "#E7EDF5", fontFamily: "Manrope", fontSize: 14, lineHeight: 21, maxWidth: 680 },
   content: { width: "100%", maxWidth: 1200, alignSelf: "center", paddingHorizontal: 32, paddingTop: 20, gap: 18 },
   hero: { borderRadius: 24, backgroundColor: navy, overflow: "hidden" },

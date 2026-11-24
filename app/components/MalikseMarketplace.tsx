@@ -1,3 +1,4 @@
+import { BrandLockup, brandHeader } from "./BrandLockup";
 import { randomUUID } from "expo-crypto";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -44,7 +45,6 @@ import NotificationBell from "./NotificationBell";
 import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
 import EmailChangeForm from "./EmailChangeForm";
-import { WhatsAppChatScreen } from "../src/features/chat";
 import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
 import PropertyImage from "./PropertyImage";
@@ -353,6 +353,9 @@ export function MarketplaceShell({
   onBack,
   headerContent,
   headerAction,
+  showGuestAccount = false,
+  heroIllustration,
+  listBody = false,
   backgroundArtwork,
   fixedHeader,
   transcriptRef,
@@ -375,6 +378,9 @@ export function MarketplaceShell({
   onBack?: () => void;
   headerContent?: React.ReactNode;
   headerAction?: React.ReactNode;
+  showGuestAccount?: boolean;
+  heroIllustration?: React.ReactNode;
+  listBody?: boolean;
   backgroundArtwork?: React.ReactNode;
   fixedHeader?: React.ReactNode;
   transcriptRef?: React.RefObject<ScrollViewInstance | null>;
@@ -407,6 +413,71 @@ export function MarketplaceShell({
   useEffect(() => {
     if (step !== undefined) scroll.current?.scrollTo({ y: 0, animated: false });
   }, [step]);
+  const guestProfileHero = path === "/profile" && !user;
+  const hero = !fixedHeader && (
+    <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
+      smallHeader && s.smallHero, profileHeader && s.profileHero, guestProfileHero && s.guestProfileHero, matchedHero && { height: sharedHeroHeight }]}>
+      <View pointerEvents="none" style={s.heroSun} />
+      <View pointerEvents="none" style={s.heroRay} />
+      <View style={[s.heroInner, compactHeader && s.compactHeroInner, matchedHero && s.matchedHeroInner]}>
+        {profileHeader || <>
+          <View style={s.heroBrandGroup}>
+            <View style={[s.header, Boolean(user) && width < 390 && { gap: 6 }]}>
+              <View style={[s.row, { flex: 1, minWidth: 0 }]}>
+                {back ? (
+                  <Pressable
+                    accessibilityLabel="Back"
+                    accessibilityRole="button"
+                    style={s.heroIcon}
+                    onPress={onBack ?? (() =>
+                      router.canGoBack() ? router.back() : router.replace("/home")
+                    )}
+                  >
+                    <Icon name="arrow-back" color="white" size={20} />
+                  </Pressable>
+                ) : null}
+                <Pressable style={[s.row, { flexShrink: 1, minWidth: 0, gap: 6 }]} onPress={() => router.push("/home")}>
+                  <BrandLockup />
+                </Pressable>
+              </View>
+              {headerAction || (
+                <Pressable
+                  accessibilityLabel="Wishlist"
+                  accessibilityRole="button"
+                  style={s.heroIcon}
+                  onPress={() => router.push("/saved")}
+                >
+                  <Icon name="favorite-border" color="white" size={20} />
+                </Pressable>
+              )}
+              {showGuestAccount && !user ? (
+                <Pressable
+                  accessibilityLabel="Sign in"
+                  accessibilityRole="button"
+                  style={[s.heroIcon, { backgroundColor: C.sunSoft }]}
+                  onPress={() => router.push({ pathname: "/login", params: { returnTo: path } })}
+                >
+                  <Icon name="person-outline" size={20} />
+                </Pressable>
+              ) : <NotificationBell />}
+            </View>
+            {Boolean(title) && (
+              <View style={heroIllustration ? s.illustratedHeroTitle : undefined}>
+                <View style={heroIllustration ? { flex: 1, minWidth: 0, gap: 2 } : { gap: 4 }}>
+                  <Text accessibilityRole="header" style={s.heroTitle}>{title}</Text>
+                  {Boolean(subtitle) && <Text numberOfLines={compactHeader || heroIllustration || guestProfileHero ? 1 : undefined}
+                  adjustsFontSizeToFit={compactHeader || Boolean(heroIllustration) || guestProfileHero} minimumFontScale={heroIllustration ? 0.9 : 0.85}
+                  style={[s.heroSubtitle, (smallHeader || Boolean(heroIllustration)) && s.smallHeroSubtitle, guestProfileHero && s.profileHeroCaption]}>{subtitle}</Text>}
+                </View>
+                {heroIllustration}
+              </View>
+            )}
+          </View>
+          {headerContent}
+        </>}
+      </View>
+    </View>
+  );
   return (
     <KeyboardAvoidingView
       style={s.root}
@@ -416,7 +487,10 @@ export function MarketplaceShell({
       {fixedHeader}
       <View style={s.scrollViewport}>
         {backgroundArtwork}
-        <ScrollView
+        {listBody ? <>
+          {hero}
+          <View style={{ flex: 1, paddingBottom: showDock ? dockBottom + dockHeight + 12 : 0 }}>{children}</View>
+        </> : <ScrollView
           ref={transcriptRef ?? scroll}
           {...transcriptEvents}
           scrollEventThrottle={transcriptEvents ? 16 : undefined}
@@ -428,65 +502,12 @@ export function MarketplaceShell({
           showDock && dockArtwork && { paddingBottom: dockBottom + dockHeight + 54 }]}
           keyboardShouldPersistTaps="handled"
         >
-          {!fixedHeader && <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
-          smallHeader && s.smallHero, profileHeader && s.profileHero, matchedHero && { height: sharedHeroHeight }]}>
-            <View pointerEvents="none" style={s.heroSun} />
-            <View pointerEvents="none" style={s.heroRay} />
-            <View style={[s.heroInner, compactHeader && s.compactHeroInner, matchedHero && s.matchedHeroInner]}>
-              {profileHeader || <>
-                <View style={[s.header, Boolean(user) && width < 390 && { gap: 6 }]}>
-                  <View style={[s.row, { flex: 1, minWidth: 0 }]}>
-                    {back ? (
-                      <Pressable
-                        accessibilityLabel="Back"
-                        accessibilityRole="button"
-                        style={s.heroIcon}
-                        onPress={onBack ?? (() =>
-                          router.canGoBack() ? router.back() : router.replace("/home")
-                        )}
-                      >
-                        <Icon name="arrow-back" color="white" size={20} />
-                      </Pressable>
-                    ) : (
-                      <View style={s.logoIcon}>
-                        <Icon name="roofing" size={18} />
-                      </View>
-                    )}
-                    <Pressable style={{ flexShrink: 1 }} onPress={() => router.push("/home")}>
-                      <Text style={s.logo} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                        MalikSe<Text style={{ color: C.sun }}>.</Text>
-                      </Text>
-                    </Pressable>
-                  </View>
-                  {headerAction || (
-                    <Pressable
-                      accessibilityLabel="Wishlist"
-                      accessibilityRole="button"
-                      style={s.heroIcon}
-                      onPress={() => router.push("/saved")}
-                    >
-                      <Icon name="favorite-border" color="white" size={20} />
-                    </Pressable>
-                  )}
-                  <NotificationBell />
-                </View>
-                {Boolean(title) && (
-                  <View style={{ gap: 4 }}>
-                    <Text accessibilityRole="header" style={s.heroTitle}>{title}</Text>
-                    {Boolean(subtitle) && <Text numberOfLines={compactHeader ? 1 : undefined}
-                      adjustsFontSizeToFit={compactHeader} minimumFontScale={0.85}
-                      style={[s.heroSubtitle, smallHeader && s.smallHeroSubtitle]}>{subtitle}</Text>}
-                  </View>
-                )}
-                {headerContent}
-              </>}
-            </View>
-          </View>}
+          {hero}
           <View style={[s.content, profileHeader && s.profileContent]}>
             {children}
           </View>
           {scrollFooter?.(showDock ? dockClearance : 0)}
-        </ScrollView>
+        </ScrollView>}
       </View>
       {footer && <View style={[s.footer, footerStyle, { paddingBottom: Math.max(insets.bottom, 12) }]}>{footer}</View>}
       {showDock && dockArtwork && <View pointerEvents="none" style={s.dockArtwork}>
@@ -1169,7 +1190,10 @@ export function ProfileScreen() {
   const profileHeader = user ? (
     <>
       <View style={s.between}>
-        <Text accessibilityRole="header" style={s.heroTitle}>Profile</Text>
+        <View style={s.profileHeaderCopy}>
+          <Text accessibilityRole="header" style={[s.heroTitle, s.profileHeaderTitle]}>Profile</Text>
+          <Text numberOfLines={1} style={[s.heroSubtitle, s.profileHeroCaption]}>Your account and activity</Text>
+        </View>
         <View style={s.row}>
           <Pressable accessibilityRole="button" accessibilityLabel="Edit profile"
             accessibilityState={{ expanded: editing }} onPress={openEditor} style={s.profileEdit}>
@@ -1198,7 +1222,20 @@ export function ProfileScreen() {
     </>
   ) : undefined;
   return (
-    <MarketplaceShell title="Profile" profileHeader={profileHeader}
+    <MarketplaceShell title="Profile" subtitle="Account, preferences and saved homes." profileHeader={profileHeader}
+      heroIllustration={!user ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Sign in to your profile"
+          onPress={() => router.push({ pathname: "/login", params: { returnTo: "/profile" } })}
+          style={({ pressed }) => [s.guestProfileShortcut, pressed && { opacity: 0.8 }]}
+        >
+          <Icon name="person-outline" color={C.sunSoft} size={27} />
+          <View pointerEvents="none" style={s.guestProfileShortcutArrow}>
+            <Icon name="arrow-forward" color={C.ink} size={12} />
+          </View>
+        </Pressable>
+      ) : undefined}
       scrollFooter={!user ? bottomExtension => <AccountArtworkFooter bottomExtension={bottomExtension} /> : undefined}>
       <Protected>
         {user && (
@@ -1747,7 +1784,6 @@ export function PropertyDetailScreen() {
   );
 }
 
-export const ChatsScreen = WhatsAppChatScreen;
 
 export function DealScreen() {
   const { id } = useLocalSearchParams(),
@@ -2557,6 +2593,7 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   header: { flexDirection: "row", alignItems: "center", gap: 10 },
   heroInner: { width: "100%", maxWidth: 1140, alignSelf: "center", gap: 18 },
+  heroBrandGroup: { gap: brandHeader.gap },
   matchedHeroInner: { flex: 1, justifyContent: "space-between", gap: 6 },
   compactHeroInner: { gap: 10 },
   heroIcon: {
@@ -2564,8 +2601,6 @@ const s = StyleSheet.create({
     justifyContent: "center", backgroundColor: "rgba(255,255,255,0.15)",
     borderWidth: 1, borderColor: "rgba(255,255,255,0.20)",
   },
-  logo: { fontFamily: fontDisplay, fontSize: 25, color: "#fff", letterSpacing: -0.5 },
-  logoIcon: { backgroundColor: C.sun, padding: 8, borderRadius: 12 },
   scroll: { paddingBottom: 108 },
   scrollWithArtwork: { flexGrow: 1, paddingBottom: 0 },
   fitArtworkToViewport: { flex: 1 },
@@ -2693,7 +2728,8 @@ const s = StyleSheet.create({
     position: "absolute", width: 74, height: 210, borderRadius: 40,
     right: 62, top: 70, backgroundColor: "#1C3556", transform: [{ rotate: "-30deg" }],
   },
-  heroTitle: { fontFamily: fontDisplay, fontSize: 32, lineHeight: 38, color: "#fff" },
+  illustratedHeroTitle: { flexDirection: "row", alignItems: "center", gap: 8 },
+  heroTitle: { fontFamily: fontDisplay, fontSize: brandHeader.headingSize, lineHeight: brandHeader.headingLineHeight, color: "#fff" },
   heroSubtitle: { fontFamily: font, fontSize: 14, lineHeight: 20, color: "rgba(255,255,255,0.78)" },
   homeHeroDetails: { gap: 12, maxWidth: 360 },
   homeDistrict: {
@@ -2915,6 +2951,19 @@ const s = StyleSheet.create({
   postDocumentIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   footer: { backgroundColor: "#fff", borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 20, paddingTop: 12 },
   profileHero: { paddingBottom: 82 },
+  guestProfileShortcut: {
+    width: 46, height: 46, marginRight: 5, borderRadius: 23,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#243C5D", borderWidth: 1, borderColor: "#FFFFFF38",
+  },
+  guestProfileShortcutArrow: {
+    position: "absolute", right: -4, bottom: -3, width: 19, height: 19,
+    borderRadius: 10, backgroundColor: C.sun, alignItems: "center", justifyContent: "center",
+  },
+  guestProfileHero: { paddingBottom: 11 },
+  profileHeaderCopy: { flexShrink: 1, minWidth: 0 },
+  profileHeaderTitle: { fontSize: 27, lineHeight: 29 },
+  profileHeroCaption: { fontSize: 13, lineHeight: 15 },
   profileContent: { marginTop: -50 },
   profileEdit: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: C.ink },
   profileIdentity: { flexDirection: "row", alignItems: "center", gap: 14, marginTop: 8 },

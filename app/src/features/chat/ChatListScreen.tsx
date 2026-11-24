@@ -3,16 +3,12 @@ import {
   ActivityIndicator,
   AppState,
   FlatList,
-  Image,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
-  useWindowDimensions,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useIsFocused } from "expo-router";
 import { useAuthStore } from "../../store/authStore";
@@ -31,6 +27,8 @@ function inboxFor(owner: string) {
 
 interface ChatListScreenProps {
   onSelectConversation: (inquiryId: string) => void;
+  searchQuery: string;
+  emptyArtwork: React.ReactNode;
 }
 
 const C = {
@@ -38,9 +36,9 @@ const C = {
   sun: "#FCC61C",
   sunSoft: "#FBF2C0",
   blue: "#0A45B5",
-  bg: "#F4F8FF",
-  line: "#E2ECF8",
-  muted: "#5D7089",
+  bg: "#F7F4EC",
+  line: "rgba(20, 38, 62, 0.12)",
+  muted: "#536174",
   green: "#12964C",
 };
 
@@ -66,10 +64,7 @@ function formatThreadDate(dateString?: string): string {
   }
 }
 
-export const ChatListScreen: React.FC<ChatListScreenProps> = ({ onSelectConversation }) => {
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const houseWidth = Math.min(194, Math.max(0, width - 40) * 0.42);
+export const ChatListScreen: React.FC<ChatListScreenProps> = ({ onSelectConversation, searchQuery, emptyArtwork }) => {
 
   const user = useAuthStore((s) => s.user);
   const currentUserId = user?.id || "";
@@ -79,7 +74,6 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({ onSelectConversa
   const focused = useIsFocused();
   const loading = !rows && !failures;
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterUnread, setFilterUnread] = useState<boolean>(false);
 
   useEffect(() => {
@@ -132,44 +126,7 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({ onSelectConversa
 
   return (
     <View style={styles.screen}>
-      {/* Exact Previous MalikSe Hero Header */}
-      <View style={[styles.heroHeader, { paddingTop: insets.top + 14 }]}>
-        <View style={styles.messagesHeroIntro}>
-          <View style={styles.messagesHeroCopy}>
-            <Text accessibilityRole="header" style={styles.heroTitle}>
-              Messages
-            </Text>
-            <Text style={styles.messagesHeroSubtitle} numberOfLines={2}>
-              Track property enquiries and replies.
-            </Text>
-          </View>
-          <Image
-            source={require("../../../assets/images/messages_header_house.png")}
-            resizeMode="contain"
-            accessible={false}
-            style={[styles.messagesHeroHouse, { width: houseWidth, height: houseWidth * (897 / 1754) }]}
-          />
-        </View>
-
-        {/* Previous Search Pill */}
-        <View style={styles.messagesHeroSearch}>
-          <MaterialIcons name="search" size={20} color={C.ink} />
-          <TextInput
-            accessibilityLabel="Search chats, people or properties"
-            placeholder="Search chats, people or properties"
-            placeholderTextColor={C.muted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={styles.messagesHeroSearchInput}
-          />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery("")}>
-              <MaterialIcons name="close" size={18} color={C.muted} />
-            </Pressable>
-          )}
-        </View>
-      </View>
-
+      {rows?.length === 0 && <View pointerEvents="none" style={styles.emptyArtwork}>{emptyArtwork}</View>}
       {/* Filter Tabs: All vs Unread */}
       <View style={styles.filterWrap}>
         <Pressable
@@ -323,63 +280,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: C.bg,
   },
-  heroHeader: {
-    backgroundColor: C.ink,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomLeftRadius: 18,
-    borderBottomRightRadius: 28,
-  },
-  messagesHeroIntro: {
-    minHeight: 88,
-    justifyContent: "center",
-    position: "relative",
-    marginBottom: 12,
-  },
-  messagesHeroCopy: {
-    width: "66%",
-    gap: 4,
-  },
-  heroTitle: {
-    fontFamily: "Fraunces_400Regular",
-    fontSize: 28,
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
-  messagesHeroSubtitle: {
-    fontFamily: "Manrope_400Regular",
-    fontSize: 13,
-    lineHeight: 18,
-    color: "rgba(255,255,255,0.82)",
-  },
-  messagesHeroHouse: {
-    position: "absolute",
-    bottom: -10,
-    right: -4,
-  },
-  messagesHeroSearch: {
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    zIndex: 1,
-    paddingHorizontal: 14,
-    borderRadius: 24,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  messagesHeroSearchInput: {
-    flex: 1,
-    minWidth: 0,
-    minHeight: 44,
-    fontFamily: "Manrope_400Regular",
-    fontSize: 14,
-    color: C.ink,
-  },
   filterWrap: {
     flexDirection: "row",
     gap: 8,
@@ -411,6 +311,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 24,
   },
+  emptyArtwork: { position: "absolute", bottom: 0, left: 0, right: 0 },
   threadCard: {
     flexDirection: "row",
     alignItems: "center",
