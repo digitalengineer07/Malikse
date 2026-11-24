@@ -419,7 +419,8 @@ function PropertyCard({
     user = useAuthStore((x) => x.user),
     gate = useGate(),
     action = useAction(),
-    [saved, setSaved] = useState(initiallySaved);
+    [saved, setSaved] = useState(initiallySaved),
+    [cardHovered, setCardHovered] = useState(false);
 
   const openProperty = () => {
     if (p?._id) {
@@ -490,23 +491,23 @@ function PropertyCard({
           s.card,
           {
             flexDirection: "row",
-            padding: 16,
-            gap: 18,
+            padding: 13,
+            gap: 14,
             alignItems: "stretch",
-            borderRadius: 22,
+            borderRadius: 18,
           },
           Platform.OS === "web" && ({
-            transition: "transform 0.24s cubic-bezier(.2,.7,.2,1), box-shadow 0.24s",
-            ...(hovered ? { transform: [{ translateY: -4 }], boxShadow: "0 1px 0 rgba(20,38,62,.05), 0 26px 44px -20px rgba(20,38,62,.35)" } : {}),
+            transition: "transform 0.22s cubic-bezier(.2,.7,.2,1), box-shadow 0.22s, border-color 0.22s",
+            ...(hovered ? { transform: [{ translateY: -3 }], borderColor: "rgba(252,198,28,0.65)", boxShadow: "0 1px 0 rgba(20,38,62,.05), 0 22px 38px -18px rgba(20,38,62,.32)" } : {}),
           } as any),
           style,
         ]}
       >
         <View
           style={{
-            width: 158,
-            height: 146,
-            borderRadius: 16,
+            width: 138,
+            height: 124,
+            borderRadius: 14,
             overflow: "hidden",
             backgroundColor: "#E9E4D5",
             flexShrink: 0,
@@ -515,36 +516,36 @@ function PropertyCard({
         >
           {p.media?.photos?.[0] ? (
             <Image
-              source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], 450) }}
+              source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], 400) }}
               style={StyleSheet.absoluteFill}
               resizeMode="cover"
             />
           ) : (
             <View style={[StyleSheet.absoluteFill, s.placeholder]}>
-              <Icon name="home-work" size={38} color="#94A3B8" />
+              <Icon name="home-work" size={32} color="#94A3B8" />
             </View>
           )}
           <View
             style={{
               position: "absolute",
-              top: 10,
-              left: 10,
+              top: 8,
+              left: 8,
               backgroundColor: "#FCC61C",
-              paddingHorizontal: 10,
-              paddingVertical: 4,
+              paddingHorizontal: 9,
+              paddingVertical: 3,
               borderRadius: 999,
             }}
           >
-            <Text style={{ fontFamily: font, fontSize: 11.5, fontWeight: "800", color: "#14263E" }}>
+            <Text style={{ fontFamily: font, fontSize: 10.5, fontWeight: "800", color: "#14263E" }}>
               {freshTag || "New"}
             </Text>
           </View>
         </View>
 
-        <View style={{ flex: 1, minWidth: 0, justifyContent: "space-between", paddingVertical: 2 }}>
-          <View style={{ gap: 6 }}>
+        <View style={{ flex: 1, minWidth: 0, justifyContent: "space-between", paddingVertical: 1 }}>
+          <View style={{ gap: 4 }}>
             <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-              <Text style={{ fontFamily: font, fontSize: 17.5, fontWeight: "800", color: "#14263E", flex: 1 }} numberOfLines={2}>
+              <Text style={{ fontFamily: font, fontSize: 15, fontWeight: "800", color: "#14263E", flex: 1, lineHeight: 20 }} numberOfLines={2}>
                 {label(p)}
               </Text>
               <Pressable
@@ -552,30 +553,30 @@ function PropertyCard({
                 disabled={action.busy}
                 onPress={toggleSave}
                 style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 19,
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
                   backgroundColor: saved ? "#FCC61C" : "#F7F4EC",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Icon name={saved ? "favorite" : "favorite-border"} size={18} color="#14263E" />
+                <Icon name={saved ? "favorite" : "favorite-border"} size={16} color="#14263E" />
               </Pressable>
             </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-              <Icon name="location-on" size={14} color="rgba(20, 38, 62, 0.55)" />
-              <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "600", color: "rgba(20, 38, 62, 0.62)" }} numberOfLines={1}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Icon name="location-on" size={13} color="rgba(20, 38, 62, 0.55)" />
+              <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "600", color: "rgba(20, 38, 62, 0.62)" }} numberOfLines={1}>
                 {p.location?.district}, {p.location?.state || "Bihar"}
               </Text>
             </View>
           </View>
 
-          <View style={{ gap: 2, marginTop: 10 }}>
-            <Text style={{ fontFamily: font, fontSize: 23, fontWeight: "800", color: "#14263E", letterSpacing: -0.5 }}>
+          <View style={{ gap: 2, marginTop: 6 }}>
+            <Text style={{ fontFamily: font, fontSize: 19, fontWeight: "800", color: "#14263E", letterSpacing: -0.4 }}>
               {money(p.price)}
             </Text>
-            <Text style={{ fontFamily: font, fontSize: 13, fontWeight: "700", color: "rgba(20, 38, 62, 0.6)" }}>
+            <Text style={{ fontFamily: font, fontSize: 12, fontWeight: "700", color: "rgba(20, 38, 62, 0.58)" }}>
               {typeLabel}
               {areaSqFt > 0 ? ` · ${areaSqFt.toLocaleString("en-IN")} sq.ft` : ""}
               {p.negotiable ? " · Negotiable" : ""}
@@ -587,7 +588,20 @@ function PropertyCard({
   }
 
   return (
-    <View style={[s.card, compact && { flexDirection: "row" }, style]}>
+    <View
+      {...(Platform.OS === "web"
+        ? ({ onMouseEnter: () => setCardHovered(true), onMouseLeave: () => setCardHovered(false) } as any)
+        : {})}
+      style={[
+        s.card,
+        compact && { flexDirection: "row" },
+        Platform.OS === "web" && ({
+          transition: "transform 0.22s cubic-bezier(.2,.7,.2,1), box-shadow 0.22s, border-color 0.22s",
+          ...(cardHovered ? { transform: [{ translateY: -4 }], borderColor: "rgba(252,198,28,0.65)", boxShadow: "0 1px 0 rgba(20,38,62,.05), 0 24px 42px -18px rgba(20,38,62,.34)" } : {}),
+        } as any),
+        style,
+      ]}
+    >
       <Pressable
         style={compact ? { width: 120, minHeight: 136 } : s.photo}
         onPress={openProperty}
@@ -710,8 +724,8 @@ function PropertyCard({
 
         <View
           style={{
-            marginTop: 6,
-            paddingTop: 12,
+            marginTop: 4,
+            paddingTop: 10,
             borderTopWidth: 1,
             borderTopColor: "rgba(20, 38, 62, 0.08)",
             flexDirection: "row",
@@ -720,23 +734,23 @@ function PropertyCard({
             gap: 8,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <Icon name="category" size={14} color="rgba(20, 38, 62, 0.55)" />
-            <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "700", color: "#14263E" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Icon name="category" size={13} color="rgba(20, 38, 62, 0.55)" />
+            <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "700", color: "#14263E" }}>
               {typeLabel}
             </Text>
           </View>
           {Number(p.bedrooms) > 0 && (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <Icon name="bed" size={14} color="rgba(20, 38, 62, 0.55)" />
-              <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "700", color: "#14263E" }}>
+              <Icon name="bed" size={13} color="rgba(20, 38, 62, 0.55)" />
+              <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "700", color: "#14263E" }}>
                 {p.bedrooms} Beds
               </Text>
             </View>
           )}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <Icon name="square-foot" size={14} color="rgba(20, 38, 62, 0.55)" />
-            <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "700", color: "#14263E" }}>
+            <Icon name="square-foot" size={13} color="rgba(20, 38, 62, 0.55)" />
+            <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "700", color: "#14263E" }}>
               {areaSqFt > 0 ? `${areaSqFt.toLocaleString("en-IN")} sq.ft` : "Verified"}
             </Text>
           </View>
@@ -846,15 +860,15 @@ function SectionHeading({
   const { width } = useWindowDimensions();
   const isCompact = width < 640;
   return (
-    <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-      <View style={{ flex: 1, minWidth: 220, gap: 6 }}>
+    <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+      <View style={{ flex: 1, minWidth: 220, gap: 4 }}>
         {!!eyebrow && (
           <Text
             style={{
               fontFamily: font,
-              fontSize: 12.5,
+              fontSize: 11.5,
               fontWeight: "800",
-              letterSpacing: 1.8,
+              letterSpacing: 1.6,
               color: "rgba(20, 38, 62, 0.5)",
               textTransform: "uppercase",
             }}
@@ -865,11 +879,11 @@ function SectionHeading({
         <Text
           style={{
             fontFamily: fontDisplay,
-            fontSize: isCompact ? 32 : 42,
-            lineHeight: isCompact ? 36 : 46,
+            fontSize: isCompact ? 24 : 30,
+            lineHeight: isCompact ? 29 : 36,
             fontWeight: "700",
             color: "#14263E",
-            letterSpacing: -0.6,
+            letterSpacing: -0.5,
           }}
         >
           {title}
@@ -878,11 +892,11 @@ function SectionHeading({
           <Text
             style={{
               fontFamily: font,
-              fontSize: 16,
-              lineHeight: 24,
+              fontSize: 14.5,
+              lineHeight: 22,
               fontWeight: "500",
               color: "rgba(20, 38, 62, 0.62)",
-              maxWidth: 580,
+              maxWidth: 560,
             }}
           >
             {sub}
@@ -898,22 +912,22 @@ function ViewAllPill({ onPress, labelText = "View all" }: { onPress: () => void;
   return (
     <Pressable
       onPress={onPress}
-      style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+      style={{ flexDirection: "row", alignItems: "center", gap: 7 }}
     >
-      <Text style={{ fontFamily: font, fontSize: 15, fontWeight: "800", color: "#14263E" }}>
+      <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "800", color: "#14263E" }}>
         {labelText}
       </Text>
       <View
         style={{
-          width: 32,
-          height: 32,
-          borderRadius: 16,
+          width: 28,
+          height: 28,
+          borderRadius: 14,
           backgroundColor: "#FCC61C",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Icon name="chevron-right" size={18} color="#14263E" />
+        <Icon name="chevron-right" size={17} color="#14263E" />
       </View>
     </Pressable>
   );
@@ -1336,7 +1350,7 @@ export function HomeScreen() {
 
   const wrapContainer = {
     width: "100%" as const,
-    maxWidth: 1240,
+    maxWidth: 1180,
     alignSelf: "center" as const,
     paddingHorizontal: isMobile ? 16 : 24,
   };
@@ -1351,20 +1365,20 @@ export function HomeScreen() {
           backgroundColor: "#14263E",
           position: "relative",
           overflow: "hidden",
-          paddingTop: isMobile ? 36 : 58,
-          paddingBottom: isMobile ? 84 : 112,
+          paddingTop: isMobile ? 28 : 40,
+          paddingBottom: isMobile ? 64 : 78,
         }}
       >
-        {/* Signature Geometric Accents (.whero::before / ::after) */}
+        {/* Signature Geometric Accents */}
         <View
           pointerEvents="none"
           style={{
             position: "absolute",
-            right: isMobile ? -120 : -110,
-            top: isMobile ? -170 : -190,
-            width: isMobile ? 340 : 500,
-            height: isMobile ? 340 : 500,
-            borderRadius: 250,
+            right: isMobile ? -110 : -90,
+            top: isMobile ? -160 : -170,
+            width: isMobile ? 300 : 440,
+            height: isMobile ? 300 : 440,
+            borderRadius: 220,
             backgroundColor: "#FCC61C",
           }}
         />
@@ -1372,37 +1386,37 @@ export function HomeScreen() {
           pointerEvents="none"
           style={{
             position: "absolute",
-            right: isMobile ? 90 : 300,
-            top: isMobile ? 60 : 80,
-            width: isMobile ? 110 : 190,
-            height: isMobile ? 340 : 620,
-            borderRadius: 100,
+            right: isMobile ? 80 : 270,
+            top: isMobile ? 50 : 60,
+            width: isMobile ? 96 : 160,
+            height: isMobile ? 300 : 540,
+            borderRadius: 90,
             backgroundColor: "#1C3556",
             transform: [{ rotate: "-30deg" }],
           }}
         />
 
         <View style={[wrapContainer, { position: "relative", zIndex: 2 }]}>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 36 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 32 }}>
             {/* Left Editorial + Interactive Search Console */}
-            <View style={{ flex: 1, maxWidth: showHeroShowcase ? 740 : "100%", gap: 22 }}>
+            <View style={{ flex: 1, maxWidth: showHeroShowcase ? 700 : "100%", gap: 18 }}>
               {/* Trust Badge Pill */}
               <View
                 style={{
                   alignSelf: "flex-start",
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: 8,
+                  gap: 7,
                   backgroundColor: "rgba(255, 255, 255, 0.10)",
                   borderWidth: 1,
                   borderColor: "rgba(255, 255, 255, 0.16)",
-                  paddingHorizontal: 15,
-                  paddingVertical: 8,
+                  paddingHorizontal: 13,
+                  paddingVertical: 6,
                   borderRadius: 999,
                 }}
               >
-                <Icon name="verified-user" size={16} color="#FCC61C" />
-                <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "700", color: "#FCC61C" }}>
+                <Icon name="verified-user" size={14} color="#FCC61C" />
+                <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "700", color: "#FCC61C" }}>
                   {user
                     ? `Hello, ${user.name.split(" ")[0]} · Verified owner-to-buyer marketplace`
                     : "India's verified owner-to-buyer marketplace"}
@@ -1410,15 +1424,15 @@ export function HomeScreen() {
               </View>
 
               {/* Editorial Fraunces Hero Headline */}
-              <View style={{ gap: 14 }}>
+              <View style={{ gap: 10 }}>
                 <Text
                   style={{
                     fontFamily: fontDisplay,
-                    fontSize: isMobile ? 42 : 64,
-                    lineHeight: isMobile ? 45 : 67,
+                    fontSize: isMobile ? 32 : 46,
+                    lineHeight: isMobile ? 36 : 51,
                     fontWeight: "700",
                     color: "#FFFFFF",
-                    letterSpacing: -1.4,
+                    letterSpacing: -1.0,
                   }}
                 >
                   {"Find a home,\n"}
@@ -1427,11 +1441,11 @@ export function HomeScreen() {
                 <Text
                   style={{
                     fontFamily: font,
-                    fontSize: isMobile ? 16 : 18.5,
-                    lineHeight: isMobile ? 25 : 28,
+                    fontSize: isMobile ? 14.5 : 15.5,
+                    lineHeight: isMobile ? 22 : 24,
                     fontWeight: "500",
                     color: "rgba(255, 255, 255, 0.74)",
-                    maxWidth: 540,
+                    maxWidth: 500,
                   }}
                 >
                   No brokers. No commission. Every owner and every title is verified before you ever see the listing.
@@ -1442,14 +1456,14 @@ export function HomeScreen() {
               <View
                 style={{
                   backgroundColor: "#FFFFFF",
-                  borderRadius: 22,
-                  padding: 12,
-                  gap: 10,
-                  marginTop: 6,
-                  maxWidth: 750,
+                  borderRadius: 18,
+                  padding: 10,
+                  gap: 8,
+                  marginTop: 2,
+                  maxWidth: 700,
                   ...Platform.select({
                     web: {
-                      boxShadow: "0 1px 0 rgba(20,38,62,.05), 0 24px 48px -18px rgba(12,26,44,.55)",
+                      boxShadow: "0 1px 0 rgba(20,38,62,.05), 0 22px 44px -18px rgba(12,26,44,.52)",
                     },
                   }),
                 }}
@@ -1460,10 +1474,10 @@ export function HomeScreen() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={{
                     flexDirection: "row",
-                    gap: 4,
+                    gap: 3,
                     backgroundColor: "#F7F4EC",
-                    padding: 4,
-                    borderRadius: 14,
+                    padding: 3,
+                    borderRadius: 12,
                   }}
                 >
                   {[
@@ -1484,19 +1498,19 @@ export function HomeScreen() {
                           setRefreshSeed(Date.now());
                         }}
                         style={{
-                          paddingHorizontal: 18,
-                          paddingVertical: 9,
-                          borderRadius: 11,
+                          paddingHorizontal: 14,
+                          paddingVertical: 7,
+                          borderRadius: 9,
                           backgroundColor: active ? "#14263E" : "transparent",
                           ...Platform.select({
-                            web: active ? { boxShadow: "0 8px 16px -8px rgba(20,38,62,.6)" } : {},
+                            web: active ? { boxShadow: "0 6px 14px -6px rgba(20,38,62,.55)" } : {},
                           }),
                         }}
                       >
                         <Text
                           style={{
                             fontFamily: font,
-                            fontSize: 13.5,
+                            fontSize: 12.5,
                             fontWeight: "800",
                             color: active ? "#FCC61C" : "rgba(20, 38, 62, 0.62)",
                           }}
@@ -1519,13 +1533,13 @@ export function HomeScreen() {
                   <View
                     style={[
                       s.searchSegmentLocation,
-                      { flex: 1, minWidth: 160 },
+                      { flex: 1, minWidth: 150, paddingVertical: 6, paddingHorizontal: 12 },
                       focusedField === "location" && { backgroundColor: "#F7F4EC" },
                     ]}
                   >
-                    <Icon name="location-on" size={22} color="rgba(20, 38, 62, 0.55)" />
+                    <Icon name="location-on" size={19} color="rgba(20, 38, 62, 0.55)" />
                     <View style={{ flex: 1, gap: 1 }}>
-                      <Text style={{ fontFamily: font, fontSize: 11, fontWeight: "800", letterSpacing: 1.4, color: "rgba(20, 38, 62, 0.45)" }}>
+                      <Text style={{ fontFamily: font, fontSize: 10, fontWeight: "800", letterSpacing: 1.2, color: "rgba(20, 38, 62, 0.45)" }}>
                         LOCATION
                       </Text>
                       <TextInput
@@ -1536,7 +1550,7 @@ export function HomeScreen() {
                         onChangeText={setLocationInput}
                         onFocus={() => setFocusedField("location")}
                         onBlur={() => setFocusedField(null)}
-                        style={s.searchTextInput}
+                        style={[s.searchTextInput, { fontSize: 13.5, height: 22 }]}
                         onSubmitEditing={handleSearch}
                       />
                     </View>
@@ -1546,13 +1560,13 @@ export function HomeScreen() {
                         style={s.searchClearBtn}
                         accessibilityLabel="Clear location"
                       >
-                        <Icon name="close" size={14} color="#14263E" />
+                        <Icon name="close" size={13} color="#14263E" />
                       </TouchableOpacity>
                     )}
                   </View>
 
                   {!isMobile ? (
-                    <View style={{ width: 1, height: 38, backgroundColor: "rgba(20, 38, 62, 0.12)" }} />
+                    <View style={{ width: 1, height: 32, backgroundColor: "rgba(20, 38, 62, 0.12)" }} />
                   ) : (
                     <View style={{ height: 1, backgroundColor: "rgba(20, 38, 62, 0.1)" }} />
                   )}
@@ -1560,13 +1574,13 @@ export function HomeScreen() {
                   <View
                     style={[
                       s.searchSegmentInput,
-                      { flex: 1.35 },
+                      { flex: 1.3, paddingVertical: 6, paddingHorizontal: 12 },
                       focusedField === "query" && { backgroundColor: "#F7F4EC" },
                     ]}
                   >
-                    <Icon name="search" size={22} color="rgba(20, 38, 62, 0.55)" />
+                    <Icon name="search" size={19} color="rgba(20, 38, 62, 0.55)" />
                     <View style={{ flex: 1, gap: 1 }}>
-                      <Text style={{ fontFamily: font, fontSize: 11, fontWeight: "800", letterSpacing: 1.4, color: "rgba(20, 38, 62, 0.45)" }}>
+                      <Text style={{ fontFamily: font, fontSize: 10, fontWeight: "800", letterSpacing: 1.2, color: "rgba(20, 38, 62, 0.45)" }}>
                         PROPERTY OR AREA
                       </Text>
                       <TextInput
@@ -1577,7 +1591,7 @@ export function HomeScreen() {
                         onChangeText={setQuery}
                         onFocus={() => setFocusedField("query")}
                         onBlur={() => setFocusedField(null)}
-                        style={s.searchTextInput}
+                        style={[s.searchTextInput, { fontSize: 13.5, height: 22 }]}
                         onSubmitEditing={handleSearch}
                       />
                     </View>
@@ -1587,7 +1601,7 @@ export function HomeScreen() {
                         style={s.searchClearBtn}
                         accessibilityLabel="Clear query"
                       >
-                        <Icon name="close" size={14} color="#14263E" />
+                        <Icon name="close" size={13} color="#14263E" />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -1598,23 +1612,23 @@ export function HomeScreen() {
                     onPress={handleSearch}
                     activeOpacity={0.88}
                     style={{
-                      height: 58,
-                      paddingHorizontal: 26,
-                      borderRadius: 16,
+                      height: 48,
+                      paddingHorizontal: 22,
+                      borderRadius: 13,
                       backgroundColor: "#FCC61C",
                       flexDirection: "row",
                       alignItems: "center",
                       justifyContent: "center",
-                      gap: 8,
+                      gap: 7,
                       ...Platform.select({
                         web: {
-                          boxShadow: "0 14px 24px -12px rgba(232,174,0,.9), inset 0 1px 0 rgba(255,255,255,.5)",
+                          boxShadow: "0 12px 20px -10px rgba(232,174,0,.85), inset 0 1px 0 rgba(255,255,255,.5)",
                         },
                       }),
                     }}
                   >
-                    <Icon name="search" size={19} color="#14263E" />
-                    <Text style={{ fontFamily: font, fontSize: 16, fontWeight: "800", color: "#14263E" }}>
+                    <Icon name="search" size={17} color="#14263E" />
+                    <Text style={{ fontFamily: font, fontSize: 14.5, fontWeight: "800", color: "#14263E" }}>
                       Search
                     </Text>
                   </TouchableOpacity>
@@ -1625,11 +1639,11 @@ export function HomeScreen() {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 8, paddingVertical: 2, alignItems: "center" }}
+                contentContainerStyle={{ gap: 7, paddingVertical: 2, alignItems: "center" }}
               >
                 <Text
                   style={{
-                    fontSize: 12,
+                    fontSize: 11.5,
                     fontWeight: "800",
                     color: "rgba(255, 255, 255, 0.65)",
                     marginRight: 4,
@@ -1652,8 +1666,8 @@ export function HomeScreen() {
                         setRefreshSeed(Date.now());
                       }}
                       style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 14,
+                        paddingVertical: 5,
+                        paddingHorizontal: 12,
                         borderRadius: 999,
                         backgroundColor: isSelected ? "#FCC61C" : "rgba(255, 255, 255, 0.10)",
                         borderWidth: 1,
@@ -1662,7 +1676,7 @@ export function HomeScreen() {
                     >
                       <Text
                         style={{
-                          fontSize: 12.5,
+                          fontSize: 12,
                           fontWeight: isSelected ? "800" : "600",
                           color: isSelected ? "#14263E" : "rgba(255, 255, 255, 0.85)",
                           fontFamily: font,
@@ -1678,89 +1692,30 @@ export function HomeScreen() {
 
             {/* Right Desktop Floating Verified Property Cards Cluster */}
             {showHeroShowcase && (
-              <View style={{ width: 420, height: 470, position: "relative", flexShrink: 0 }}>
+              <View style={{ width: 375, height: 375, position: "relative", flexShrink: 0 }}>
                 {/* Top-Right Rotated Card */}
                 <Pressable
                   onPress={() => showcasePrimary?._id ? router.push(`/property/${showcasePrimary._id}` as any) : router.push("/search")}
                   style={{
                     position: "absolute",
                     right: 0,
-                    top: 6,
-                    width: 276,
+                    top: 2,
+                    width: 238,
                     backgroundColor: "#FFFFFF",
-                    borderRadius: 22,
+                    borderRadius: 18,
                     overflow: "hidden",
                     transform: [{ rotate: "3deg" }],
                     ...Platform.select({
-                      web: { boxShadow: "0 24px 48px -16px rgba(12, 26, 44, 0.5)" },
+                      web: { boxShadow: "0 20px 42px -14px rgba(12, 26, 44, 0.5)" },
                     }),
                   }}
                 >
-                  <View style={{ height: 176, backgroundColor: "#E9E4D5", position: "relative" }}>
+                  <View style={{ height: 140, backgroundColor: "#E9E4D5", position: "relative" }}>
                     <Image
                       source={{
                         uri:
                           getOptimizedPhotoUrl(showcasePrimary?.media?.photos?.[0], 500) ||
                           "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80",
-                      }}
-                      style={StyleSheet.absoluteFill}
-                      resizeMode="cover"
-                    />
-                    <View
-                      style={{
-                        position: "absolute",
-                        top: 12,
-                        left: 12,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 4,
-                        backgroundColor: "rgba(255,255,255,0.96)",
-                        paddingHorizontal: 9,
-                        paddingVertical: 4,
-                        borderRadius: 999,
-                      }}
-                    >
-                      <Icon name="verified-user" size={13} color="#0B8A3E" />
-                      <Text style={{ fontFamily: font, fontSize: 12, fontWeight: "800", color: "#0B8A3E" }}>
-                        Verified
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={{ padding: 15 }}>
-                    <Text style={{ fontFamily: font, fontSize: 21, fontWeight: "800", color: "#14263E" }}>
-                      {showcasePrimary ? money(showcasePrimary.price) : "₹65 Lakh"}
-                    </Text>
-                    <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "700", color: "rgba(20,38,62,0.7)", marginTop: 2 }} numberOfLines={1}>
-                      {showcasePrimary
-                        ? `${label(showcasePrimary)} · ${showcasePrimary.location?.district || "Bihar"}`
-                        : "Verified 3 BHK · Patna"}
-                    </Text>
-                  </View>
-                </Pressable>
-
-                {/* Bottom-Left Rotated Card */}
-                <Pressable
-                  onPress={() => showcaseSecondary?._id ? router.push(`/property/${showcaseSecondary._id}` as any) : router.push("/search")}
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 244,
-                    width: 244,
-                    backgroundColor: "#FFFFFF",
-                    borderRadius: 22,
-                    overflow: "hidden",
-                    transform: [{ rotate: "-4deg" }],
-                    ...Platform.select({
-                      web: { boxShadow: "0 24px 48px -16px rgba(12, 26, 44, 0.5)" },
-                    }),
-                  }}
-                >
-                  <View style={{ height: 132, backgroundColor: "#E9E4D5", position: "relative" }}>
-                    <Image
-                      source={{
-                        uri:
-                          getOptimizedPhotoUrl(showcaseSecondary?.media?.photos?.[0], 450) ||
-                          "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80",
                       }}
                       style={StyleSheet.absoluteFill}
                       resizeMode="cover"
@@ -1780,16 +1735,75 @@ export function HomeScreen() {
                       }}
                     >
                       <Icon name="verified-user" size={12} color="#0B8A3E" />
-                      <Text style={{ fontFamily: font, fontSize: 11.5, fontWeight: "800", color: "#0B8A3E" }}>
+                      <Text style={{ fontFamily: font, fontSize: 11, fontWeight: "800", color: "#0B8A3E" }}>
                         Verified
                       </Text>
                     </View>
                   </View>
-                  <View style={{ padding: 14 }}>
-                    <Text style={{ fontFamily: font, fontSize: 19, fontWeight: "800", color: "#14263E" }}>
+                  <View style={{ padding: 12 }}>
+                    <Text style={{ fontFamily: font, fontSize: 18, fontWeight: "800", color: "#14263E" }}>
+                      {showcasePrimary ? money(showcasePrimary.price) : "₹65 Lakh"}
+                    </Text>
+                    <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "700", color: "rgba(20,38,62,0.7)", marginTop: 2 }} numberOfLines={1}>
+                      {showcasePrimary
+                        ? `${label(showcasePrimary)} · ${showcasePrimary.location?.district || "Bihar"}`
+                        : "Verified 3 BHK · Patna"}
+                    </Text>
+                  </View>
+                </Pressable>
+
+                {/* Bottom-Left Rotated Card */}
+                <Pressable
+                  onPress={() => showcaseSecondary?._id ? router.push(`/property/${showcaseSecondary._id}` as any) : router.push("/search")}
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: 192,
+                    width: 214,
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: 18,
+                    overflow: "hidden",
+                    transform: [{ rotate: "-4deg" }],
+                    ...Platform.select({
+                      web: { boxShadow: "0 20px 42px -14px rgba(12, 26, 44, 0.5)" },
+                    }),
+                  }}
+                >
+                  <View style={{ height: 108, backgroundColor: "#E9E4D5", position: "relative" }}>
+                    <Image
+                      source={{
+                        uri:
+                          getOptimizedPhotoUrl(showcaseSecondary?.media?.photos?.[0], 450) ||
+                          "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80",
+                      }}
+                      style={StyleSheet.absoluteFill}
+                      resizeMode="cover"
+                    />
+                    <View
+                      style={{
+                        position: "absolute",
+                        top: 8,
+                        left: 8,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 3,
+                        backgroundColor: "rgba(255,255,255,0.96)",
+                        paddingHorizontal: 7,
+                        paddingVertical: 3,
+                        borderRadius: 999,
+                      }}
+                    >
+                      <Icon name="verified-user" size={11} color="#0B8A3E" />
+                      <Text style={{ fontFamily: font, fontSize: 10.5, fontWeight: "800", color: "#0B8A3E" }}>
+                        Verified
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ padding: 11 }}>
+                    <Text style={{ fontFamily: font, fontSize: 16.5, fontWeight: "800", color: "#14263E" }}>
                       {showcaseSecondary ? money(showcaseSecondary.price) : "₹42 Lakh"}
                     </Text>
-                    <Text style={{ fontFamily: font, fontSize: 13, fontWeight: "700", color: "rgba(20,38,62,0.7)", marginTop: 2 }} numberOfLines={1}>
+                    <Text style={{ fontFamily: font, fontSize: 12, fontWeight: "700", color: "rgba(20,38,62,0.7)", marginTop: 1 }} numberOfLines={1}>
                       {showcaseSecondary
                         ? `${label(showcaseSecondary)} · ${showcaseSecondary.location?.district || "Bihar"}`
                         : "Verified Plot · Danapur"}
@@ -1802,36 +1816,36 @@ export function HomeScreen() {
                   style={{
                     position: "absolute",
                     right: 0,
-                    top: 322,
+                    top: 256,
                     backgroundColor: "#FFFFFF",
-                    borderRadius: 20,
-                    paddingHorizontal: 18,
-                    paddingVertical: 14,
+                    borderRadius: 16,
+                    paddingHorizontal: 14,
+                    paddingVertical: 11,
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: 12,
+                    gap: 10,
                     ...Platform.select({
-                      web: { boxShadow: "0 20px 40px -12px rgba(12, 26, 44, 0.45)" },
+                      web: { boxShadow: "0 18px 36px -12px rgba(12, 26, 44, 0.45)" },
                     }),
                   }}
                 >
                   <View
                     style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 22,
+                      width: 38,
+                      height: 38,
+                      borderRadius: 19,
                       backgroundColor: "#FCC61C",
                       alignItems: "center",
                       justifyContent: "center",
                     }}
                   >
-                    <Icon name="verified-user" size={22} color="#14263E" />
+                    <Icon name="verified-user" size={19} color="#14263E" />
                   </View>
                   <View>
-                    <Text style={{ fontFamily: font, fontSize: 14.5, fontWeight: "800", color: "#14263E" }}>
+                    <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "800", color: "#14263E" }}>
                       Title verified
                     </Text>
-                    <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "600", color: "rgba(20,38,62,0.58)" }}>
+                    <Text style={{ fontFamily: font, fontSize: 11.5, fontWeight: "600", color: "rgba(20,38,62,0.58)" }}>
                       by MalikSe legal team
                     </Text>
                   </View>
@@ -1843,64 +1857,79 @@ export function HomeScreen() {
       </View>
 
       {/* ═══════════════════════════════════════════════════════════════
-          2. FLOATING 4-COLUMN STATS RIBBON (-mt-14 overlapping hero)
+          2. FLOATING 4-COLUMN STATS RIBBON (-mt-9 overlapping hero)
       ═══════════════════════════════════════════════════════════════ */}
-      <View style={[wrapContainer, { marginTop: -46, position: "relative", zIndex: 10 }]}>
+      <View style={[wrapContainer, { marginTop: -36, position: "relative", zIndex: 10 }]}>
         <View
           style={{
             backgroundColor: "#FFFFFF",
-            borderRadius: 22,
+            borderRadius: 20,
             borderWidth: 1,
             borderColor: "rgba(20, 38, 62, 0.06)",
-            paddingVertical: isMobile ? 20 : 28,
-            paddingHorizontal: 12,
+            paddingVertical: isMobile ? 14 : 18,
+            paddingHorizontal: isMobile ? 10 : 14,
             flexDirection: "row",
             flexWrap: "wrap",
             ...Platform.select({
-              web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 18px 38px -18px rgba(20,38,62,.32)" },
+              web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 16px 34px -18px rgba(20,38,62,.3)" },
             }),
           }}
         >
           {[
-            ["100% KYC", "Verified owners"],
-            ["₹0", "Brokerage, always"],
-            ["48 hrs", "Legal title check"],
-            ["38 Districts", "Serving all Bihar"],
-          ].map(([stat, desc], idx) => (
+            { icon: "verified-user", stat: "100% KYC", desc: "Verified owners" },
+            { icon: "bolt", stat: "₹0", desc: "Brokerage, always" },
+            { icon: "gavel", stat: "48 hrs", desc: "Legal title check" },
+            { icon: "location-city", stat: "38 Districts", desc: "Serving all Bihar" },
+          ].map((item, idx) => (
             <View
-              key={stat}
+              key={item.stat}
               style={{
                 width: isDesktop ? "25%" : "50%",
+                flexDirection: isMobile ? "column" : "row",
                 alignItems: "center",
+                justifyContent: isDesktop ? "center" : "flex-start",
+                gap: isMobile ? 6 : 12,
                 paddingHorizontal: 14,
-                paddingVertical: isDesktop ? 4 : 12,
+                paddingVertical: isDesktop ? 4 : 10,
                 borderRightWidth: isDesktop && idx < 3 ? 1 : 0,
                 borderRightColor: "rgba(20, 38, 62, 0.08)",
               }}
             >
-              <Text
+              <View
                 style={{
-                  fontFamily: font,
-                  fontSize: isMobile ? 26 : 34,
-                  fontWeight: "800",
-                  color: "#14263E",
-                  letterSpacing: -0.6,
+                  width: 38,
+                  height: 38,
+                  borderRadius: 12,
+                  backgroundColor: "#FFF1C0",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                {stat}
-              </Text>
-              <Text
-                style={{
-                  fontFamily: font,
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: "rgba(20, 38, 62, 0.56)",
-                  marginTop: 4,
-                  textAlign: "center",
-                }}
-              >
-                {desc}
-              </Text>
+                <Icon name={item.icon} size={20} color="#14263E" />
+              </View>
+              <View style={{ alignItems: isMobile ? "center" : "flex-start" }}>
+                <Text
+                  style={{
+                    fontFamily: font,
+                    fontSize: isMobile ? 18 : 22,
+                    fontWeight: "800",
+                    color: "#14263E",
+                    letterSpacing: -0.4,
+                  }}
+                >
+                  {item.stat}
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: font,
+                    fontSize: 12.5,
+                    fontWeight: "600",
+                    color: "rgba(20, 38, 62, 0.56)",
+                  }}
+                >
+                  {item.desc}
+                </Text>
+              </View>
             </View>
           ))}
         </View>
@@ -1910,7 +1939,7 @@ export function HomeScreen() {
           3. LIVE SEARCH RESULTS (Shown dynamically when filtering)
       ═══════════════════════════════════════════════════════════════ */}
       {hasActiveSearch && (
-        <View style={[wrapContainer, { marginTop: 48 }]}>
+        <View style={[wrapContainer, { marginTop: 36 }]}>
           <PropertySlideRow
             eyebrow="LIVE RESULTS"
             title="Search Results"
@@ -1931,13 +1960,13 @@ export function HomeScreen() {
                     setType("");
                   }}
                   style={{
-                    paddingVertical: 7,
-                    paddingHorizontal: 13,
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
                     backgroundColor: "#FFF1C0",
                     borderRadius: 999,
                   }}
                 >
-                  <Text style={{ fontSize: 12.5, fontWeight: "800", color: "#14263E", fontFamily: font }}>
+                  <Text style={{ fontSize: 12, fontWeight: "800", color: "#14263E", fontFamily: font }}>
                     Reset Filters
                   </Text>
                 </TouchableOpacity>
@@ -1951,7 +1980,7 @@ export function HomeScreen() {
       {/* ═══════════════════════════════════════════════════════════════
           4. BROWSE BY TYPE (6 Interactive Property Cards)
       ═══════════════════════════════════════════════════════════════ */}
-      <View style={[wrapContainer, { marginTop: isMobile ? 48 : 76, gap: 28 }]}>
+      <View style={[wrapContainer, { marginTop: isMobile ? 36 : 52, gap: 20 }]}>
         <SectionHeading
           eyebrow="BROWSE BY TYPE"
           title="What are you looking for?"
@@ -1962,12 +1991,12 @@ export function HomeScreen() {
           style={{
             flexDirection: "row",
             flexWrap: "wrap",
-            gap: 18,
+            gap: 14,
           }}
         >
           {browseCategories.map((cat) => {
             const isSelected = type === cat.id && cat.id !== "";
-            const cardBasis = width >= 1060 ? "15.1%" : isTablet ? "31.2%" : "47%";
+            const cardBasis = width >= 1020 ? "15.2%" : isTablet ? "31.2%" : "47%";
             return (
               <Pressable
                 key={cat.title}
@@ -1981,22 +2010,26 @@ export function HomeScreen() {
                   {
                     flexGrow: 1,
                     flexBasis: cardBasis as any,
-                    minWidth: 140,
+                    minWidth: 136,
                     backgroundColor: isSelected ? "#14263E" : "#FFFFFF",
-                    borderRadius: 22,
-                    paddingVertical: 24,
-                    paddingHorizontal: 14,
+                    borderRadius: 18,
+                    paddingVertical: 18,
+                    paddingHorizontal: 12,
                     alignItems: "center",
-                    gap: 12,
+                    gap: 9,
                     borderWidth: 1,
-                    borderColor: isSelected ? "#14263E" : "rgba(20, 38, 62, 0.06)",
+                    borderColor: isSelected
+                      ? "#14263E"
+                      : hovered
+                        ? "rgba(252, 198, 28, 0.7)"
+                        : "rgba(20, 38, 62, 0.06)",
                     ...Platform.select({
                       web: {
                         boxShadow: hovered
-                          ? "0 1px 0 rgba(20,38,62,.05), 0 26px 44px -20px rgba(20,38,62,.35)"
-                          : "0 1px 0 rgba(20,38,62,.04), 0 16px 34px -20px rgba(20,38,62,.28)",
-                        transition: "transform 0.24s cubic-bezier(.2,.7,.2,1), box-shadow 0.24s",
-                        ...(hovered ? { transform: [{ translateY: -4 }] } : {}),
+                          ? "0 1px 0 rgba(20,38,62,.05), 0 22px 38px -18px rgba(20,38,62,.34)"
+                          : "0 1px 0 rgba(20,38,62,.04), 0 12px 26px -18px rgba(20,38,62,.24)",
+                        transition: "transform 0.22s cubic-bezier(.2,.7,.2,1), box-shadow 0.22s, border-color 0.22s",
+                        ...(hovered ? { transform: [{ translateY: -3 }] } : {}),
                       } as any,
                     }),
                   },
@@ -2004,20 +2037,20 @@ export function HomeScreen() {
               >
                 <View
                   style={{
-                    width: 62,
-                    height: 62,
-                    borderRadius: 20,
+                    width: 48,
+                    height: 48,
+                    borderRadius: 15,
                     backgroundColor: "#FCC61C",
                     alignItems: "center",
                     justifyContent: "center",
                   }}
                 >
-                  <Icon name={cat.icon} size={30} color="#14263E" />
+                  <Icon name={cat.icon} size={24} color="#14263E" />
                 </View>
                 <Text
                   style={{
                     fontFamily: font,
-                    fontSize: 16.5,
+                    fontSize: 14.5,
                     fontWeight: "800",
                     color: isSelected ? "#FFFFFF" : "#14263E",
                     textAlign: "center",
@@ -2028,7 +2061,7 @@ export function HomeScreen() {
                 <Text
                   style={{
                     fontFamily: font,
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: "600",
                     color: isSelected ? "#FCC61C" : "rgba(20, 38, 62, 0.52)",
                     textAlign: "center",
@@ -2045,7 +2078,7 @@ export function HomeScreen() {
       {/* ═══════════════════════════════════════════════════════════════
           5. RECOMMENDED FOR YOU ("Homes picked for you" 3-Column Grid)
       ═══════════════════════════════════════════════════════════════ */}
-      <View style={[wrapContainer, { marginTop: isMobile ? 56 : 84, gap: 28 }]}>
+      <View style={[wrapContainer, { marginTop: isMobile ? 40 : 56, gap: 20 }]}>
         <SectionHeading
           eyebrow="RECOMMENDED"
           title="Homes picked for you"
@@ -2055,7 +2088,7 @@ export function HomeScreen() {
               : "Inspired by verified searches and top owner listings."
           }
           right={
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
               <TouchableOpacity
                 accessibilityRole="button"
                 accessibilityLabel="Refresh recommendations"
@@ -2063,7 +2096,7 @@ export function HomeScreen() {
                 style={sSlide.headerRefreshBtn}
                 activeOpacity={0.75}
               >
-                <MaterialIcons name="refresh" size={16} color="#14263E" />
+                <MaterialIcons name="refresh" size={15} color="#14263E" />
                 <Text style={sSlide.headerRefreshText}>Refresh</Text>
               </TouchableOpacity>
               <ViewAllPill onPress={() => router.push("/search")} />
@@ -2072,7 +2105,7 @@ export function HomeScreen() {
         />
 
         {personal.loading ? (
-          <ActivityIndicator color="#14263E" style={{ padding: 36 }} />
+          <ActivityIndicator color="#14263E" style={{ padding: 28 }} />
         ) : personal.error ? (
           <ErrorBox text={personal.error} onRetry={personal.refresh} />
         ) : !recommendedList.length ? (
@@ -2081,17 +2114,17 @@ export function HomeScreen() {
             text="Verified recommendations will appear here as listings match your criteria."
           />
         ) : isDesktop ? (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 24 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 20 }}>
             {recommendedList.map((p: any) => (
-              <View key={p._id} style={{ width: "31.7%", minWidth: 300, flexGrow: 1 }}>
+              <View key={p._id} style={{ width: "31.7%", minWidth: 290, flexGrow: 1 }}>
                 <PropertyCard property={p} style={{ flex: 1 }} />
               </View>
             ))}
           </View>
         ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 18, paddingVertical: 6 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingVertical: 6 }}>
             {recommendedList.map((p: any) => (
-              <View key={p._id} style={{ width: 296 }}>
+              <View key={p._id} style={{ width: 284 }}>
                 <PropertyCard property={p} style={{ flex: 1 }} />
               </View>
             ))}
@@ -2102,7 +2135,7 @@ export function HomeScreen() {
       {/* ═══════════════════════════════════════════════════════════════
           6. HOW IT WORKS ("Buy direct in three steps")
       ═══════════════════════════════════════════════════════════════ */}
-      <View style={[wrapContainer, { marginTop: isMobile ? 64 : 96, gap: 32 }]}>
+      <View style={[wrapContainer, { marginTop: isMobile ? 44 : 62, gap: 22 }]}>
         <SectionHeading
           eyebrow="HOW IT WORKS"
           title="Buy direct in three steps"
@@ -2111,8 +2144,8 @@ export function HomeScreen() {
         <View
           style={{
             flexDirection: isDesktop ? "row" : "column",
-            gap: 28,
-            paddingTop: 18,
+            gap: 20,
+            paddingTop: 14,
           }}
         >
           {[
@@ -2140,14 +2173,14 @@ export function HomeScreen() {
               style={{
                 flex: 1,
                 backgroundColor: "#FFFFFF",
-                borderRadius: 22,
-                padding: 30,
-                paddingTop: 34,
+                borderRadius: 20,
+                padding: 22,
+                paddingTop: 28,
                 borderWidth: 1,
                 borderColor: "rgba(20, 38, 62, 0.06)",
                 position: "relative",
                 ...Platform.select({
-                  web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 16px 34px -20px rgba(20,38,62,.28)" },
+                  web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 14px 28px -18px rgba(20,38,62,.24)" },
                 }),
               }}
             >
@@ -2155,44 +2188,44 @@ export function HomeScreen() {
               <View
                 style={{
                   position: "absolute",
-                  top: -20,
-                  left: 28,
-                  width: 44,
-                  height: 44,
-                  borderRadius: 22,
+                  top: -16,
+                  left: 22,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
                   backgroundColor: "#14263E",
-                  borderWidth: 4,
+                  borderWidth: 3,
                   borderColor: "#F7F4EC",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Text style={{ fontFamily: font, fontSize: 17, fontWeight: "800", color: "#FCC61C" }}>
+                <Text style={{ fontFamily: font, fontSize: 15, fontWeight: "800", color: "#FCC61C" }}>
                   {item.step}
                 </Text>
               </View>
 
               <View
                 style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 16,
+                  width: 46,
+                  height: 46,
+                  borderRadius: 14,
                   backgroundColor: "#FFF1C0",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Icon name={item.icon} size={28} color="#14263E" />
+                <Icon name={item.icon} size={23} color="#14263E" />
               </View>
 
               <Text
                 style={{
                   fontFamily: fontDisplay,
-                  fontSize: 25,
-                  lineHeight: 30,
+                  fontSize: 19.5,
+                  lineHeight: 24,
                   fontWeight: "700",
                   color: "#14263E",
-                  marginTop: 20,
+                  marginTop: 14,
                 }}
               >
                 {item.title}
@@ -2200,11 +2233,11 @@ export function HomeScreen() {
               <Text
                 style={{
                   fontFamily: font,
-                  fontSize: 15.5,
-                  lineHeight: 24,
+                  fontSize: 13.5,
+                  lineHeight: 21,
                   fontWeight: "500",
                   color: "rgba(20, 38, 62, 0.65)",
-                  marginTop: 8,
+                  marginTop: 6,
                 }}
               >
                 {item.desc}
@@ -2219,22 +2252,22 @@ export function HomeScreen() {
       ═══════════════════════════════════════════════════════════════ */}
       <View
         style={{
-          marginTop: isMobile ? 64 : 96,
+          marginTop: isMobile ? 44 : 64,
           backgroundColor: "#14263E",
           position: "relative",
           overflow: "hidden",
-          paddingVertical: isMobile ? 56 : 84,
+          paddingVertical: isMobile ? 42 : 56,
         }}
       >
         <View
           pointerEvents="none"
           style={{
             position: "absolute",
-            left: -96,
-            top: -96,
-            width: 360,
-            height: 360,
-            borderRadius: 180,
+            left: -80,
+            top: -80,
+            width: 300,
+            height: 300,
+            borderRadius: 150,
             backgroundColor: "#1C3556",
           }}
         />
@@ -2245,25 +2278,25 @@ export function HomeScreen() {
             {
               flexDirection: isDesktop ? "row" : "column",
               alignItems: isDesktop ? "center" : "stretch",
-              gap: isDesktop ? 56 : 36,
+              gap: isDesktop ? 42 : 28,
               position: "relative",
               zIndex: 2,
             },
           ]}
         >
           {/* Left Editorial Column */}
-          <View style={{ flex: 1, gap: 16 }}>
-            <Text style={{ fontFamily: font, fontSize: 13, fontWeight: "800", letterSpacing: 2, color: "#FCC61C" }}>
+          <View style={{ flex: 1, gap: 12 }}>
+            <Text style={{ fontFamily: font, fontSize: 11.5, fontWeight: "800", letterSpacing: 1.8, color: "#FCC61C" }}>
               WHY MALIKSE
             </Text>
             <Text
               style={{
                 fontFamily: fontDisplay,
-                fontSize: isMobile ? 38 : 50,
-                lineHeight: isMobile ? 41 : 54,
+                fontSize: isMobile ? 28 : 35,
+                lineHeight: isMobile ? 33 : 41,
                 fontWeight: "700",
                 color: "#FFFFFF",
-                letterSpacing: -0.8,
+                letterSpacing: -0.6,
               }}
             >
               {"Trust is built into\nevery listing."}
@@ -2271,11 +2304,11 @@ export function HomeScreen() {
             <Text
               style={{
                 fontFamily: font,
-                fontSize: 17,
-                lineHeight: 27,
+                fontSize: 15,
+                lineHeight: 23,
                 fontWeight: "500",
                 color: "rgba(255, 255, 255, 0.72)",
-                maxWidth: 480,
+                maxWidth: 460,
               }}
             >
               Property fraud is the biggest fear in Indian real estate. We check the person and the paperwork before anything goes live.
@@ -2285,29 +2318,29 @@ export function HomeScreen() {
               onPress={() => router.push("/search")}
               activeOpacity={0.88}
               style={{
-                marginTop: 12,
+                marginTop: 10,
                 alignSelf: "flex-start",
-                height: 54,
-                paddingHorizontal: 30,
+                height: 46,
+                paddingHorizontal: 24,
                 borderRadius: 999,
                 backgroundColor: "#FCC61C",
                 flexDirection: "row",
                 alignItems: "center",
-                gap: 8,
+                gap: 6,
                 ...Platform.select({
-                  web: { boxShadow: "0 14px 24px -12px rgba(232,174,0,.9), inset 0 1px 0 rgba(255,255,255,.5)" },
+                  web: { boxShadow: "0 12px 22px -10px rgba(232,174,0,.85), inset 0 1px 0 rgba(255,255,255,.5)" },
                 }),
               }}
             >
-              <Text style={{ fontFamily: font, fontSize: 16, fontWeight: "800", color: "#14263E" }}>
+              <Text style={{ fontFamily: font, fontSize: 14.5, fontWeight: "800", color: "#14263E" }}>
                 Start exploring
               </Text>
-              <Icon name="chevron-right" size={20} color="#14263E" />
+              <Icon name="chevron-right" size={18} color="#14263E" />
             </TouchableOpacity>
           </View>
 
           {/* Right 2x2 Glassmorphic Feature Grid */}
-          <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
+          <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
             {[
               { icon: "badge", title: "Owner KYC", desc: "Identity & ownership matched for every seller." },
               { icon: "description", title: "Title check", desc: "Legal & revenue team verifies deeds in 48 hrs." },
@@ -2322,28 +2355,28 @@ export function HomeScreen() {
                   backgroundColor: "rgba(255, 255, 255, 0.07)",
                   borderWidth: 1,
                   borderColor: "rgba(255, 255, 255, 0.14)",
-                  borderRadius: 24,
-                  padding: 24,
-                  gap: 10,
+                  borderRadius: 20,
+                  padding: 18,
+                  gap: 8,
                 }}
               >
                 <View
                   style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 15,
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
                     backgroundColor: "#FCC61C",
                     alignItems: "center",
                     justifyContent: "center",
-                    marginBottom: 4,
+                    marginBottom: 2,
                   }}
                 >
-                  <Icon name={feat.icon} size={24} color="#14263E" />
+                  <Icon name={feat.icon} size={20} color="#14263E" />
                 </View>
-                <Text style={{ fontFamily: font, fontSize: 18, fontWeight: "800", color: "#FFFFFF" }}>
+                <Text style={{ fontFamily: font, fontSize: 15.5, fontWeight: "800", color: "#FFFFFF" }}>
                   {feat.title}
                 </Text>
-                <Text style={{ fontFamily: font, fontSize: 14.5, lineHeight: 22, fontWeight: "500", color: "rgba(255, 255, 255, 0.68)" }}>
+                <Text style={{ fontFamily: font, fontSize: 13, lineHeight: 19, fontWeight: "500", color: "rgba(255, 255, 255, 0.68)" }}>
                   {feat.desc}
                 </Text>
               </View>
@@ -2355,17 +2388,17 @@ export function HomeScreen() {
       {/* ═══════════════════════════════════════════════════════════════
           8. FOR OWNERS CTA BANNER ("List your property free.")
       ═══════════════════════════════════════════════════════════════ */}
-      <View style={[wrapContainer, { marginTop: isMobile ? 56 : 84 }]}>
+      <View style={[wrapContainer, { marginTop: isMobile ? 40 : 56 }]}>
         <View
           style={{
             backgroundColor: "#FCC61C",
-            borderRadius: 34,
-            paddingHorizontal: isMobile ? 26 : 56,
-            paddingVertical: isMobile ? 40 : 56,
+            borderRadius: 26,
+            paddingHorizontal: isMobile ? 22 : 42,
+            paddingVertical: isMobile ? 28 : 38,
             position: "relative",
             overflow: "hidden",
             ...Platform.select({
-              web: { boxShadow: "0 36px 56px -34px rgba(232, 174, 0, 0.95)" },
+              web: { boxShadow: "0 28px 46px -28px rgba(232, 174, 0, 0.9)" },
             }),
           }}
         >
@@ -2374,11 +2407,11 @@ export function HomeScreen() {
             pointerEvents="none"
             style={{
               position: "absolute",
-              right: isMobile ? -120 : -64,
-              bottom: isMobile ? -140 : -96,
-              width: isMobile ? 280 : 360,
-              height: isMobile ? 280 : 360,
-              borderRadius: 180,
+              right: isMobile ? -110 : -50,
+              bottom: isMobile ? -130 : -90,
+              width: isMobile ? 240 : 300,
+              height: isMobile ? 240 : 300,
+              borderRadius: 150,
               backgroundColor: "#14263E",
             }}
           />
@@ -2387,29 +2420,29 @@ export function HomeScreen() {
               pointerEvents="none"
               style={{
                 position: "absolute",
-                right: 250,
-                top: -64,
-                width: 115,
-                height: 340,
-                borderRadius: 60,
+                right: 220,
+                top: -54,
+                width: 96,
+                height: 290,
+                borderRadius: 50,
                 backgroundColor: "rgba(20, 38, 62, 0.92)",
                 transform: [{ rotate: "30deg" }],
               }}
             />
           )}
 
-          <View style={{ maxWidth: 560, position: "relative", zIndex: 2, gap: 12 }}>
-            <Text style={{ fontFamily: font, fontSize: 13, fontWeight: "800", letterSpacing: 2, color: "rgba(20, 38, 62, 0.72)" }}>
+          <View style={{ maxWidth: 520, position: "relative", zIndex: 2, gap: 9 }}>
+            <Text style={{ fontFamily: font, fontSize: 11.5, fontWeight: "800", letterSpacing: 1.8, color: "rgba(20, 38, 62, 0.72)" }}>
               FOR OWNERS
             </Text>
             <Text
               style={{
                 fontFamily: fontDisplay,
-                fontSize: isMobile ? 38 : 52,
-                lineHeight: isMobile ? 41 : 54,
+                fontSize: isMobile ? 28 : 36,
+                lineHeight: isMobile ? 32 : 41,
                 fontWeight: "700",
                 color: "#14263E",
-                letterSpacing: -0.8,
+                letterSpacing: -0.6,
               }}
             >
               List your property free.
@@ -2417,8 +2450,8 @@ export function HomeScreen() {
             <Text
               style={{
                 fontFamily: font,
-                fontSize: isMobile ? 16 : 18,
-                lineHeight: 26,
+                fontSize: isMobile ? 14.5 : 15.5,
+                lineHeight: 23,
                 fontWeight: "600",
                 color: "rgba(20, 38, 62, 0.78)",
               }}
@@ -2436,24 +2469,24 @@ export function HomeScreen() {
               }
               activeOpacity={0.88}
               style={{
-                marginTop: 14,
+                marginTop: 10,
                 alignSelf: "flex-start",
-                height: 54,
-                paddingHorizontal: 30,
+                height: 46,
+                paddingHorizontal: 24,
                 borderRadius: 999,
                 backgroundColor: "#14263E",
                 flexDirection: "row",
                 alignItems: "center",
-                gap: 8,
+                gap: 6,
                 ...Platform.select({
-                  web: { boxShadow: "0 14px 24px -12px rgba(20, 38, 62, 0.8)" },
+                  web: { boxShadow: "0 12px 22px -10px rgba(20, 38, 62, 0.78)" },
                 }),
               }}
             >
-              <Text style={{ fontFamily: font, fontSize: 16, fontWeight: "800", color: "#FCC61C" }}>
+              <Text style={{ fontFamily: font, fontSize: 14.5, fontWeight: "800", color: "#FCC61C" }}>
                 Post your property
               </Text>
-              <Icon name="chevron-right" size={20} color="#FCC61C" />
+              <Icon name="chevron-right" size={18} color="#FCC61C" />
             </TouchableOpacity>
           </View>
         </View>
@@ -2462,7 +2495,7 @@ export function HomeScreen() {
       {/* ═══════════════════════════════════════════════════════════════
           9. FRESH ON THE MARKET (2-Column Horizontal Cards Grid)
       ═══════════════════════════════════════════════════════════════ */}
-      <View style={[wrapContainer, { marginTop: isMobile ? 56 : 84, gap: 28 }]}>
+      <View style={[wrapContainer, { marginTop: isMobile ? 40 : 56, gap: 20 }]}>
         <SectionHeading
           eyebrow={activeDistrictParam ? `NEW IN ${activeDistrictParam.toUpperCase()}` : "NEW LISTINGS"}
           title="Fresh on the market"
@@ -2471,7 +2504,7 @@ export function HomeScreen() {
         />
 
         {recent.loading ? (
-          <ActivityIndicator color="#14263E" style={{ padding: 28 }} />
+          <ActivityIndicator color="#14263E" style={{ padding: 24 }} />
         ) : recent.error ? (
           <ErrorBox text={recent.error} onRetry={recent.refresh} />
         ) : !newPropertiesList.length ? (
@@ -2480,7 +2513,7 @@ export function HomeScreen() {
             text="Freshly verified properties will appear here as soon as they are published."
           />
         ) : (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 20 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
             {newPropertiesList.map((p: any) => (
               <View key={p._id} style={{ width: isDesktop ? "48.8%" : "100%", flexGrow: 1 }}>
                 <PropertyCard property={p} horizontal freshTag="New" />
@@ -2493,7 +2526,7 @@ export function HomeScreen() {
       {/* ═══════════════════════════════════════════════════════════════
           10. TRENDING PROPERTIES (Horizontal Carousel)
       ═══════════════════════════════════════════════════════════════ */}
-      <View style={[wrapContainer, { marginTop: isMobile ? 56 : 84 }]}>
+      <View style={[wrapContainer, { marginTop: isMobile ? 40 : 56 }]}>
         <PropertySlideRow
           eyebrow="TRENDING THIS WEEK"
           title="Popular properties"
@@ -11565,8 +11598,8 @@ const s = StyleSheet.create({
     backgroundColor: "#cbd5e1",
   },
   scroll: { padding: 20, paddingBottom: 40 },
-  content: { width: "100%", maxWidth: 1240, alignSelf: "center", gap: 26 },
-  row: { flexDirection: "row", alignItems: "center", gap: 12 },
+  content: { width: "100%", maxWidth: 1180, alignSelf: "center", gap: 22 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10 },
   between: {
     flexDirection: "row",
     alignItems: "center",
@@ -11574,12 +11607,12 @@ const s = StyleSheet.create({
     gap: 12,
   },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 18 },
-  h1: { fontFamily: fontDisplay, fontSize: 28, fontWeight: "800", color: C.ink, letterSpacing: -0.7 },
-  h2: { fontFamily: fontDisplay, fontSize: 22, fontWeight: "800", color: C.ink, letterSpacing: -0.5 },
-  muted: { fontFamily: font, fontSize: 14, lineHeight: 22, color: "#64748b", fontWeight: "400" },
-  small: { fontFamily: font, fontSize: 13.5, lineHeight: 20, color: "#64748b", fontWeight: "500" },
-  body: { fontFamily: font, fontSize: 15, lineHeight: 25, color: "#334155", fontWeight: "400" },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
+  h1: { fontFamily: fontDisplay, fontSize: 25, fontWeight: "700", color: C.ink, letterSpacing: -0.5 },
+  h2: { fontFamily: fontDisplay, fontSize: 20, fontWeight: "700", color: C.ink, letterSpacing: -0.4 },
+  muted: { fontFamily: font, fontSize: 13, lineHeight: 19, color: "#64748b", fontWeight: "500" },
+  small: { fontFamily: font, fontSize: 12.5, lineHeight: 18, color: "#64748b", fontWeight: "500" },
+  body: { fontFamily: font, fontSize: 14.5, lineHeight: 23, color: "#334155", fontWeight: "400" },
   fieldLabel: {
     fontFamily: font,
     fontSize: 13,
@@ -11673,19 +11706,19 @@ const s = StyleSheet.create({
       web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 16px 34px -20px rgba(20,38,62,.3)" },
     }),
   },
-  photo: { height: 220, backgroundColor: "#E9E4D5" },
+  photo: { height: 186, backgroundColor: "#E9E4D5" },
   placeholder: {
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#E9E4D5",
   },
-  imageTags: { position: "absolute", top: 14, left: 14 },
-  cardBody: { padding: 20, gap: 9 },
-  price: { fontFamily: font, fontSize: 25, fontWeight: "800", color: C.ink, letterSpacing: -0.5 },
+  imageTags: { position: "absolute", top: 12, left: 12 },
+  cardBody: { padding: 15, gap: 6 },
+  price: { fontFamily: font, fontSize: 20.5, fontWeight: "800", color: C.ink, letterSpacing: -0.4 },
   cardTitle: {
     fontFamily: font,
-    fontSize: 17,
-    lineHeight: 24,
+    fontSize: 15.5,
+    lineHeight: 21,
     fontWeight: "700",
     color: C.ink,
   },
