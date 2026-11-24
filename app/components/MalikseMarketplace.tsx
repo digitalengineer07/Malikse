@@ -1,3 +1,4 @@
+import { AccountHeaderBackdrop, accountHeaderStyle } from "./AccountHeaderBackdrop";
 import { BrandLockup, brandHeader } from "./BrandLockup";
 import { randomUUID } from "expo-crypto";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -410,14 +411,19 @@ export function MarketplaceShell({
   useEffect(() => {
     if (step !== undefined) scroll.current?.scrollTo({ y: 0, animated: false });
   }, [step]);
+  const isProfile = path === "/profile" || Boolean(profileHeader);
   const hero = !fixedHeader && (
     <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
-      smallHeader && s.smallHero, profileHeader && s.profileHero]}>
-      <View pointerEvents="none" style={s.heroSun} />
-      <View pointerEvents="none" style={s.heroRay} />
+      smallHeader && s.smallHero, isProfile && !profileHeader && s.guestProfileHero, profileHeader && s.profileHero]}>
+      {isProfile ? <AccountHeaderBackdrop top={insets.top + 4} /> : (
+        <>
+          <View pointerEvents="none" style={s.heroSun} />
+          <View pointerEvents="none" style={s.heroRay} />
+        </>
+      )}
       <View style={[s.heroInner, compactHeader && s.compactHeroInner]}>
         {profileHeader || <>
-          <View style={s.heroBrandGroup}>
+          <View style={[s.heroBrandGroup, isProfile && s.profileBrandGroup]}>
             <View style={[s.header, Boolean(user) && width < 390 && { gap: 6 }]}>
               <View style={[s.row, { flex: 1, minWidth: 0 }]}>
                 {back ? (
@@ -458,9 +464,9 @@ export function MarketplaceShell({
               ) : <NotificationBell />}
             </View>
             {Boolean(title) && (
-              <View style={heroIllustration ? s.illustratedHeroTitle : undefined}>
+              <View style={[heroIllustration ? s.illustratedHeroTitle : undefined, isProfile && accountHeaderStyle.titleGroup]}>
                 <View style={heroIllustration ? { flex: 1, minWidth: 0, gap: 2 } : { gap: 4 }}>
-                  <Text accessibilityRole="header" style={s.heroTitle}>{title}</Text>
+                  <Text accessibilityRole="header" style={[s.heroTitle, isProfile && accountHeaderStyle.heading]}>{title}</Text>
                   {Boolean(subtitle) && <Text numberOfLines={compactHeader || heroIllustration ? 1 : undefined}
                   adjustsFontSizeToFit={compactHeader || Boolean(heroIllustration)} minimumFontScale={heroIllustration ? 0.9 : 0.85}
                   style={[s.heroSubtitle, (smallHeader || Boolean(heroIllustration)) && s.smallHeroSubtitle]}>{subtitle}</Text>}
@@ -1182,7 +1188,7 @@ export function ProfileScreen() {
     <>
       <View style={s.between}>
         <View style={s.profileHeaderCopy}>
-          <Text accessibilityRole="header" style={[s.heroTitle, s.profileHeaderTitle]}>Profile</Text>
+          <Text accessibilityRole="header" style={[s.heroTitle, accountHeaderStyle.heading]}>Profile</Text>
           <Text numberOfLines={1} style={[s.heroSubtitle, s.profileHeroCaption]}>Your account and activity</Text>
         </View>
         <View style={s.row}>
@@ -1193,7 +1199,7 @@ export function ProfileScreen() {
           <NotificationBell />
         </View>
       </View>
-      <View style={s.profileIdentity}>
+      <View style={[s.profileIdentity, accountHeaderStyle.divider]}>
         <View style={s.profilePortrait}>
           {initials ? <Text style={s.profileInitials}>{initials}</Text> : <Icon name="person-outline" color={C.sun} size={32} />}
         </View>
@@ -2942,7 +2948,8 @@ const s = StyleSheet.create({
   guestAccountIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.sunSoft, alignItems: "center", justifyContent: "center" },
   guestAccountDescription: { fontFamily: font, fontSize: 14, lineHeight: 21, color: C.muted },
   profileHeaderCopy: { flexShrink: 1, minWidth: 0 },
-  profileHeaderTitle: { fontSize: 27, lineHeight: 29 },
+  guestProfileHero: { paddingBottom: 24 },
+  profileBrandGroup: { gap: 16 },
   profileHeroCaption: { fontSize: 13, lineHeight: 15 },
   profileContent: { marginTop: -50 },
   profileEdit: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: C.ink },

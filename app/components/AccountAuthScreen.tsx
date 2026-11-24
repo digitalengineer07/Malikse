@@ -1,3 +1,4 @@
+import { AccountHeaderBackdrop, accountHeaderStyle } from "./AccountHeaderBackdrop";
 import { BrandLockup, brandHeader } from "./BrandLockup";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
@@ -152,14 +153,12 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
       {focused && <StatusBar style="light" />}
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
         <View style={[styles.hero, { paddingTop: insets.top + 14 }]}>
-          <View pointerEvents="none" style={[styles.heroSun, { top: insets.top + 4 }, !register && styles.signInSun]} />
           {register ? (
-            <View pointerEvents="none" style={styles.heroRay} />
-          ) : (
-            <View pointerEvents="none" style={styles.signInOrbit}>
-              <View style={styles.signInOrbitInner} />
-            </View>
-          )}
+            <>
+              <View pointerEvents="none" style={[styles.heroSun, { top: insets.top + 4 }]} />
+              <View pointerEvents="none" style={styles.heroRay} />
+            </>
+          ) : <AccountHeaderBackdrop top={insets.top + 4} />}
           <View style={[styles.heroInner, !register && styles.signInHeroInner]}>
             <View style={styles.topBar}>
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={label("Back", "वापस")} style={styles.heroIcon} disabled={loading}
@@ -175,8 +174,8 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
                 <Text style={styles.languageText}>{label("हिन्दी", "English")}</Text>
               </TouchableOpacity>
             </View>
-            <View style={[styles.titleGroup, !register && styles.signInTitleGroup]}>
-              <Text accessibilityRole="header" style={[styles.heading, !register && styles.signInHeading]}>
+            <View style={[styles.titleGroup, !register && accountHeaderStyle.titleGroup]}>
+              <Text accessibilityRole="header" style={[styles.heading, !register && accountHeaderStyle.heading]}>
                 {register ? label("Create your account", "अपना खाता बनाएं") : label("Sign in", "साइन इन करें")}
               </Text>
               {!register && <Text style={styles.heroHint}>{label("Use your registered mobile number or email.", "अपना पंजीकृत मोबाइल नंबर या ईमेल इस्तेमाल करें।")}</Text>}
@@ -279,15 +278,6 @@ const styles = StyleSheet.create({
   titleGroup: { gap: 4 },
   heading: { fontSize: brandHeader.headingSize, lineHeight: brandHeader.headingLineHeight, fontFamily: "Fraunces", color: "#fff" },
   signInHeroInner: { gap: 16 },
-  signInTitleGroup: { gap: 6, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#FFFFFF26" },
-  signInHeading: { fontSize: 29, lineHeight: 35 },
-  signInSun: { right: -82, width: 166, height: 166, borderRadius: 83 },
-  signInOrbit: {
-    position: "absolute", right: -52, bottom: -76, width: 224, height: 224,
-    borderRadius: 112, backgroundColor: "#1A304D", borderWidth: 1, borderColor: "#345479",
-    alignItems: "center", justifyContent: "center",
-  },
-  signInOrbitInner: { width: 178, height: 178, borderRadius: 89, borderWidth: 1, borderColor: "#345479" },
   heroHint: { color: "#F7F4EC", fontFamily: "Manrope", fontSize: 13, lineHeight: 19, maxWidth: "88%" },
   card: {
     width: "90%", maxWidth: 440, alignSelf: "center", marginTop: -14, padding: 20,
