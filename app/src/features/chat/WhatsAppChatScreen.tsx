@@ -51,7 +51,7 @@ export const WhatsAppChatScreen: React.FC = () => {
   const searchIcon = <MaterialIcons name="search" size={22} color={C.ink} />;
   const emptyArtwork = (
     <Image source={require("../../../assets/images/messages-empty-artwork.png")}
-      accessible={false} resizeMode="contain" style={user ? styles.emptyArtwork : styles.guestArtworkImage} />
+      accessible={false} resizeMode="contain" style={user ? [styles.emptyArtwork, user.role === "admin" && styles.adminEmptyArtwork] : styles.guestArtworkImage} />
   );
   return (
       <MarketplaceShell
@@ -129,6 +129,7 @@ const styles = StyleSheet.create({
   emptyArtwork: {
     alignSelf: "center", width: "100%", maxWidth: 188, height: 152, opacity: 0.72,
   },
+  adminEmptyArtwork: { maxWidth: 245, height: 196, marginTop: 12 },
   heroHouse: {
     position: "absolute",
     bottom: "100%",
