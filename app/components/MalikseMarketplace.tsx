@@ -2180,7 +2180,7 @@ export function PostScreen() {
             ? `Step ${step} of 5 · Private until verified`
             : "Create a listing for your property on MalikSe."
       }
-      back
+      back={Boolean(user)}
       showDock={!canPost || done}
       scrollEnabled={canPost}
       scrollFooter={!canPost ? () => (
