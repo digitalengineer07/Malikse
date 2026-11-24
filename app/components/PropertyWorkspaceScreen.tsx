@@ -59,6 +59,36 @@ function historyStatus(status: string) {
   return historyStatusLabels[status] || statusLabels[status] || status;
 }
 
+function ListingPhotoSlider({ photos }: { photos: string[] }) {
+  const [selected, setSelected] = useState(0);
+  const count = photos.length;
+  if (!count) return null;
+  const index = selected % count;
+  const slide = (direction: number) => {
+    setSelected(current => (current % count + direction + count) % count);
+  };
+
+  return (
+    <View style={styles.mediaFrame}>
+      <Image key={photos[index]} source={{ uri: photos[index] }} style={styles.mediaImage}
+        accessibilityLabel={`Listing photo ${index + 1} of ${count}`} />
+      {count > 1 && <>
+        <View pointerEvents="box-none" style={styles.mediaControls}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Previous listing photo"
+            onPress={() => slide(-1)} style={styles.mediaArrowTarget}>
+            <View style={styles.mediaArrow}><MaterialIcons name="chevron-left" size={19} color="#FCC61C" /></View>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Next listing photo"
+            onPress={() => slide(1)} style={styles.mediaArrowTarget}>
+            <View style={styles.mediaArrow}><MaterialIcons name="chevron-right" size={19} color="#FCC61C" /></View>
+          </Pressable>
+        </View>
+        <Text style={styles.mediaCounter} accessibilityLiveRegion="polite">{index + 1} / {count}</Text>
+      </>}
+    </View>
+  );
+}
+
 export default function PropertyWorkspaceScreen({ publicView = false }: { publicView?: boolean }) {
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(rawId) ? rawId[0] : rawId;
@@ -236,7 +266,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
       </View>
       {Boolean(property.media?.photos?.length || property.media?.videos?.length) && <View style={styles.card}>
         <Text accessibilityRole="header" style={ui.heading}>Listing media</Text>
-        {property.media?.photos?.map((url, index) => <Image key={`photo-${index}`} source={{ uri: url }} style={styles.mediaImage} accessibilityLabel={`Listing photo ${index + 1}`} />)}
+        <ListingPhotoSlider key={property._id} photos={property.media?.photos ?? []} />
         {property.media?.videos?.map((url, index) => <Action key={`video-${index}`} title={`View property video ${index + 1}`} secondary onPress={() => Linking.openURL(url).catch(() => setError("Could not open video"))} />)}
       </View>}
       {publicView && <View style={styles.card}>
@@ -402,7 +432,16 @@ const styles = StyleSheet.create({
   metadataLabel: { color: "#536174", fontFamily: "ManropeBold", fontSize: 12 },
   metadataValue: { color: "#14263E", fontFamily: "Manrope", fontSize: 14, lineHeight: 20 },
   detailHeading: { color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 15, flexShrink: 1 },
-  mediaImage: { width: "100%", height: 220, borderRadius: 12 },
+  mediaFrame: { borderRadius: 12, overflow: "hidden", backgroundColor: "#F7F4EC" },
+  mediaImage: { width: "100%", height: 220 },
+  mediaControls: { position: "absolute", top: 0, bottom: 0, left: 3, right: 3, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  mediaArrowTarget: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  mediaArrow: { width: 30, height: 30, borderRadius: 15, backgroundColor: "#14263E", alignItems: "center", justifyContent: "center" },
+  mediaCounter: {
+    position: "absolute", bottom: 9, alignSelf: "center", borderRadius: 10,
+    paddingHorizontal: 9, paddingVertical: 3, backgroundColor: "#14263E", color: "#fff",
+    fontFamily: "ManropeBold", fontSize: 12,
+  },
   historyEntry: { borderWidth: 1, borderColor: "#E5E0D4", borderRadius: 14, overflow: "hidden" },
   historyEntryExpanded: { borderColor: "#DFC052" },
   historyButton: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 9, padding: 11 },
