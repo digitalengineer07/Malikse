@@ -356,7 +356,6 @@ export function MarketplaceShell({
   onBack,
   headerContent,
   headerAction,
-  showGuestAccount = false,
   heroIllustration,
   listBody = false,
   backgroundArtwork,
@@ -381,7 +380,6 @@ export function MarketplaceShell({
   onBack?: () => void;
   headerContent?: React.ReactNode;
   headerAction?: React.ReactNode;
-  showGuestAccount?: boolean;
   heroIllustration?: React.ReactNode;
   listBody?: boolean;
   backgroundArtwork?: React.ReactNode;
@@ -458,16 +456,7 @@ export function MarketplaceShell({
                   <Icon name="favorite-border" color="white" size={20} />
                 </Pressable>
               )}
-              {showGuestAccount && !user ? (
-                <Pressable
-                  accessibilityLabel="Sign in"
-                  accessibilityRole="button"
-                  style={[s.heroIcon, { backgroundColor: C.sunSoft }]}
-                  onPress={() => router.push({ pathname: "/login", params: { returnTo: path } })}
-                >
-                  <Icon name="person-outline" size={20} />
-                </Pressable>
-              ) : <NotificationBell />}
+              <NotificationBell />
             </View>
             {Boolean(title) && (
               <View style={[heroIllustration ? s.illustratedHeroTitle : undefined, isProfile && accountHeaderStyle.titleGroup]}>
