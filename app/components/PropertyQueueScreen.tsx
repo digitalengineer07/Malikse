@@ -10,6 +10,7 @@ import { Action, ui, WorkflowScreen } from "./WorkflowUI";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BrandLockup } from "./BrandLockup";
+import AccountArtworkFooter from "./AccountArtworkFooter";
 import { AccountHeaderBackdrop, accountHeaderStyle } from "./AccountHeaderBackdrop";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 
@@ -126,7 +127,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
           keyExtractor={property => property._id}
           initialNumToRender={6}
           maxToRenderPerBatch={8}
-          contentContainerStyle={[localStyles.queueContent, { paddingBottom: insets.bottom + 24 }]}
+          contentContainerStyle={localStyles.queueContent}
           ListHeaderComponent={
             <View style={localStyles.queueFilters}>
               <View style={localStyles.filterToolbar}>
@@ -221,6 +222,9 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
             </View>
           ) : undefined}
         />
+        <View pointerEvents="none">
+          <AccountArtworkFooter wavesOnly hideWhileTyping={false} />
+        </View>
       </View>
     );
   }
