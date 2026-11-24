@@ -31,6 +31,8 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
   const { width } = useWindowDimensions();
   const compact = width < 680;
   const cardWidth = compact ? "100%" : width < 1000 || sections.length === 2 ? "48%" : "31.8%";
+  const isAdvisor = role === "advisor";
+  const reviewRoute = isAdvisor ? sections[0]?.route : undefined;
   const hasAccess = authState === "AUTHENTICATED" && user?.role === role;
 
   React.useEffect(() => {
@@ -86,10 +88,27 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
       <View style={styles.hero}>
         <Image source={require("../assets/saved_villa_house.jpg")} style={styles.heroBackground} resizeMode="cover" />
         <View style={styles.heroShade} />
-        <View style={styles.heroCopy}><View style={styles.welcomeRow}><View style={styles.avatar}><Text style={styles.avatarText}>{user.name?.charAt(0).toUpperCase()}</Text></View><Text style={styles.welcome}>Welcome, {user.name}</Text></View>
-          <Text style={styles.heroTitle}>A place for{ "\n" }your next chapter.</Text>
-          <Text style={styles.heroDescription}>Your properties, your people, and the tools you need to move forward.</Text>
-          <TouchableOpacity accessibilityRole="button" style={styles.primaryButton} onPress={() => router.replace("/home")}><Text style={styles.buttonLabel}>Explore verified properties</Text><MaterialIcons name="north-east" size={18} color={navy} /></TouchableOpacity>
+        <View style={[styles.heroCopy, isAdvisor && styles.advisorHeroCopy]}><View style={styles.welcomeRow}><View style={styles.avatar}><Text style={styles.avatarText}>{user.name?.charAt(0).toUpperCase()}</Text></View><Text style={styles.welcome}>Welcome, {user.name}</Text></View>
+          {reviewRoute ? (
+            <>
+              <Text accessibilityRole="header" style={[styles.heroTitle, styles.advisorHeroTitle]}>Property reviews</Text>
+              <Text style={styles.heroDescription}>Open assigned work or revisit past decisions.</Text>
+              <View style={styles.accountActions}>
+                <TouchableOpacity accessibilityRole="button" style={styles.primaryButton} onPress={() => router.push(reviewRoute)}>
+                  <Text style={styles.buttonLabel}>Open reviews</Text>
+                  <MaterialIcons name="arrow-forward" size={18} color={navy} />
+                </TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" style={styles.advisorMarketplaceButton} onPress={() => router.replace("/home")}>
+                  <Text style={[styles.buttonLabel, styles.advisorMarketplaceLabel]}>Explore properties</Text>
+                  <MaterialIcons name="north-east" size={17} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : <>
+            <Text style={styles.heroTitle}>A place for{ "\n" }your next chapter.</Text>
+            <Text style={styles.heroDescription}>Your properties, your people, and the tools you need to move forward.</Text>
+            <TouchableOpacity accessibilityRole="button" style={styles.primaryButton} onPress={() => router.replace("/home")}><Text style={styles.buttonLabel}>Explore verified properties</Text><MaterialIcons name="north-east" size={18} color={navy} /></TouchableOpacity>
+          </>}
         </View>
 
       </View>
@@ -97,10 +116,10 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
         <View style={[styles.card, styles.advisorCard]}>
           <View style={styles.advisorCardHeader}>
             <View style={styles.iconBox}><MaterialIcons name="badge" size={22} color={navy} /></View>
-            <Text accessibilityRole="header" style={styles.cardTitle}>Advisor ID</Text>
-          </View>
-          <View style={styles.advisorCodePanel}>
-            <Text selectable={Boolean(user.advisorCode)} style={styles.advisorCodeText}>{user.advisorCode || "ID unavailable"}</Text>
+            <View style={styles.advisorCodePanel}>
+              <Text accessibilityRole="header" style={styles.advisorCodeLabel}>Advisor ID</Text>
+              <Text selectable={Boolean(user.advisorCode)} style={styles.advisorCodeText}>{user.advisorCode || "ID unavailable"}</Text>
+            </View>
           </View>
           <Text style={styles.cardDescription}>Sellers can enter this ID when posting a property to assign it to you.</Text>
           {Boolean(user.assignedDistricts?.length) && (
@@ -134,9 +153,9 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
           )}
         </View>
       )}
-      <View style={styles.sectionHeading}><View><Text style={styles.eyebrow}>YOUR TOOLS</Text><Text accessibilityRole="header" style={styles.sectionTitle}>Make your next move.</Text></View><Text style={styles.sectionNote}>Built around your role</Text></View>
+      {isAdvisor ? <Text accessibilityRole="header" style={styles.sectionTitle}>Workspace tools</Text> : <View style={styles.sectionHeading}><View><Text style={styles.eyebrow}>YOUR TOOLS</Text><Text accessibilityRole="header" style={styles.sectionTitle}>Make your next move.</Text></View><Text style={styles.sectionNote}>Built around your role</Text></View>}
       <View style={styles.grid}>{sections.map((section, index) => <TouchableOpacity key={section.title} accessibilityRole="button" accessibilityState={{ disabled: !section.route }} style={[styles.card, { width: cardWidth }, index === 0 && styles.primaryCard, !section.route && styles.disabledCard]} disabled={!section.route} onPress={() => section.route && router.push(section.route)}>
-        <View style={styles.cardTop}><View style={[styles.iconBox, index === 0 && styles.primaryIcon]}><MaterialIcons name={icons[index % icons.length]} size={24} color={navy} /></View><Text style={styles.cardIndex}>{String(index + 1).padStart(2, "0")}</Text></View>
+        <View style={styles.cardTop}><View style={[styles.iconBox, index === 0 && styles.primaryIcon]}><MaterialIcons name={icons[index % icons.length]} size={24} color={navy} /></View>{!isAdvisor && <Text style={styles.cardIndex}>{String(index + 1).padStart(2, "0")}</Text>}</View>
         <Text style={styles.cardTitle}>{section.title}</Text><Text style={styles.cardDescription}>{section.description}</Text>
         <View style={styles.cardBottom}><Text style={styles.cardAction}>{section.route ? "Open workspace" : "Coming later"}</Text><View style={styles.arrowCircle}><MaterialIcons name={section.route ? "north-east" : "schedule"} size={18} color="#111827" /></View></View>
       </TouchableOpacity>)}</View>
@@ -221,8 +240,17 @@ const styles = StyleSheet.create({
   signOut: { paddingHorizontal: 14, minHeight: 44, borderRadius: 24, justifyContent: "center", borderWidth: 1, borderColor: "rgba(20,38,62,0.16)" },
   signOutLabel: { color: navy, fontSize: 13, fontFamily: "ManropeBold" },
   accessPanel: { ...surface, width: "100%", maxWidth: 550, alignSelf: "center", padding: 20, gap: 10 },
+  advisorHeroCopy: { gap: 10 },
+  advisorHeroTitle: { fontSize: 25, lineHeight: 31 },
+  advisorMarketplaceButton: {
+    maxWidth: "100%", flexDirection: "row", alignItems: "center", gap: 7, minHeight: 44,
+    paddingHorizontal: 13, paddingVertical: 8, borderRadius: 22,
+    backgroundColor: "#14263E", borderWidth: 1, borderColor: "#FFFFFF70",
+  },
+  advisorMarketplaceLabel: { color: "#fff" },
   advisorCard: { gap: 12 },
-  advisorCardHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  advisorCodePanel: { alignSelf: "flex-start", maxWidth: "100%", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: marketplaceBackground },
+  advisorCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  advisorCodePanel: { flex: 1, minWidth: 0, gap: 2 },
+  advisorCodeLabel: { color: muted, fontFamily: "ManropeBold", fontSize: 13 },
   advisorCodeText: { color: navy, fontFamily: "ManropeExtraBold", fontSize: 23, letterSpacing: 1 },
 });
