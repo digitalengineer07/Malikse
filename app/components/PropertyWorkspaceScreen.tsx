@@ -25,6 +25,29 @@ import type { Property } from "../src/types/property.types";
 
 const checks: Record<string, string> = { ownership: "Ownership information reviewed", location: "Property location reviewed", boundaries: "Boundaries and access reviewed", area: "Property area reviewed", disclosures: "Loans, disputes and possession reviewed", documentsReviewed: "Available documents reviewed (uploads are optional)", advisorReport: "Advisor report and inspection reviewed" };
 
+function Metadata({ fields }: { fields: [string, string | number | undefined][] }) {
+  return (
+    <View style={styles.metadata}>
+      {fields.map(([label, value]) => (
+        <View key={label} style={styles.metadataItem}>
+          <Text style={styles.metadataLabel}>{label}</Text>
+          <Text selectable style={styles.metadataValue}>{value ?? "Not recorded"}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function recordedDate(value?: string) {
+  const date = value ? new Date(value) : undefined;
+  return date && Number.isFinite(date.getTime()) ? date.toLocaleString() : undefined;
+}
+
+function readableLabel(value: string) {
+  const label = value.replace(/[_-]+/g, " ");
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 export default function PropertyWorkspaceScreen({ publicView = false }: { publicView?: boolean }) {
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(rawId) ? rawId[0] : rawId;
@@ -161,22 +184,41 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
             {[property.streetAddress, property.location.district, property.location.state].filter(Boolean).join(", ")}
           </Text>
         </View>
-        <View style={styles.facts}>
-          <Text style={ui.text}>{property.type} · {property.negotiable ? "Negotiable" : "Fixed price"}</Text>
-          <Text style={ui.muted}>Total {property.totalArea} sq.ft · Sellable {property.sellableArea} sq.ft</Text>
-        </View>
-        {!!property.description && <Text style={ui.text}>{property.description}</Text>}
-        <Text style={ui.text}>Boundary: {property.boundary || "Not provided"} · Road width: {property.roadWidth ?? "Not provided"}</Text>
-        <Text style={ui.text}>Loan: {property.disclosures?.hasLoan ? "Yes" : "No"} · Dispute: {property.disclosures?.hasDispute ? "Yes" : "No"} · Possession: {property.disclosures?.possessionStatus || "Not provided"}</Text>
+        <Metadata fields={[
+          ["Property type", readableLabel(property.type)],
+          ["Price terms", property.negotiable ? "Negotiable" : "Fixed price"],
+          ["Total area", Number.isFinite(property.totalArea) ? `${property.totalArea.toLocaleString("en-IN")} sq.ft` : undefined],
+          ["Sellable area", Number.isFinite(property.sellableArea) ? `${property.sellableArea.toLocaleString("en-IN")} sq.ft` : undefined],
+        ]} />
+        {!!property.description && <>
+          <Text style={styles.detailHeading}>Description</Text>
+          <Text style={ui.text}>{property.description}</Text>
+        </>}
+        <Text style={styles.detailHeading}>Access and disclosures</Text>
+        <Metadata fields={[
+          ["Boundary", property.boundary || undefined],
+          ["Road width", property.roadWidth],
+          ["Loan", property.disclosures?.hasLoan === undefined ? undefined : property.disclosures.hasLoan ? "Yes" : "No"],
+          ["Dispute", property.disclosures?.hasDispute === undefined ? undefined : property.disclosures.hasDispute ? "Yes" : "No"],
+          ["Possession", property.disclosures?.possessionStatus || undefined],
+        ]} />
       </View>
       <View style={styles.card}>
         <Text accessibilityRole="header" style={ui.heading}>Location and boundary</Text>
         <Text selectable style={ui.muted}>GPS: {property.location.lat}, {property.location.lng}</Text>
         <MiniMapPreview property={{ id: property._id, type: property.type, status: property.status, price: property.price, location: property.location, parcelPoints: property.parcelPoints }} />
-        {!!property.parcelPoints?.length && <Text style={ui.muted}>Recorded boundary: {property.parcelPoints.map(point => `${point.lat}, ${point.lng}`).join(" → ")}</Text>}
+        {!!property.parcelPoints?.length && <>
+          <Text style={styles.detailHeading}>Recorded boundary</Text>
+          <Metadata fields={property.parcelPoints.map((point, index) => [`Point ${index + 1}`, `${point.lat}, ${point.lng}`])} />
+        </>}
         <Action title="Open location in maps" secondary onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${property.location.lat},${property.location.lng}`).catch(() => setError("Could not open maps"))} />
-        {property.media?.photos?.map((url, index) => <Image key={index} source={{ uri: url }} style={{ width: "100%", height: 220 }} />)}
-        {property.media?.videos?.map((url, index) => <Action key={index} title={`View property video ${index + 1}`} secondary onPress={() => Linking.openURL(url).catch(() => setError("Could not open video"))} />)}
+      </View>
+      {Boolean(property.media?.photos?.length || property.media?.videos?.length) && <View style={styles.card}>
+        <Text accessibilityRole="header" style={ui.heading}>Listing media</Text>
+        {property.media?.photos?.map((url, index) => <Image key={`photo-${index}`} source={{ uri: url }} style={styles.mediaImage} accessibilityLabel={`Listing photo ${index + 1}`} />)}
+        {property.media?.videos?.map((url, index) => <Action key={`video-${index}`} title={`View property video ${index + 1}`} secondary onPress={() => Linking.openURL(url).catch(() => setError("Could not open video"))} />)}
+      </View>}
+      {publicView && <View style={styles.card}>
         {publicView && <Text style={ui.muted}>Approved by the assigned Advisor or Verifier. This is not a guarantee of legal title.</Text>}
         {publicView && (!user || user.role === "user") && <Action title="Make an offer" onPress={() => {
           if (!user || authState !== "AUTHENTICATED") router.push("/login");
@@ -188,16 +230,25 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
           await chatApi.submitInquiry({ propertyId: id, message: "I would like to make an offer.", offerAmount: amount }); setShowOffer(false); setOfferResult("Your offer was submitted.");
         }} />}
         {!!offerResult && <Text style={ui.text}>{offerResult}</Text>}
-      </View>
+      </View>}
       {!publicView && <>
         <View style={styles.card}>
           <Text style={ui.heading}>Seller and property records</Text>
-          {property.ownerId && typeof property.ownerId === "object" ? <Text style={ui.text}>{property.ownerId.name} · {property.ownerId.mobile}</Text> : null}
-          <Text style={ui.text}>Block: {property.location.block || "—"} · Mauza: {property.location.mauza || "—"} · Police station: {property.location.policeStation || "—"}</Text>
-          <Text style={ui.text}>Khata: {property.khata || "—"} · Khesra: {property.khesra || "—"} · Holding: {property.holdingNumber || "—"}</Text>
-          <Text style={ui.text}>Advisor: {property.assignedAdvisorId && typeof property.assignedAdvisorId === "object" ? property.assignedAdvisorId.name : property.assignedAdvisorId || "Awaiting assignment"}</Text>
-          <Text style={ui.text}>Verifier: {property.assignedVerifierId && typeof property.assignedVerifierId === "object" ? property.assignedVerifierId.name : property.assignedVerifierId || "Awaiting assignment"}</Text>
-          <Text style={ui.heading}>Documents (optional)</Text>
+          <Metadata fields={[
+            ["Seller", typeof property.ownerId === "object" ? property.ownerId?.name : undefined],
+            ["Seller phone", typeof property.ownerId === "object" ? property.ownerId?.mobile : undefined],
+            ["Block", property.location.block || undefined],
+            ["Mauza", property.location.mauza || undefined],
+            ["Police station", property.location.policeStation || undefined],
+            ["Khata", property.khata || undefined],
+            ["Khesra", property.khesra || undefined],
+            ["Holding", property.holdingNumber || undefined],
+            ["Advisor", typeof property.assignedAdvisorId === "object" ? property.assignedAdvisorId?.name : property.assignedAdvisorId || "Awaiting assignment"],
+            ["Verifier", typeof property.assignedVerifierId === "object" ? property.assignedVerifierId?.name : property.assignedVerifierId || "Awaiting assignment"],
+          ]} />
+        </View>
+        <View style={styles.card}>
+          <Text accessibilityRole="header" style={ui.heading}>Documents</Text>
           {docs.length === 0 && <Text style={ui.muted}>No documents uploaded.</Text>}
           {user?.role === "admin" && staffCursor && <Action title="Load more staff choices" secondary onPress={async () => { try { const response = await api.get("/admin/staff", { params: { cursor: staffCursor } }); setStaff(old => [...old, ...response.data]); setStaffCursor(response.data.nextCursor); } catch { setError("Could not load staff"); } }} />}
           {docCursor && <Action title="More documents" secondary onPress={async () => { try { const rows = await documentService.getDocuments(id, docCursor); setDocs(old => [...old, ...rows]); setDocCursor((rows as any).nextCursor); } catch { setError("Could not load documents"); } }} />}
@@ -209,11 +260,19 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
           ["advisor", property.advisorReview],
           ["verifier", property.verifierReview],
         ] as const).map(([role, report]) => report ? <View key={role} style={styles.card}>
-          <Text style={ui.heading}>{role === "advisor" ? "Advisor" : "Verifier"} report · {report.decision}</Text>
-          <Text style={ui.text}>{report.notes}</Text>
-          <Text style={ui.muted}>Signed: {report.signature} · {new Date(report.submittedAt).toLocaleString()}</Text>
-          {Object.entries(report.checklist || {}).map(([key, value]) => <Text key={key} style={ui.text}>{value ? "✓" : "—"} {checks[key] || key}</Text>)}
-          {report.gpsCheckIn && <Text style={ui.text}>Site check-in: {report.gpsCheckIn.lat}, {report.gpsCheckIn.lng} · {new Date(report.gpsCheckIn.timestamp).toLocaleString()}</Text>}
+          <View style={styles.summaryTop}>
+            <Text accessibilityRole="header" style={styles.detailHeading}>{role === "advisor" ? "Advisor" : "Verifier"} report</Text>
+            {!!report.decision && <View style={[styles.statusBadge, report.decision === "approve" && styles.publishedBadge]}>
+              <Text style={styles.statusText}>{report.decision === "approve" ? "Approved" : report.decision === "reject" ? "Rejected" : report.decision === "correction" ? "Corrections requested" : readableLabel(report.decision)}</Text>
+            </View>}
+          </View>
+          <Metadata fields={[["Signed by", report.signature?.trim() || undefined], ["Submitted", recordedDate(report.submittedAt)]]} />
+          {!!report.notes && <Text style={ui.text}>{report.notes}</Text>}
+          {Object.entries(report.checklist || {}).map(([key, value]) => <Text key={key} style={ui.text}>{value ? "✓" : "—"} {checks[key] || readableLabel(key)}</Text>)}
+          {report.gpsCheckIn && <Metadata fields={[
+            ["Site check-in", `${report.gpsCheckIn.lat}, ${report.gpsCheckIn.lng}`],
+            ["Check-in time", recordedDate(report.gpsCheckIn.timestamp)],
+          ]} />}
         </View> : null)}
         {canReview && <View style={styles.card}>
           <Text style={ui.heading}>{user?.role === "advisor" ? "Advisor inspection" : "Verifier inspection"}</Text>
@@ -240,12 +299,18 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
         <View style={styles.card}>
           <Text style={ui.heading}>Verification history</Text>
           {!property.verificationHistory?.length && <Text style={ui.muted}>No recorded review events yet.</Text>}
-          {property.verificationHistory?.map((event, index) => <View key={index} style={{ gap: 4 }}>
-            <Text style={ui.text}>{event.action} · {event.role} · {new Date(event.at).toLocaleString()}</Text>
-            <Text style={ui.muted}>{statusLabels[event.fromStatus]} → {statusLabels[event.toStatus]}</Text>
-            <Text selectable style={ui.muted}>Actor: {event.actorId}{event.staffId ? ` · Assigned: ${event.staffId}` : ""}</Text>
-            {event.report && <Text style={ui.text}>{event.report.signature}: {event.report.notes}</Text>}
-          </View>)}
+          {property.verificationHistory?.map((event, index) => (
+            <View key={`${event.at}-${event.action}-${index}`} style={styles.historyItem}>
+              <Text style={styles.detailHeading}>{readableLabel(event.action)}</Text>
+              <Text style={ui.muted}>{readableLabel(event.role)} · {recordedDate(event.at) ?? "Time not recorded"}</Text>
+              <Text style={ui.text}>{statusLabels[event.fromStatus] || event.fromStatus} → {statusLabels[event.toStatus] || event.toStatus}</Text>
+              {(event.actorId || event.staffId) && <Metadata fields={[
+                ...(event.actorId ? [["Actor ID", event.actorId] as [string, string]] : []),
+                ...(event.staffId ? [["Assigned staff ID", event.staffId] as [string, string]] : []),
+              ]} />}
+              {!!event.report?.notes && <Text style={ui.text}>{event.report.signature ? `${event.report.signature}: ` : ""}{event.report.notes}</Text>}
+            </View>
+          ))}
         </View>
       </>}
     </>}
@@ -269,5 +334,11 @@ const styles = StyleSheet.create({
   price: { color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 20 },
   location: { flexDirection: "row", alignItems: "flex-start", gap: 7 },
   locationText: { flexShrink: 1 },
-  facts: { backgroundColor: "#F7F4EC", borderRadius: 12, padding: 10, gap: 2 },
+  metadata: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  metadataItem: { flexGrow: 1, flexBasis: 126, minWidth: 0, padding: 10, gap: 3, backgroundColor: "#F7F4EC", borderRadius: 11 },
+  metadataLabel: { color: "#536174", fontFamily: "ManropeBold", fontSize: 12 },
+  metadataValue: { color: "#14263E", fontFamily: "Manrope", fontSize: 14, lineHeight: 20 },
+  detailHeading: { color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 15, flexShrink: 1 },
+  mediaImage: { width: "100%", height: 220, borderRadius: 12 },
+  historyItem: { borderStartWidth: 2, borderStartColor: "#DFC052", paddingStart: 12, paddingVertical: 4, marginBottom: 7, gap: 5 },
 });
