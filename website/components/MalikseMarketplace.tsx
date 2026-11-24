@@ -3919,7 +3919,7 @@ export function ProfileScreen() {
     mySaved = useData(user ? "/users/wishlist" : null, [user?.id]);
 
   useEffect(() => {
-    void authService.getMe().catch(() => {});
+    void authService.getMe().catch(() => { });
   }, []);
 
   useEffect(() => {
