@@ -32,6 +32,8 @@ const adminFilters = [
   { id: "advisor_verified", label: "Awaiting verifier" },
 ] as const;
 
+const adminReviewLabels: Record<string, string | undefined> = { verified: "Verified", advisor_verified: "Awaiting verifier" };
+
 const neutralReview = { surface: "#FFFFFF", border: "#DEDCD5", badge: "#F0EEE8", ink: "#536174" };
 const inReview = { label: "In review", surface: "#FFFCF2", border: "#E9D6A1", badge: "#FFF1C0", ink: "#705213" };
 const reviewAppearance: Record<string, (typeof neutralReview & { label: string }) | undefined> = {
@@ -192,7 +194,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
               (typeof property.ownerId === "object" ? property.ownerId?.name?.trim() : undefined);
             const appearance = reviewAppearance[property.status];
             const colors = appearance ?? neutralReview;
-            const status = (isAdmin && property.status === "advisor_verified" ? "Awaiting verifier" : appearance?.label) ?? statusLabels[property.status] ?? property.status;
+            const status = (isAdmin ? adminReviewLabels[property.status] : undefined) ?? appearance?.label ?? statusLabels[property.status] ?? property.status;
             return (
               <Pressable accessibilityRole="button" accessibilityLabel={`${actionLabel}, ${property.title || property.type}`}
                 disabled={unassigned && busy} style={[localStyles.reviewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
