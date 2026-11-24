@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, Text, View, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Redirect, useFocusEffect, useIsFocused, useRouter } from "expo-router";
@@ -12,6 +12,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BrandLockup } from "./BrandLockup";
 import { AccountHeaderBackdrop, accountHeaderStyle } from "./AccountHeaderBackdrop";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
+
+const advisorPageSize = 10;
 
 const advisorFilters = [
   { id: "all", label: "All" },
@@ -41,22 +43,32 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
   const [filter, setFilter] = useState("all");
   const [revision, setRevision] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [pageCursors, setPageCursors] = useState<(string | undefined)[]>([undefined]);
+  const listRef = useRef<FlatList<Listing>>(null);
+  const advisorCursor = role === "advisor" ? pageCursors[pageCursors.length - 1] : undefined;
+  const advisorStatus = role === "advisor" && filter !== "all" ? filter : undefined;
+  const advisorPageKey = JSON.stringify([user?.id, advisorStatus, advisorCursor]);
+  const [loadedPageKey, setLoadedPageKey] = useState<string>();
+  const currentAdvisorPage = advisorPageKey === loadedPageKey;
+
   
   useFocusEffect(useCallback(() => {
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     if (user?.role !== role || authState !== "AUTHENTICATED") return;
     setLoading(true); setError("");
-    const refresh = () => workflowService.queue(role).then(data => {
+    const refresh = () => workflowService.queue(role, advisorCursor,
+      role === "advisor" ? { limit: advisorPageSize, status: advisorStatus } : undefined).then(data => {
       if (!active) return;
-      setQueueOwner(user.id); setProperties(data); setNextCursor((data as any).nextCursor);
-      if (data.some(property => property.status === "queued")) timer = setTimeout(refresh, 3000);
+      setQueueOwner(user.id); setProperties(data); setNextCursor(data.nextCursor);
+      if (role === "advisor") setLoadedPageKey(advisorPageKey);
+      if (role !== "advisor" && data.some(property => property.status === "queued")) timer = setTimeout(refresh, 3000);
     }).catch((cause) => { if (active) { if (role !== "advisor") setProperties([]); setError(cause.response?.data?.message || "Could not load properties"); } }).finally(() => { if (active) setLoading(false); });
     void refresh();
     return () => { active = false; clearTimeout(timer); };
   // Refresh on account changes and explicit reloads, even when the role is unchanged.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, user?.role, authState, role, revision]));
+  }, [user?.id, user?.role, authState, role, revision, advisorCursor, advisorStatus, advisorPageKey]));
   const filtered = useMemo(() => queueOwner === user?.id
     ? properties.filter(property => matchesQueueFilter(property.status, filter, role))
     : [], [filter, properties, queueOwner, role, user?.id]);
@@ -72,12 +84,18 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
   const loadMore = async () => {
     if (busy || !nextCursor) return;
     setBusy(true);
-    try { const rows = await workflowService.queue(role, nextCursor); setProperties(old => [...old, ...rows]); setNextCursor((rows as any).nextCursor); }
+    try { const rows = await workflowService.queue(role, nextCursor); setProperties(old => [...old, ...rows]); setNextCursor(rows.nextCursor); }
     catch { setError("Could not load the next page. Please try again."); } finally { setBusy(false); }
   };
   const filterOptions = ["all", "draft", "queued", "pending", "advisor_verified", "correction_required", "rejected", "verified"].filter(status => role === "user" || role === "admin" || !["draft", "queued"].includes(status));
   
   if (role === "advisor") {
+    const changePage = (cursors: (string | undefined)[]) => {
+      setLoading(true);
+      setError("");
+      setPageCursors(cursors);
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    };
     const backToDashboard = () => router.dismissTo(dashboardRoutes.advisor);
     return (
       <View style={localStyles.advisorScreen}>
@@ -102,7 +120,8 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
           </View>
         </View>
         <FlatList
-          data={filtered}
+          ref={listRef}
+          data={currentAdvisorPage ? filtered.slice(0, advisorPageSize) : []}
           keyExtractor={property => property._id}
           initialNumToRender={6}
           maxToRenderPerBatch={8}
@@ -114,7 +133,11 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
                 {advisorFilters.map(({ id, label }) => (
                   <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: id === filter }}
                     style={[localStyles.filterOption, id === filter && localStyles.selectedOption]}
-                    onPress={() => setFilter(id)}>
+                    onPress={() => {
+                      if (id === filter) return;
+                      setFilter(id);
+                      changePage([undefined]);
+                    }}>
                     {id === filter && <MaterialIcons name="check" size={15} color="#14263E" />}
                     <Text style={localStyles.queueLabel}>{label}</Text>
                   </Pressable>
@@ -124,7 +147,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
             </View>
           }
           ListEmptyComponent={loading ? <ActivityIndicator color="#14263E" /> : !error
-            ? <Text style={localStyles.emptyQueue}>{nextCursor ? "No matches on the loaded pages." : "No properties match this status."}</Text>
+            ? <Text style={localStyles.emptyQueue}>No properties match this status.</Text>
             : undefined}
           renderItem={({ item: property }) => {
             const unassigned = !actorId(property.assignedAdvisorId);
@@ -137,7 +160,11 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
                 <View style={localStyles.reviewCopy}>
                   <Text style={localStyles.reviewTitle}>{property.title || `${property.type} in ${property.location.district}`}</Text>
                   <Text style={localStyles.reviewStatus}>{statusLabels[property.status] || property.status}</Text>
-                  <Text style={localStyles.reviewMeta}>{property.location.district}, {property.location.state} · ₹{property.price.toLocaleString("en-IN")}</Text>
+                  <Text style={localStyles.reviewMeta}>Seller: {property.sellerName?.trim() || (unassigned ? "Available after claiming" : "Name unavailable")}</Text>
+                  <Text style={localStyles.reviewMeta}>
+                    {[property.streetAddress, property.location.district, property.location.state, property.location.pincode].filter(Boolean).join(", ")}
+                  </Text>
+                  <Text style={localStyles.reviewMeta}>₹{property.price.toLocaleString("en-IN")}</Text>
                   {!!property.rejectionReason && <Text style={ui.error}>{property.rejectionReason}</Text>}
                   <Text style={localStyles.queueLabel}>{actionLabel}</Text>
                 </View>
@@ -145,10 +172,21 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
               </Pressable>
             );
           }}
-          ListFooterComponent={nextCursor && queueOwner === user.id
-            ? <Pressable accessibilityRole="button" style={localStyles.queueFilter} disabled={busy || loading} onPress={loadMore}>
-                <Text style={localStyles.queueLabel}>{busy ? "Loading…" : "Load more properties"}</Text>
-              </Pressable> : undefined}
+          ListFooterComponent={pageCursors.length > 1 || (currentAdvisorPage && nextCursor) ? (
+            <View style={localStyles.pagination}>
+              <Pressable accessibilityRole="button" style={localStyles.queueFilter} disabled={loading || busy || pageCursors.length === 1}
+                accessibilityState={{ disabled: loading || busy || pageCursors.length === 1 }}
+                onPress={() => changePage(pageCursors.slice(0, -1))}>
+                <Text style={localStyles.queueLabel}>Previous</Text>
+              </Pressable>
+              <Text style={localStyles.reviewMeta}>Page {pageCursors.length}</Text>
+              <Pressable accessibilityRole="button" style={localStyles.queueFilter} disabled={loading || busy || !currentAdvisorPage || !nextCursor}
+                accessibilityState={{ disabled: loading || busy || !currentAdvisorPage || !nextCursor }}
+                onPress={() => { if (nextCursor) changePage([...pageCursors, nextCursor]); }}>
+                <Text style={localStyles.queueLabel}>Next</Text>
+              </Pressable>
+            </View>
+          ) : undefined}
         />
       </View>
     );
@@ -208,6 +246,7 @@ const localStyles = StyleSheet.create({
   queueTitle: { color: "#fff", fontFamily: "Fraunces" },
   queueHint: { color: "#E7EDF5", fontFamily: "Manrope", fontSize: 13, lineHeight: 19 },
   queueContent: { width: "100%", maxWidth: 900, alignSelf: "center", padding: 16, gap: 10 },
+  pagination: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 },
   queueFilters: { gap: 8, paddingBottom: 3 },
   queueFilter: { minHeight: 44, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 22, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "#FFF1C0" },
   filterHeading: { color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 14 },
