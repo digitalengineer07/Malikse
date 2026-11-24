@@ -1,7 +1,7 @@
-import React, { useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import React, { useCallback, useState } from "react";
+import { BackHandler, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useAuthStore } from "../../store/authStore";
 import { MarketplaceShell } from "../../../components/MalikseMarketplace";
 import { ChatConversationScreen } from "./ChatConversationScreen";
@@ -25,15 +25,24 @@ export const WhatsAppChatScreen: React.FC = () => {
 
   const activeInquiryId = params.inquiryId ? String(params.inquiryId) : null;
 
-  // Active Chat Screen
+  const closeConversation = useCallback(() => {
+    router.setParams({ inquiryId: "" });
+  }, [router]);
+
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS !== "android" || !user || !activeInquiryId) return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      closeConversation();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [activeInquiryId, closeConversation, user]));
   if (user && activeInquiryId) {
     return (
       <ChatConversationScreen
         key={`${user?.id}:${activeInquiryId}`}
         inquiryId={activeInquiryId}
-        onBack={() => {
-          router.setParams({ inquiryId: "" });
-        }}
+        onBack={closeConversation}
       />
     );
   }
