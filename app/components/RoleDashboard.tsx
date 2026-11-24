@@ -31,6 +31,7 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
   const { width } = useWindowDimensions();
   const compact = width < 680;
   const cardWidth = compact ? "100%" : width < 1000 || sections.length === 2 ? "48%" : "31.8%";
+  const isAdvisor = role === "advisor";
   const hasAccess = authState === "AUTHENTICATED" && user?.role === role;
 
   React.useEffect(() => {
@@ -62,10 +63,10 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
             {hasAccess && <NotificationBell />}
           </View>
           {hasAccess && <>
-            <View style={styles.workspace}>
+            {!isAdvisor && <View style={styles.workspace}>
               <Text style={[styles.eyebrow, styles.onNavy]}>MALIKSE / YOUR WORKSPACE</Text>
               <View style={styles.rolePill}><View style={styles.roleDot} /><Text style={styles.roleText}>{role}</Text></View>
-            </View>
+            </View>}
             <Text accessibilityRole="header" style={styles.title}>{title}</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>
           </>}
@@ -83,7 +84,7 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
         </View>
       ) : <>
       {role === "admin" && <NotificationFailures />}
-      <View style={styles.hero}>
+      {!isAdvisor && <View style={styles.hero}>
         <Image source={require("../assets/saved_villa_house.jpg")} style={styles.heroBackground} resizeMode="cover" />
         <View style={styles.heroShade} />
         <View style={styles.heroCopy}><View style={styles.welcomeRow}><View style={styles.avatar}><Text style={styles.avatarText}>{user.name?.charAt(0).toUpperCase()}</Text></View><Text style={styles.welcome}>Welcome, {user.name}</Text></View>
@@ -92,61 +93,54 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
           <TouchableOpacity accessibilityRole="button" style={styles.primaryButton} onPress={() => router.replace("/home")}><Text style={styles.buttonLabel}>Explore verified properties</Text><MaterialIcons name="north-east" size={18} color={navy} /></TouchableOpacity>
         </View>
 
-      </View>
-      {role === 'advisor' && (
-        <View style={styles.advisorCard}>
+      </View>}
+      {!isAdvisor && <View style={styles.sectionHeading}><View><Text style={styles.eyebrow}>YOUR TOOLS</Text><Text accessibilityRole="header" style={styles.sectionTitle}>Make your next move.</Text></View><Text style={styles.sectionNote}>Built around your role</Text></View>}
+      <View style={styles.grid}>{sections.map((section, index) => <TouchableOpacity key={section.title} accessibilityRole="button" accessibilityState={{ disabled: !section.route }} style={[styles.card, { width: cardWidth }, index === 0 && styles.primaryCard, !section.route && styles.disabledCard]} disabled={!section.route} onPress={() => section.route && router.push(section.route)}>
+        <View style={styles.cardTop}><View style={[styles.iconBox, index === 0 && styles.primaryIcon]}><MaterialIcons name={icons[index % icons.length]} size={24} color={navy} /></View>{!isAdvisor && <Text style={styles.cardIndex}>{String(index + 1).padStart(2, "0")}</Text>}</View>
+        <Text style={styles.cardTitle}>{section.title}</Text><Text style={styles.cardDescription}>{section.description}</Text>
+        <View style={styles.cardBottom}><Text style={styles.cardAction}>{section.route ? (isAdvisor && index === 0 ? "Open reviews" : "Open workspace") : "Coming later"}</Text><View style={styles.arrowCircle}><MaterialIcons name={section.route ? "north-east" : "schedule"} size={18} color="#111827" /></View></View>
+      </TouchableOpacity>)}</View>
+      {isAdvisor && (
+        <View style={[styles.card, styles.advisorCard]}>
           <View style={styles.advisorCardHeader}>
-            <View style={styles.advisorBadge}>
-              <MaterialIcons name="verified-user" size={16} color={navy} />
-              <Text style={styles.advisorBadgeText}>YOUR UNIQUE ADVISOR ID</Text>
+            <View style={styles.iconBox}><MaterialIcons name="badge" size={22} color={navy} /></View>
+            <Text accessibilityRole="header" style={styles.cardTitle}>Advisor ID</Text>
+          </View>
+          <View style={styles.advisorCodePanel}>
+            <Text selectable={Boolean(user.advisorCode)} style={styles.advisorCodeText}>{user.advisorCode || "ID unavailable"}</Text>
+          </View>
+          <Text style={styles.cardDescription}>Sellers can enter this ID when posting a property to assign it to you.</Text>
+          {Boolean(user.assignedDistricts?.length) && (
+            <Text style={styles.cardDescription}>Assigned districts: {user.assignedDistricts?.join(", ")}</Text>
+          )}
+          {Boolean(user.advisorCode) && (
+            <View style={styles.accountActions}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={styles.primaryButton}
+                onPress={() => {
+                  Share.share({ message: `My MalikSe Advisor ID is ${user.advisorCode}. Enter it when posting your property on MalikSe.` }).catch(() => {});
+                }}
+              >
+                <MaterialIcons name="share" size={17} color={navy} />
+                <Text style={styles.buttonLabel}>Share ID</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Share Advisor ID on WhatsApp"
+                style={styles.profileButton}
+                onPress={() => {
+                  const message = `Use my MalikSe Advisor ID *${user.advisorCode}* when posting your property on MalikSe.`;
+                  Linking.openURL("https://wa.me/?text=" + encodeURIComponent(message)).catch(() => {});
+                }}
+              >
+                <MaterialIcons name="chat" size={17} color={navy} />
+                <Text style={styles.buttonLabel}>WhatsApp</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.advisorDistrictText}>
-              {user.assignedDistricts?.length ? "Districts: " + user.assignedDistricts.join(", ") : "Coverage: All Districts"}
-            </Text>
-          </View>
-          <Text style={styles.advisorCodeText}>{user.advisorCode || "Loading ID..."}</Text>
-          <Text style={styles.advisorHelpText}>
-            Share this ID with property sellers so their listings are assigned directly to you for review, offers, and chat.
-          </Text>
-          <View style={styles.advisorActionRow}>
-            <TouchableOpacity
-              style={styles.advisorShareBtn}
-              accessibilityRole="button"
-              accessibilityLabel="Share on WhatsApp"
-              onPress={() => {
-                if (user.advisorCode) {
-                  const msg = "Hi! You can use my MalikSe Advisor ID *" + user.advisorCode + "* when listing your property on MalikSe to assign me directly as your advisor.";
-                  Linking.openURL("https://wa.me/?text=" + encodeURIComponent(msg)).catch(() => {});
-                }
-              }}
-            >
-              <MaterialIcons name="chat" size={18} color="#fff" />
-              <Text style={styles.advisorShareLabel}>Share on WhatsApp</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.advisorCopyBtn}
-              accessibilityRole="button"
-              accessibilityLabel="Share Advisor ID"
-              onPress={() => {
-                if (user.advisorCode) {
-                  Share.share({
-                    message: "My MalikSe Advisor ID is " + user.advisorCode + ". Enter this ID when submitting your property on MalikSe.",
-                  }).catch(() => {});
-                }
-              }}
-            >
-              <MaterialIcons name="share" size={18} color={navy} />
-              <Text style={styles.advisorCopyLabel}>Share ID</Text>
-            </TouchableOpacity>
-          </View>
+          )}
         </View>
       )}
-      <View style={styles.sectionHeading}><View><Text style={styles.eyebrow}>YOUR TOOLS</Text><Text accessibilityRole="header" style={styles.sectionTitle}>Make your next move.</Text></View><Text style={styles.sectionNote}>Built around your role</Text></View>
-      <View style={styles.grid}>{sections.map((section, index) => <TouchableOpacity key={section.title} accessibilityRole="button" accessibilityState={{ disabled: !section.route }} style={[styles.card, { width: cardWidth }, index === 0 && styles.primaryCard, !section.route && styles.disabledCard]} disabled={!section.route} onPress={() => section.route && router.push(section.route)}>
-        <View style={styles.cardTop}><View style={[styles.iconBox, index === 0 && styles.primaryIcon]}><MaterialIcons name={icons[index % icons.length]} size={24} color={navy} /></View><Text style={styles.cardIndex}>{String(index + 1).padStart(2, "0")}</Text></View>
-        <Text style={styles.cardTitle}>{section.title}</Text><Text style={styles.cardDescription}>{section.description}</Text>
-        <View style={styles.cardBottom}><Text style={styles.cardAction}>{section.route ? "Open workspace" : "Coming later"}</Text><View style={styles.arrowCircle}><MaterialIcons name={section.route ? "north-east" : "schedule"} size={18} color="#111827" /></View></View>
-      </TouchableOpacity>)}</View>
       <View style={[styles.accountBar, compact && styles.accountCompact]}><View style={styles.accountIdentity}><View style={styles.accountIcon}><MaterialIcons name="person-outline" size={24} color="#345A76" /></View><View><Text style={styles.accountTitle}>Your account</Text><Text style={styles.accountDescription}>Profile details and session settings</Text></View></View>
         <View style={styles.accountActions}><TouchableOpacity accessibilityRole="button" style={styles.profileButton} onPress={() => router.push("/profile")}><Text style={styles.buttonLabel}>My profile</Text><MaterialIcons name="north-east" size={15} color={navy} /></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.signOut} onPress={() => { authService.logout().finally(() => router.replace("/login")); }}><Text style={styles.signOutLabel}>Sign out</Text></TouchableOpacity></View>
       </View>
@@ -228,88 +222,8 @@ const styles = StyleSheet.create({
   signOut: { paddingHorizontal: 14, minHeight: 44, borderRadius: 24, justifyContent: "center", borderWidth: 1, borderColor: "rgba(20,38,62,0.16)" },
   signOutLabel: { color: navy, fontSize: 13, fontFamily: "ManropeBold" },
   accessPanel: { ...surface, width: "100%", maxWidth: 550, alignSelf: "center", padding: 20, gap: 10 },
-  advisorCard: {
-    backgroundColor: navy,
-    borderRadius: 20,
-    padding: 20,
-    gap: 12,
-    borderWidth: 2,
-    borderColor: yellow,
-    marginTop: 10,
-    marginBottom: 10,
-  },
-  advisorCardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  advisorBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: yellow,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  advisorBadgeText: {
-    fontSize: 11,
-    fontFamily: "ManropeExtraBold",
-    color: navy,
-    letterSpacing: 0.5,
-  },
-  advisorDistrictText: {
-    fontSize: 12,
-    fontFamily: "ManropeBold",
-    color: "#E2E8F0",
-  },
-  advisorCodeText: {
-    fontSize: 32,
-    fontFamily: "ManropeExtraBold",
-    color: yellow,
-    letterSpacing: 2,
-  },
-  advisorHelpText: {
-    fontSize: 13,
-    lineHeight: 19,
-    fontFamily: "Manrope",
-    color: "#CBD5E1",
-  },
-  advisorActionRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginTop: 4,
-  },
-  advisorShareBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#25D366",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  advisorShareLabel: {
-    color: "#fff",
-    fontSize: 13,
-    fontFamily: "ManropeBold",
-  },
-  advisorCopyBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  advisorCopyLabel: {
-    color: navy,
-    fontSize: 13,
-    fontFamily: "ManropeBold",
-  },
-
+  advisorCard: { gap: 12 },
+  advisorCardHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  advisorCodePanel: { alignSelf: "flex-start", maxWidth: "100%", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: marketplaceBackground },
+  advisorCodeText: { color: navy, fontFamily: "ManropeExtraBold", fontSize: 23, letterSpacing: 1 },
 });
