@@ -68,6 +68,7 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
   const [gps, setGps] = useState<{ lat: number; lng: number }>();
   const [revision, setRevision] = useState(0);
+  const [expandedEvent, setExpandedEvent] = useState<string>();
   const [showOffer, setShowOffer] = useState(false);
   const [offerResult, setOfferResult] = useState("");
   const [isSaved, setIsSaved] = useState(false);
@@ -297,20 +298,42 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
           <Action title="Manage staff accounts" secondary onPress={() => router.push("/admin/staff")} />
         </View>}
         <View style={styles.card}>
-          <Text style={ui.heading}>Verification history</Text>
+          <Text accessibilityRole="header" style={ui.heading}>Verification history</Text>
           {!property.verificationHistory?.length && <Text style={ui.muted}>No recorded review events yet.</Text>}
-          {property.verificationHistory?.map((event, index) => (
-            <View key={`${event.at}-${event.action}-${index}`} style={styles.historyItem}>
-              <Text style={styles.detailHeading}>{readableLabel(event.action)}</Text>
-              <Text style={ui.muted}>{readableLabel(event.role)} · {recordedDate(event.at) ?? "Time not recorded"}</Text>
-              <Text style={ui.text}>{statusLabels[event.fromStatus] || event.fromStatus} → {statusLabels[event.toStatus] || event.toStatus}</Text>
-              {(event.actorId || event.staffId) && <Metadata fields={[
-                ...(event.actorId ? [["Actor ID", event.actorId] as [string, string]] : []),
-                ...(event.staffId ? [["Assigned staff ID", event.staffId] as [string, string]] : []),
-              ]} />}
-              {!!event.report?.notes && <Text style={ui.text}>{event.report.signature ? `${event.report.signature}: ` : ""}{event.report.notes}</Text>}
-            </View>
-          ))}
+          {property.verificationHistory?.map((event, index) => {
+            const eventKey = `${property._id}-${event.at}-${event.action}-${index}`;
+            const expanded = expandedEvent === eventKey;
+            const action = event.action === "approve" ? "Approved" : event.action === "reject" ? "Rejected" : readableLabel(event.action);
+            const status = statusLabels[event.toStatus] || event.toStatus;
+            return (
+              <View key={eventKey} style={[styles.historyEntry, expanded && styles.historyEntryExpanded]}>
+                <Pressable accessibilityRole="button" accessibilityState={{ expanded }}
+                  onPress={() => setExpandedEvent(expanded ? undefined : eventKey)}
+                  style={styles.historyButton}>
+                  <View style={styles.historyIcon}><MaterialIcons name="history" size={20} color="#14263E" /></View>
+                  <View style={styles.historyCopy}>
+                    <Text style={styles.detailHeading}>{action}</Text>
+                    <Text style={styles.historyCaption}>{readableLabel(event.role)} · {recordedDate(event.at) ?? "Time not recorded"}</Text>
+                    {!!status && <Text style={styles.historyStatus}>{status}</Text>}
+                  </View>
+                  <MaterialIcons name={expanded ? "expand-less" : "expand-more"} size={21} color="#536174" />
+                </Pressable>
+                {expanded && <View style={styles.historyDetails}>
+                  <Metadata fields={[
+                    ["Previous status", statusLabels[event.fromStatus] || event.fromStatus],
+                    ["Resulting status", status],
+                    ...(event.actorId ? [["Actor ID", event.actorId] as [string, string]] : []),
+                    ...(event.staffId ? [["Assigned staff ID", event.staffId] as [string, string]] : []),
+                    ...(event.report?.signature ? [["Signed by", event.report.signature] as [string, string]] : []),
+                  ]} />
+                  {!!event.report?.notes && <>
+                    <Text style={styles.detailHeading}>Report notes</Text>
+                    <Text selectable style={ui.text}>{event.report.notes}</Text>
+                  </>}
+                </View>}
+              </View>
+            );
+          }).reverse()}
         </View>
       </>}
     </>}
@@ -340,5 +363,12 @@ const styles = StyleSheet.create({
   metadataValue: { color: "#14263E", fontFamily: "Manrope", fontSize: 14, lineHeight: 20 },
   detailHeading: { color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 15, flexShrink: 1 },
   mediaImage: { width: "100%", height: 220, borderRadius: 12 },
-  historyItem: { borderStartWidth: 2, borderStartColor: "#DFC052", paddingStart: 12, paddingVertical: 4, marginBottom: 7, gap: 5 },
+  historyEntry: { borderWidth: 1, borderColor: "#E5E0D4", borderRadius: 14, overflow: "hidden" },
+  historyEntryExpanded: { borderColor: "#DFC052" },
+  historyButton: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 9, padding: 11 },
+  historyIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF1C0" },
+  historyCopy: { flex: 1, minWidth: 0, gap: 3 },
+  historyCaption: { color: "#536174", fontFamily: "Manrope", fontSize: 12, lineHeight: 17 },
+  historyStatus: { color: "#14263E", fontFamily: "ManropeBold", fontSize: 12, lineHeight: 17 },
+  historyDetails: { padding: 11, gap: 8, borderTopWidth: 1, borderTopColor: "#E5E0D4" },
 });
