@@ -410,10 +410,9 @@ export function MarketplaceShell({
   useEffect(() => {
     if (step !== undefined) scroll.current?.scrollTo({ y: 0, animated: false });
   }, [step]);
-  const guestProfileHero = path === "/profile" && !user;
   const hero = !fixedHeader && (
     <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
-      smallHeader && s.smallHero, profileHeader && s.profileHero, guestProfileHero && s.guestProfileHero]}>
+      smallHeader && s.smallHero, profileHeader && s.profileHero]}>
       <View pointerEvents="none" style={s.heroSun} />
       <View pointerEvents="none" style={s.heroRay} />
       <View style={[s.heroInner, compactHeader && s.compactHeroInner]}>
@@ -462,9 +461,9 @@ export function MarketplaceShell({
               <View style={heroIllustration ? s.illustratedHeroTitle : undefined}>
                 <View style={heroIllustration ? { flex: 1, minWidth: 0, gap: 2 } : { gap: 4 }}>
                   <Text accessibilityRole="header" style={s.heroTitle}>{title}</Text>
-                  {Boolean(subtitle) && <Text numberOfLines={compactHeader || heroIllustration || guestProfileHero ? 1 : undefined}
-                  adjustsFontSizeToFit={compactHeader || Boolean(heroIllustration) || guestProfileHero} minimumFontScale={heroIllustration ? 0.9 : 0.85}
-                  style={[s.heroSubtitle, (smallHeader || Boolean(heroIllustration)) && s.smallHeroSubtitle, guestProfileHero && s.profileHeroCaption]}>{subtitle}</Text>}
+                  {Boolean(subtitle) && <Text numberOfLines={compactHeader || heroIllustration ? 1 : undefined}
+                  adjustsFontSizeToFit={compactHeader || Boolean(heroIllustration)} minimumFontScale={heroIllustration ? 0.9 : 0.85}
+                  style={[s.heroSubtitle, (smallHeader || Boolean(heroIllustration)) && s.smallHeroSubtitle]}>{subtitle}</Text>}
                 </View>
                 {heroIllustration}
               </View>
@@ -1214,19 +1213,18 @@ export function ProfileScreen() {
     </>
   ) : undefined;
   return (
-    <MarketplaceShell title="Profile" subtitle="Account, preferences and saved homes." profileHeader={profileHeader}
-      heroIllustration={!user ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Sign in to your profile"
-          onPress={() => router.push({ pathname: "/login", params: { returnTo: "/profile" } })}
-          style={({ pressed }) => [s.guestProfileShortcut, pressed && { opacity: 0.8 }]}
-        >
-          <Icon name="person-outline" color={C.sunSoft} size={27} />
-          <View pointerEvents="none" style={s.guestProfileShortcutArrow}>
-            <Icon name="arrow-forward" color={C.ink} size={12} />
+    <MarketplaceShell title="Profile" subtitle="Keep your property journey in one place." profileHeader={profileHeader}
+      headerContent={!user ? (
+        <View style={s.guestProfileFeatures}>
+          <View style={s.guestProfileFeature}>
+            <Icon name="favorite-border" color={C.sun} size={17} />
+            <Text style={s.guestProfileFeatureLabel}>Save favourites</Text>
           </View>
-        </Pressable>
+          <View style={s.guestProfileFeature}>
+            <Icon name="manage-accounts" color={C.sun} size={18} />
+            <Text style={s.guestProfileFeatureLabel}>Manage your account</Text>
+          </View>
+        </View>
       ) : undefined}
       scrollFooter={!user ? bottomExtension => <AccountArtworkFooter bottomExtension={bottomExtension} /> : undefined}>
       <Protected>
@@ -2941,16 +2939,13 @@ const s = StyleSheet.create({
   postDocumentIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   footer: { backgroundColor: "#fff", borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 20, paddingTop: 12 },
   profileHero: { paddingBottom: 82 },
-  guestProfileShortcut: {
-    width: 46, height: 46, marginRight: 5, borderRadius: 23,
-    alignItems: "center", justifyContent: "center",
+  guestProfileFeatures: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4, marginBottom: 6 },
+  guestProfileFeature: {
+    maxWidth: "100%", minHeight: 38, flexDirection: "row", alignItems: "center", gap: 7,
+    paddingHorizontal: 11, paddingVertical: 7, borderRadius: 14,
     backgroundColor: "#243C5D", borderWidth: 1, borderColor: "#FFFFFF38",
   },
-  guestProfileShortcutArrow: {
-    position: "absolute", right: -4, bottom: -3, width: 19, height: 19,
-    borderRadius: 10, backgroundColor: C.sun, alignItems: "center", justifyContent: "center",
-  },
-  guestProfileHero: { paddingBottom: 11 },
+  guestProfileFeatureLabel: { flexShrink: 1, color: "#fff", fontFamily: "ManropeBold", fontSize: 12 },
   profileHeaderCopy: { flexShrink: 1, minWidth: 0 },
   profileHeaderTitle: { fontSize: 27, lineHeight: 29 },
   profileHeroCaption: { fontSize: 13, lineHeight: 15 },
