@@ -2186,7 +2186,24 @@ export function PostScreen() {
     return (
       <MarketplaceShell
         title="Post property"
-        subtitle="Review and manage your assigned listings from the Advisor dashboard."
+        subtitle="Review property details and track the status of your assigned listings."
+        headerContent={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open Advisor dashboard"
+            onPress={() => router.push(dashboardRoutes.advisor)}
+            style={({ pressed }) => [s.advisorPostShortcut, pressed && { opacity: 0.8 }]}
+          >
+            <View style={s.advisorPostIcon}>
+              <Icon name="assignment" size={21} color={C.ink} />
+            </View>
+            <View style={s.advisorPostShortcutCopy}>
+              <Text style={s.advisorPostShortcutTitle}>Assigned listings</Text>
+              <Text style={s.advisorPostShortcutHint}>Open Advisor dashboard</Text>
+            </View>
+            <Icon name="arrow-forward" size={21} color={C.ink} />
+          </Pressable>
+        }
         back
         dockArtwork
         scrollFooter={() => (
@@ -2197,17 +2214,8 @@ export function PostScreen() {
         )}
       >
         <View style={[s.card, s.advisorPostCard]}>
-          <View style={s.advisorPostCardHeading}>
-            <View style={s.advisorPostIcon}>
-              <Icon name="assignment" size={23} color={C.ink} />
-            </View>
-            <Text accessibilityRole="header" style={s.advisorPostTitle}>Your assigned listings</Text>
-          </View>
-          <Text style={s.advisorPostDescription}>
-            Open your dashboard to review property details and track each listing’s status.
-          </Text>
-          <Button title="Open Advisor dashboard" icon="arrow-forward" onPress={() => router.push(dashboardRoutes.advisor)} />
-          <Text style={s.advisorPostNote}>New listings are created by verified buyer or seller accounts.</Text>
+          <Text accessibilityRole="header" style={s.advisorPostTitle}>Who can post a property?</Text>
+          <Text style={s.advisorPostDescription}>New listings are created by verified buyer or seller accounts.</Text>
         </View>
       </MarketplaceShell>
     );
@@ -2660,14 +2668,19 @@ const s = StyleSheet.create({
   watermarkFrame: { width: "72%", maxWidth: 280, aspectRatio: 1.2 },
   watermarkImage: { width: "100%", height: "100%" },
   advisorPostCard: { padding: 18, gap: 12, backgroundColor: "#FFFDF7" },
-  advisorPostCardHeading: { flexDirection: "row", alignItems: "center", gap: 12 },
+  advisorPostShortcut: {
+    flexDirection: "row", alignItems: "center", gap: 12, padding: 11,
+    borderRadius: 18, backgroundColor: C.sunSoft,
+  },
+  advisorPostShortcutCopy: { flex: 1, minWidth: 0, gap: 2 },
+  advisorPostShortcutTitle: { color: C.ink, fontFamily: "ManropeExtraBold", fontSize: 15 },
+  advisorPostShortcutHint: { color: C.muted, fontFamily: font, fontSize: 12 },
   advisorPostIcon: {
-    width: 44, height: 44, borderRadius: 14, backgroundColor: C.sunSoft,
+    width: 44, height: 44, borderRadius: 14, backgroundColor: C.sun,
     alignItems: "center", justifyContent: "center",
   },
-  advisorPostTitle: { flex: 1, fontFamily: fontDisplay, fontSize: 22, lineHeight: 27, color: C.ink },
+  advisorPostTitle: { fontFamily: fontDisplay, fontSize: 22, lineHeight: 27, color: C.ink },
   advisorPostDescription: { fontFamily: font, fontSize: 14, lineHeight: 20, color: C.muted },
-  advisorPostNote: { fontFamily: font, fontSize: 12, lineHeight: 18, color: C.muted },
   advisorPostArtwork: { minHeight: 152, maxHeight: 265, marginTop: 10 },
   postWatermarkFrame: { flex: 1, minHeight: 0, width: "86%", maxWidth: 420, alignSelf: "center" },
   postPrepIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF1C0" },
