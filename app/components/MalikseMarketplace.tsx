@@ -2182,6 +2182,36 @@ export function PostScreen() {
       await api.post(`/properties/${id}/submit`, { consent: true });
       setDone(true);
     });
+  if (user?.role === "advisor") {
+    return (
+      <MarketplaceShell
+        title="Post property"
+        subtitle="Review and manage your assigned listings from the Advisor dashboard."
+        back
+        dockArtwork
+        scrollFooter={() => (
+          <View style={[s.postWatermarkFrame, s.advisorPostArtwork]} aria-hidden pointerEvents="none">
+            <Image source={require("../assets/images/post_property_watermark.png")}
+              style={s.watermarkImage} resizeMode="contain" accessible={false} />
+          </View>
+        )}
+      >
+        <View style={[s.card, s.advisorPostCard]}>
+          <View style={s.advisorPostCardHeading}>
+            <View style={s.advisorPostIcon}>
+              <Icon name="assignment" size={23} color={C.ink} />
+            </View>
+            <Text accessibilityRole="header" style={s.advisorPostTitle}>Your assigned listings</Text>
+          </View>
+          <Text style={s.advisorPostDescription}>
+            Open your dashboard to review property details and track each listing’s status.
+          </Text>
+          <Button title="Open Advisor dashboard" icon="arrow-forward" onPress={() => router.push(dashboardRoutes.advisor)} />
+          <Text style={s.advisorPostNote}>New listings are created by verified buyer or seller accounts.</Text>
+        </View>
+      </MarketplaceShell>
+    );
+  }
   if (user && user.role !== "user") {
     return (
       <MarketplaceShell title="Post property" back>
@@ -2629,6 +2659,16 @@ const s = StyleSheet.create({
   wishlistWatermarkFrame: { width: "86%", maxWidth: 335, height: "95%" },
   watermarkFrame: { width: "72%", maxWidth: 280, aspectRatio: 1.2 },
   watermarkImage: { width: "100%", height: "100%" },
+  advisorPostCard: { padding: 18, gap: 12, backgroundColor: "#FFFDF7" },
+  advisorPostCardHeading: { flexDirection: "row", alignItems: "center", gap: 12 },
+  advisorPostIcon: {
+    width: 44, height: 44, borderRadius: 14, backgroundColor: C.sunSoft,
+    alignItems: "center", justifyContent: "center",
+  },
+  advisorPostTitle: { flex: 1, fontFamily: fontDisplay, fontSize: 22, lineHeight: 27, color: C.ink },
+  advisorPostDescription: { fontFamily: font, fontSize: 14, lineHeight: 20, color: C.muted },
+  advisorPostNote: { fontFamily: font, fontSize: 12, lineHeight: 18, color: C.muted },
+  advisorPostArtwork: { minHeight: 152, maxHeight: 265, marginTop: 10 },
   postWatermarkFrame: { flex: 1, minHeight: 0, width: "86%", maxWidth: 420, alignSelf: "center" },
   postPrepIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF1C0" },
   content: { width: "100%", maxWidth: 1180, alignSelf: "center", padding: 20, gap: 18 },
