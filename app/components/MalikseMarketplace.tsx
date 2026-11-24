@@ -1116,14 +1116,14 @@ export function WishlistScreen() {
     feed = useData(user ? "/users/wishlist" : null, [user?.id]),
     [sort, setSort] = useState(false);
   const rows = [...(feed.data || [])];
-  const showArtwork = !user || (!feed.loading && !feed.error && feed.data?.length === 0);
+  const showArtwork = Boolean(user && !feed.loading && !feed.error && feed.data?.length === 0);
   const savedCount = `${rows.length}${feed.nextCursor ? "+" : ""}`;
   if (sort) rows.sort((a, b) => a.price - b.price);
   return (
     <MarketplaceShell
       title="Wishlist"
       dockArtwork
-      scrollEnabled={rows.length > 0}
+      scrollEnabled={!showArtwork}
       scrollFooter={showArtwork ? () => (
         <View style={s.wishlistArtwork} pointerEvents="none">
           <View style={s.wishlistWatermarkFrame}>
@@ -1191,16 +1191,18 @@ export function WishlistScreen() {
           />
         )}
       </> : (
-        <View style={[s.card, s.guestAccountCard]}>
-          <View style={s.guestAccountHeading}>
-            <View style={s.guestAccountIcon}><Icon name="favorite-border" size={22} /></View>
-            <Text accessibilityRole="header" style={s.guestAccountTitle}>Save a property you like</Text>
+        <View style={s.wishlistGuest}>
+          <Image source={require("../assets/images/wishlist_watermark.png")}
+            style={s.wishlistGuestArt} resizeMode="contain" accessible={false} />
+          <View style={s.wishlistGuestIntro}>
+            <Text accessibilityRole="header" style={s.wishlistGuestTitle}>Keep your shortlist handy</Text>
+            <Text style={s.wishlistGuestDescription}>Sign in and tap the heart on any listing to save it here.</Text>
           </View>
-          <Text style={s.guestAccountDescription}>Sign in, then tap the heart on a listing to add it to your Wishlist.</Text>
-          <View style={s.wishlistGuestActions}>
-            <Button title="Sign in / Register" onPress={() => router.push({ pathname: "/login", params: { returnTo: "/saved" } })} />
-            <Button title="Browse properties" secondary icon="search" onPress={browse} />
-          </View>
+          <Button title="Sign in / Register" onPress={() => router.push({ pathname: "/login", params: { returnTo: "/saved" } })} />
+          <Pressable accessibilityRole="button" onPress={browse} style={s.wishlistGuestBrowse}>
+            <Text style={s.wishlistGuestLink}>Browse properties</Text>
+            <Icon name="arrow-forward" size={17} />
+          </Pressable>
         </View>
       )}
     </MarketplaceShell>
@@ -2690,7 +2692,13 @@ const s = StyleSheet.create({
   scroll: { paddingBottom: 108 },
   scrollWithArtwork: { flexGrow: 1, paddingBottom: 0 },
   fitArtworkToViewport: { flex: 1 },
-  wishlistGuestActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  wishlistGuest: { alignItems: "center", gap: 14, paddingVertical: 8, paddingHorizontal: 10 },
+  wishlistGuestArt: { width: "100%", maxWidth: 230, height: 164 },
+  wishlistGuestIntro: { width: "100%", maxWidth: 330, alignItems: "center", gap: 6 },
+  wishlistGuestTitle: { color: C.ink, fontFamily: fontDisplay, fontSize: 25, lineHeight: 31, textAlign: "center" },
+  wishlistGuestDescription: { color: C.muted, fontFamily: font, fontSize: 14, lineHeight: 21, textAlign: "center" },
+  wishlistGuestBrowse: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10 },
+  wishlistGuestLink: { flexShrink: 1, color: C.ink, fontFamily: "ManropeBold", fontSize: 14 },
   wishlistToolbar: {
     flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between",
     gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#FFFFFF26",
