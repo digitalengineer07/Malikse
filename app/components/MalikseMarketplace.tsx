@@ -534,7 +534,12 @@ export function MarketplaceShell({
                 accessibilityRole="button"
                 accessibilityLabel={text}
                 onPress={() => {
-                  if (!isActive) router.push(url as any);
+                  if (isActive) return;
+                  if (path === "/post" && url === "/profile") {
+                    router.dismissTo("/(tabs)/profile");
+                    return;
+                  }
+                  router.push(url as any);
                 }}
                 accessibilityState={{ selected: isActive }}
                 style={s.navItem}
