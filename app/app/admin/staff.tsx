@@ -3,7 +3,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BrandLockup } from "../../components/BrandLockup";
 import { AccountHeaderBackdrop, accountHeaderStyle } from "../../components/AccountHeaderBackdrop";
 import { WorkflowScreen } from "../../components/WorkflowUI";
-import { statusLabels } from "../../src/services/workflowService";
 import TextInput from "../../components/FormInput";
 import React, { useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -17,7 +16,9 @@ export default function ManageStaffScreen() {
   const focused = useIsFocused();
   const insets = useSafeAreaInsets();
   const [view, setView] = useState<"directory" | "create">("directory");
-  const workloadRequest = React.useRef(0);
+  const [search, setSearch] = useState("");
+  const directoryRequest = React.useRef<AbortController | null>(null);
+  const query = search.trim();
   const { user, authState } = useAuthStore();
   const [staff, setStaff] = useState<StaffAccount[]>([]);
   const [role, setRole] = useState<StaffRole>("advisor");
@@ -32,27 +33,38 @@ export default function ManageStaffScreen() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   
-  const [selectedStaff, setSelectedStaff] = useState<StaffAccount | null>(null);
-  const [workload, setWorkload] = useState<any>({ assigned: [], history: [] });
-  const [loadingWorkload, setLoadingWorkload] = useState(false);
-
   const loadMore = async () => {
-    if (!nextCursor || moreBusy) return;
+    const signal = directoryRequest.current?.signal;
+    if (!nextCursor || moreBusy || !signal || signal.aborted) return;
     setMoreBusy(true);
-    try { const rows = await adminService.listStaff(nextCursor); setStaff(old => [...old, ...rows]); setNextCursor((rows as any).nextCursor); }
-    catch { setError("Could not load the next page"); } finally { setMoreBusy(false); }
+    try {
+      const rows = await adminService.listStaff(nextCursor, query, signal);
+      if (signal.aborted) return;
+      setStaff(previous => {
+        const ids = new Set(previous.map(person => person.id));
+        return [...previous, ...rows.filter(person => !ids.has(person.id))];
+      });
+      setNextCursor(rows.nextCursor);
+    } catch {
+      if (!signal.aborted) setError("Could not load the next page.");
+    } finally { if (!signal.aborted) setMoreBusy(false); }
   };
   useFocusEffect(React.useCallback(() => {
-    if (authState !== "AUTHENTICATED" || user?.role !== "admin" || !user.id) return;
-    let active = true;
+    if (authState !== "AUTHENTICATED" || user?.role !== "admin" || !user.id || view !== "directory") return;
+    const controller = new AbortController();
+    directoryRequest.current = controller;
     setLoading(true);
-    adminService.listStaff().then(rows => {
-      if (active) { setStaff(rows); setNextCursor((rows as any).nextCursor); }
-    }).catch((cause) => {
-      if (active) setError(cause.response?.data?.message || "Could not load staff accounts");
-    }).finally(() => { if (active) setLoading(false); });
-    return () => { active = false; workloadRequest.current++; setSelectedStaff(null); };
-  }, [authState, user?.id, user?.role]));
+    setMoreBusy(false);
+    setNextCursor(undefined);
+    const timer = setTimeout(() => {
+      void adminService.listStaff(undefined, query, controller.signal).then(rows => {
+        if (!controller.signal.aborted) { setStaff(rows); setNextCursor(rows.nextCursor); }
+      }).catch((cause) => {
+        if (!controller.signal.aborted) setError(cause.response?.data?.message || "Could not load staff accounts.");
+      }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    }, query ? 250 : 0);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [authState, user?.id, user?.role, query, view]));
 
   const create = async () => {
     if (saving) return;
@@ -71,52 +83,12 @@ export default function ManageStaffScreen() {
       setEmail("");
       setPassword("");
       setMessage(`${person.name}’s account was created.`);
+      setSearch("");
       setView("directory");
     } catch (cause: any) {
       setError(cause.response?.data?.message || "Could not create staff account. Check that the API is reachable.");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const toggleStatus = async (staffMember: StaffAccount) => {
-    try {
-      const updated = await adminService.toggleStaffStatus(staffMember.id, !staffMember.isActive);
-      setStaff(current => current.map(s => s.id === staffMember.id ? { ...s, isActive: updated.isActive } : s));
-    } catch (e: any) {
-      setError(e.response?.data?.message || "Failed to toggle status");
-    }
-  };
-
-  const moreWorkload = async (kind: "assigned" | "history") => {
-    if (!selectedStaff || loadingWorkload) return;
-    const request = workloadRequest.current;
-    setLoadingWorkload(true);
-    const next = kind === "assigned" ? "nextAssigned" : "nextHistory";
-    try { const data = await adminService.getStaffWorkload(selectedStaff.id, { [kind + "Cursor"]: workload[next] });
-      if (request !== workloadRequest.current) return;
-      setWorkload((old: any) => ({ ...old, [kind]: [...old[kind], ...data[kind]], [next]: data[next] }));
-    } catch { if (request === workloadRequest.current) setError("Could not load staff workload"); } finally { if (request === workloadRequest.current) setLoadingWorkload(false); }
-  };
-  const viewWorkload = async (staffMember: StaffAccount) => {
-    const request = ++workloadRequest.current;
-    if (selectedStaff?.id === staffMember.id) {
-      setSelectedStaff(null);
-      return;
-    }
-    setError("");
-    setSelectedStaff(staffMember);
-    setLoadingWorkload(true);
-    try {
-      const data = await adminService.getStaffWorkload(staffMember.id);
-      if (request === workloadRequest.current) setWorkload(data);
-    } catch {
-      if (request === workloadRequest.current) {
-        setError("Could not load staff workload.");
-        setWorkload({ assigned: [], history: [] });
-      }
-    } finally {
-      if (request === workloadRequest.current) setLoadingWorkload(false);
     }
   };
 
@@ -176,48 +148,35 @@ export default function ManageStaffScreen() {
       </TouchableOpacity>
     </View>
     ) : <>
-    <Text accessibilityRole="header" style={styles.heading}>Staff directory</Text>
-    {loading && !staff.length ? <ActivityIndicator color="#244268" /> : staff.length === 0 ? <Text style={styles.description}>No Advisors or Verifiers yet.</Text> : staff.map((person) =>
-      <View style={styles.staffRow} key={person.id}>
-        <TouchableOpacity style={styles.staffHeader} accessibilityRole="button" accessibilityState={{ expanded: selectedStaff?.id === person.id }} onPress={() => viewWorkload(person)}>
+    <View style={styles.search}>
+      <MaterialIcons name="search" size={21} color="#536174" />
+      <TextInput accessibilityLabel="Search staff by name, ID, mobile or email" placeholder="Name, ID, mobile or email"
+        style={styles.searchInput} value={search} onChangeText={value => {
+          setSearch(value);
+          if (value.trim() === query) return;
+          directoryRequest.current?.abort();
+          setStaff([]); setLoading(true); setError(""); setNextCursor(undefined);
+        }} maxLength={100} autoCapitalize="none" autoCorrect={false} />
+      {!!search && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Clear staff search"
+        onPress={() => { if (query) { directoryRequest.current?.abort(); setStaff([]); setLoading(true); setError(""); setNextCursor(undefined); } setSearch(""); }}
+        style={styles.clearSearch}><MaterialIcons name="close" size={19} color="#14263E" /></TouchableOpacity>}
+    </View>
+    {loading && !staff.length ? <ActivityIndicator color="#244268" /> : !staff.length && !error
+      ? <Text style={styles.description}>{query ? "No staff match this search." : "No staff accounts yet."}</Text>
+      : staff.map(person => (
+        <TouchableOpacity key={person.id} style={[styles.staffRow, styles.staffHeader]} accessibilityRole="button"
+          onPress={() => router.push({ pathname: "/admin/staff/[id]", params: { id: person.id } })}>
           <View style={styles.staffIcon}><MaterialIcons name={person.role === "advisor" ? "badge" : "verified-user"} size={20} color="#14263E" /></View>
           <View style={styles.staffCopy}>
             <Text style={styles.staffName}>{person.name}</Text>
             <Text style={styles.staffDetail}>{person.role === "advisor" ? "Advisor" : "Verifier"} · {person.isActive === false ? "Inactive" : "Active"}</Text>
-            <Text style={styles.staffDetail}>{person.mobile}{person.email ? ` · ${person.email}` : ""}</Text>
+            <Text style={styles.staffDetail}>{person.mobile}</Text>
+            {person.advisorCode && <Text style={styles.staffDetail}>{person.advisorCode}</Text>}
+            {!!person.email && <Text style={styles.staffDetail}>{person.email}</Text>}
           </View>
-          <MaterialIcons name={selectedStaff?.id === person.id ? "expand-less" : "expand-more"} size={24} color="#536174" />
+          <MaterialIcons name="chevron-right" size={22} color="#536174" />
         </TouchableOpacity>
-        
-        {selectedStaff?.id === person.id && (
-          <View style={{ padding: 18, backgroundColor: "#FFFCF4", borderTopWidth: 1, borderTopColor: "#DEDCD5" }}>
-            {workload.nextAssigned && <TouchableOpacity disabled={loadingWorkload} onPress={() => moreWorkload("assigned")}><Text style={styles.link}>More assignments</Text></TouchableOpacity>}
-            {workload.nextHistory && <TouchableOpacity disabled={loadingWorkload} onPress={() => moreWorkload("history")}><Text style={styles.link}>More review history</Text></TouchableOpacity>}
-            <Text style={{ fontSize: 14, fontWeight: "700", color: "#14263E", marginBottom: 12 }}>Currently Assigned</Text>
-            {loadingWorkload ? <ActivityIndicator color="#244268" /> : workload.assigned.length === 0 ? <Text style={styles.description}>No properties currently assigned.</Text> : workload.assigned.map((prop: any) => (
-              <TouchableOpacity key={`a_${prop._id}`} style={styles.propRow} onPress={() => router.push({ pathname: "/verification/[id]", params: { id: prop._id } })}>
-                <View><Text style={{ color: "#14263E", fontWeight: "600" }}>{prop.title}</Text><Text style={{ color: "#536174", fontSize: 12 }}>{statusLabels[prop.status] || prop.status}</Text></View>
-                <MaterialIcons name="chevron-right" size={20} color="#536174" />
-              </TouchableOpacity>
-            ))}
-
-            <Text style={{ fontSize: 14, fontWeight: "700", color: "#14263E", marginTop: 24, marginBottom: 12 }}>Verification History</Text>
-            {loadingWorkload ? <ActivityIndicator color="#244268" /> : workload.history.length === 0 ? <Text style={styles.description}>No history yet.</Text> : workload.history.map((prop: any) => (
-              <TouchableOpacity key={`h_${prop._id}`} style={styles.propRow} onPress={() => router.push({ pathname: "/verification/[id]", params: { id: prop._id } })}>
-                <View><Text style={{ color: "#14263E", fontWeight: "600" }}>{prop.title}</Text><Text style={{ color: "#536174", fontSize: 12 }}>{statusLabels[prop.status] || prop.status}</Text></View>
-                <MaterialIcons name="chevron-right" size={20} color="#536174" />
-              </TouchableOpacity>
-            ))}
-
-            <TouchableOpacity style={{ marginTop: 20, padding: 12, backgroundColor: person.isActive === false ? "#F3F4F6" : "#FEF2F2", borderRadius: 8, alignItems: "center" }} onPress={() => toggleStatus(person)}>
-              <Text style={{ color: person.isActive === false ? "#374151" : "#B91C1C", fontWeight: "700" }}>
-                {person.isActive === false ? "Re-activate Account" : "Deactivate Account"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-    )}
+      ))}
     {!!nextCursor && <TouchableOpacity accessibilityRole="button" disabled={moreBusy} onPress={loadMore} style={styles.more}>
       <Text style={styles.link}>{moreBusy ? "Loading…" : "Load more accounts"}</Text>
     </TouchableOpacity>}
@@ -257,5 +216,8 @@ const styles = StyleSheet.create({
   staffHeader: { padding: 14, flexDirection: "row", alignItems: "center", gap: 10 },
   staffName: { color: "#14263E", fontWeight: "700", textTransform: "capitalize" },
   staffDetail: { color: "#536174", marginTop: 4 },
-  propRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "white", padding: 12, borderRadius: 8, borderWidth: 1, borderColor: "#DEDCD5", marginBottom: 8 },
+  search: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12,
+    backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#DEDCD5" },
+  searchInput: { flex: 1, minWidth: 0, minHeight: 46, fontSize: 14, color: "#14263E" },
+  clearSearch: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
 });
