@@ -20,8 +20,8 @@ const navy = "#14263E";
 const yellow = "#FCC61C";
 const muted = "#536174";
 
-export default function RoleDashboard({ role, title, subtitle, sections }: {
-  role: UserRole; title: string; subtitle: string; sections: Section[];
+export default function RoleDashboard({ role, title, subtitle, sections = [], workspace }: {
+  role: UserRole; title: string; subtitle: string; sections?: Section[]; workspace?: React.ReactElement;
 }) {
   const router = useRouter();
   const focused = useIsFocused();
@@ -32,6 +32,7 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
   const compact = width < 680;
   const cardWidth = compact ? "100%" : width < 1000 || sections.length === 2 ? "48%" : "31.8%";
   const isAdvisor = role === "advisor";
+  const fixedStatusInset = isAdvisor || role === "admin";
   const reviewRoute = isAdvisor ? sections[0]?.route : undefined;
   const hasAccess = authState === "AUTHENTICATED" && user?.role === role;
 
@@ -43,9 +44,9 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
 
   return <View style={styles.screen}>
     {focused && <StatusBar style="light" />}
-    {isAdvisor && <View pointerEvents="none" style={[styles.advisorStatusInset, { height: insets.top }]} />}
+    {fixedStatusInset && <View pointerEvents="none" style={[styles.advisorStatusInset, { height: insets.top }]} />}
     <ScrollView contentContainerStyle={{ paddingBottom: hasAccess ? 20 : insets.bottom + 20 }}>
-      <View style={[styles.header, { paddingTop: isAdvisor ? 14 : insets.top + 14 }]}>
+      <View style={[styles.header, { paddingTop: fixedStatusInset ? 14 : insets.top + 14 }]}>
         <View style={styles.sun} pointerEvents="none" />
         <View style={styles.ray} pointerEvents="none" />
         <View style={[styles.headerInner, compact && styles.horizontalCompact]}>
@@ -65,10 +66,10 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
             {hasAccess && <NotificationBell />}
           </View>
           {hasAccess && <>
-            <View style={styles.workspace}>
+            {!workspace && <View style={styles.workspace}>
               <Text style={[styles.eyebrow, styles.onNavy]}>MALIKSE / YOUR WORKSPACE</Text>
               <View style={styles.rolePill}><View style={styles.roleDot} /><Text style={styles.roleText}>{role}</Text></View>
-            </View>
+            </View>}
             <Text accessibilityRole="header" style={styles.title}>{title}</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>
           </>}
@@ -85,7 +86,7 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
           </TouchableOpacity>
         </View>
       ) : <>
-      {role === "admin" && <NotificationFailures />}
+      {workspace ?? <>
       <View style={styles.hero}>
         <Image source={require("../assets/saved_villa_house.jpg")} style={styles.heroBackground} resizeMode="cover" />
         <View style={styles.heroShade} />
@@ -182,18 +183,20 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
         <View style={styles.cardBottom}><Text style={styles.cardAction}>{section.route ? "Open workspace" : "Coming later"}</Text><View style={styles.arrowCircle}><MaterialIcons name={section.route ? "north-east" : "schedule"} size={18} color="#111827" /></View></View>
       </TouchableOpacity>)}</View>
       )}
-      <View style={[styles.accountBar, compact && styles.accountCompact, isAdvisor && styles.advisorAccount]}>
+      </>}
+      {role === "admin" && focused && <NotificationFailures />}
+      <View style={[styles.accountBar, compact && styles.accountCompact, (isAdvisor || workspace) && styles.advisorAccount]}>
         <View style={styles.accountIdentity}>
           <View style={styles.accountIcon}><MaterialIcons name="person-outline" size={24} color={isAdvisor ? navy : "#345A76"} /></View>
           <View>
             <Text accessibilityRole="header" style={styles.accountTitle}>Your account</Text>
-            {!isAdvisor && <Text style={styles.accountDescription}>Profile details and session settings</Text>}
+            {!(isAdvisor || workspace) && <Text style={styles.accountDescription}>Profile details and session settings</Text>}
           </View>
         </View>
-        <View style={[styles.accountActions, isAdvisor && styles.advisorAccountActions]}>
+        <View style={[styles.accountActions, (isAdvisor || workspace) && styles.advisorAccountActions]}>
           <TouchableOpacity
             accessibilityRole="button"
-            style={[styles.profileButton, isAdvisor && [styles.advisorAccountAction, styles.advisorProfileAction]]}
+            style={[styles.profileButton, (isAdvisor || workspace) && [styles.advisorAccountAction, styles.advisorProfileAction]]}
             onPress={() => router.push("/profile")}
           >
             <Text style={styles.buttonLabel}>My profile</Text>
@@ -201,10 +204,10 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
           </TouchableOpacity>
           <TouchableOpacity
             accessibilityRole="button"
-            style={[styles.signOut, isAdvisor && styles.advisorAccountAction]}
+            style={[styles.signOut, (isAdvisor || workspace) && styles.advisorAccountAction]}
             onPress={() => { authService.logout().finally(() => router.replace("/login")); }}
           >
-            {isAdvisor && <MaterialIcons name="logout" size={16} color={navy} />}
+            {(isAdvisor || workspace) && <MaterialIcons name="logout" size={16} color={navy} />}
             <Text style={styles.signOutLabel}>Sign out</Text>
           </TouchableOpacity>
         </View>
