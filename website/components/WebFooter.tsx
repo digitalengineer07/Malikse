@@ -202,10 +202,10 @@ const styles = StyleSheet.create({
   },
   brandName: {
     fontFamily: fontDisplay,
-    fontSize: 22,
-    fontWeight: "800",
+    fontSize: 24,
+    fontWeight: "600",
     color: "#FFFFFF",
-    letterSpacing: -0.6,
+    letterSpacing: -0.25,
   },
   brandDesc: {
     fontFamily: font,
@@ -232,9 +232,9 @@ const styles = StyleSheet.create({
   },
   trustBadgeText: {
     fontFamily: fontMono,
-    fontSize: 10.5,
-    fontWeight: "600",
-    letterSpacing: 0.3,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.2,
     color: "#FFFFFF",
   },
   linkCol: {
@@ -242,10 +242,10 @@ const styles = StyleSheet.create({
   },
   colHeader: {
     fontFamily: fontMono,
-    fontSize: 10.5,
-    fontWeight: "700",
+    fontSize: 11.5,
+    fontWeight: "800",
     color: "#FCC61C",
-    letterSpacing: 1.6,
+    letterSpacing: 1.5,
     marginBottom: 2,
   },
   linkText: {

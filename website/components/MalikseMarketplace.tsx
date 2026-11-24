@@ -682,7 +682,7 @@ function PropertyCard({
                 borderRadius: 999,
               }}
             >
-              <Text style={{ fontFamily: fontMono, fontSize: 10.5, fontWeight: "700", letterSpacing: 0.4, color: "#14263E" }}>
+              <Text style={{ fontFamily: fontMono, fontSize: 12, fontWeight: "800", letterSpacing: 0.1, color: "#14263E" }}>
                 0% Brokerage
               </Text>
             </View>
@@ -694,7 +694,7 @@ function PropertyCard({
         <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
           <Text style={s.price}>{money(p.price)}</Text>
           {perSqFt > 0 ? (
-            <Text style={{ fontFamily: fontNumeric, fontSize: 12.5, fontWeight: "600", color: "rgba(20, 38, 62, 0.56)" }}>
+            <Text style={{ fontFamily: fontNumeric, fontSize: 12.5, fontWeight: "600", color: "rgba(20, 38, 62, 0.55)" }}>
               ₹{perSqFt.toLocaleString("en-IN")}/sq.ft
             </Text>
           ) : compact ? (
@@ -863,10 +863,10 @@ function SectionHeading({
           <Text
             style={{
               fontFamily: fontMono,
-              fontSize: 10.5,
-              fontWeight: "700",
+              fontSize: 11.5,
+              fontWeight: "800",
               letterSpacing: 1.8,
-              color: "rgba(20, 38, 62, 0.54)",
+              color: "rgba(20, 38, 62, 0.5)",
               textTransform: "uppercase",
             }}
           >
@@ -876,11 +876,11 @@ function SectionHeading({
         <Text
           style={{
             fontFamily: fontDisplay,
-            fontSize: isCompact ? 24 : 30,
-            lineHeight: isCompact ? 30 : 36,
-            fontWeight: "800",
+            fontSize: isCompact ? 26 : 32,
+            lineHeight: isCompact ? 30 : 37,
+            fontWeight: "600",
             color: "#14263E",
-            letterSpacing: -0.75,
+            letterSpacing: -0.5,
           }}
         >
           {title}
@@ -889,10 +889,10 @@ function SectionHeading({
           <Text
             style={{
               fontFamily: font,
-              fontSize: 14,
+              fontSize: 14.5,
               lineHeight: 22,
-              fontWeight: "400",
-              color: "rgba(20, 38, 62, 0.64)",
+              fontWeight: "500",
+              color: "rgba(20, 38, 62, 0.6)",
               maxWidth: 560,
             }}
           >
@@ -1413,23 +1413,23 @@ export function HomeScreen() {
                 }}
               >
                 <Icon name="verified-user" size={14} color="#FCC61C" />
-                <Text style={{ fontFamily: fontMono, fontSize: 11, fontWeight: "600", letterSpacing: 0.4, color: "#FCC61C" }}>
+                <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "700", color: "#FCC61C" }}>
                   {user
                     ? `Hello, ${user.name.split(" ")[0]} · Verified owner-to-buyer marketplace`
                     : "India's verified owner-to-buyer marketplace"}
                 </Text>
               </View>
 
-              {/* Modern Geometric Display Hero Headline */}
+              {/* Editorial Fraunces Hero Headline */}
               <View style={{ gap: 10 }}>
                 <Text
                   style={{
                     fontFamily: fontDisplay,
-                    fontSize: isMobile ? 31 : 45,
-                    lineHeight: isMobile ? 36 : 51,
-                    fontWeight: "800",
+                    fontSize: isMobile ? 34 : 48,
+                    lineHeight: isMobile ? 38 : 52,
+                    fontWeight: "600",
                     color: "#FFFFFF",
-                    letterSpacing: -1.35,
+                    letterSpacing: -1.1,
                   }}
                 >
                   {"Find a home,\n"}
@@ -1438,10 +1438,10 @@ export function HomeScreen() {
                 <Text
                   style={{
                     fontFamily: font,
-                    fontSize: isMobile ? 14.5 : 15.5,
-                    lineHeight: isMobile ? 22 : 24,
-                    fontWeight: "400",
-                    color: "rgba(255, 255, 255, 0.76)",
+                    fontSize: isMobile ? 14.5 : 16,
+                    lineHeight: isMobile ? 22 : 25,
+                    fontWeight: "500",
+                    color: "rgba(255, 255, 255, 0.72)",
                     maxWidth: 500,
                   }}
                 >
@@ -1738,7 +1738,7 @@ export function HomeScreen() {
                     </View>
                   </View>
                   <View style={{ padding: 12 }}>
-                    <Text style={{ fontFamily: fontNumeric, fontSize: 18.5, fontWeight: "700", letterSpacing: -0.4, color: "#14263E" }}>
+                    <Text style={{ fontFamily: fontNumeric, fontSize: 19, fontWeight: "800", letterSpacing: -0.4, color: "#14263E" }}>
                       {showcasePrimary ? money(showcasePrimary.price) : "₹65 Lakh"}
                     </Text>
                     <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "700", color: "rgba(20,38,62,0.7)", marginTop: 2 }} numberOfLines={1}>
@@ -1797,7 +1797,7 @@ export function HomeScreen() {
                     </View>
                   </View>
                   <View style={{ padding: 11 }}>
-                    <Text style={{ fontFamily: fontNumeric, fontSize: 16.5, fontWeight: "700", letterSpacing: -0.3, color: "#14263E" }}>
+                    <Text style={{ fontFamily: fontNumeric, fontSize: 17, fontWeight: "800", letterSpacing: -0.3, color: "#14263E" }}>
                       {showcaseSecondary ? money(showcaseSecondary.price) : "₹42 Lakh"}
                     </Text>
                     <Text style={{ fontFamily: font, fontSize: 12, fontWeight: "700", color: "rgba(20,38,62,0.7)", marginTop: 1 }} numberOfLines={1}>
@@ -1908,8 +1908,8 @@ export function HomeScreen() {
                 <Text
                   style={{
                     fontFamily: fontNumeric,
-                    fontSize: isMobile ? 19 : 22,
-                    fontWeight: "700",
+                    fontSize: isMobile ? 20 : 24,
+                    fontWeight: "800",
                     color: "#14263E",
                     letterSpacing: -0.5,
                   }}
@@ -2046,10 +2046,9 @@ export function HomeScreen() {
                 </View>
                 <Text
                   style={{
-                    fontFamily: fontDisplay,
+                    fontFamily: font,
                     fontSize: 14.5,
-                    fontWeight: "700",
-                    letterSpacing: -0.25,
+                    fontWeight: "800",
                     color: isSelected ? "#FFFFFF" : "#14263E",
                     textAlign: "center",
                   }}
@@ -2058,11 +2057,10 @@ export function HomeScreen() {
                 </Text>
                 <Text
                   style={{
-                    fontFamily: fontMono,
-                    fontSize: 11,
+                    fontFamily: font,
+                    fontSize: 12,
                     fontWeight: "600",
-                    letterSpacing: 0.2,
-                    color: isSelected ? "#FCC61C" : "rgba(20, 38, 62, 0.54)",
+                    color: isSelected ? "#FCC61C" : "rgba(20, 38, 62, 0.52)",
                     textAlign: "center",
                   }}
                 >
@@ -2199,7 +2197,7 @@ export function HomeScreen() {
                   justifyContent: "center",
                 }}
               >
-                <Text style={{ fontFamily: fontNumeric, fontSize: 15, fontWeight: "700", color: "#FCC61C" }}>
+                <Text style={{ fontFamily: fontNumeric, fontSize: 15, fontWeight: "800", color: "#FCC61C" }}>
                   {item.step}
                 </Text>
               </View>
@@ -2220,10 +2218,10 @@ export function HomeScreen() {
               <Text
                 style={{
                   fontFamily: fontDisplay,
-                  fontSize: 19,
-                  lineHeight: 24,
-                  fontWeight: "800",
-                  letterSpacing: -0.45,
+                  fontSize: 21,
+                  lineHeight: 26,
+                  fontWeight: "600",
+                  letterSpacing: -0.3,
                   color: "#14263E",
                   marginTop: 14,
                 }}
@@ -2286,17 +2284,17 @@ export function HomeScreen() {
         >
           {/* Left Editorial Column */}
           <View style={{ flex: 1, gap: 12 }}>
-            <Text style={{ fontFamily: fontMono, fontSize: 10.5, fontWeight: "700", letterSpacing: 1.9, color: "#FCC61C" }}>
+            <Text style={{ fontFamily: fontMono, fontSize: 11.5, fontWeight: "800", letterSpacing: 1.8, color: "#FCC61C" }}>
               WHY MALIKSE
             </Text>
             <Text
               style={{
                 fontFamily: fontDisplay,
-                fontSize: isMobile ? 28 : 35,
-                lineHeight: isMobile ? 33 : 41,
-                fontWeight: "800",
+                fontSize: isMobile ? 30 : 38,
+                lineHeight: isMobile ? 34 : 43,
+                fontWeight: "600",
                 color: "#FFFFFF",
-                letterSpacing: -0.95,
+                letterSpacing: -0.6,
               }}
             >
               {"Trust is built into\nevery listing."}
@@ -2306,8 +2304,8 @@ export function HomeScreen() {
                 fontFamily: font,
                 fontSize: 15,
                 lineHeight: 23,
-                fontWeight: "400",
-                color: "rgba(255, 255, 255, 0.74)",
+                fontWeight: "500",
+                color: "rgba(255, 255, 255, 0.72)",
                 maxWidth: 460,
               }}
             >
@@ -2373,7 +2371,7 @@ export function HomeScreen() {
                 >
                   <Icon name={feat.icon} size={20} color="#14263E" />
                 </View>
-                <Text style={{ fontFamily: fontDisplay, fontSize: 15.5, fontWeight: "700", letterSpacing: -0.25, color: "#FFFFFF" }}>
+                <Text style={{ fontFamily: font, fontSize: 15.5, fontWeight: "800", color: "#FFFFFF" }}>
                   {feat.title}
                 </Text>
                 <Text style={{ fontFamily: font, fontSize: 13, lineHeight: 19, fontWeight: "500", color: "rgba(255, 255, 255, 0.68)" }}>
@@ -2432,17 +2430,17 @@ export function HomeScreen() {
           )}
 
           <View style={{ maxWidth: 520, position: "relative", zIndex: 2, gap: 9 }}>
-            <Text style={{ fontFamily: fontMono, fontSize: 10.5, fontWeight: "700", letterSpacing: 1.9, color: "rgba(20, 38, 62, 0.72)" }}>
+            <Text style={{ fontFamily: fontMono, fontSize: 11.5, fontWeight: "800", letterSpacing: 1.8, color: "rgba(20, 38, 62, 0.72)" }}>
               FOR OWNERS
             </Text>
             <Text
               style={{
                 fontFamily: fontDisplay,
-                fontSize: isMobile ? 28 : 36,
-                lineHeight: isMobile ? 32 : 41,
-                fontWeight: "800",
+                fontSize: isMobile ? 30 : 38,
+                lineHeight: isMobile ? 34 : 42,
+                fontWeight: "600",
                 color: "#14263E",
-                letterSpacing: -0.95,
+                letterSpacing: -0.6,
               }}
             >
               List your property free.
@@ -6314,10 +6312,10 @@ const detailStyles = StyleSheet.create({
   },
   propertyTitle: {
     fontSize: 26,
-    fontWeight: "800",
+    fontWeight: "600",
     color: "#0B1B3F",
     lineHeight: 34,
-    letterSpacing: -0.6,
+    letterSpacing: -0.4,
     fontFamily: fontDisplay,
   },
   headerBadgesRow: {
@@ -6616,10 +6614,10 @@ const detailStyles = StyleSheet.create({
     color: "#1E3A8A",
   },
   sectionHeading: {
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: 19,
+    fontWeight: "600",
     color: "#0B1B3F",
-    letterSpacing: -0.35,
+    letterSpacing: -0.25,
     fontFamily: fontDisplay,
   },
   sectionSub: {
@@ -6845,10 +6843,10 @@ const detailStyles = StyleSheet.create({
     gap: 10,
   },
   modalHeaderTitle: {
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: 19,
+    fontWeight: "600",
     color: "#0B1B3F",
-    letterSpacing: -0.3,
+    letterSpacing: -0.25,
     fontFamily: fontDisplay,
   },
   modalCloseBtn: {
@@ -11612,8 +11610,8 @@ const s = StyleSheet.create({
   },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
-  h1: { fontFamily: fontDisplay, fontSize: 25, fontWeight: "800", color: C.ink, letterSpacing: -0.7 },
-  h2: { fontFamily: fontDisplay, fontSize: 20, fontWeight: "800", color: C.ink, letterSpacing: -0.5 },
+  h1: { fontFamily: fontDisplay, fontSize: 26, fontWeight: "600", color: C.ink, letterSpacing: -0.45 },
+  h2: { fontFamily: fontDisplay, fontSize: 21, fontWeight: "600", color: C.ink, letterSpacing: -0.35 },
   muted: { fontFamily: font, fontSize: 13, lineHeight: 19, color: "#64748b", fontWeight: "500" },
   small: { fontFamily: font, fontSize: 12.5, lineHeight: 18, color: "#64748b", fontWeight: "500" },
   body: { fontFamily: font, fontSize: 14.5, lineHeight: 23, color: "#334155", fontWeight: "400" },
@@ -11667,10 +11665,10 @@ const s = StyleSheet.create({
   },
   heroTitle: {
     fontFamily: fontDisplay,
-    fontSize: 40,
-    fontWeight: "800",
+    fontSize: 42,
+    fontWeight: "600",
     color: C.ink,
-    letterSpacing: -1.2,
+    letterSpacing: -0.9,
   },
   tag: {
     alignSelf: "flex-start",
@@ -11679,7 +11677,7 @@ const s = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#FFF1C0",
   },
-  tagText: { fontFamily: fontMono, fontSize: 10.5, fontWeight: "700", letterSpacing: 0.4, color: "#14263E" },
+  tagText: { fontFamily: fontMono, fontSize: 11.5, fontWeight: "800", letterSpacing: 0.2, color: "#14263E" },
   typeChip: {
     padding: 14,
     borderWidth: 1,
@@ -11719,13 +11717,12 @@ const s = StyleSheet.create({
   },
   imageTags: { position: "absolute", top: 12, left: 12 },
   cardBody: { padding: 15, gap: 6 },
-  price: { fontFamily: fontNumeric, fontSize: 21, fontWeight: "700", color: C.ink, letterSpacing: -0.5 },
+  price: { fontFamily: fontNumeric, fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.4 },
   cardTitle: {
-    fontFamily: fontDisplay,
+    fontFamily: font,
     fontSize: 15.5,
     lineHeight: 21,
     fontWeight: "700",
-    letterSpacing: -0.25,
     color: C.ink,
   },
   link: { fontSize: 14, fontWeight: "800", color: C.ink },

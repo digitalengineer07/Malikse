@@ -1205,18 +1205,18 @@ const styles = StyleSheet.create({
   priceHighlight: {
     fontFamily: FONT_NUMERIC,
     fontSize: 25,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#03456C",
     letterSpacing: -0.5,
   },
   propertyTitle: {
     fontFamily: FONT_DISPLAY,
-    fontSize: 23,
-    fontWeight: "700",
+    fontSize: 24,
+    fontWeight: "600",
     color: "#0F172A",
-    lineHeight: 31,
+    lineHeight: 32,
     marginBottom: 8,
-    letterSpacing: -0.55,
+    letterSpacing: -0.35,
   },
   locationRow: {
     flexDirection: "row",

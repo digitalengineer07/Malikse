@@ -1196,9 +1196,9 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontFamily: FONT_DISPLAY,
     fontSize: 31,
-    fontWeight: "800",
+    fontWeight: "600",
     color: "#0A192F",
-    letterSpacing: -0.8,
+    letterSpacing: -0.6,
   },
   subTitle: {
     fontFamily: FONT_BODY,
