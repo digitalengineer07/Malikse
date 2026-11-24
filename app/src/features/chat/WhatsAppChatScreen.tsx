@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     position: "absolute", top: 0, width: "100%", height: "100%", opacity: 0.38,
   },
   emptyArtwork: {
-    alignSelf: "center", width: "78%", maxWidth: 300, aspectRatio: 1, opacity: 0.38,
+    alignSelf: "center", width: "100%", maxWidth: 188, height: 152, opacity: 0.72,
   },
   heroHouse: {
     position: "absolute",

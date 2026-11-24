@@ -124,9 +124,10 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({ onSelectConversa
     );
   });
 
+  const showEmptyArtwork = rows?.length === 0 && !searchQuery.trim() && !filterUnread;
+
   return (
     <View style={styles.screen}>
-      {rows?.length === 0 && <View pointerEvents="none" style={styles.emptyArtwork}>{emptyArtwork}</View>}
       {/* Filter Tabs: All vs Unread */}
       <View style={styles.filterWrap}>
         <Pressable
@@ -256,15 +257,17 @@ export const ChatListScreen: React.FC<ChatListScreenProps> = ({ onSelectConversa
           }}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialIcons name="chat-bubble-outline" size={56} color="#B0BEC5" />
+            <View style={[styles.emptyContainer, showEmptyArtwork && styles.illustratedEmpty]}>
+              {showEmptyArtwork ? emptyArtwork : <MaterialIcons name="chat-bubble-outline" size={56} color="#B0BEC5" />}
               <Text style={styles.emptyTitle}>
-                {!rows ? "Reconnecting to your chats" : searchQuery ? "No matching conversations" : filterUnread ? "No unread conversations" : "Start a conversation"}
+                {!rows ? "Reconnecting to your chats" : searchQuery ? "No matching conversations" : filterUnread ? "No unread conversations" : user?.role === "admin" ? "No conversations yet" : "Start a conversation"}
               </Text>
               <Text style={styles.emptySubtitle}>
                 {!rows ? "Your inbox will refresh automatically." : searchQuery || filterUnread
                   ? "Try another search or filter."
-                  : "Open a verified property and contact its assigned team."}
+                  : user?.role === "admin"
+                    ? "Property enquiries you can access will appear in this inbox."
+                    : "Open a verified property and contact its assigned team."}
               </Text>
               {!rows && <Pressable accessibilityRole="button" onPress={handleRefresh}><Text style={styles.emptySubtitle}>Retry now</Text></Pressable>}
             </View>
@@ -311,7 +314,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 24,
   },
-  emptyArtwork: { position: "absolute", bottom: 0, left: 0, right: 0 },
   threadCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -452,6 +454,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 30,
   },
+  illustratedEmpty: { paddingVertical: 20 },
   emptyTitle: {
     fontSize: 17,
     fontWeight: "600",
