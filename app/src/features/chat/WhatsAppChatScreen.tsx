@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
   emptyArtwork: {
     alignSelf: "center", width: "100%", maxWidth: 188, height: 152, opacity: 0.72,
   },
-  adminEmptyArtwork: { maxWidth: 245, height: 196, marginTop: 12 },
+  adminEmptyArtwork: { maxWidth: 262, height: 210, marginTop: 12 },
   heroHouse: {
     position: "absolute",
     bottom: "100%",
