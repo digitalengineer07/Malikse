@@ -1102,7 +1102,6 @@ export function SearchScreen() {
 }
 export function WishlistScreen() {
   const router = useRouter();
-  const browse = () => router.navigate("/(tabs)/search");
   const goToChats = useCallback(() => router.navigate("/messages"), [router]);
   useFocusEffect(useCallback(() => {
     if (Platform.OS !== "android") return;
@@ -1116,14 +1115,14 @@ export function WishlistScreen() {
     feed = useData(user ? "/users/wishlist" : null, [user?.id]),
     [sort, setSort] = useState(false);
   const rows = [...(feed.data || [])];
-  const showArtwork = Boolean(user && !feed.loading && !feed.error && feed.data?.length === 0);
+  const showArtwork = !user || (!feed.loading && !feed.error && feed.data?.length === 0);
   const savedCount = `${rows.length}${feed.nextCursor ? "+" : ""}`;
   if (sort) rows.sort((a, b) => a.price - b.price);
   return (
     <MarketplaceShell
       title="Wishlist"
       dockArtwork
-      scrollEnabled={!showArtwork}
+      scrollEnabled={rows.length > 0}
       scrollFooter={showArtwork ? () => (
         <View style={s.wishlistArtwork} pointerEvents="none">
           <View style={s.wishlistWatermarkFrame}>
@@ -1133,7 +1132,7 @@ export function WishlistScreen() {
           </View>
         </View>
       ) : undefined}
-      subtitle="Revisit the properties you’ve saved."
+      subtitle={user ? "Revisit and compare your saved listings." : "Tap the heart on a listing to save it for later."}
       headerAction={false}
       headerContent={user ? (
         <View style={s.wishlistToolbar}>
@@ -1158,7 +1157,7 @@ export function WishlistScreen() {
           ) : (
             <Pressable
               accessibilityRole="button"
-              onPress={browse}
+              onPress={() => router.navigate("/(tabs)/search")}
               style={({ pressed }) => [s.wishlistSort, s.wishlistBrowse, pressed && { opacity: 0.8 }]}
             >
               <Icon name="search" size={17} />
@@ -1166,11 +1165,21 @@ export function WishlistScreen() {
             </Pressable>
           )}
         </View>
-      ) : undefined}
+      ) : (
+        <Pressable accessibilityRole="button" onPress={() => router.navigate("/(tabs)/search")}
+          style={({ pressed }) => [s.wishlistHeaderLink, pressed && { opacity: 0.75 }]}>
+          <Text style={s.wishlistHeaderLinkText}>Browse properties</Text>
+          <Icon name="arrow-forward" size={16} color={C.sun} />
+        </Pressable>
+      )}
       back
       onBack={goToChats}
     >
-      {user ? <>
+      <Protected guest={{
+        title: "Keep your favourites together",
+        text: "Sign in, then tap the heart on any listing to add it to your Wishlist.",
+        icon: "favorite-border",
+      }}>
         <ErrorBox text={feed.error} />
         {feed.loading && <ActivityIndicator />}
         {rows.map((p) => (
@@ -1190,21 +1199,7 @@ export function WishlistScreen() {
             onPress={feed.loadMore}
           />
         )}
-      </> : (
-        <View style={s.wishlistGuest}>
-          <Image source={require("../assets/images/wishlist_watermark.png")}
-            style={s.wishlistGuestArt} resizeMode="contain" accessible={false} />
-          <View style={s.wishlistGuestIntro}>
-            <Text accessibilityRole="header" style={s.wishlistGuestTitle}>Keep your shortlist handy</Text>
-            <Text style={s.wishlistGuestDescription}>Sign in and tap the heart on any listing to save it here.</Text>
-          </View>
-          <Button title="Sign in / Register" onPress={() => router.push({ pathname: "/login", params: { returnTo: "/saved" } })} />
-          <Pressable accessibilityRole="button" onPress={browse} style={s.wishlistGuestBrowse}>
-            <Text style={s.wishlistGuestLink}>Browse properties</Text>
-            <Icon name="arrow-forward" size={17} />
-          </Pressable>
-        </View>
-      )}
+      </Protected>
     </MarketplaceShell>
   );
 }
@@ -2692,13 +2687,10 @@ const s = StyleSheet.create({
   scroll: { paddingBottom: 108 },
   scrollWithArtwork: { flexGrow: 1, paddingBottom: 0 },
   fitArtworkToViewport: { flex: 1 },
-  wishlistGuest: { alignItems: "center", gap: 14, paddingVertical: 8, paddingHorizontal: 10 },
-  wishlistGuestArt: { width: "100%", maxWidth: 230, height: 164 },
-  wishlistGuestIntro: { width: "100%", maxWidth: 330, alignItems: "center", gap: 6 },
-  wishlistGuestTitle: { color: C.ink, fontFamily: fontDisplay, fontSize: 25, lineHeight: 31, textAlign: "center" },
-  wishlistGuestDescription: { color: C.muted, fontFamily: font, fontSize: 14, lineHeight: 21, textAlign: "center" },
-  wishlistGuestBrowse: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10 },
-  wishlistGuestLink: { flexShrink: 1, color: C.ink, fontFamily: "ManropeBold", fontSize: 14 },
+  wishlistHeaderLink: {
+    alignSelf: "flex-start", minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8,
+  },
+  wishlistHeaderLinkText: { color: C.sun, fontFamily: "ManropeBold", fontSize: 14, flexShrink: 1 },
   wishlistToolbar: {
     flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between",
     gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#FFFFFF26",
