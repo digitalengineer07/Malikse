@@ -114,7 +114,7 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
 
       </View>
       {role === "advisor" && (
-        <View style={[styles.card, styles.advisorCard]}>
+        <View style={styles.advisorCard}>
           <View style={styles.advisorCardHeader}>
             <View style={styles.iconBox}><MaterialIcons name="badge" size={22} color={navy} /></View>
             <View style={styles.advisorCodePanel}>
@@ -122,9 +122,9 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
               <Text selectable={Boolean(user.advisorCode)} style={styles.advisorCodeText}>{user.advisorCode || "ID unavailable"}</Text>
             </View>
           </View>
-          <Text style={styles.cardDescription}>Sellers can enter this ID when posting a property to assign it to you.</Text>
+          <Text style={styles.advisorCardDescription}>Share this code with sellers so they can assign their listing to you.</Text>
           {Boolean(user.assignedDistricts?.length) && (
-            <Text style={styles.cardDescription}>Assigned districts: {user.assignedDistricts?.join(", ")}</Text>
+            <Text style={styles.advisorCardDescription}>Assigned districts: {user.assignedDistricts?.join(", ")}</Text>
           )}
           {Boolean(user.advisorCode) && (
             <View style={styles.accountActions}>
@@ -141,14 +141,14 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
               <TouchableOpacity
                 accessibilityRole="button"
                 accessibilityLabel="Share Advisor ID on WhatsApp"
-                style={styles.profileButton}
+                style={styles.advisorMarketplaceButton}
                 onPress={() => {
                   const message = `Use my MalikSe Advisor ID *${user.advisorCode}* when posting your property on MalikSe.`;
                   Linking.openURL("https://wa.me/?text=" + encodeURIComponent(message)).catch(() => {});
                 }}
               >
-                <MaterialIcons name="chat" size={17} color={navy} />
-                <Text style={styles.buttonLabel}>WhatsApp</Text>
+                <MaterialIcons name="chat" size={17} color="#fff" />
+                <Text style={[styles.buttonLabel, styles.advisorMarketplaceLabel]}>WhatsApp</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -164,14 +164,14 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
               accessibilityState={{ disabled: !section.route }}
               disabled={!section.route}
               onPress={() => section.route && router.push(section.route)}
-              style={[styles.card, styles.advisorTool, index === 0 && styles.primaryCard]}
+              style={[styles.advisorTool, index > 0 && styles.advisorToolDivider]}
             >
               <View style={[styles.iconBox, index === 0 && styles.primaryIcon]}>
                 <MaterialIcons name={index === 0 ? "fact-check" : "home-work"} size={22} color={navy} />
               </View>
               <View style={styles.advisorToolCopy}>
                 <Text style={styles.cardTitle}>{section.title}</Text>
-                <Text style={styles.cardDescription}>{section.description}</Text>
+                <Text style={styles.cardDescription}>{index === 0 ? "Review assigned listings and past decisions." : section.description}</Text>
               </View>
               <MaterialIcons name={section.route ? "chevron-right" : "schedule"} size={22} color={navy} />
             </TouchableOpacity>
@@ -184,7 +184,8 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
         <View style={styles.cardBottom}><Text style={styles.cardAction}>{section.route ? "Open workspace" : "Coming later"}</Text><View style={styles.arrowCircle}><MaterialIcons name={section.route ? "north-east" : "schedule"} size={18} color="#111827" /></View></View>
       </TouchableOpacity>)}</View>
       )}
-      <View style={[styles.accountBar, compact && styles.accountCompact, isAdvisor && styles.advisorAccount]}><View style={styles.accountIdentity}><View style={styles.accountIcon}><MaterialIcons name="person-outline" size={24} color="#345A76" /></View><View><Text style={styles.accountTitle}>Your account</Text><Text style={styles.accountDescription}>{isAdvisor ? "Manage your profile or sign out" : "Profile details and session settings"}</Text></View></View>
+      <View style={[styles.accountBar, compact && styles.accountCompact, isAdvisor && styles.advisorAccount]}>{!isAdvisor && <View style={styles.accountIdentity}><View style={styles.accountIcon}><MaterialIcons name="person-outline" size={24} color="#345A76" /></View><View><Text style={styles.accountTitle}>Your account</Text><Text style={styles.accountDescription}>Profile details and session settings</Text></View></View>}
+        {isAdvisor && <Text style={styles.accountTitle}>Your account</Text>}
         <View style={styles.accountActions}><TouchableOpacity accessibilityRole="button" style={styles.profileButton} onPress={() => router.push("/profile")}><Text style={styles.buttonLabel}>My profile</Text><MaterialIcons name="north-east" size={15} color={navy} /></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.signOut} onPress={() => { authService.logout().finally(() => router.replace("/login")); }}><Text style={styles.signOutLabel}>Sign out</Text></TouchableOpacity></View>
       </View>
       </>}
@@ -274,13 +275,18 @@ const styles = StyleSheet.create({
   },
   advisorMarketplaceLabel: { color: "#fff" },
   advisorStatusInset: { backgroundColor: navy },
-  advisorTools: { gap: 10 },
+  advisorTools: { ...surface, overflow: "hidden" },
   advisorTool: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
+  advisorToolDivider: { borderTopWidth: 1, borderTopColor: "rgba(20,38,62,0.12)" },
   advisorToolCopy: { flex: 1, minWidth: 0, gap: 3 },
-  advisorAccount: { gap: 10 },
-  advisorCard: { gap: 10 },
+  advisorAccount: { flexWrap: "wrap", alignItems: "center", flexDirection: "row", gap: 10 },
+  advisorCard: {
+    borderRadius: 22, padding: 16, gap: 12, backgroundColor: navy,
+    borderTopWidth: 3, borderTopColor: yellow,
+  },
   advisorCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   advisorCodePanel: { flex: 1, minWidth: 0, gap: 2 },
-  advisorCodeLabel: { color: muted, fontFamily: "ManropeBold", fontSize: 13 },
-  advisorCodeText: { color: navy, fontFamily: "ManropeExtraBold", fontSize: 23, letterSpacing: 1 },
+  advisorCodeLabel: { color: "#E7EDF5", fontFamily: "ManropeBold", fontSize: 13 },
+  advisorCodeText: { color: yellow, fontFamily: "ManropeExtraBold", fontSize: 23, letterSpacing: 1 },
+  advisorCardDescription: { color: "#E7EDF5", fontFamily: "Manrope", fontSize: 13, lineHeight: 20 },
 });
