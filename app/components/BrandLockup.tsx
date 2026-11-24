@@ -1,6 +1,6 @@
 import { Image, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 
-export const brandHeader = { gap: 16, headingSize: 27, headingLineHeight: 34 };
+export const brandHeader = { gap: 12, headingSize: 27, headingLineHeight: 32 };
 
 export function BrandLockup({ style, lightBackground = false }: {
   style?: StyleProp<ViewStyle>;

@@ -347,7 +347,6 @@ export function MarketplaceShell({
   title,
   subtitle,
   compactHeader = false,
-  matchedHero = false,
   children,
   back = false,
   onBack,
@@ -372,7 +371,6 @@ export function MarketplaceShell({
   title?: React.ReactNode;
   subtitle?: string;
   compactHeader?: boolean;
-  matchedHero?: boolean;
   children: React.ReactNode;
   back?: boolean;
   onBack?: () => void;
@@ -395,8 +393,7 @@ export function MarketplaceShell({
   step?: number;
 }) {
   const insets = useSafeAreaInsets();
-  const { width, height, fontScale } = useWindowDimensions();
-  const sharedHeroHeight = insets.top + (width < 376 ? 252 : 232) + Math.ceil(145 * Math.max(0, fontScale - 1));
+  const { width, height } = useWindowDimensions();
   const smallHeader = compactHeader && (width < 370 || height - insets.top - insets.bottom < 620);
   const dockBottom = Math.max(insets.bottom, 8);
   const dockClearance = dockBottom - insets.bottom + dockHeight;
@@ -416,10 +413,10 @@ export function MarketplaceShell({
   const guestProfileHero = path === "/profile" && !user;
   const hero = !fixedHeader && (
     <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
-      smallHeader && s.smallHero, profileHeader && s.profileHero, guestProfileHero && s.guestProfileHero, matchedHero && { height: sharedHeroHeight }]}>
+      smallHeader && s.smallHero, profileHeader && s.profileHero, guestProfileHero && s.guestProfileHero]}>
       <View pointerEvents="none" style={s.heroSun} />
       <View pointerEvents="none" style={s.heroRay} />
-      <View style={[s.heroInner, compactHeader && s.compactHeroInner, matchedHero && s.matchedHeroInner]}>
+      <View style={[s.heroInner, compactHeader && s.compactHeroInner]}>
         {profileHeader || <>
           <View style={s.heroBrandGroup}>
             <View style={[s.header, Boolean(user) && width < 390 && { gap: 6 }]}>
@@ -698,13 +695,8 @@ export function HomeScreen() {
   const homeBusy = [personal, recent, trending].some(feed => feed.error === homeFeedBusyMessage);
   return (
     <MarketplaceShell
-      matchedHero
       title={<>Find your next home.{"\n"}<Text style={{ color: C.sun }}>Direct from owners.</Text></>}
-      headerContent={
-        <View style={s.homeHeroDetails}>
-          <Text style={s.heroSubtitle}>Explore homes and plots by locality, property type, and budget.</Text>
-        </View>
-      }
+      subtitle="Explore homes and plots by locality, property type, and budget."
     >
       <View style={s.panel}>
         <View style={s.row}>
@@ -2592,9 +2584,8 @@ const fontDisplay = "Fraunces";
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   header: { flexDirection: "row", alignItems: "center", gap: 10 },
-  heroInner: { width: "100%", maxWidth: 1140, alignSelf: "center", gap: 18 },
+  heroInner: { width: "100%", maxWidth: 1140, alignSelf: "center", gap: brandHeader.gap },
   heroBrandGroup: { gap: brandHeader.gap },
-  matchedHeroInner: { flex: 1, justifyContent: "space-between", gap: 6 },
   compactHeroInner: { gap: 10 },
   heroIcon: {
     width: 42, height: 42, borderRadius: 21, alignItems: "center",
@@ -2714,7 +2705,7 @@ const s = StyleSheet.create({
     elevation: 1,
   },
   hero: {
-    paddingHorizontal: 20, paddingBottom: 24, backgroundColor: C.ink,
+    paddingHorizontal: 20, paddingBottom: 16, backgroundColor: C.ink,
     borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden",
   },
   compactHero: { paddingBottom: 13 },
@@ -2731,7 +2722,6 @@ const s = StyleSheet.create({
   illustratedHeroTitle: { flexDirection: "row", alignItems: "center", gap: 8 },
   heroTitle: { fontFamily: fontDisplay, fontSize: brandHeader.headingSize, lineHeight: brandHeader.headingLineHeight, color: "#fff" },
   heroSubtitle: { fontFamily: font, fontSize: 14, lineHeight: 20, color: "rgba(255,255,255,0.78)" },
-  homeHeroDetails: { gap: 12, maxWidth: 360 },
   homeDistrict: {
     flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 8,
     minHeight: 44, maxWidth: "100%", paddingHorizontal: 12, paddingVertical: 6,

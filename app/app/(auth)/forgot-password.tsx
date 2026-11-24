@@ -226,7 +226,7 @@ const border = "rgba(20,38,62,0.16)";
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: cream },
-  hero: { backgroundColor: navy, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden", paddingHorizontal: 20, paddingBottom: 34 },
+  hero: { backgroundColor: navy, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden", paddingHorizontal: 20, paddingBottom: 28 },
   heroInner: { width: "100%", maxWidth: 440, alignSelf: "center", gap: brandHeader.gap },
   sun: { position: "absolute", width: 138, height: 138, borderRadius: 69, right: -66, backgroundColor: sun },
   ray: { position: "absolute", width: 74, height: 210, borderRadius: 40, right: 62, top: 70, backgroundColor: "#1C3556", transform: [{ rotate: "-30deg" }] },

@@ -154,7 +154,7 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
         <View style={[styles.hero, { paddingTop: insets.top + 14 }]}>
           <View pointerEvents="none" style={[styles.heroSun, { top: insets.top + 4 }]} />
           <View pointerEvents="none" style={styles.heroRay} />
-          <View style={[styles.heroInner, compactLogin && styles.compactHero]}>
+          <View style={styles.heroInner}>
             <View style={styles.topBar}>
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={label("Back", "वापस")} style={styles.heroIcon} disabled={loading}
                 onPress={() => {
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1 },
   screen: { flex: 1, backgroundColor: cream },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: cream },
-  hero: { backgroundColor: navy, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden", paddingHorizontal: 20, paddingBottom: 36 },
+  hero: { backgroundColor: navy, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden", paddingHorizontal: 20, paddingBottom: 28 },
   heroInner: { width: "100%", maxWidth: 440, alignSelf: "center", gap: brandHeader.gap },
   heroSun: { position: "absolute", width: 138, height: 138, borderRadius: 69, right: -66, backgroundColor: sun },
   heroRay: { position: "absolute", width: 74, height: 210, borderRadius: 40, right: 62, top: 70, backgroundColor: "#1C3556", transform: [{ rotate: "-30deg" }] },
@@ -302,7 +302,6 @@ const styles = StyleSheet.create({
   buttonText: { color: navy, fontFamily: "ManropeExtraBold", fontSize: 15, textAlign: "center" },
   secondary: { alignItems: "center", justifyContent: "center", minHeight: 44, paddingVertical: 8 },
   accountSwitch: { borderTopWidth: 1, borderColor: line, marginTop: 4, paddingTop: 12 },
-  compactHero: { gap: 12 },
   compactCard: { padding: 16 },
   compactMethodRow: { marginBottom: 12 },
   compactField: { marginBottom: 10 },

@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
   back: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#244268", alignItems: "center", justifyContent: "center" },
   brand: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 },
   language: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#FFF1C0", alignItems: "center", justifyContent: "center" },
-  toplineWithContent: { marginBottom: brandHeader.gap - 8 },
+  toplineWithContent: { marginBottom: brandHeader.gap - 4 },
   workspace: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" },
   eyebrow: { color: muted, fontFamily: "ManropeExtraBold", fontSize: 10, letterSpacing: 1.3 },
   onNavy: { color: "#E7EDF5" },

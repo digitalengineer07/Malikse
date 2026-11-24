@@ -48,8 +48,6 @@ export const WhatsAppChatScreen: React.FC = () => {
       <MarketplaceShell
         title="Messages"
         subtitle="Follow your enquiries and replies."
-        matchedHero
-
         showGuestAccount
         listBody
         dockArtwork
