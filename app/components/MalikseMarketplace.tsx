@@ -30,6 +30,7 @@ import {
   useLocalSearchParams,
   usePathname,
   useRouter,
+  useSegments,
 } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import AccountArtworkFooter from "./AccountArtworkFooter";
@@ -402,6 +403,7 @@ export function MarketplaceShell({
     path = usePathname(),
     user = useAuthStore((x) => x.user);
   const focused = useIsFocused();
+  const [routeGroup] = useSegments();
   const contextualTab =
     path === "/saved" ? ["/saved", "favorite-border", "Wishlist"] :
       path === "/my-properties" ? ["/my-properties", "apartment", "Listings"] :
@@ -535,11 +537,15 @@ export function MarketplaceShell({
                 accessibilityLabel={text}
                 onPress={() => {
                   if (isActive) return;
-                  if (path === "/post" && url === "/profile") {
-                    router.dismissTo("/(tabs)/profile");
+                  if (url === "/post") {
+                    router.push("/post");
                     return;
                   }
-                  router.push(url as any);
+                  if (routeGroup === "(tabs)" || Platform.OS === "web") {
+                    router.navigate(url as any);
+                    return;
+                  }
+                  router.dismissTo(url as any);
                 }}
                 accessibilityState={{ selected: isActive }}
                 style={s.navItem}
