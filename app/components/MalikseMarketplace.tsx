@@ -1102,6 +1102,7 @@ export function SearchScreen() {
 }
 export function WishlistScreen() {
   const router = useRouter();
+  const browse = () => router.navigate("/(tabs)/search");
   const goToChats = useCallback(() => router.navigate("/messages"), [router]);
   useFocusEffect(useCallback(() => {
     if (Platform.OS !== "android") return;
@@ -1132,9 +1133,9 @@ export function WishlistScreen() {
           </View>
         </View>
       ) : undefined}
-      subtitle="Keep your favourite homes together and compare them later."
+      subtitle="Revisit the properties you’ve saved."
       headerAction={false}
-      headerContent={
+      headerContent={user ? (
         <View style={s.wishlistToolbar}>
           <View style={s.wishlistSummary}>
             <Icon name="favorite" size={16} color={C.sun} />
@@ -1157,7 +1158,7 @@ export function WishlistScreen() {
           ) : (
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.navigate("/(tabs)/search")}
+              onPress={browse}
               style={({ pressed }) => [s.wishlistSort, s.wishlistBrowse, pressed && { opacity: 0.8 }]}
             >
               <Icon name="search" size={17} />
@@ -1165,15 +1166,11 @@ export function WishlistScreen() {
             </Pressable>
           )}
         </View>
-      }
+      ) : undefined}
       back
       onBack={goToChats}
     >
-      <Protected guest={{
-        title: "Keep your favourites together",
-        text: "Sign in, then tap the heart on any listing to add it to your Wishlist.",
-        icon: "favorite-border",
-      }}>
+      {user ? <>
         <ErrorBox text={feed.error} />
         {feed.loading && <ActivityIndicator />}
         {rows.map((p) => (
@@ -1193,7 +1190,19 @@ export function WishlistScreen() {
             onPress={feed.loadMore}
           />
         )}
-      </Protected>
+      </> : (
+        <View style={[s.card, s.guestAccountCard]}>
+          <View style={s.guestAccountHeading}>
+            <View style={s.guestAccountIcon}><Icon name="favorite-border" size={22} /></View>
+            <Text accessibilityRole="header" style={s.guestAccountTitle}>Save a property you like</Text>
+          </View>
+          <Text style={s.guestAccountDescription}>Sign in, then tap the heart on a listing to add it to your Wishlist.</Text>
+          <View style={s.wishlistGuestActions}>
+            <Button title="Sign in / Register" onPress={() => router.push({ pathname: "/login", params: { returnTo: "/saved" } })} />
+            <Button title="Browse properties" secondary icon="search" onPress={browse} />
+          </View>
+        </View>
+      )}
     </MarketplaceShell>
   );
 }
@@ -2681,6 +2690,7 @@ const s = StyleSheet.create({
   scroll: { paddingBottom: 108 },
   scrollWithArtwork: { flexGrow: 1, paddingBottom: 0 },
   fitArtworkToViewport: { flex: 1 },
+  wishlistGuestActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   wishlistToolbar: {
     flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between",
     gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#FFFFFF26",
