@@ -442,7 +442,7 @@ export function MarketplaceShell({
                   <BrandLockup />
                 </Pressable>
               </View>
-              {headerAction || (
+              {headerAction ?? (
                 <Pressable
                   accessibilityLabel="Wishlist"
                   accessibilityRole="button"
@@ -1103,7 +1103,6 @@ export function WishlistScreen() {
   return (
     <MarketplaceShell
       title="Wishlist"
-      compactHeader
       dockArtwork
       scrollEnabled={rows.length > 0}
       scrollFooter={showArtwork ? () => (
@@ -1115,10 +1114,28 @@ export function WishlistScreen() {
           </View>
         </View>
       ) : undefined}
-      subtitle={rows.length
-        ? `Revisit ${savedCount} saved ${rows.length === 1 && !feed.nextCursor ? "property" : "properties"} anytime.`
-        : "Save your favourites and revisit them anytime."}
-      headerAction={user ? <Button secondary icon="sort" title={sort ? "Newest saved" : "Sort by price"} onPress={() => setSort(!sort)} /> : undefined}
+      subtitle="Keep your favourite homes together and compare them later."
+      headerAction={false}
+      headerContent={user ? (
+        <View style={s.wishlistToolbar}>
+          <View style={s.wishlistSummary}>
+            <Icon name="favorite" size={16} color={C.sun} />
+            <Text style={s.wishlistSummaryText}>
+              {feed.data ? `${savedCount} saved ${rows.length === 1 && !feed.nextCursor ? "property" : "properties"}` : "Saved properties"}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={sort ? "Show newest saved first" : "Sort by lowest price"}
+            disabled={rows.length < 2}
+            onPress={() => setSort(current => !current)}
+            style={({ pressed }) => [s.wishlistSort, rows.length < 2 && s.wishlistSortDisabled, pressed && { opacity: 0.8 }]}
+          >
+            <Icon name="sort" size={17} />
+            <Text style={s.wishlistSortText}>{sort ? "Newest saved" : "Sort by price"}</Text>
+          </Pressable>
+        </View>
+      ) : undefined}
       back
       onBack={goToChats}
     >
@@ -2596,6 +2613,18 @@ const s = StyleSheet.create({
   scroll: { paddingBottom: 108 },
   scrollWithArtwork: { flexGrow: 1, paddingBottom: 0 },
   fitArtworkToViewport: { flex: 1 },
+  wishlistToolbar: {
+    flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between",
+    gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#FFFFFF26",
+  },
+  wishlistSummary: { flexDirection: "row", alignItems: "center", gap: 7, maxWidth: "100%" },
+  wishlistSummaryText: { flexShrink: 1, fontFamily: "ManropeBold", fontSize: 13, color: "#fff" },
+  wishlistSort: {
+    minHeight: 44, maxWidth: "100%", paddingHorizontal: 13, paddingVertical: 8,
+    flexDirection: "row", alignItems: "center", gap: 7, borderRadius: 22, backgroundColor: "#fff",
+  },
+  wishlistSortDisabled: { opacity: 0.65 },
+  wishlistSortText: { flexShrink: 1, fontFamily: "ManropeBold", fontSize: 13, color: C.ink },
   wishlistArtwork: { flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" },
   wishlistWatermarkFrame: { width: "86%", maxWidth: 335, height: "95%" },
   watermarkFrame: { width: "72%", maxWidth: 280, aspectRatio: 1.2 },
