@@ -20,6 +20,7 @@ import { useLanguageStore } from "../src/store/languageStore";
 import AppHeader from "./AppHeader";
 import WebFooter from "./WebFooter";
 import PasswordStrengthIndicator, { evaluatePasswordStrength } from "./PasswordStrengthIndicator";
+import { FONT_BODY, FONT_DISPLAY } from "../constants/typography";
 
 interface AccountAuthScreenProps {
   mode: "login" | "register";
@@ -2035,14 +2036,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   );
 }
 
-const font =
-  Platform.OS === "web"
-    ? "'Plus Jakarta Sans', Manrope, -apple-system, BlinkMacSystemFont, sans-serif"
-    : "PoppinsRegular";
-const fontDisplay =
-  Platform.OS === "web"
-    ? "'Plus Jakarta Sans', PoppinsBold, Manrope, sans-serif"
-    : "PoppinsBold";
+const font = FONT_BODY;
+const fontDisplay = FONT_DISPLAY;
 
 const styles = StyleSheet.create({
   screen: {

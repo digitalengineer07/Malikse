@@ -7,6 +7,7 @@ import { useLanguageStore } from "../src/store/languageStore";
 import { useAuthStore } from "../src/store/authStore";
 import { useUserListingsStore } from "../src/store/userListingsStore";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
+import { FONT_BODY, FONT_DISPLAY, FONT_MONO } from "../constants/typography";
 
 interface AppHeaderProps {
   title?: string;
@@ -218,8 +219,9 @@ export default function AppHeader(props: AppHeaderProps) {
   );
 }
 
-const font = Platform.OS === "web" ? "'Manrope', system-ui, -apple-system, sans-serif" : "PoppinsRegular";
-const fontDisplay = Platform.OS === "web" ? "'Fraunces', Georgia, serif" : "PoppinsBold";
+const font = FONT_BODY;
+const fontDisplay = FONT_DISPLAY;
+const fontMono = FONT_MONO;
 
 const styles = StyleSheet.create({
   headerWrapper: {
@@ -292,18 +294,18 @@ const styles = StyleSheet.create({
   },
   brandTitle: {
     fontFamily: fontDisplay,
-    fontSize: 21,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "800",
     color: "#FFFFFF",
-    letterSpacing: -0.3,
+    letterSpacing: -0.6,
     lineHeight: 24,
   },
   brandTagline: {
-    fontFamily: font,
-    fontSize: 9.5,
-    fontWeight: "700",
+    fontFamily: fontMono,
+    fontSize: 9,
+    fontWeight: "600",
     color: "rgba(255, 255, 255, 0.62)",
-    letterSpacing: 0.4,
+    letterSpacing: 1.0,
     lineHeight: 13,
     textTransform: "uppercase",
   },

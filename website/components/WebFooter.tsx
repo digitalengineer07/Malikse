@@ -3,9 +3,11 @@ import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, Platform
 import { useRouter } from "@/web/navigation";
 import { MaterialIcons } from "@/web/icons";
 import { useAuthStore } from "../src/store/authStore";
+import { FONT_BODY, FONT_DISPLAY, FONT_MONO } from "../constants/typography";
 
-const font = Platform.OS === "web" ? "'Manrope', system-ui, -apple-system, sans-serif" : "PoppinsRegular";
-const fontDisplay = Platform.OS === "web" ? "'Fraunces', Georgia, serif" : "PoppinsBold";
+const font = FONT_BODY;
+const fontDisplay = FONT_DISPLAY;
+const fontMono = FONT_MONO;
 
 export default function WebFooter() {
   const router = useRouter();
@@ -200,10 +202,10 @@ const styles = StyleSheet.create({
   },
   brandName: {
     fontFamily: fontDisplay,
-    fontSize: 23,
-    fontWeight: "700",
+    fontSize: 22,
+    fontWeight: "800",
     color: "#FFFFFF",
-    letterSpacing: -0.3,
+    letterSpacing: -0.6,
   },
   brandDesc: {
     fontFamily: font,
@@ -229,20 +231,21 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   trustBadgeText: {
-    fontFamily: font,
-    fontSize: 11,
-    fontWeight: "700",
+    fontFamily: fontMono,
+    fontSize: 10.5,
+    fontWeight: "600",
+    letterSpacing: 0.3,
     color: "#FFFFFF",
   },
   linkCol: {
     gap: 9,
   },
   colHeader: {
-    fontFamily: font,
-    fontSize: 11.5,
-    fontWeight: "800",
+    fontFamily: fontMono,
+    fontSize: 10.5,
+    fontWeight: "700",
     color: "#FCC61C",
-    letterSpacing: 1.4,
+    letterSpacing: 1.6,
     marginBottom: 2,
   },
   linkText: {
