@@ -152,23 +152,34 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
           renderItem={({ item: property }) => {
             const unassigned = !actorId(property.assignedAdvisorId);
             const actionLabel = unassigned ? "Claim review" : "Open review";
+            const sellerName = property.sellerName?.trim() ||
+              (typeof property.ownerId === "object" ? property.ownerId?.name?.trim() : undefined);
+            const status = property.status === "verified" ? "Verified · Published" : statusLabels[property.status] || property.status;
             return (
               <Pressable accessibilityRole="button" accessibilityLabel={`${actionLabel}, ${property.title || property.type}`}
                 disabled={unassigned && busy} style={localStyles.reviewCard}
                 onPress={() => unassigned ? void claim(property._id) : router.push({ pathname: "/verification/[id]", params: { id: property._id } })}>
-                <View style={localStyles.reviewIcon}><MaterialIcons name="home-work" size={22} color="#14263E" /></View>
                 <View style={localStyles.reviewCopy}>
-                  <Text style={localStyles.reviewTitle}>{property.title || `${property.type} in ${property.location.district}`}</Text>
-                  <Text style={localStyles.reviewStatus}>{statusLabels[property.status] || property.status}</Text>
-                  <Text style={localStyles.reviewMeta}>Seller: {property.sellerName?.trim() || (unassigned ? "Available after claiming" : "Name unavailable")}</Text>
-                  <Text style={localStyles.reviewMeta}>
-                    {[property.streetAddress, property.location.district, property.location.state, property.location.pincode].filter(Boolean).join(", ")}
-                  </Text>
-                  <Text style={localStyles.reviewMeta}>₹{property.price.toLocaleString("en-IN")}</Text>
-                  {!!property.rejectionReason && <Text style={ui.error}>{property.rejectionReason}</Text>}
-                  <Text style={localStyles.queueLabel}>{actionLabel}</Text>
+                  <View style={localStyles.reviewTop}>
+                    <View style={[localStyles.reviewStatusBadge, property.status === "verified" && localStyles.publishedBadge]}>
+                      <Text style={localStyles.reviewStatus}>{status}</Text>
+                    </View>
+                  </View>
+                  <View style={localStyles.reviewDetails}>
+                    <View style={localStyles.reviewIcon}><MaterialIcons name="home-work" size={22} color="#14263E" /></View>
+                    <View style={localStyles.reviewCopy}>
+                      <Text style={localStyles.reviewTitle}>{property.title || `${property.type} in ${property.location.district}`}</Text>
+                      <Text style={localStyles.reviewMeta}>Seller: {sellerName || (unassigned ? "Available after claiming" : "Name unavailable")}</Text>
+                      <Text style={localStyles.reviewMeta}>
+                        {[property.streetAddress, property.location.district, property.location.state, property.location.pincode].filter(Boolean).join(", ")}
+                      </Text>
+                      <Text style={localStyles.reviewMeta}>₹{property.price.toLocaleString("en-IN")}</Text>
+                      {!!property.rejectionReason && <Text style={ui.error}>{property.rejectionReason}</Text>}
+                      {unassigned && <Text style={localStyles.queueLabel}>Claim review</Text>}
+                    </View>
+                    <MaterialIcons name="chevron-right" size={21} color="#14263E" />
+                  </View>
                 </View>
-                <MaterialIcons name="chevron-right" size={21} color="#14263E" />
               </Pressable>
             );
           }}
@@ -263,7 +274,11 @@ const localStyles = StyleSheet.create({
   reviewIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF1C0" },
   reviewCopy: { flex: 1, minWidth: 0, gap: 5 },
   reviewTitle: { color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 17 },
-  reviewStatus: { color: "#536174", fontFamily: "ManropeBold", fontSize: 12 },
+  reviewTop: { alignItems: "flex-end" },
+  reviewDetails: { flexDirection: "row", alignItems: "center", gap: 12 },
+  reviewStatusBadge: { maxWidth: "100%", paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, backgroundColor: "#F5F2E9" },
+  publishedBadge: { backgroundColor: "#E6F4EA" },
+  reviewStatus: { color: "#254C3A", fontFamily: "ManropeBold", fontSize: 12 },
   reviewMeta: { color: "#536174", fontFamily: "Manrope", fontSize: 13 },
   dropdownToggle: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F2F6F9", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24, borderWidth: 1, borderColor: "#E2E8F0" },
   dropdownToggleText: { color: "#111827", fontSize: 14, fontWeight: "600" },
