@@ -13,6 +13,7 @@ const messageSchema = new Schema({
 
 const schema = new Schema({
   requester: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  channel: { type: String, enum: ["support", "verifier_chat"], default: "support" },
   category: { type: String, enum: supportCategories, required: true },
   subject: { type: String, required: true, maxlength: 100 },
   status: { type: String, enum: supportStatuses, default: "open", required: true },
@@ -24,6 +25,7 @@ const schema = new Schema({
 
 schema.index({ requester: 1, requestId: 1 }, { unique: true });
 schema.index({ requester: 1, updatedAt: -1, _id: -1 });
+schema.index({ channel: 1, updatedAt: -1, _id: -1 });
 schema.index({ status: 1, updatedAt: -1, _id: -1 });
 schema.index({ updatedAt: -1, _id: -1 });
 export const SupportTicket = mongoose.model("SupportTicket", schema);

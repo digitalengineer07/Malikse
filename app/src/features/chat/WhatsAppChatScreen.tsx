@@ -5,6 +5,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useAuthStore } from "../../store/authStore";
 import { MarketplaceShell } from "../../../components/MalikseMarketplace";
 import { ChatConversationScreen } from "./ChatConversationScreen";
+import SupportScreen from "../../../components/SupportScreen";
 import { ChatListScreen } from "./ChatListScreen";
 
 const C = {
@@ -21,9 +22,10 @@ export const WhatsAppChatScreen: React.FC = () => {
   const houseWidth = Math.min(224, Math.max(0, width - 40) * 0.47);
   const houseHeight = houseWidth * (897 / 1754);
   const signIn = () => router.push({ pathname: "/login", params: { returnTo: "/messages" } });
-  const params = useLocalSearchParams<{ inquiryId?: string }>();
+  const params = useLocalSearchParams<{ inquiryId?: string; staffChat?: string }>();
 
-  const activeInquiryId = params.inquiryId ? String(params.inquiryId) : null;
+  const showStaffChat = user?.role === "admin" || (user?.role === "verifier" && params.staffChat === "1");
+  const activeInquiryId = !showStaffChat && params.inquiryId ? String(params.inquiryId) : null;
 
   const closeConversation = useCallback(() => {
     router.setParams({ inquiryId: "" });
@@ -37,6 +39,8 @@ export const WhatsAppChatScreen: React.FC = () => {
     });
     return () => subscription.remove();
   }, [activeInquiryId, closeConversation, user]));
+  if (showStaffChat) return <SupportScreen staffChat />;
+
   if (user && activeInquiryId) {
     return (
       <ChatConversationScreen
@@ -88,7 +92,7 @@ export const WhatsAppChatScreen: React.FC = () => {
           </Pressable>
             )}
             {user?.role === "verifier" && (
-              <Pressable accessibilityRole="button" onPress={() => router.navigate("/support")}
+              <Pressable accessibilityRole="button" onPress={() => router.setParams({ staffChat: "1", ticketId: "" })}
                 style={({ pressed }) => [styles.adminChatLink, pressed && { opacity: 0.8 }]}>
                 <MaterialIcons name="support-agent" color={C.ink} size={21} />
                 <Text style={styles.adminChatLabel}>Message admin</Text>

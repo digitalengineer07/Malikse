@@ -16,7 +16,18 @@ router.use(rateLimit({
   skip: req => req.method !== "POST",
   keyGenerator: req => (req as AuthRequest).user!.id,
 }));
-const scope = (req: AuthRequest) => req.user!.role === "admin" ? {} : { requester: req.user!.id };
+const isStaffChat = (req: AuthRequest) => req.query.channel === "verifier_chat";
+router.use((request: AuthRequest, res, next) => {
+  if (request.query.channel !== undefined && !isStaffChat(request)) return res.status(400).json({ message: "Invalid conversation channel." });
+  if (isStaffChat(request) && !["admin", "verifier"].includes(request.user!.role)) {
+    return res.status(403).json({ message: "This chat is available to verifiers and admins." });
+  }
+  next();
+});
+const scope = (req: AuthRequest) => ({
+  channel: isStaffChat(req) ? "verifier_chat" : { $ne: "verifier_chat" },
+  ...(req.user!.role === "admin" ? {} : { requester: req.user!.id }),
+});
 const listFields = "category subject status createdAt updatedAt";
 const validRequestId = (id: unknown): id is string => typeof id === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id);
 const cleanText = (value: unknown, max: number) => typeof value === "string" && value.trim().length <= max ? value.trim() : "";
@@ -43,7 +54,10 @@ router.get("/", ticketHandler(async (request, res) => {
   const req = request as AuthRequest;
   const status = req.query.status;
   if (status !== undefined && !supportStatuses.some(value => value === status)) return res.status(400).json({ message: "Invalid ticket status." });
-  const query = SupportTicket.find({ ...scope(req), ...(status ? { status } : {}) }).select(listFields);
+  const includeRequester = isStaffChat(req) && req.user!.role === "admin";
+  const query = SupportTicket.find({ ...scope(req), ...(status ? { status } : {}) })
+    .select(includeRequester ? `${listFields} requester` : listFields);
+  if (includeRequester) query.populate("requester", "name role");
   // The inbox is ordered by recent activity so customer replies return to the top.
   const rows = await readPage(query, req, res, "updatedAt");
   return res.json(rows);
@@ -53,12 +67,18 @@ router.post("/", ticketHandler(async (request, res) => {
   const req = request as AuthRequest;
   const actor = req.user!;
   if (actor.role === "admin") return res.status(403).json({ message: "Use the support inbox to reply to requests." });
-  const { category, subject: rawSubject, body: rawBody, requestId, referenceKind, referenceId } = req.body ?? {};
+  const staffChat = isStaffChat(req);
+  const { category: requestedCategory, subject: rawSubject, body: rawBody, requestId, referenceKind, referenceId } = req.body ?? {};
+  const category = staffChat ? "assignment" : requestedCategory;
+  if (staffChat && (referenceKind !== undefined || referenceId !== undefined)) {
+    return res.status(400).json({ message: "Send property or conversation reports through Contact support." });
+  }
   const subject = cleanText(rawSubject, 100), body = cleanText(rawBody, 2000);
   if (!subject || !body || !validRequestId(requestId) || !supportCategories.some(value => value === category)) {
     return res.status(400).json({ message: "Choose a category and enter a subject and message." });
   }
-  const existing = await SupportTicket.findOne({ requester: actor.id, requestId }).select(listFields).lean();
+  const lookup = { ...scope(req), requestId };
+  const existing = await SupportTicket.findOne(lookup).select(listFields).lean();
   if (existing) return res.json(existing);
   if (referenceKind !== undefined || referenceId !== undefined) {
     if ((referenceKind !== "property" && referenceKind !== "conversation") || typeof referenceId !== "string" ||
@@ -68,13 +88,13 @@ router.post("/", ticketHandler(async (request, res) => {
   }
   try {
     const ticket = await SupportTicket.create({
-      requester: actor.id, requestId, category, subject, referenceKind, referenceId,
+      requester: actor.id, requestId, channel: staffChat ? "verifier_chat" : "support", category, subject, referenceKind, referenceId,
       messages: [{ author: actor.id, side: "requester", body, requestId }],
     });
     return res.status(201).json({ _id: ticket._id, status: ticket.status });
   } catch (error) {
     if ((error as { code?: number }).code !== 11000) throw error;
-    const duplicate = await SupportTicket.findOne({ requester: actor.id, requestId }).select(listFields).lean();
+    const duplicate = await SupportTicket.findOne(lookup).select(listFields).lean();
     if (!duplicate) throw error;
     return res.json(duplicate);
   }

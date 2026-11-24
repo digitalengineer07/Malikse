@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, BackHandler, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { randomUUID } from "expo-crypto";
 import { Redirect, useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -28,9 +28,8 @@ const inboxFilters = [
   { id: "resolved", icon: "check-circle-outline", hint: "Closed requests" },
 ] as const;
 
-type TicketSummary = { _id: string; subject: string; category: Category; status: Status; updatedAt: string };
+type TicketSummary = { _id: string; subject: string; category: Category; status: Status; updatedAt: string; requester?: { name: string; role: string } };
 type Ticket = TicketSummary & {
-  requester?: { name: string; role: string };
   referenceKind?: "property" | "conversation";
   referenceId?: string;
   messages: { side: "support" | "requester"; body: string; sentAt: string; requestId: string }[];
@@ -59,22 +58,24 @@ function Choice({ label, selected, onPress }: { label: string; selected: boolean
     style={[styles.choice, selected && styles.activeChoice]}><Text style={styles.label}>{label}</Text></Pressable>;
 }
 
-export default function SupportScreen() {
+export default function SupportScreen({ staffChat = false }: { staffChat?: boolean } = {}) {
   const { user, authState, hydrated } = useAuthStore();
   if (!hydrated) return <ActivityIndicator />;
   if (!user || authState !== "AUTHENTICATED") return <Redirect href="/login" />;
-  return <SupportInbox key={`${user.id}:${user.role}`} admin={user.role === "admin"} />;
+  if (staffChat && user.role !== "admin" && user.role !== "verifier") return <Redirect href="/messages" />;
+  return <SupportInbox key={`${user.id}:${user.role}:${staffChat}`} admin={user.role === "admin"} staffChat={staffChat} />;
 }
 
-function SupportInbox({ admin }: { admin: boolean }) {
+function SupportInbox({ admin, staffChat }: { admin: boolean; staffChat: boolean }) {
   const router = useRouter();
   const focused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { ticketId, referenceKind, referenceId } = useLocalSearchParams<{ ticketId?: string; referenceKind?: string; referenceId?: string }>();
-  const linked = (referenceKind === "property" || referenceKind === "conversation") && typeof referenceId === "string";
+  const channel = staffChat ? "verifier_chat" : undefined;
+  const linked = !staffChat && (referenceKind === "property" || referenceKind === "conversation") && typeof referenceId === "string";
   const [creating, setCreating] = useState(Boolean(linked));
   const [category, setCategory] = useState<Category>(referenceKind === "conversation" ? "conversation" : referenceKind === "property" ? "listing" : "account");
-  const [filter, setFilter] = useState<Filter>(admin ? "open" : "all");
+  const [filter, setFilter] = useState<Filter>(admin && !staffChat ? "open" : "all");
   const [tickets, setTickets] = useState<TicketSummary[]>([]);
   const [ticket, setTicket] = useState<Ticket>();
   const [cursor, setCursor] = useState<string>();
@@ -87,7 +88,27 @@ function SupportInbox({ admin }: { admin: boolean }) {
   const activeMutation = useRef(false);
   const requestKey = useRef<{ payload: string; id: string } | undefined>(undefined);
   const listRequest = useRef(0);
-  const openTicket = (id: string) => router.push({ pathname: "/support", params: { ticketId: id } });
+  const openTicket = (id: string) => {
+    if (staffChat) { setCreating(false); router.setParams({ ticketId: id }); }
+    else router.push({ pathname: "/support", params: { ticketId: id } });
+  };
+  const closeStaffChatView = useCallback(() => {
+    if (ticketId) {
+      setBody("");
+      setTicket(undefined);
+      router.setParams({ ticketId: "" });
+    } else if (creating) setCreating(false);
+    else router.setParams({ staffChat: "" });
+  }, [creating, router, ticketId]);
+
+  useFocusEffect(useCallback(() => {
+    if (!staffChat || Platform.OS !== "android" || (admin && !ticketId && !creating)) return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      closeStaffChatView();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [admin, closeStaffChatView, creating, staffChat, ticketId]));
 
   useFocusEffect(useCallback(() => {
     const controller = new AbortController();
@@ -96,10 +117,10 @@ function SupportInbox({ admin }: { admin: boolean }) {
     setError("");
     setLoading(true);
     const promise = ticketId
-      ? api.get<Ticket>(`/support/${ticketId}`, { signal: controller.signal }).then(response => {
+      ? api.get<Ticket>(`/support/${ticketId}`, { signal: controller.signal, params: { channel } }).then(response => {
           if (!controller.signal.aborted) setTicket(response.data);
         })
-      : api.get<TicketSummary[]>("/support", { signal: controller.signal, params: { limit: 20, status: filter === "all" ? undefined : filter } }).then(response => {
+      : api.get<TicketSummary[]>("/support", { signal: controller.signal, params: { channel, limit: 20, status: filter === "all" ? undefined : filter } }).then(response => {
           if (!controller.signal.aborted) {
             setTickets(response.data);
             setCursor(response.headers["x-next-cursor"] || undefined);
@@ -108,7 +129,7 @@ function SupportInbox({ admin }: { admin: boolean }) {
     void promise.catch(error => { if (!controller.signal.aborted) setError(errorMessage(error)); })
       .finally(() => { if (!controller.signal.aborted && listRequest.current === request) setLoading(false); });
     return () => { controller.abort(); listRequest.current++; };
-  }, [creating, filter, revision, ticketId]));
+  }, [channel, creating, filter, revision, ticketId]));
 
   async function run(operation: () => Promise<void>) {
     if (activeMutation.current) return;
@@ -127,17 +148,18 @@ function SupportInbox({ admin }: { admin: boolean }) {
       };
       const serialized = JSON.stringify(payload);
       if (requestKey.current?.payload !== serialized) requestKey.current = { payload: serialized, id: randomUUID() };
-      const response = await api.post(ticketId ? `/support/${ticketId}/replies` : "/support", { ...payload, requestId: requestKey.current.id });
+      const response = await api.post(ticketId ? `/support/${ticketId}/replies` : "/support", { ...payload, requestId: requestKey.current.id }, { params: { channel } });
       requestKey.current = undefined;
       setBody("");
       if (ticketId) setRevision(value => value + 1);
+      else if (staffChat) openTicket(response.data._id);
       else router.replace({ pathname: "/support", params: { ticketId: response.data._id } });
     });
   }
 
   const currentTicket = ticket?._id === ticketId ? ticket : undefined;
-  const title = ticketId ? "Support request" : creating && !admin ? "New request" : admin ? "Support inbox" : "Contact support";
-  const description = ticketId ? "Read the conversation and follow up here." : creating && !admin
+  const title = staffChat ? (ticketId ? "Conversation" : creating ? "New message" : admin ? "Verifier chats" : "Chat with admin") : ticketId ? "Support request" : creating && !admin ? "New request" : admin ? "Support inbox" : "Contact support";
+  const description = staffChat ? (admin ? "Read and reply to messages from verifiers." : "Discuss verification work with the admin team.") : ticketId ? "Read the conversation and follow up here." : creating && !admin
     ? "Tell us what you need help with."
     : admin ? "Review requests, reply, and track what still needs attention."
     : "Get help with your account, listings, or property conversations.";
@@ -150,7 +172,7 @@ function SupportInbox({ admin }: { admin: boolean }) {
       <View style={styles.headerInner}>
         <View style={styles.toolbar}>
           <Pressable accessibilityRole="button" accessibilityLabel="Go back" style={styles.headerButton}
-            onPress={() => router.canGoBack() ? router.back() : router.replace(admin ? dashboardRoutes.admin : "/profile")}>
+            onPress={() => staffChat && (ticketId || creating || !admin) ? closeStaffChatView() : router.canGoBack() ? router.back() : router.replace(admin ? dashboardRoutes.admin : "/profile")}>
             <MaterialIcons name="arrow-back" size={22} color="#fff" />
           </Pressable>
           <BrandLockup style={styles.brand} />
@@ -190,7 +212,7 @@ function SupportInbox({ admin }: { admin: boolean }) {
         <View style={styles.card}>
           <Text accessibilityRole="header" style={ui.heading}>{currentTicket.subject}</Text>
           <View style={styles.cardMeta}>
-            <Text style={styles.meta}>{categories[currentTicket.category]}</Text>
+            <Text style={styles.meta}>{staffChat ? "Verifier and admin" : categories[currentTicket.category]}</Text>
             <TicketStatus status={currentTicket.status} admin={admin} />
           </View>
           {currentTicket.requester && <Text style={styles.meta}>Requester: {currentTicket.requester.name} · {currentTicket.requester.role}</Text>}
@@ -203,7 +225,7 @@ function SupportInbox({ admin }: { admin: boolean }) {
         </View>
         {currentTicket.messages.map(message => (
           <View key={message.requestId} style={[styles.card, message.side === "support" && styles.supportReply]}>
-            <Text style={styles.label}>{message.side === "support" ? "MalikSe support" : admin ? "Requester" : "You"}</Text>
+            <Text style={styles.label}>{message.side === "support" ? (staffChat ? "Admin" : "MalikSe support") : admin ? (staffChat ? "Verifier" : "Requester") : "You"}</Text>
             <Text selectable style={ui.text}>{message.body}</Text>
             <Text style={ui.muted}>{displayDate(message.sentAt)}</Text>
           </View>
@@ -211,25 +233,25 @@ function SupportInbox({ admin }: { admin: boolean }) {
         {currentTicket.status !== "resolved" && <View style={styles.card}>
           <Field label="Your reply" value={body} onChangeText={setBody} multiline maxLength={2000} editable={!busy} />
           <Action title="Send reply" disabled={busy || loading || !body.trim()} onPress={submit} />
-          <Action title="Mark as resolved" secondary disabled={busy || loading} onPress={() => void run(async () => {
-            await api.post(`/support/${ticketId}/resolve`);
+          <Action title={staffChat ? "Close conversation" : "Mark as resolved"} secondary disabled={busy || loading} onPress={() => void run(async () => {
+            await api.post(`/support/${ticketId}/resolve`, undefined, { params: { channel } });
             setRevision(value => value + 1);
           })} />
         </View>}
       </> : !loading && <Action title="Retry" secondary onPress={() => setRevision(value => value + 1)} /> : creating && !admin ? (
         <View style={styles.card}>
-          <Text style={ui.label}>What do you need help with?</Text>
-          <View style={ui.row}>{(Object.keys(categories) as Category[]).map(value =>
-            <Choice key={value} label={categories[value]} selected={category === value} onPress={() => { if (!busy) setCategory(value); }} />)}</View>
+          {!staffChat && <Text style={ui.label}>What do you need help with?</Text>}
+          {!staffChat && <View style={ui.row}>{(Object.keys(categories) as Category[]).map(value =>
+            <Choice key={value} label={categories[value]} selected={category === value} onPress={() => { if (!busy) setCategory(value); }} />)}</View>}
           {linked && <Text style={ui.muted}>This {referenceKind} will be linked to the request.</Text>}
           <Field label="Subject" value={subject} onChangeText={setSubject} editable={!busy} maxLength={100} />
           <Field label="Message" value={body} onChangeText={setBody} editable={!busy} multiline maxLength={2000} />
-          <Action title={busy ? "Sending…" : "Send request"} disabled={busy || !subject.trim() || !body.trim()} onPress={submit} />
+          <Action title={busy ? "Sending…" : staffChat ? "Send message" : "Send request"} disabled={busy || !subject.trim() || !body.trim()} onPress={submit} />
           <Action title="Cancel" secondary disabled={busy} onPress={() => linked && router.canGoBack() ? router.back() : setCreating(false)} />
         </View>
       ) : <>
-        {!admin && <Action title="New support request" onPress={() => setCreating(true)} />}
-        <View style={styles.filterPanel}>
+        {!admin && <Action title={staffChat ? "New message to admin" : "New support request"} onPress={() => setCreating(true)} />}
+        {!staffChat && <View style={styles.filterPanel}>
           <Text accessibilityRole="header" style={styles.cardTitle}>Request status</Text>
           <View style={styles.filterGrid}>{inboxFilters.map(({ id, icon, hint }) => {
             const selected = id === filter;
@@ -246,15 +268,15 @@ function SupportInbox({ admin }: { admin: boolean }) {
               </Pressable>
             );
           })}</View>
-        </View>
+        </View>}
         {!loading && !error && tickets.length === 0 && <View style={styles.empty}>
           <MaterialIcons name="inbox" size={32} color="#536174" />
-          <Text style={styles.cardTitle}>No requests in this view</Text>
-          <Text style={styles.emptyText}>{admin ? "Try another status to see other requests." : "Requests you send will appear here."}</Text>
+          <Text style={styles.cardTitle}>{staffChat ? "No conversations yet" : "No requests in this view"}</Text>
+          <Text style={styles.emptyText}>{staffChat ? (admin ? "Messages from verifiers will appear here." : "Start a conversation with the admin team.") : admin ? "Try another status to see other requests." : "Requests you send will appear here."}</Text>
         </View>}
         {tickets.map(row => <Pressable key={row._id} accessibilityRole="button" style={styles.card} onPress={() => openTicket(row._id)}>
           <View style={styles.cardMeta}>
-            <Text style={styles.meta}>{categories[row.category]}</Text>
+            <Text style={styles.meta}>{staffChat ? (admin ? row.requester?.name || "Verifier" : "MalikSe admin") : categories[row.category]}</Text>
             <TicketStatus status={row.status} admin={admin} />
           </View>
           <View style={styles.cardMeta}>
@@ -265,7 +287,7 @@ function SupportInbox({ admin }: { admin: boolean }) {
         </Pressable>)}
         {!!cursor && <Action title="Load more requests" secondary disabled={busy || loading} onPress={() => void run(async () => {
           const request = listRequest.current;
-          const response = await api.get<TicketSummary[]>("/support", { params: { limit: 20, cursor, status: filter === "all" ? undefined : filter } });
+          const response = await api.get<TicketSummary[]>("/support", { params: { channel, limit: 20, cursor, status: filter === "all" ? undefined : filter } });
           if (request !== listRequest.current) return;
           setTickets(previous => {
             const seen = new Set(previous.map(row => row._id));
