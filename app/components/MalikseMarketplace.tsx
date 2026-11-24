@@ -1245,9 +1245,6 @@ export function ProfileScreen() {
       scrollFooter={!user ? bottomExtension => <AccountArtworkFooter bottomExtension={bottomExtension} /> : undefined}>
       {user ? (
         <>
-          {user.role === "advisor" && (
-            <Button title="Advisor dashboard" icon="dashboard" onPress={() => router.push(dashboardRoutes.advisor)} />
-          )}
           <View style={s.profileStats}>
             {[
               { label: "Listings", value: listingCount, onPress: user.role === "user" ? () => router.push("/my-properties") : undefined },
@@ -1357,7 +1354,7 @@ export function ProfileScreen() {
             ))}
           </View>
           <Button title="Conversations" icon="chat-bubble-outline" secondary onPress={() => router.push("/messages")} />
-          {user.role !== "user" && user.role !== "advisor" && <Button title="Staff dashboard" icon="dashboard" secondary onPress={() => router.push(dashboardRoutes[user.role] as any)} />}
+          {user.role !== "user" && <Button title="Staff dashboard" icon="dashboard" secondary onPress={() => router.push(dashboardRoutes[user.role] as any)} />}
           <Button title="Privacy policy" secondary onPress={() => action.run(() => Linking.openURL("https://malikse.devoxa.in/privacy-policy"))} />
           {user.role === "user" && <Button title="Delete account" secondary onPress={() => router.push("/delete-account" as any)} />}
           <ErrorBox text={action.error} />

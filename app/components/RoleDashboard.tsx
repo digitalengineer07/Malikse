@@ -31,7 +31,6 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
   const { width } = useWindowDimensions();
   const compact = width < 680;
   const cardWidth = compact ? "100%" : width < 1000 || sections.length === 2 ? "48%" : "31.8%";
-  const isAdvisor = role === "advisor";
   const hasAccess = authState === "AUTHENTICATED" && user?.role === role;
 
   React.useEffect(() => {
@@ -63,10 +62,10 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
             {hasAccess && <NotificationBell />}
           </View>
           {hasAccess && <>
-            {!isAdvisor && <View style={styles.workspace}>
+            <View style={styles.workspace}>
               <Text style={[styles.eyebrow, styles.onNavy]}>MALIKSE / YOUR WORKSPACE</Text>
               <View style={styles.rolePill}><View style={styles.roleDot} /><Text style={styles.roleText}>{role}</Text></View>
-            </View>}
+            </View>
             <Text accessibilityRole="header" style={styles.title}>{title}</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>
           </>}
@@ -84,7 +83,7 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
         </View>
       ) : <>
       {role === "admin" && <NotificationFailures />}
-      {!isAdvisor && <View style={styles.hero}>
+      <View style={styles.hero}>
         <Image source={require("../assets/saved_villa_house.jpg")} style={styles.heroBackground} resizeMode="cover" />
         <View style={styles.heroShade} />
         <View style={styles.heroCopy}><View style={styles.welcomeRow}><View style={styles.avatar}><Text style={styles.avatarText}>{user.name?.charAt(0).toUpperCase()}</Text></View><Text style={styles.welcome}>Welcome, {user.name}</Text></View>
@@ -93,14 +92,8 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
           <TouchableOpacity accessibilityRole="button" style={styles.primaryButton} onPress={() => router.replace("/home")}><Text style={styles.buttonLabel}>Explore verified properties</Text><MaterialIcons name="north-east" size={18} color={navy} /></TouchableOpacity>
         </View>
 
-      </View>}
-      {!isAdvisor && <View style={styles.sectionHeading}><View><Text style={styles.eyebrow}>YOUR TOOLS</Text><Text accessibilityRole="header" style={styles.sectionTitle}>Make your next move.</Text></View><Text style={styles.sectionNote}>Built around your role</Text></View>}
-      <View style={styles.grid}>{sections.map((section, index) => <TouchableOpacity key={section.title} accessibilityRole="button" accessibilityState={{ disabled: !section.route }} style={[styles.card, { width: cardWidth }, index === 0 && styles.primaryCard, !section.route && styles.disabledCard]} disabled={!section.route} onPress={() => section.route && router.push(section.route)}>
-        <View style={styles.cardTop}><View style={[styles.iconBox, index === 0 && styles.primaryIcon]}><MaterialIcons name={icons[index % icons.length]} size={24} color={navy} /></View>{!isAdvisor && <Text style={styles.cardIndex}>{String(index + 1).padStart(2, "0")}</Text>}</View>
-        <Text style={styles.cardTitle}>{section.title}</Text><Text style={styles.cardDescription}>{section.description}</Text>
-        <View style={styles.cardBottom}><Text style={styles.cardAction}>{section.route ? (isAdvisor && index === 0 ? "Open reviews" : "Open workspace") : "Coming later"}</Text><View style={styles.arrowCircle}><MaterialIcons name={section.route ? "north-east" : "schedule"} size={18} color="#111827" /></View></View>
-      </TouchableOpacity>)}</View>
-      {isAdvisor && (
+      </View>
+      {role === "advisor" && (
         <View style={[styles.card, styles.advisorCard]}>
           <View style={styles.advisorCardHeader}>
             <View style={styles.iconBox}><MaterialIcons name="badge" size={22} color={navy} /></View>
@@ -141,6 +134,12 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
           )}
         </View>
       )}
+      <View style={styles.sectionHeading}><View><Text style={styles.eyebrow}>YOUR TOOLS</Text><Text accessibilityRole="header" style={styles.sectionTitle}>Make your next move.</Text></View><Text style={styles.sectionNote}>Built around your role</Text></View>
+      <View style={styles.grid}>{sections.map((section, index) => <TouchableOpacity key={section.title} accessibilityRole="button" accessibilityState={{ disabled: !section.route }} style={[styles.card, { width: cardWidth }, index === 0 && styles.primaryCard, !section.route && styles.disabledCard]} disabled={!section.route} onPress={() => section.route && router.push(section.route)}>
+        <View style={styles.cardTop}><View style={[styles.iconBox, index === 0 && styles.primaryIcon]}><MaterialIcons name={icons[index % icons.length]} size={24} color={navy} /></View><Text style={styles.cardIndex}>{String(index + 1).padStart(2, "0")}</Text></View>
+        <Text style={styles.cardTitle}>{section.title}</Text><Text style={styles.cardDescription}>{section.description}</Text>
+        <View style={styles.cardBottom}><Text style={styles.cardAction}>{section.route ? "Open workspace" : "Coming later"}</Text><View style={styles.arrowCircle}><MaterialIcons name={section.route ? "north-east" : "schedule"} size={18} color="#111827" /></View></View>
+      </TouchableOpacity>)}</View>
       <View style={[styles.accountBar, compact && styles.accountCompact]}><View style={styles.accountIdentity}><View style={styles.accountIcon}><MaterialIcons name="person-outline" size={24} color="#345A76" /></View><View><Text style={styles.accountTitle}>Your account</Text><Text style={styles.accountDescription}>Profile details and session settings</Text></View></View>
         <View style={styles.accountActions}><TouchableOpacity accessibilityRole="button" style={styles.profileButton} onPress={() => router.push("/profile")}><Text style={styles.buttonLabel}>My profile</Text><MaterialIcons name="north-east" size={15} color={navy} /></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.signOut} onPress={() => { authService.logout().finally(() => router.replace("/login")); }}><Text style={styles.signOutLabel}>Sign out</Text></TouchableOpacity></View>
       </View>

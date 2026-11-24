@@ -1,7 +1,7 @@
 import RoleDashboard from "../../components/RoleDashboard";
 export default function Dashboard() {
- return <RoleDashboard role="advisor" title="Advisor dashboard" subtitle="Review assigned properties and send approved listings to verification." sections={[
- { title: "Property reviews", description: "Open assigned reviews, claim new work and view past decisions.", route: "/advisor/properties" },
+ return <RoleDashboard role="advisor" title="Advisor dashboard" subtitle="Review submitted properties and send approved listings to a Verifier." sections={[
+ { title: "Pending reviews and history", description: "Open assigned work, claim unassigned reviews, approve, request corrections or reject.", route: "/advisor/properties" },
  { title: "Verified marketplace", description: "Browse published properties.", route: "/search" },
  ]} />;
 }
