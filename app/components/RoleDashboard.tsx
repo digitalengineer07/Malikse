@@ -190,10 +190,10 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
             {!isAdvisor && <Text style={styles.accountDescription}>Profile details and session settings</Text>}
           </View>
         </View>
-        <View style={styles.accountActions}>
+        <View style={[styles.accountActions, isAdvisor && styles.advisorAccountActions]}>
           <TouchableOpacity
             accessibilityRole="button"
-            style={[styles.profileButton, isAdvisor && styles.advisorAccountAction]}
+            style={[styles.profileButton, isAdvisor && [styles.advisorAccountAction, styles.advisorProfileAction]]}
             onPress={() => router.push("/profile")}
           >
             <Text style={styles.buttonLabel}>My profile</Text>
@@ -300,7 +300,9 @@ const styles = StyleSheet.create({
   advisorTool: { ...surface, flexGrow: 1, flexBasis: 138, minWidth: 0, padding: 14, gap: 7 },
   advisorReviewTile: { backgroundColor: "#FFF1C0", borderColor: "#E9CB65" },
   advisorTileTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
-  advisorAccount: { backgroundColor: "#FFFCF4", gap: 12 },
+  advisorAccount: { flexDirection: "column", alignItems: "stretch", backgroundColor: "#FFFCF4", gap: 12 },
+  advisorAccountActions: { borderTopWidth: 1, borderTopColor: "rgba(20,38,62,0.12)", paddingTop: 12 },
+  advisorProfileAction: { backgroundColor: "#FFF1C0" },
   advisorAccountAction: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
     flexGrow: 1, flexBasis: 108, paddingVertical: 8,
