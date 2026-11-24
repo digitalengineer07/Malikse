@@ -43,6 +43,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
   const [filter, setFilter] = useState("all");
   const [revision, setRevision] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [advisorFiltersExpanded, setAdvisorFiltersExpanded] = useState(true);
   const [pageCursors, setPageCursors] = useState<(string | undefined)[]>([undefined]);
   const listRef = useRef<FlatList<Listing>>(null);
   const advisorCursor = role === "advisor" ? pageCursors[pageCursors.length - 1] : undefined;
@@ -128,8 +129,20 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
           contentContainerStyle={[localStyles.queueContent, { paddingBottom: insets.bottom + 24 }]}
           ListHeaderComponent={
             <View style={localStyles.queueFilters}>
-              <Text accessibilityRole="header" style={localStyles.filterHeading}>Review status</Text>
-              <View style={localStyles.filterOptions}>
+              <View style={localStyles.filterToolbar}>
+                <Text accessibilityRole="header" style={localStyles.filterHeading}>Review status</Text>
+                {!advisorFiltersExpanded && <Text style={localStyles.reviewMeta}>
+                  {advisorFilters.find(option => option.id === filter)?.label}
+                </Text>}
+                <Pressable accessibilityRole="button"
+                  accessibilityLabel={advisorFiltersExpanded ? "Hide review status filters" : "Show review status filters"}
+                  accessibilityState={{ expanded: advisorFiltersExpanded }}
+                  onPress={() => setAdvisorFiltersExpanded(expanded => !expanded)}
+                  style={localStyles.filterChevron}>
+                  <MaterialIcons name={advisorFiltersExpanded ? "expand-less" : "expand-more"} size={21} color="#14263E" />
+                </Pressable>
+              </View>
+              {advisorFiltersExpanded && <View style={localStyles.filterOptions}>
                 {advisorFilters.map(({ id, label }) => (
                   <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: id === filter }}
                     style={[localStyles.filterOption, id === filter && localStyles.selectedOption]}
@@ -142,7 +155,7 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
                     <Text style={localStyles.queueLabel}>{label}</Text>
                   </Pressable>
                 ))}
-              </View>
+              </View>}
               {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}
             </View>
           }
@@ -159,24 +172,33 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
               <Pressable accessibilityRole="button" accessibilityLabel={`${actionLabel}, ${property.title || property.type}`}
                 disabled={unassigned && busy} style={localStyles.reviewCard}
                 onPress={() => unassigned ? void claim(property._id) : router.push({ pathname: "/verification/[id]", params: { id: property._id } })}>
-                <View style={localStyles.reviewCopy}>
-                  <View style={localStyles.reviewTop}>
-                    <View style={[localStyles.reviewStatusBadge, property.status === "verified" && localStyles.publishedBadge]}>
-                      <Text style={localStyles.reviewStatus}>{status}</Text>
-                    </View>
+                <View style={localStyles.reviewTop}>
+                  <View style={localStyles.reviewIdentity}>
+                    <View style={localStyles.reviewIcon}><MaterialIcons name="home-work" size={19} color="#14263E" /></View>
+                    <Text style={localStyles.reviewTitle}>{property.title || `${property.type} in ${property.location.district}`}</Text>
                   </View>
-                  <View style={localStyles.reviewDetails}>
-                    <View style={localStyles.reviewIcon}><MaterialIcons name="home-work" size={22} color="#14263E" /></View>
-                    <View style={localStyles.reviewCopy}>
-                      <Text style={localStyles.reviewTitle}>{property.title || `${property.type} in ${property.location.district}`}</Text>
-                      <Text style={localStyles.reviewMeta}>Seller: {sellerName || (unassigned ? "Available after claiming" : "Name unavailable")}</Text>
-                      <Text style={localStyles.reviewMeta}>
-                        {[property.streetAddress, property.location.district, property.location.state, property.location.pincode].filter(Boolean).join(", ")}
-                      </Text>
-                      <Text style={localStyles.reviewMeta}>₹{property.price.toLocaleString("en-IN")}</Text>
-                      {!!property.rejectionReason && <Text style={ui.error}>{property.rejectionReason}</Text>}
-                      {unassigned && <Text style={localStyles.queueLabel}>Claim review</Text>}
-                    </View>
+                  <View style={[localStyles.reviewStatusBadge, property.status === "verified" && localStyles.publishedBadge]}>
+                    <Text style={localStyles.reviewStatus}>{status}</Text>
+                  </View>
+                </View>
+                <View style={localStyles.reviewDetails}>
+                  <View style={localStyles.reviewMetaRow}>
+                    <MaterialIcons name="person-outline" size={17} color="#536174" />
+                    <Text style={localStyles.reviewMeta}>Seller: {sellerName || (unassigned ? "Available after claiming" : "Name unavailable")}</Text>
+                  </View>
+                  <View style={localStyles.reviewMetaRow}>
+                    <MaterialIcons name="place" size={17} color="#536174" />
+                    <Text style={localStyles.reviewMeta}>
+                      {[property.streetAddress, property.location.district, property.location.state, property.location.pincode]
+                        .filter(Boolean).join(", ") || "Property address unavailable"}
+                    </Text>
+                  </View>
+                  {!!property.rejectionReason && <Text style={ui.error}>{property.rejectionReason}</Text>}
+                </View>
+                <View style={localStyles.reviewFooter}>
+                  <Text style={localStyles.reviewPrice}>₹{property.price.toLocaleString("en-IN")}</Text>
+                  <View style={localStyles.reviewFooterAction}>
+                    {unassigned && <Text style={localStyles.queueLabel}>Claim review</Text>}
                     <MaterialIcons name="chevron-right" size={21} color="#14263E" />
                   </View>
                 </View>
@@ -260,6 +282,11 @@ const localStyles = StyleSheet.create({
   pagination: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 },
   queueFilters: { gap: 8, paddingBottom: 3 },
   queueFilter: { minHeight: 44, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 22, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "#FFF1C0" },
+  filterToolbar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
+  filterChevron: {
+    marginStart: "auto", width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center", backgroundColor: "#FFF1C0",
+  },
   filterHeading: { color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 14 },
   filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   filterOption: {
@@ -270,16 +297,23 @@ const localStyles = StyleSheet.create({
   selectedOption: { backgroundColor: "#FFF1C0", borderColor: "#DFC052" },
   queueLabel: { color: "#14263E", fontFamily: "ManropeBold", fontSize: 13, flexShrink: 1 },
   emptyQueue: { color: "#536174", padding: 16, fontFamily: "Manrope" },
-  reviewCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, backgroundColor: "#fff", borderRadius: 18, borderWidth: 1, borderColor: "#DEDCD5" },
-  reviewIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF1C0" },
-  reviewCopy: { flex: 1, minWidth: 0, gap: 5 },
-  reviewTitle: { color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 17 },
-  reviewTop: { alignItems: "flex-end" },
-  reviewDetails: { flexDirection: "row", alignItems: "center", gap: 12 },
-  reviewStatusBadge: { maxWidth: "100%", paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, backgroundColor: "#F5F2E9" },
+  reviewCard: { gap: 12, padding: 14, backgroundColor: "#fff", borderRadius: 18, borderWidth: 1, borderColor: "#DEDCD5" },
+  reviewIcon: { width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF1C0" },
+  reviewTitle: { flexShrink: 1, color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 17 },
+  reviewTop: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
+  reviewIdentity: { flexGrow: 1, flexShrink: 1, flexBasis: 110, flexDirection: "row", alignItems: "center", gap: 8 },
+  reviewDetails: { gap: 6 },
+  reviewMetaRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  reviewFooter: {
+    flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center",
+    gap: 8, paddingTop: 9, borderTopWidth: 1, borderTopColor: "#ECE9E0",
+  },
+  reviewFooterAction: { marginStart: "auto", flexDirection: "row", alignItems: "center", gap: 6 },
+  reviewPrice: { color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 15 },
+  reviewStatusBadge: { marginStart: "auto", maxWidth: "100%", paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, backgroundColor: "#F5F2E9" },
   publishedBadge: { backgroundColor: "#E6F4EA" },
   reviewStatus: { color: "#254C3A", fontFamily: "ManropeBold", fontSize: 12 },
-  reviewMeta: { color: "#536174", fontFamily: "Manrope", fontSize: 13 },
+  reviewMeta: { flexShrink: 1, color: "#536174", fontFamily: "Manrope", fontSize: 13 },
   dropdownToggle: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F2F6F9", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24, borderWidth: 1, borderColor: "#E2E8F0" },
   dropdownToggleText: { color: "#111827", fontSize: 14, fontWeight: "600" },
   dropdownMenu: { position: "absolute", top: "100%", right: 0, marginTop: 8, backgroundColor: "rgba(255,255,255,0.9)", width: 260, borderRadius: 16, padding: 8, borderWidth: 1, borderColor: "#E2E8F0", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 5 },
