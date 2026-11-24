@@ -427,7 +427,7 @@ export function MarketplaceShell({
       )}
       <View style={[s.heroInner, compactHeader && s.compactHeroInner]}>
         {profileHeader || <>
-          <View style={[s.heroBrandGroup, isProfile && s.profileBrandGroup]}>
+          <View style={[s.heroBrandGroup, (isProfile || path === "/saved") && s.spacedBrandGroup]}>
             <View style={[s.header, Boolean(user) && width < 390 && { gap: 6 }]}>
               <View style={[s.row, { flex: 1, minWidth: 0 }]}>
                 {back ? (
@@ -3051,7 +3051,7 @@ const s = StyleSheet.create({
   guestAccountDescription: { fontFamily: font, fontSize: 14, lineHeight: 21, color: C.muted },
   profileHeaderCopy: { flexShrink: 1, minWidth: 0 },
   guestProfileHero: { paddingBottom: 24 },
-  profileBrandGroup: { gap: 16 },
+  spacedBrandGroup: { gap: 16 },
   profileHeroCaption: { fontSize: 13, lineHeight: 15 },
   profileContent: { marginTop: -50 },
   profileEdit: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: C.ink },
