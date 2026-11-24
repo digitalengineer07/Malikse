@@ -6,6 +6,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountHeaderBackdrop, accountHeaderStyle } from "./AccountHeaderBackdrop";
+import AccountArtworkFooter from "./AccountArtworkFooter";
 import { BrandLockup } from "./BrandLockup";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 import api from "../src/services/authService";
@@ -20,6 +21,13 @@ const statuses = { open: "Open", awaiting_reply: "Awaiting your reply", resolved
 type Category = keyof typeof categories;
 type Status = keyof typeof statuses;
 type Filter = Status | "all";
+const inboxFilters = [
+  { id: "all", icon: "inbox", hint: "Every request" },
+  { id: "open", icon: "forum", hint: "Needs a support reply" },
+  { id: "awaiting_reply", icon: "schedule", hint: "Waiting for a follow-up" },
+  { id: "resolved", icon: "check-circle-outline", hint: "Closed requests" },
+] as const;
+
 type TicketSummary = { _id: string; subject: string; category: Category; status: Status; updatedAt: string };
 type Ticket = TicketSummary & {
   requester?: { name: string; role: string };
@@ -134,6 +142,7 @@ function SupportInbox({ admin }: { admin: boolean }) {
     : admin ? "Review requests, reply, and track what still needs attention."
     : "Get help with your account, listings, or property conversations.";
   const refresh = () => setRevision(value => value + 1);
+  const showFooter = !ticketId && !creating;
   const header = (
     <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
       {focused && <StatusBar style="light" />}
@@ -159,12 +168,23 @@ function SupportInbox({ admin }: { admin: boolean }) {
   );
 
   return (
-    <WorkflowScreen title={title} header={header}>
-      {!!error && <View accessibilityRole="alert" style={[styles.card, styles.errorCard]}>
-        <Text style={styles.cardTitle}>{error === deploymentError ? "Support unavailable" : "Something went wrong"}</Text>
-        <Text style={styles.meta}>{error === deploymentError && admin
-          ? "The connected API does not have the support feature. Deploy the updated backend, then refresh this page."
-          : error}</Text>
+    <View style={styles.screen}>
+      <WorkflowScreen title={title} header={header}>
+      {!!error && <View style={[styles.card, styles.errorCard]}>
+        <View style={styles.noticeRow} accessibilityRole="alert">
+          <View style={[styles.tileIcon, styles.errorIcon]}><MaterialIcons name="cloud-off" size={22} color="#87452D" /></View>
+          <View style={styles.noticeCopy}>
+            <Text style={styles.cardTitle}>{error === deploymentError ? "Support unavailable" : "Something went wrong"}</Text>
+            <Text style={styles.meta}>{error === deploymentError && admin
+              ? "This server needs the support update before it can load requests."
+              : error}</Text>
+          </View>
+        </View>
+        {showFooter && <Pressable accessibilityRole="button" accessibilityState={{ disabled: loading || busy }}
+          disabled={loading || busy} onPress={refresh} style={styles.retryButton}>
+          <MaterialIcons name="refresh" size={18} color="#14263E" />
+          <Text style={styles.label}>Retry loading requests</Text>
+        </Pressable>}
       </View>}
       {ticketId ? currentTicket ? <>
         <View style={styles.card}>
@@ -211,9 +231,21 @@ function SupportInbox({ admin }: { admin: boolean }) {
         {!admin && <Action title="New support request" onPress={() => setCreating(true)} />}
         <View style={styles.filterPanel}>
           <Text accessibilityRole="header" style={styles.cardTitle}>Request status</Text>
-          <View style={styles.filterGrid}>{(["all", "open", "awaiting_reply", "resolved"] as const).map(value =>
-            <Choice key={value} label={value === "all" ? "All requests" : statusLabel(value, admin)}
-              selected={filter === value} onPress={() => { if (filter !== value) { setTickets([]); setCursor(undefined); setFilter(value); } }} />)}</View>
+          <View style={styles.filterGrid}>{inboxFilters.map(({ id, icon, hint }) => {
+            const selected = id === filter;
+            return (
+              <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected }}
+                onPress={() => { if (!selected) { setTickets([]); setCursor(undefined); setFilter(id); } }}
+                style={({ pressed }) => [styles.filterTile, selected && styles.selectedTile, pressed && styles.pressed]}>
+                <View style={styles.tileTop}>
+                  <View style={[styles.tileIcon, selected && styles.tileIconSelected]}><MaterialIcons name={icon} size={20} color="#14263E" /></View>
+                  {selected && <MaterialIcons name="check" size={18} color="#14263E" />}
+                </View>
+                <Text style={styles.label}>{id === "all" ? "All requests" : statusLabel(id, admin)}</Text>
+                <Text style={styles.tileHint}>{hint}</Text>
+              </Pressable>
+            );
+          })}</View>
         </View>
         {!loading && !error && tickets.length === 0 && <View style={styles.empty}>
           <MaterialIcons name="inbox" size={32} color="#536174" />
@@ -242,11 +274,14 @@ function SupportInbox({ admin }: { admin: boolean }) {
           setCursor(response.headers["x-next-cursor"] || undefined);
         })} />}
       </>}
-    </WorkflowScreen>
+      </WorkflowScreen>
+      {showFooter && <View pointerEvents="none"><AccountArtworkFooter wavesOnly hideWhileTyping={false} /></View>}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: "#F5F2E9" },
   header: { backgroundColor: "#14263E", borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: "hidden" },
   headerInner: { width: "100%", maxWidth: 1000, alignSelf: "center", paddingHorizontal: 20, paddingBottom: 20, gap: 14 },
   toolbar: { flexDirection: "row", alignItems: "center", gap: 10 },
@@ -254,8 +289,19 @@ const styles = StyleSheet.create({
   headerButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#244268", alignItems: "center", justifyContent: "center" },
   headerTitle: { color: "#fff", fontFamily: "Fraunces" },
   headerDescription: { color: "#E7EDF5", fontFamily: "Manrope", fontSize: 13, lineHeight: 19 },
-  filterPanel: { gap: 8, padding: 12, backgroundColor: "#ECE9E0", borderRadius: 16 },
-  filterGrid: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  filterPanel: { gap: 10 },
+  filterGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  filterTile: { flexBasis: "46%", flexGrow: 1, minWidth: 0, gap: 5, padding: 11, borderRadius: 16, borderWidth: 1, borderColor: "#DEDCD5", backgroundColor: "#fff" },
+  selectedTile: { backgroundColor: "#FFF5CD", borderColor: "#DFC052" },
+  pressed: { opacity: 0.78 },
+  tileTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 3 },
+  tileIcon: { width: 35, height: 35, borderRadius: 10, backgroundColor: "#F2EEE3", justifyContent: "center", alignItems: "center" },
+  tileIconSelected: { backgroundColor: "#FCC61C" },
+  tileHint: { color: "#536174", fontFamily: "Manrope", fontSize: 12, lineHeight: 17 },
+  noticeRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  noticeCopy: { flex: 1, minWidth: 0, gap: 5 },
+  errorIcon: { backgroundColor: "#F8E6DA" },
+  retryButton: { alignSelf: "flex-start", minHeight: 44, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "#FFF1C0" },
   errorCard: { backgroundColor: "#FFF6F0", borderColor: "#E8C8B2" },
   empty: { alignItems: "center", gap: 8, paddingVertical: 20 },
   emptyText: { textAlign: "center", fontFamily: "Manrope", fontSize: 13, color: "#536174" },
