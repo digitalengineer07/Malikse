@@ -159,13 +159,16 @@ export default function PropertyWorkspaceScreen({ publicView = false }: { public
         </View>
         {property.rejectionReason && <Text style={ui.error}>Review feedback: {property.rejectionReason}</Text>}
         {user?.role === "user" && ["draft", "correction_required"].includes(property.status) && <Action title="Edit and submit for review" onPress={() => router.push({ pathname: "/listing/create", params: { id } })} />}
-        {[property.advisorReview, property.verifierReview].filter(Boolean).map(report => <View key={report!.role} style={ui.card}>
-          <Text style={ui.heading}>{report!.role === "advisor" ? "Advisor" : "Verifier"} report · {report!.decision}</Text>
-          <Text style={ui.text}>{report!.notes}</Text>
-          <Text style={ui.muted}>Signed: {report!.signature} · {new Date(report!.submittedAt).toLocaleString()}</Text>
-          {Object.entries(report!.checklist || {}).map(([key, value]) => <Text key={key} style={ui.text}>{value ? "✓" : "—"} {checks[key] || key}</Text>)}
-          {report!.gpsCheckIn && <Text style={ui.text}>Site check-in: {report!.gpsCheckIn.lat}, {report!.gpsCheckIn.lng} · {new Date(report!.gpsCheckIn.timestamp).toLocaleString()}</Text>}
-        </View>)}
+        {([
+          ["advisor", property.advisorReview],
+          ["verifier", property.verifierReview],
+        ] as const).map(([role, report]) => report ? <View key={role} style={ui.card}>
+          <Text style={ui.heading}>{role === "advisor" ? "Advisor" : "Verifier"} report · {report.decision}</Text>
+          <Text style={ui.text}>{report.notes}</Text>
+          <Text style={ui.muted}>Signed: {report.signature} · {new Date(report.submittedAt).toLocaleString()}</Text>
+          {Object.entries(report.checklist || {}).map(([key, value]) => <Text key={key} style={ui.text}>{value ? "✓" : "—"} {checks[key] || key}</Text>)}
+          {report.gpsCheckIn && <Text style={ui.text}>Site check-in: {report.gpsCheckIn.lat}, {report.gpsCheckIn.lng} · {new Date(report.gpsCheckIn.timestamp).toLocaleString()}</Text>}
+        </View> : null)}
         {canReview && <View style={ui.card}>
           <Text style={ui.heading}>{user?.role === "advisor" ? "Advisor inspection" : "Verifier inspection"}</Text>
           {keys.map(key => <Check key={key} label={checks[key]} checked={!!checklist[key]} onPress={() => setChecklist(previous => ({ ...previous, [key]: !previous[key] }))} />)}

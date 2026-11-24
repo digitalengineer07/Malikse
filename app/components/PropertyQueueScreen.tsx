@@ -13,6 +13,20 @@ import { BrandLockup } from "./BrandLockup";
 import { AccountHeaderBackdrop, accountHeaderStyle } from "./AccountHeaderBackdrop";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 
+const advisorFilters = [
+  { id: "all", label: "All" },
+  { id: "pending", label: "To review" },
+  { id: "correction_required", label: "Corrections" },
+  { id: "verified", label: "Published" },
+  { id: "rejected", label: "Rejected" },
+  { id: "sold", label: "Sold" },
+] as const;
+
+function matchesQueueFilter(status: string, filter: string, role: UserRole) {
+  return filter === "all" || status === filter ||
+    (role === "advisor" && filter === "pending" && status === "advisor_verified");
+}
+
 export default function PropertyQueueScreen({ role }: { role: UserRole }) {
   const router = useRouter();
   const focused = useIsFocused();
@@ -44,8 +58,8 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.role, authState, role, revision]));
   const filtered = useMemo(() => queueOwner === user?.id
-    ? properties.filter(property => filter === "all" || property.status === filter)
-    : [], [filter, properties, queueOwner, user?.id]);
+    ? properties.filter(property => matchesQueueFilter(property.status, filter, role))
+    : [], [filter, properties, queueOwner, role, user?.id]);
   if (!hydrated) return <ActivityIndicator />;
   if (!user || authState !== "AUTHENTICATED") return <Redirect href="/login" />;
   if (user.role !== role) return <Redirect href={dashboardRoutes[user.role]} />;
@@ -95,25 +109,22 @@ export default function PropertyQueueScreen({ role }: { role: UserRole }) {
           contentContainerStyle={[localStyles.queueContent, { paddingBottom: insets.bottom + 24 }]}
           ListHeaderComponent={
             <View style={localStyles.queueFilters}>
-              <Pressable accessibilityRole="button" accessibilityState={{ expanded: dropdownOpen }}
-                onPress={() => setDropdownOpen(open => !open)} style={localStyles.queueFilter}>
-                <Text style={localStyles.queueLabel}>Status · {filter === "all" ? "All" : statusLabels[filter]}</Text>
-                <MaterialIcons name={dropdownOpen ? "expand-less" : "expand-more"} size={20} color="#14263E" />
-              </Pressable>
-              {dropdownOpen && <View style={localStyles.filterOptions}>
-                {filterOptions.map(status => (
-                  <Pressable key={status} accessibilityRole="button" accessibilityState={{ selected: status === filter }}
-                    style={[localStyles.filterOption, status === filter && localStyles.selectedOption]}
-                    onPress={() => { setFilter(status); setDropdownOpen(false); }}>
-                    <Text style={localStyles.queueLabel}>{status === "all" ? "All statuses" : statusLabels[status]}</Text>
+              <Text accessibilityRole="header" style={localStyles.filterHeading}>Review status</Text>
+              <View style={localStyles.filterOptions}>
+                {advisorFilters.map(({ id, label }) => (
+                  <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: id === filter }}
+                    style={[localStyles.filterOption, id === filter && localStyles.selectedOption]}
+                    onPress={() => setFilter(id)}>
+                    {id === filter && <MaterialIcons name="check" size={15} color="#14263E" />}
+                    <Text style={localStyles.queueLabel}>{label}</Text>
                   </Pressable>
                 ))}
-              </View>}
+              </View>
               {!!error && <Text accessibilityRole="alert" style={ui.error}>{error}</Text>}
             </View>
           }
           ListEmptyComponent={loading ? <ActivityIndicator color="#14263E" /> : !error
-            ? <Text style={localStyles.emptyQueue}>No properties match this status.</Text>
+            ? <Text style={localStyles.emptyQueue}>{nextCursor ? "No matches on the loaded pages." : "No properties match this status."}</Text>
             : undefined}
           renderItem={({ item: property }) => {
             const unassigned = !actorId(property.assignedAdvisorId);
@@ -199,9 +210,14 @@ const localStyles = StyleSheet.create({
   queueContent: { width: "100%", maxWidth: 900, alignSelf: "center", padding: 16, gap: 10 },
   queueFilters: { gap: 8, paddingBottom: 3 },
   queueFilter: { minHeight: 44, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 22, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "#FFF1C0" },
+  filterHeading: { color: "#14263E", fontFamily: "ManropeExtraBold", fontSize: 14 },
   filterOptions: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  filterOption: { minHeight: 44, justifyContent: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: "#fff" },
-  selectedOption: { backgroundColor: "#FFF1C0" },
+  filterOption: {
+    flexGrow: 1, flexBasis: 92, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 4, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12,
+    backgroundColor: "#fff", borderWidth: 1, borderColor: "#DEDCD5",
+  },
+  selectedOption: { backgroundColor: "#FFF1C0", borderColor: "#DFC052" },
   queueLabel: { color: "#14263E", fontFamily: "ManropeBold", fontSize: 13, flexShrink: 1 },
   emptyQueue: { color: "#536174", padding: 16, fontFamily: "Manrope" },
   reviewCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, backgroundColor: "#fff", borderRadius: 18, borderWidth: 1, borderColor: "#DEDCD5" },
