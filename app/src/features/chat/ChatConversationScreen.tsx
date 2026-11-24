@@ -403,6 +403,12 @@ export const ChatConversationScreen: React.FC<ChatConversationScreenProps> = ({
             </View>
           </View>
 
+          {conversation && user?.role !== "admin" && (
+            <Pressable accessibilityRole="button" accessibilityLabel="Report conversation" style={styles.conversationBack}
+              onPress={() => router.push({ pathname: "/support", params: { referenceKind: "conversation", referenceId: inquiryId } })}>
+              <MaterialIcons name="flag" size={19} color="#fff" />
+            </Pressable>
+          )}
           <NotificationBell />
         </View>
       </View>
