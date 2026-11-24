@@ -182,9 +182,32 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
         <View style={styles.cardBottom}><Text style={styles.cardAction}>{section.route ? "Open workspace" : "Coming later"}</Text><View style={styles.arrowCircle}><MaterialIcons name={section.route ? "north-east" : "schedule"} size={18} color="#111827" /></View></View>
       </TouchableOpacity>)}</View>
       )}
-      <View style={[styles.accountBar, compact && styles.accountCompact, isAdvisor && styles.advisorAccount]}>{!isAdvisor && <View style={styles.accountIdentity}><View style={styles.accountIcon}><MaterialIcons name="person-outline" size={24} color="#345A76" /></View><View><Text style={styles.accountTitle}>Your account</Text><Text style={styles.accountDescription}>Profile details and session settings</Text></View></View>}
-        {isAdvisor && <Text style={styles.accountTitle}>Your account</Text>}
-        <View style={styles.accountActions}><TouchableOpacity accessibilityRole="button" style={styles.profileButton} onPress={() => router.push("/profile")}><Text style={styles.buttonLabel}>My profile</Text><MaterialIcons name="north-east" size={15} color={navy} /></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.signOut} onPress={() => { authService.logout().finally(() => router.replace("/login")); }}><Text style={styles.signOutLabel}>Sign out</Text></TouchableOpacity></View>
+      <View style={[styles.accountBar, compact && styles.accountCompact, isAdvisor && styles.advisorAccount]}>
+        <View style={styles.accountIdentity}>
+          <View style={styles.accountIcon}><MaterialIcons name="person-outline" size={24} color={isAdvisor ? navy : "#345A76"} /></View>
+          <View>
+            <Text accessibilityRole="header" style={styles.accountTitle}>Your account</Text>
+            {!isAdvisor && <Text style={styles.accountDescription}>Profile details and session settings</Text>}
+          </View>
+        </View>
+        <View style={styles.accountActions}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={[styles.profileButton, isAdvisor && styles.advisorAccountAction]}
+            onPress={() => router.push("/profile")}
+          >
+            <Text style={styles.buttonLabel}>My profile</Text>
+            <MaterialIcons name="north-east" size={15} color={navy} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={[styles.signOut, isAdvisor && styles.advisorAccountAction]}
+            onPress={() => { authService.logout().finally(() => router.replace("/login")); }}
+          >
+            {isAdvisor && <MaterialIcons name="logout" size={16} color={navy} />}
+            <Text style={styles.signOutLabel}>Sign out</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       </>}
       </View>
@@ -277,9 +300,10 @@ const styles = StyleSheet.create({
   advisorTool: { ...surface, flexGrow: 1, flexBasis: 138, minWidth: 0, padding: 14, gap: 7 },
   advisorReviewTile: { backgroundColor: "#FFF1C0", borderColor: "#E9CB65" },
   advisorTileTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
-  advisorAccount: {
-    flexWrap: "wrap", alignItems: "center", flexDirection: "row", gap: 10,
-    backgroundColor: "transparent", borderWidth: 0, shadowOpacity: 0, elevation: 0, paddingHorizontal: 0,
+  advisorAccount: { backgroundColor: "#FFFCF4", gap: 12 },
+  advisorAccountAction: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
+    flexGrow: 1, flexBasis: 108, paddingVertical: 8,
   },
   advisorCard: { ...surface, backgroundColor: "#FFFCF4", padding: 16, gap: 12 },
   advisorCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
