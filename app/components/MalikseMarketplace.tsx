@@ -88,6 +88,7 @@ function Button({
   title,
   onPress,
   secondary = false,
+  danger = false,
   disabled = false,
   icon,
 }: any) {
@@ -97,10 +98,10 @@ function Button({
       accessibilityLabel={title}
       disabled={disabled}
       onPress={onPress}
-      style={[s.button, secondary && s.secondary, disabled && { opacity: 0.5 }]}
+      style={[s.button, secondary && s.secondary, danger && s.dangerButton, disabled && { opacity: 0.5 }]}
     >
-      {icon && <Icon name={icon} size={17} />}
-      <Text style={[s.buttonText, secondary && { color: C.blue }]}>
+      {icon && <Icon name={icon} size={17} color={danger ? "#A52239" : undefined} />}
+      <Text style={[s.buttonText, secondary && { color: C.blue }, danger && s.dangerButtonText]}>
         {title}
       </Text>
     </Pressable>
@@ -1383,7 +1384,7 @@ export function ProfileScreen() {
           <ErrorBox text={action.error} />
           <Button
             title="Log out of MalikSe"
-            secondary
+            danger
             icon="logout"
             onPress={() =>
               action.run(async () => {
@@ -2792,6 +2793,8 @@ const s = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
+  dangerButton: { backgroundColor: "#FFF0F2", borderWidth: 1, borderColor: "#EAC3CA", shadowOpacity: 0, elevation: 0 },
+  dangerButtonText: { color: "#A52239" },
   buttonText: {
     fontFamily: "ManropeExtraBold",
     fontSize: 14,
