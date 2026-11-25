@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import WebFooter from "./WebFooter";
+import malikseLogo from "../assets/images/malikse-logo.png";
 import "../web/privacy.css";
 
 export const privacyContact = import.meta.env.VITE_PRIVACY_CONTACT_EMAIL || "support@malikse.in";
@@ -23,7 +24,13 @@ export default function PrivacyLayout({
   const { pathname, hash } = useLocation();
 
   useEffect(() => {
-    document.title = `${pathname === "/privacy-policy" ? "Privacy Policy" : "Delete Account"} | MalikSe`;
+    const pageTitle =
+      pathname === "/privacy-policy"
+        ? "Privacy Policy"
+        : pathname === "/support"
+          ? "Help & Support"
+          : "Delete Account";
+    document.title = `${pageTitle} | MalikSe`;
     const target = hash ? document.getElementById(hash.slice(1)) : null;
     if (target) target.scrollIntoView({ behavior: "smooth" });
     else shell.current?.scrollTo(0, 0);
@@ -35,9 +42,11 @@ export default function PrivacyLayout({
         <div className="privacy-header">
           <Link to="/home" className="privacy-brand">
             <span className="privacy-brand-mark" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#14263E" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9.5Z" />
-              </svg>
+              <img
+                src={malikseLogo}
+                alt="MalikSe logo"
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              />
             </span>
             <span className="privacy-brand-text">
               <strong>
@@ -50,6 +59,12 @@ export default function PrivacyLayout({
           <nav aria-label="Privacy navigation" className="privacy-nav">
             <Link to="/home" className="privacy-nav-link">
               Home
+            </Link>
+            <Link
+              to="/support"
+              className={`privacy-nav-link ${pathname === "/support" ? "is-active" : ""}`}
+            >
+              Support
             </Link>
             <Link
               to="/privacy-policy"

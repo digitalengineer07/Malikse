@@ -1,9 +1,10 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, Platform, Linking } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, Platform, Linking, Image } from "react-native";
 import { useRouter } from "@/web/navigation";
 import { MaterialIcons } from "@/web/icons";
 import { useAuthStore } from "../src/store/authStore";
 import { FONT_BODY, FONT_DISPLAY, FONT_MONO } from "../constants/typography";
+import malikseLogo from "../assets/images/malikse-logo.png";
 
 const font = FONT_BODY;
 const fontDisplay = FONT_DISPLAY;
@@ -36,7 +37,12 @@ export default function WebFooter() {
               style={styles.brandLockup}
             >
               <View style={styles.logoIcon}>
-                <MaterialIcons name="roofing" size={22} color="#14263E" />
+                <Image
+                  source={{ uri: malikseLogo }}
+                  style={{ width: "100%", height: "100%" }}
+                  resizeMode="cover"
+                  accessibilityLabel="MalikSe logo"
+                />
               </View>
               <Text style={styles.brandName}>
                 Malik<Text style={{ color: "#FCC61C" }}>Se</Text>
@@ -120,6 +126,18 @@ export default function WebFooter() {
               <MaterialIcons name="schedule" size={14} color="rgba(255,255,255,0.55)" style={{ marginTop: 2 }} />
               <Text style={styles.linkTextMuted}>Mon – Sat, 9:00 AM – 7:00 PM IST</Text>
             </View>
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Open Help and Support page"
+              activeOpacity={0.85}
+              style={styles.supportButton}
+              onPress={() => router.push("/support")}
+            >
+              <MaterialIcons name="support-agent" size={16} color="#14263E" />
+              <Text style={styles.supportButtonText}>Help &amp; Support Center</Text>
+              <MaterialIcons name="arrow-forward" size={14} color="#14263E" />
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -132,6 +150,10 @@ export default function WebFooter() {
               © {new Date().getFullYear()} MalikSe powered by AgHomesIndia. All rights reserved.
             </Text>
             <View style={styles.legalLinks}>
+              <TouchableOpacity accessibilityRole="link" onPress={() => router.push("/support")}>
+                <Text style={styles.legalLink}>Support</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalDot}>•</Text>
               <TouchableOpacity accessibilityRole="link" onPress={() => router.push("/privacy-policy")}>
                 <Text style={styles.legalLink}>Privacy Policy</Text>
               </TouchableOpacity>
@@ -197,6 +219,7 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 11,
     backgroundColor: "#FCC61C",
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -272,6 +295,29 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 7,
     marginTop: 2,
+  },
+  supportButton: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    backgroundColor: "#FCC61C",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 10px 20px -10px rgba(252, 198, 28, 0.75)",
+      },
+    }),
+  },
+  supportButtonText: {
+    fontFamily: font,
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#14263E",
   },
   bottomBorder: {
     borderTopWidth: 1,
