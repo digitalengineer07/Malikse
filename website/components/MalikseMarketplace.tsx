@@ -36,6 +36,7 @@ import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
 import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import WebFooter from "./WebFooter";
 import { FONT_BODY, FONT_DISPLAY, FONT_MONO, FONT_NUMERIC } from "../constants/typography";
+import { PROPERTY_IMAGES, resolvePropertyPhotoUrl } from "../src/utils/propertyImages";
 const C = {
   bg: "#F7F4EC",
   ink: "#14263E",
@@ -511,17 +512,11 @@ function PropertyCard({
             position: "relative",
           }}
         >
-          {p.media?.photos?.[0] ? (
-            <Image
-              source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], 400) }}
-              style={StyleSheet.absoluteFill}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={[StyleSheet.absoluteFill, s.placeholder]}>
-              <Icon name="home-work" size={32} color="#94A3B8" />
-            </View>
-          )}
+          <Image
+            source={{ uri: getOptimizedPhotoUrl(resolvePropertyPhotoUrl(p), 400) }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
           <View
             style={{
               position: "absolute",
@@ -603,17 +598,11 @@ function PropertyCard({
         style={compact ? { width: 120, minHeight: 136 } : s.photo}
         onPress={openProperty}
       >
-        {p.media?.photos?.[0] ? (
-          <Image
-            source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], compact ? 400 : 600) }}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[StyleSheet.absoluteFill, s.placeholder]}>
-            <Icon name="home-work" size={48} color="#94A3B8" />
-          </View>
-        )}
+        <Image
+          source={{ uri: getOptimizedPhotoUrl(resolvePropertyPhotoUrl(p), compact ? 400 : 600) }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
         {!compact && (
           <View
             pointerEvents="none"
@@ -1712,7 +1701,7 @@ export function HomeScreen() {
                       source={{
                         uri:
                           getOptimizedPhotoUrl(showcasePrimary?.media?.photos?.[0], 500) ||
-                          "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80",
+                          PROPERTY_IMAGES.duplexHouse,
                       }}
                       style={StyleSheet.absoluteFill}
                       resizeMode="cover"
@@ -1771,7 +1760,7 @@ export function HomeScreen() {
                       source={{
                         uri:
                           getOptimizedPhotoUrl(showcaseSecondary?.media?.photos?.[0], 450) ||
-                          "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80",
+                          PROPERTY_IMAGES.plotDanapurField,
                       }}
                       style={StyleSheet.absoluteFill}
                       resizeMode="cover"
@@ -2603,7 +2592,7 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Bailey Road · Patna",
     highlightTag: { label: "Direct Malik", theme: "blue" },
     featureChip: "25ft Road",
-    media: { photos: ["https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=600"] },
+    media: { photos: [PROPERTY_IMAGES.plotPatnaAerial] },
     status: "verified",
     badges: { fullyVerified: true },
   },
@@ -2620,13 +2609,13 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Danapur · Patna",
     highlightTag: { label: "Khata 114", theme: "green" },
     featureChip: "Corner",
-    media: { photos: ["https://images.unsplash.com/photo-1524813686514-a57563d77d66?w=600"] },
+    media: { photos: [PROPERTY_IMAGES.plotDanapurField] },
     status: "verified",
     badges: { fullyVerified: true },
   },
   {
     _id: "demo_beg_194",
-    title: "DEMO · Sample 194 · shop in...",
+    title: "Commercial Showroom · Harrakh",
     price: 28700000,
     type: "shop",
     sellableArea: 2750,
@@ -2636,18 +2625,13 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Harrakh · Begusarai",
     highlightTag: { label: "High ROI", theme: "amber" },
     featureChip: "NH-31 Front",
-    categoryPlaceholder: {
-      icon: "storefront",
-      text: "Commercial Space · Begusarai",
-      color: "#3B82F6",
-      bg: "#EFF6FF",
-    },
+    media: { photos: [PROPERTY_IMAGES.commercialShop] },
     status: "verified",
     badges: { fullyVerified: true },
   },
   {
     _id: "demo_beg_193",
-    title: "DEMO · Sample 193 · house in...",
+    title: "4 BHK Duplex Villa · Ratanpur",
     price: 27900000,
     type: "house",
     sellableArea: 2575,
@@ -2657,18 +2641,13 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Ratanpur · Begusarai",
     highlightTag: { label: "Furnished", theme: "blue" },
     featureChip: "4 BHK",
-    categoryPlaceholder: {
-      icon: "home",
-      text: "Duplex Villa · Begusarai",
-      color: "#6366F1",
-      bg: "#F5F7FF",
-    },
+    media: { photos: [PROPERTY_IMAGES.duplexHouse] },
     status: "verified",
     badges: { fullyVerified: true },
   },
   {
     _id: "demo_beg_192",
-    title: "DEMO · Sample 192 · flat in...",
+    title: "Modern 3 BHK Residence · Vishnupur",
     price: 27100000,
     type: "flat",
     sellableArea: 2100,
@@ -2677,18 +2656,13 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Vishnupur · Begusarai",
     highlightTag: { label: "RERA Registered", theme: "green" },
     featureChip: "Lift + Parking",
-    categoryPlaceholder: {
-      icon: "apartment",
-      text: "Modern 3 BHK · Begusarai",
-      color: "#64748B",
-      bg: "#F8FAFC",
-    },
+    media: { photos: [PROPERTY_IMAGES.savedVillaHouse] },
     status: "verified",
     badges: { fullyVerified: true },
   },
   {
     _id: "demo_beg_191",
-    title: "DEMO · Sample 191 · land in...",
+    title: "Walled Residential Plot · Barauni",
     price: 26400000,
     type: "land",
     sellableArea: 4764,
@@ -2697,13 +2671,13 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Barauni · Begusarai",
     highlightTag: { label: "G+2 Duplex", theme: "blue" },
     featureChip: "Boundary Wall",
-    media: { photos: ["https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=600"] },
+    media: { photos: [PROPERTY_IMAGES.savedPlotLand] },
     status: "verified",
     badges: { fullyVerified: true },
   },
   {
     _id: "demo_beg_190",
-    title: "DEMO · Sample 190 · office in...",
+    title: "Commercial Office Hub · Main Market",
     price: 28800000,
     type: "office",
     sellableArea: 3200,
@@ -2712,13 +2686,13 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Main Market · Begusarai",
     highlightTag: { label: "GPS Demarcated", theme: "green" },
     featureChip: "Main Market",
-    media: { photos: ["https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600"] },
+    media: { photos: [PROPERTY_IMAGES.commercialOffice] },
     status: "verified",
     badges: { fullyVerified: true },
   },
   {
     _id: "demo_beg_189",
-    title: "DEMO · Sample 189 · shop in...",
+    title: "Prime Retail Corner · Karpuri Chowk",
     price: 28100000,
     type: "shop",
     sellableArea: 1950,
@@ -2727,7 +2701,7 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Karpuri Chowk · Begusarai",
     highlightTag: { label: "Prime Commercial", theme: "blue" },
     featureChip: "Two Sides Open",
-    media: { photos: ["https://images.unsplash.com/photo-1448630360428-65456885c650?w=600"] },
+    media: { photos: [PROPERTY_IMAGES.commercialShop] },
     status: "verified",
     badges: { fullyVerified: true },
   },
@@ -3714,78 +3688,18 @@ export function SearchScreen() {
                     onPress={() => router.push(`/property/${p._id}` as any)}
                     style={{ position: "relative" }}
                   >
-                    {p.categoryPlaceholder ? (
-                      <View
-                        style={[
-                          exploreStyles.cardMedia,
-                          {
-                            backgroundColor: "#FAF8F2",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          },
-                        ]}
-                      >
-                        <View style={exploreStyles.placeholderIconCircle}>
-                          <MaterialIcons
-                            name={p.categoryPlaceholder.icon as any}
-                            size={28}
-                            color="#14263E"
-                          />
-                        </View>
-                        <Text style={exploreStyles.cardPlaceholderText}>
-                          {p.categoryPlaceholder.text}
+                    <View style={exploreStyles.cardMedia}>
+                      <Image
+                        source={{ uri: getOptimizedPhotoUrl(resolvePropertyPhotoUrl(p, idx), 500) }}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                      />
+                      <View style={exploreStyles.cardCorridorPill}>
+                        <Text style={exploreStyles.cardCorridorText}>
+                          {p.corridor || `${p.location?.mauza || p.location?.block || "Corridor"} · ${p.location?.district || "Bihar"}`}
                         </Text>
                       </View>
-                    ) : p.media?.photos?.[0] ? (
-                      <View style={exploreStyles.cardMedia}>
-                        <Image
-                          source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], 500) }}
-                          style={StyleSheet.absoluteFill}
-                          resizeMode="cover"
-                        />
-                        <View style={exploreStyles.cardCorridorPill}>
-                          <Text style={exploreStyles.cardCorridorText}>
-                            {p.corridor || `${p.location?.mauza || p.location?.block || "Corridor"} · ${p.location?.district || "Bihar"}`}
-                          </Text>
-                        </View>
-                      </View>
-                    ) : (
-                      <View
-                        style={[
-                          exploreStyles.cardMedia,
-                          {
-                            backgroundColor: "#FAF8F2",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          },
-                        ]}
-                      >
-                        <View style={exploreStyles.placeholderIconCircle}>
-                          <MaterialIcons
-                            name={
-                              p.type === "shop"
-                                ? "storefront"
-                                : p.type === "house"
-                                  ? "home"
-                                  : p.type === "flat"
-                                    ? "apartment"
-                                    : "landscape"
-                            }
-                            size={26}
-                            color="#14263E"
-                          />
-                        </View>
-                        <Text style={exploreStyles.cardPlaceholderText}>
-                          {p.type === "shop"
-                            ? `Commercial Space · ${p.location?.district || "Bihar"}`
-                            : p.type === "house"
-                              ? `Duplex Villa · ${p.location?.district || "Bihar"}`
-                              : p.type === "flat"
-                                ? `Modern 3 BHK · ${p.location?.district || "Bihar"}`
-                                : `Residential Plot · ${p.location?.district || "Bihar"}`}
-                        </Text>
-                      </View>
-                    )}
+                    </View>
 
                     {/* Verified Badge */}
                     <View style={exploreStyles.cardVerifiedBadge}>
@@ -5941,17 +5855,11 @@ export function ProfileScreen() {
                     <View style={{ gap: 12 }}>
                       {myListings.data.map((p: any) => (
                         <View key={p._id} style={profileStyles.listingCardRow}>
-                          {p.media?.photos?.[0] ? (
-                            <Image
-                              source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], 400) }}
-                              style={profileStyles.listingThumbnail}
-                              resizeMode="cover"
-                            />
-                          ) : (
-                            <View style={[profileStyles.listingThumbnail, { alignItems: "center", justifyContent: "center" }]}>
-                              <MaterialIcons name="home-work" size={28} color="#94A3B8" />
-                            </View>
-                          )}
+                          <Image
+                            source={{ uri: getOptimizedPhotoUrl(resolvePropertyPhotoUrl(p), 400) }}
+                            style={profileStyles.listingThumbnail}
+                            resizeMode="cover"
+                          />
                           <View style={{ flex: 1, minWidth: 200, gap: 3 }}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                               <Text style={{ fontSize: 15, fontWeight: "700", color: "#0B1B3F" }}>
@@ -7260,7 +7168,8 @@ export function PropertyDetailScreen() {
     }
   };
 
-  const photos: string[] = Array.isArray(p?.media?.photos) ? p.media.photos : [];
+  const rawPhotos: string[] = Array.isArray(p?.media?.photos) ? p.media.photos.filter(Boolean) : [];
+  const photos: string[] = rawPhotos.length > 0 ? rawPhotos : (p ? [resolvePropertyPhotoUrl(p)] : []);
   const heroPhotoUrl = photos[selectedPhotoIndex] || photos[0];
   const area = Number(p?.sellableArea || p?.totalArea || 0);
   const price = Number(p?.price || 0);

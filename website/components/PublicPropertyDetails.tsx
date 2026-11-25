@@ -14,6 +14,7 @@ import {
 import { MaterialIcons } from "@/web/icons";
 import { useSafeAreaInsets } from "@/web/safeArea";
 import { FONT_BODY, FONT_DISPLAY, FONT_MONO, FONT_NUMERIC } from "../constants/typography";
+import { resolvePropertyPhotoUrl } from "../src/utils/propertyImages";
 import { useRouter } from "@/web/navigation";
 import type { Listing } from "../src/services/workflowService";
 import AppHeader from "./AppHeader";
@@ -48,8 +49,10 @@ export default function PublicPropertyDetails({
   const [copiedLink, setCopiedLink] = useState(false);
 
   const photos = useMemo(() => {
-    return (p.media?.photos || []).map((uri) => ({ uri }));
-  }, [p.media?.photos]);
+    const list = (p.media?.photos || []).filter(Boolean);
+    if (list.length > 0) return list.map((uri) => ({ uri }));
+    return [{ uri: resolvePropertyPhotoUrl(p) }];
+  }, [p]);
 
   const openLink = (url: string) => {
     Linking.openURL(url).catch(() =>

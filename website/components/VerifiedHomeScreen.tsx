@@ -35,6 +35,7 @@ import {
   trackPropertyInteraction,
   setUserCustomPreferences,
 } from "../src/services/recommendationEngine";
+import { resolvePropertyPhotoUrl } from "../src/utils/propertyImages";
 
 const nameOf = (p: Property) => p.title || `${p.type} in ${p.location.district}`;
 const priceOf = (p: Property) => `₹${p.price.toLocaleString("en-IN")}`;
@@ -96,17 +97,15 @@ const RecommendationCard = React.memo(function RecommendationCard({
     >
       {/* Card Top: Image & Badges */}
       <View style={s.cardTopImage}>
-        {property.media?.photos?.[0] ? (
-          <Image
-            source={{ uri: property.media?.photos?.[0] ? `${property.media.photos[0]}${property.media.photos[0].includes('?') ? '&' : '?'}w=600` : undefined }}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={s.noPhoto}>
-            <MaterialIcons name="landscape" size={36} color="#94A3B8" />
-          </View>
-        )}
+        <Image
+          source={{
+            uri: property.media?.photos?.[0]
+              ? `${property.media.photos[0]}${property.media.photos[0].includes("?") ? "&" : "?"}w=600`
+              : resolvePropertyPhotoUrl(property),
+          }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
         <View style={s.imageBadge}>
           <MaterialIcons name={typeIcon(property.type)} size={11} color="#FFFFFF" style={{ marginRight: 4 }} />
           <Text style={s.imageBadgeText}>{property.type.toUpperCase()}</Text>
