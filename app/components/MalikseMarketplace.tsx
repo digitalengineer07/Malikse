@@ -49,6 +49,7 @@ import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
 import PropertyImage from "./PropertyImage";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
+import { getFallbackPropertyPhotoSource, resolvePropertyPhotoSource } from "../src/utils/propertyImages";
 const C = {
   bg: "#F7F4EC",
   ink: "#14263E",
@@ -593,17 +594,14 @@ function PropertyCard({
         style={compact ? { width: 112, minHeight: 130 } : s.photo}
         onPress={() => router.push(`/property/${p._id}` as any)}
       >
-        {p.media?.photos?.[0] ? (
-          <PropertyImage
-            source={{ uri: p.media.photos[0] }}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[StyleSheet.absoluteFill, s.placeholder]}>
-            <Icon name="home-work" size={48} color="#91a9d4" />
-          </View>
-        )}
+        <PropertyImage
+          source={resolvePropertyPhotoSource(p)}
+          fallbackSource={getFallbackPropertyPhotoSource(p)}
+          isPublic
+          thumbnailWidth={compact ? 400 : 600}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
         <View style={s.imageTags}>
           <Tag green>✓ Verified Owner</Tag>
         </View>
@@ -1374,11 +1372,13 @@ export function ListingsScreen() {
         {visible.map((p: any) => (
           <View key={p._id} style={s.panel}>
             <View style={s.row}>
-              {p.media?.photos?.[0] ? (
-                <PropertyImage source={{ uri: p.media.photos[0] }} style={s.listingPhoto} resizeMode="cover" thumbnailWidth={240} />
-              ) : (
-                <View style={[s.listingPhoto, s.placeholder]}><Icon name="home-work" size={30} /></View>
-              )}
+              <PropertyImage
+                source={resolvePropertyPhotoSource(p)}
+                fallbackSource={getFallbackPropertyPhotoSource(p)}
+                style={s.listingPhoto}
+                resizeMode="cover"
+                thumbnailWidth={240}
+              />
               <View style={{ flex: 1, gap: 4 }}>
                 <Tag green={p.status === "verified"}>{p.status.replaceAll("_", " ")}</Tag>
                 <Text style={s.cardTitle}>{label(p)}</Text>
@@ -1611,16 +1611,13 @@ export function PropertyDetailScreen() {
               { height: 340, borderRadius: 24, overflow: "hidden" },
             ]}
           >
-            {photos.length ? (
-              <PropertyImage
-                source={{ uri: photos[activePhoto] }}
-                style={StyleSheet.absoluteFill}
-              />
-            ) : (
-              <View style={[StyleSheet.absoluteFill, s.placeholder]}>
-                <Icon name="home-work" size={70} />
-              </View>
-            )}
+            <PropertyImage
+              source={photos.length ? { uri: photos[activePhoto] } : resolvePropertyPhotoSource(p)}
+              fallbackSource={getFallbackPropertyPhotoSource(p, activePhoto)}
+              isPublic
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+            />
             {photos.length > 0 && <Text style={s.photoCounter}>{activePhoto + 1} / {photos.length} photos</Text>}
             <View style={s.imageTags}>
               <Tag green>✓ Verified property</Tag>
@@ -1652,7 +1649,12 @@ export function PropertyDetailScreen() {
                   accessibilityLabel={`View photo ${index + 1}`}
                   accessibilityState={{ selected: index === activePhoto }}
                   onPress={() => setGalleryIndex(index)} style={[s.galleryThumb, index === activePhoto && { borderColor: C.sun }]}>
-                  <PropertyImage source={{ uri }} style={StyleSheet.absoluteFill} />
+                  <PropertyImage
+                    source={{ uri }}
+                    fallbackSource={getFallbackPropertyPhotoSource(p, index)}
+                    isPublic
+                    style={StyleSheet.absoluteFill}
+                  />
                 </Pressable>
               ))}
             </ScrollView>
@@ -2416,7 +2418,11 @@ export function PostScreen() {
                     </Pressable>
                     {form.media.photos.map((uri: string, index: number) => (
                       <View key={uri} style={s.postMediaTile}>
-                        <PropertyImage source={{ uri }} style={StyleSheet.absoluteFill} />
+                        <PropertyImage
+                          source={{ uri }}
+                          fallbackSource={getFallbackPropertyPhotoSource(form, index)}
+                          style={StyleSheet.absoluteFill}
+                        />
                         {index === 0 && <Text style={s.postCover}>Cover</Text>}
                       </View>
                     ))}
