@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, Platform, StyleSheet, useWindowDimensions } from "react-native";
+import { View, Text, TouchableOpacity, Platform, StyleSheet, useWindowDimensions, Image } from "react-native";
 import { useSafeAreaInsets } from "@/web/safeArea";
 import { useRouter, usePathname } from "@/web/navigation";
 import { MaterialIcons } from "@/web/icons";
@@ -8,6 +8,7 @@ import { useAuthStore } from "../src/store/authStore";
 import { useUserListingsStore } from "../src/store/userListingsStore";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 import { FONT_BODY, FONT_DISPLAY, FONT_MONO } from "../constants/typography";
+import malikseLogo from "../assets/images/malikse-logo.png";
 
 interface AppHeaderProps {
   title?: string;
@@ -81,7 +82,12 @@ export default function AppHeader(props: AppHeaderProps) {
             style={styles.brandLockup}
           >
             <View style={styles.logoIcon}>
-              <MaterialIcons name="roofing" size={22} color="#14263E" />
+              <Image
+                source={{ uri: malikseLogo }}
+                style={{ width: "100%", height: "100%" }}
+                resizeMode="cover"
+                accessibilityLabel="MalikSe logo"
+              />
             </View>
             <View style={styles.brandTextCol}>
               <Text style={styles.brandTitle}>
@@ -278,6 +284,7 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 10,
     backgroundColor: "#FCC61C",
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
     ...Platform.select({

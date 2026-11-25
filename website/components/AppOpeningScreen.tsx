@@ -4,6 +4,7 @@ import { MaterialIcons } from "@/web/icons";
 import { useSafeAreaInsets } from "@/web/safeArea";
 import { useLanguageStore } from "../src/store/languageStore";
 import AppBackground from "./AppBackground";
+import malikseLogo from "../assets/images/malikse-logo.png";
 
 const villaPhoto = { uri: "https://images.unsplash.com/photo-1602343168117-bb8ffe3e2e9f?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTl8fHZpbGxhfGVufDB8fDB8fHww" };
 
@@ -52,7 +53,14 @@ export default function AppOpeningScreen({ onFinish, ready = true }: { onFinish?
         <Image source={villaPhoto} resizeMode="cover" style={styles.photo} accessible={false} />
         <View style={[styles.tint, { pointerEvents: "none" }]} />
         <View style={styles.brandRow}>
-          <View style={styles.brandMark}><MaterialIcons name="wb-sunny" size={22} color="#26382F" /></View>
+          <View style={styles.brandMark}>
+            <Image
+              source={{ uri: malikseLogo }}
+              style={{ width: "100%", height: "100%" }}
+              resizeMode="cover"
+              accessible={false}
+            />
+          </View>
           <Text style={styles.brand}>MalikSe</Text>
         </View>
         <View style={styles.photoCaption}>
@@ -81,7 +89,7 @@ const styles = StyleSheet.create({
   photo: { position: "absolute", top: 0, left: 0, width: "100%", height: "76%" },
   tint: { position: "absolute", top: 0, left: 0, right: 0, height: "76%", backgroundColor: "rgba(13,32,27,0.27)" },
   brandRow: { position: "absolute", top: 26, left: 25, flexDirection: "row", alignItems: "center", gap: 10 },
-  brandMark: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#F9FBF4", alignItems: "center", justifyContent: "center" },
+  brandMark: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#FCC61C", overflow: "hidden", alignItems: "center", justifyContent: "center" },
   brand: { color: "white", fontFamily: "PoppinsSemiBold", fontSize: 22, letterSpacing: -0.7 },
   photoCaption: { position: "absolute", bottom: "41%", left: 27, right: 20 },
   eyebrow: { color: "#F2F6EC", fontFamily: "PoppinsMedium", fontSize: 9, letterSpacing: 2, marginBottom: 12 },
