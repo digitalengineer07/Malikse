@@ -1,5 +1,6 @@
-import PropertyImage from "./PropertyImage";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -16,19 +17,18 @@ import {
   View,
   type ScrollViewInstance,
 } from "react-native";
-import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
-import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BlurView, { GlassBackdrop } from "./GlassSurface";
+import PropertyImage from "./PropertyImage";
 
-import AppHeader from "./AppHeader";
-import PropertyTypeTabs from "./PropertyTypeTabs";
-import HouseIllustration from "./HouseIllustration";
-import CitySkyline from "./CitySkyline";
 import { cachedPropertySearch, propertyService } from "../src/services/propertyService";
-import type { Property, PropertyType } from "../src/types/property.types";
 import { getRecommendedProperties, getUserAffinity, hydrateUserAffinity, setUserCustomPreferences, type RecommendationCategory } from "../src/services/recommendationEngine";
+import type { Property, PropertyType } from "../src/types/property.types";
 import { getFallbackPropertyPhotoSource, resolvePropertyPhotoSource } from "../src/utils/propertyImages";
+import AppHeader from "./AppHeader";
+import CitySkyline from "./CitySkyline";
+import HouseIllustration from "./HouseIllustration";
+import PropertyTypeTabs from "./PropertyTypeTabs";
 
 const nameOf = (p: Property) => p.title || `${p.type} in ${p.location.district}`;
 const priceOf = (p: Property) => `₹${p.price.toLocaleString("en-IN")}`;
@@ -161,8 +161,8 @@ export default function VerifiedHomeScreen() {
         active = false;
         setSelected(null);
       };
-    // Revision and areaSelection explicitly refresh an otherwise unchanged query.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      // Revision and areaSelection explicitly refresh an otherwise unchanged query.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [revision, type, query, min, max, district, state, pincode, address, areaSelection, page, filterKey, pagination.key, pagination.cursors])
   );
 
