@@ -1,23 +1,23 @@
-import contactChangeRouter from "./routes/contactChange.routes";
-import kycRoutes from "./routes/kyc.routes";
-import accountDeletionRoutes from "./routes/accountDeletion.routes";
-import recommendationRoutes from "./routes/recommendation.routes";
 import express from "express";
-import parcelPlacesRoutes from "./routes/parcelPlaces.routes";
 import mongoose from "mongoose";
-import supportRoutes from "./routes/support.routes";
-import authRoutes from "./routes/auth.routes";
-import propertyRoutes from "./routes/property.routes";
-import documentRoutes from "./routes/document.routes";
-import dealRoutes from "./routes/deal.routes";
-import advisorRoutes from "./routes/advisor.routes";
-import adminRoutes from "./routes/admin.routes";
-import userRoutes from "./routes/user.routes";
-import inquiryRoutes from "./routes/inquiry.routes";
-import photoRoutes from "./routes/photo.routes";
-import pushRoutes from "./routes/push.routes";
-import { validatePagination } from "./services/pagination";
 import { errorHandler, installRuntimeMiddleware, notFound } from "./middleware/runtime.middleware";
+import accountDeletionRoutes from "./routes/accountDeletion.routes";
+import adminRoutes from "./routes/admin.routes";
+import advisorRoutes from "./routes/advisor.routes";
+import authRoutes from "./routes/auth.routes";
+import contactChangeRouter from "./routes/contactChange.routes";
+import dealRoutes from "./routes/deal.routes";
+import documentRoutes from "./routes/document.routes";
+import inquiryRoutes from "./routes/inquiry.routes";
+import kycRoutes from "./routes/kyc.routes";
+import parcelPlacesRoutes from "./routes/parcelPlaces.routes";
+import photoRoutes from "./routes/photo.routes";
+import propertyRoutes from "./routes/property.routes";
+import pushRoutes from "./routes/push.routes";
+import recommendationRoutes from "./routes/recommendation.routes";
+import supportRoutes from "./routes/support.routes";
+import userRoutes from "./routes/user.routes";
+import { validatePagination } from "./services/pagination";
 
 export function createApp(isReady = () => mongoose.connection.readyState === 1) {
   const app = express();
@@ -25,7 +25,7 @@ export function createApp(isReady = () => mongoose.connection.readyState === 1) 
   app.use(express.json({ limit: "100kb" }));
   app.use(express.urlencoded({ extended: false, limit: "100kb", parameterLimit: 100 }));
   app.use(validatePagination);
-  app.get("/health", (_req, res) => res.json({ status: "ok", service: "MalikSe API" }));
+  app.get("/health", (_req, res) => res.json({ status: "ok", service: "MalikSe API 2.0" }));
   app.get("/ready", (_req, res) => {
     const ready = isReady();
     res.status(ready ? 200 : 503).json({ status: ready ? "ready" : "unavailable" });
