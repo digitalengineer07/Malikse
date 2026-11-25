@@ -4,7 +4,7 @@ import WebFooter from "./WebFooter";
 import malikseLogo from "../assets/images/malikse-logo.png";
 import "../web/privacy.css";
 
-export const privacyContact = import.meta.env.VITE_PRIVACY_CONTACT_EMAIL || "support@malikse.in";
+export const privacyContact = import.meta.env.VITE_PRIVACY_CONTACT_EMAIL || "support@malikse.com";
 export const placeholderContact = privacyContact.endsWith(".example");
 
 export default function PrivacyLayout({

@@ -18,7 +18,7 @@ export default function WebFooter() {
   const authState = useAuthStore((s) => s.authState);
 
   const openEmailSupport = () => {
-    Linking.openURL("mailto:support@malikse.in");
+    Linking.openURL("mailto:support@malikse.com");
   };
 
   return (
@@ -119,7 +119,7 @@ export default function WebFooter() {
 
             <TouchableOpacity activeOpacity={0.75} style={styles.contactItem} onPress={openEmailSupport}>
               <MaterialIcons name="email" size={14} color="#FCC61C" style={{ marginTop: 2 }} />
-              <Text style={styles.linkText}>support@malikse.in</Text>
+              <Text style={styles.linkText}>support@malikse.com</Text>
             </TouchableOpacity>
 
             <View style={styles.contactItem}>

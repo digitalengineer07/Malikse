@@ -48,7 +48,7 @@ const FAQ_ITEMS: FaqItem[] = [
     category: "Buying & Verification",
     question: "How do I report an incorrect price, duplicate listing, or suspicious contact?",
     answer:
-      "Signed-in users can report a listing directly from the property page or inside the mobile app's Contact Support screen. You can also use the support form below or email support@malikse.in with the listing title, district, and details so our verification team can review and act promptly.",
+      "Signed-in users can report a listing directly from the property page or inside the mobile app's Contact Support screen. You can also use the support form below or email support@malikse.com with the listing title, district, and details so our verification team can review and act promptly.",
   },
   {
     id: "post-property-steps",
@@ -97,7 +97,7 @@ const FAQ_ITEMS: FaqItem[] = [
     category: "App & Technical",
     question: "I did not receive my login or registration OTP — what should I check?",
     answer:
-      "Check that your email address or mobile number has no extra spaces or typos, wait for the 100-second resend timer, and inspect your Spam or Promotions folder for email codes. If you remain locked out, write to support@malikse.in with your registered mobile or email (never share your password or OTP).",
+      "Check that your email address or mobile number has no extra spaces or typos, wait for the 100-second resend timer, and inspect your Spam or Promotions folder for email codes. If you remain locked out, write to support@malikse.com with your registered mobile or email (never share your password or OTP).",
   },
 ];
 
@@ -390,7 +390,7 @@ export default function SupportPage() {
               </button>
 
               <button type="button" className="support-btn-secondary" onClick={copySupportEmail}>
-                {copiedEmail ? "Copied support@malikse.in ✓" : `Copy ${privacyContact}`}
+                {copiedEmail ? `Copied ${privacyContact} ✓` : `Copy ${privacyContact}`}
               </button>
             </div>
           </form>
