@@ -45,12 +45,15 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
   const [otp, setOtp] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [retryAt, setRetryAt] = useState(0);
+  const [loginRetryAt, setLoginRetryAt] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
   const expiresIn = Math.max(0, Math.ceil(((challenge?.expiresAt || 0) - now) / 1000));
   const resendIn = Math.max(0, Math.ceil((Math.max(challenge?.resendAt || 0, retryAt) - now) / 1000));
+  const loginRetryIn = Math.max(0, Math.ceil((loginRetryAt - now) / 1000));
+  const submitDisabled = loading || (register ? (challenge ? expiresIn === 0 : resendIn > 0) : loginRetryIn > 0);
   const sendCode = async () => {
     const cleanMobile = mobile.trim();
     const cleanEmail = email.trim().toLowerCase();
@@ -84,7 +87,7 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
   };
 
   const submit = async () => {
-    if (submitting.current) return;
+    if (submitting.current || (!register && Date.now() < loginRetryAt)) return;
     setError("");
     if (register && name.trim().length < 2) {
       setError(label("Enter your full name (at least 2 characters).", "अपना पूरा नाम दर्ज करें (कम से कम 2 अक्षर)।"));
@@ -115,6 +118,20 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
       } else { await authService.login(loginMethod === "email" ? loginEmail.trim().toLowerCase() : mobile.trim(), password); }
       router.replace(destination as any);
     } catch (cause: any) {
+      if (!register && cause?.response?.status === 429) {
+        const headers = cause.response.headers;
+        const raw = String(headers?.["retry-after"] ?? "");
+        const currentTime = Date.now();
+        const delay = /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - currentTime;
+        setNow(currentTime);
+        setLoginRetryAt(currentTime + (Number.isFinite(delay) && delay > 0 ? delay : 30_000));
+        console.warn("[Login] Rate limited", {
+          requestId: headers?.["x-request-id"],
+          edgeRequestId: headers?.["x-hcdn-request-id"],
+          retryAfter: headers?.["retry-after"],
+        });
+        return;
+      }
       if (cause?.response?.data?.retryAfterSeconds) {
         setRetryAt(Date.now() + cause.response.data.retryAfterSeconds * 1000);
         if (register && !challenge && cause.response.status === 429) return;
@@ -221,7 +238,8 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
           {register && !challenge && resendIn > 0 && <Text style={styles.description}>{label(`You can request another OTP in ${resendIn}s.`, `${resendIn} सेकंड में नया OTP मांग सकते हैं।`)}</Text>}
           {!!notice && register && <Text accessibilityLiveRegion="polite" style={styles.description}>{notice}</Text>}
           {!!error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
-          <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: loading, busy: loading }} style={[styles.button, loading && styles.disabled]} onPress={submit} disabled={loading || (register && (challenge ? expiresIn === 0 : resendIn > 0))}>
+          {!register && loginRetryIn > 0 && <Text style={styles.error}>{label(`Sign-in is temporarily limited. Try again in ${loginRetryIn}s.`, `साइन इन अस्थायी रूप से सीमित है। ${loginRetryIn} सेकंड में फिर से कोशिश करें।`)}</Text>}
+          <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: submitDisabled, busy: loading }} style={[styles.button, submitDisabled && styles.disabled]} onPress={submit} disabled={submitDisabled}>
             {loading && <ActivityIndicator color={navy} />}
             <Text style={styles.buttonText}>{loading ? label("Please wait…", "कृपया प्रतीक्षा करें…") : register ? (challenge ? label("Verify & create account", "सत्यापित करें और खाता बनाएं") : registerMethod === "email" ? label("Send email OTP", "ईमेल OTP भेजें") : label("Send OTP", "OTP भेजें")) : label("Sign in", "साइन इन करें")}</Text>
           </TouchableOpacity>

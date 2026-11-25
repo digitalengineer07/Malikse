@@ -15,7 +15,7 @@ function reportRequestFailure(operation: string, error: unknown) {
   const response = isAxiosError(error) ? error.response : undefined;
   console.warn("[chat transport]", JSON.stringify({ operation, status: response?.status,
     code: isAxiosError(error) ? error.code : "invalid_response", requestId: response?.headers["x-request-id"],
-    server: response?.headers.server, contentType: response?.headers["content-type"],
+    edgeRequestId: response?.headers["x-hcdn-request-id"], contentType: response?.headers["content-type"],
     retryAfter: response?.headers["retry-after"], rateLimit: response?.headers.ratelimit }));
 }
 

@@ -7,6 +7,7 @@ export function trustedCookieOrigin(req: Request) {
   const origin = req.get("origin");
   if (!origin) return false;
   if (allowed.includes(origin)) return true;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
   return process.env.NODE_ENV !== "production" && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
 }
 const options = () => ({ httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict" as const, path: "/auth" });
