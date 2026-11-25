@@ -158,6 +158,10 @@ export default function WebFooter() {
                 <Text style={styles.legalLink}>Privacy Policy</Text>
               </TouchableOpacity>
               <Text style={styles.legalDot}>•</Text>
+              <TouchableOpacity accessibilityRole="link" onPress={() => router.push("/terms-and-conditions")}>
+                <Text style={styles.legalLink}>Terms &amp; Conditions</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalDot}>•</Text>
               <TouchableOpacity accessibilityRole="link" onPress={() => router.push("/delete-account")}>
                 <Text style={styles.legalLink}>Delete account</Text>
               </TouchableOpacity>

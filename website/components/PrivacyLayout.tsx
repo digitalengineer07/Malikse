@@ -29,7 +29,9 @@ export default function PrivacyLayout({
         ? "Privacy Policy"
         : pathname === "/support"
           ? "Help & Support"
-          : "Delete Account";
+          : pathname === "/terms-and-conditions" || pathname === "/terms"
+            ? "Terms & Conditions"
+            : "Delete Account";
     document.title = `${pageTitle} | MalikSe`;
     const target = hash ? document.getElementById(hash.slice(1)) : null;
     if (target) target.scrollIntoView({ behavior: "smooth" });
@@ -71,6 +73,12 @@ export default function PrivacyLayout({
               className={`privacy-nav-link ${pathname === "/privacy-policy" ? "is-active" : ""}`}
             >
               Privacy Policy
+            </Link>
+            <Link
+              to="/terms-and-conditions"
+              className={`privacy-nav-link ${pathname === "/terms-and-conditions" || pathname === "/terms" ? "is-active" : ""}`}
+            >
+              Terms
             </Link>
             <Link
               to="/delete-account"
