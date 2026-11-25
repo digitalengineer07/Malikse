@@ -1,8 +1,9 @@
+import { BrandLockup, brandHeader } from "./BrandLockup";
 import NotificationFailures from "./NotificationFailures";
 import NotificationBell from "./NotificationBell";
 import { marketplaceBackground } from "../constants/theme";
 import React from "react";
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View, Linking, Share } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useIsFocused, useRouter, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -19,8 +20,8 @@ const navy = "#14263E";
 const yellow = "#FCC61C";
 const muted = "#536174";
 
-export default function RoleDashboard({ role, title, subtitle, sections }: {
-  role: UserRole; title: string; subtitle: string; sections: Section[];
+export default function RoleDashboard({ role, title, subtitle, sections = [], workspace }: {
+  role: UserRole; title: string; subtitle: string; sections?: Section[]; workspace?: React.ReactElement;
 }) {
   const router = useRouter();
   const focused = useIsFocused();
@@ -30,24 +31,33 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
   const { width } = useWindowDimensions();
   const compact = width < 680;
   const cardWidth = compact ? "100%" : width < 1000 || sections.length === 2 ? "48%" : "31.8%";
+  const isAdvisor = role === "advisor";
+  const fixedStatusInset = isAdvisor || role === "admin";
+  const reviewRoute = isAdvisor ? sections[0]?.route : undefined;
   const hasAccess = authState === "AUTHENTICATED" && user?.role === role;
+
+  React.useEffect(() => {
+    if (hasAccess) {
+      void authService.getMe().catch(() => {});
+    }
+  }, [hasAccess]);
 
   return <View style={styles.screen}>
     {focused && <StatusBar style="light" />}
+    {fixedStatusInset && <View pointerEvents="none" style={[styles.advisorStatusInset, { height: insets.top }]} />}
     <ScrollView contentContainerStyle={{ paddingBottom: hasAccess ? 20 : insets.bottom + 20 }}>
-      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
+      <View style={[styles.header, { paddingTop: fixedStatusInset ? 14 : insets.top + 14 }]}>
         <View style={styles.sun} pointerEvents="none" />
         <View style={styles.ray} pointerEvents="none" />
         <View style={[styles.headerInner, compact && styles.horizontalCompact]}>
-          <View style={styles.topline}>
+          <View style={[styles.topline, hasAccess && styles.toplineWithContent]}>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back" style={styles.back}
               onPress={() => router.canGoBack() ? router.back() : router.replace("/home")}>
               <MaterialIcons name="arrow-back" size={22} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="MalikSe home" style={styles.brand}
               onPress={() => router.replace("/home")}>
-              <View style={styles.brandIcon}><MaterialIcons name="roofing" size={20} color={navy} /></View>
-              <Text style={styles.brandText}>MalikSe<Text style={{ color: yellow }}>.</Text></Text>
+              <BrandLockup />
             </TouchableOpacity>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={language === "en" ? "Switch to Hindi" : "Switch to English"}
               style={styles.language} onPress={toggleLanguage}>
@@ -56,11 +66,11 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
             {hasAccess && <NotificationBell />}
           </View>
           {hasAccess && <>
-            <View style={styles.workspace}>
+            {!workspace && <View style={styles.workspace}>
               <Text style={[styles.eyebrow, styles.onNavy]}>MALIKSE / YOUR WORKSPACE</Text>
               <View style={styles.rolePill}><View style={styles.roleDot} /><Text style={styles.roleText}>{role}</Text></View>
-            </View>
-            <Text accessibilityRole="header" style={[styles.title, compact && styles.titleCompact]}>{title}</Text>
+            </View>}
+            <Text accessibilityRole="header" style={styles.title}>{title}</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>
           </>}
         </View>
@@ -76,25 +86,131 @@ export default function RoleDashboard({ role, title, subtitle, sections }: {
           </TouchableOpacity>
         </View>
       ) : <>
-      {role === "admin" && <NotificationFailures />}
+      {workspace ?? <>
       <View style={styles.hero}>
         <Image source={require("../assets/saved_villa_house.jpg")} style={styles.heroBackground} resizeMode="cover" />
         <View style={styles.heroShade} />
-        <View style={styles.heroCopy}><View style={styles.welcomeRow}><View style={styles.avatar}><Text style={styles.avatarText}>{user.name?.charAt(0).toUpperCase()}</Text></View><Text style={styles.welcome}>Welcome, {user.name}</Text></View>
-          <Text style={styles.heroTitle}>A place for{ "\n" }your next chapter.</Text>
-          <Text style={styles.heroDescription}>Your properties, your people, and the tools you need to move forward.</Text>
-          <TouchableOpacity accessibilityRole="button" style={styles.primaryButton} onPress={() => router.replace("/home")}><Text style={styles.buttonLabel}>Explore verified properties</Text><MaterialIcons name="north-east" size={18} color={navy} /></TouchableOpacity>
+        <View style={[styles.heroCopy, isAdvisor && styles.advisorHeroCopy]}><View style={styles.welcomeRow}><View style={styles.avatar}><Text style={styles.avatarText}>{user.name?.charAt(0).toUpperCase()}</Text></View><Text style={styles.welcome}>Welcome, {user.name}</Text></View>
+          {reviewRoute ? (
+            <>
+              <Text accessibilityRole="header" style={[styles.heroTitle, styles.advisorHeroTitle]}>Property reviews</Text>
+              <Text style={styles.heroDescription}>Open assigned work or revisit past decisions.</Text>
+              <View style={styles.accountActions}>
+                <TouchableOpacity accessibilityRole="button" style={styles.primaryButton} onPress={() => router.push(reviewRoute)}>
+                  <Text style={styles.buttonLabel}>Open reviews</Text>
+                  <MaterialIcons name="arrow-forward" size={18} color={navy} />
+                </TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" style={styles.advisorMarketplaceButton} onPress={() => router.replace("/home")}>
+                  <Text style={[styles.buttonLabel, styles.advisorMarketplaceLabel]}>Explore properties</Text>
+                  <MaterialIcons name="north-east" size={17} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : <>
+            <Text style={styles.heroTitle}>A place for{ "\n" }your next chapter.</Text>
+            <Text style={styles.heroDescription}>Your properties, your people, and the tools you need to move forward.</Text>
+            <TouchableOpacity accessibilityRole="button" style={styles.primaryButton} onPress={() => router.replace("/home")}><Text style={styles.buttonLabel}>Explore verified properties</Text><MaterialIcons name="north-east" size={18} color={navy} /></TouchableOpacity>
+          </>}
         </View>
 
       </View>
-      <View style={styles.sectionHeading}><View><Text style={styles.eyebrow}>YOUR TOOLS</Text><Text accessibilityRole="header" style={styles.sectionTitle}>Make your next move.</Text></View><Text style={styles.sectionNote}>Built around your role</Text></View>
+      {role === "advisor" && (
+        <View style={styles.advisorCard}>
+          <View style={styles.advisorCardHeader}>
+            <View style={styles.iconBox}><MaterialIcons name="badge" size={22} color={navy} /></View>
+            <View style={styles.advisorCodePanel}>
+              <Text accessibilityRole="header" style={styles.advisorCodeLabel}>Advisor ID</Text>
+              <Text selectable={Boolean(user.advisorCode)} style={styles.advisorCodeText}>{user.advisorCode || "ID unavailable"}</Text>
+            </View>
+          </View>
+          <Text style={styles.advisorCardDescription}>Share this code with sellers so they can assign their listing to you.</Text>
+          {Boolean(user.assignedDistricts?.length) && (
+            <Text style={styles.advisorCardDescription}>Assigned districts: {user.assignedDistricts?.join(", ")}</Text>
+          )}
+          {Boolean(user.advisorCode) && (
+            <View style={styles.accountActions}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={styles.primaryButton}
+                onPress={() => {
+                  Share.share({ message: `My MalikSe Advisor ID is ${user.advisorCode}. Enter it when posting your property on MalikSe.` }).catch(() => {});
+                }}
+              >
+                <MaterialIcons name="share" size={17} color={navy} />
+                <Text style={styles.buttonLabel}>Share ID</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Share Advisor ID on WhatsApp"
+                style={styles.profileButton}
+                onPress={() => {
+                  const message = `Use my MalikSe Advisor ID *${user.advisorCode}* when posting your property on MalikSe.`;
+                  Linking.openURL("https://wa.me/?text=" + encodeURIComponent(message)).catch(() => {});
+                }}
+              >
+                <MaterialIcons name="chat" size={17} color={navy} />
+                <Text style={styles.buttonLabel}>WhatsApp</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+      {isAdvisor ? <Text accessibilityRole="header" style={styles.sectionTitle}>Workspace tools</Text> : <View style={styles.sectionHeading}><View><Text style={styles.eyebrow}>YOUR TOOLS</Text><Text accessibilityRole="header" style={styles.sectionTitle}>Make your next move.</Text></View><Text style={styles.sectionNote}>Built around your role</Text></View>}
+      {isAdvisor ? (
+        <View style={styles.advisorTools}>
+          {sections.map((section, index) => (
+            <TouchableOpacity
+              key={section.title}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !section.route }}
+              disabled={!section.route}
+              onPress={() => section.route && router.push(section.route)}
+              style={[styles.advisorTool, index === 0 && styles.advisorReviewTile]}
+            >
+              <View style={styles.advisorTileTop}>
+                <MaterialIcons name={index === 0 ? "fact-check" : "home-work"} size={24} color={navy} />
+                <MaterialIcons name={section.route ? "north-east" : "schedule"} size={17} color={muted} />
+              </View>
+              <Text style={styles.cardTitle}>{index === 0 ? "Reviews" : "Marketplace"}</Text>
+              <Text style={styles.cardDescription}>{index === 0 ? "Assigned work and history" : "Browse verified properties"}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : (
       <View style={styles.grid}>{sections.map((section, index) => <TouchableOpacity key={section.title} accessibilityRole="button" accessibilityState={{ disabled: !section.route }} style={[styles.card, { width: cardWidth }, index === 0 && styles.primaryCard, !section.route && styles.disabledCard]} disabled={!section.route} onPress={() => section.route && router.push(section.route)}>
         <View style={styles.cardTop}><View style={[styles.iconBox, index === 0 && styles.primaryIcon]}><MaterialIcons name={icons[index % icons.length]} size={24} color={navy} /></View><Text style={styles.cardIndex}>{String(index + 1).padStart(2, "0")}</Text></View>
         <Text style={styles.cardTitle}>{section.title}</Text><Text style={styles.cardDescription}>{section.description}</Text>
         <View style={styles.cardBottom}><Text style={styles.cardAction}>{section.route ? "Open workspace" : "Coming later"}</Text><View style={styles.arrowCircle}><MaterialIcons name={section.route ? "north-east" : "schedule"} size={18} color="#111827" /></View></View>
       </TouchableOpacity>)}</View>
-      <View style={[styles.accountBar, compact && styles.accountCompact]}><View style={styles.accountIdentity}><View style={styles.accountIcon}><MaterialIcons name="person-outline" size={24} color="#345A76" /></View><View><Text style={styles.accountTitle}>Your account</Text><Text style={styles.accountDescription}>Profile details and session settings</Text></View></View>
-        <View style={styles.accountActions}><TouchableOpacity accessibilityRole="button" style={styles.profileButton} onPress={() => router.push("/profile")}><Text style={styles.buttonLabel}>My profile</Text><MaterialIcons name="north-east" size={15} color={navy} /></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.signOut} onPress={() => { authService.logout().finally(() => router.replace("/login")); }}><Text style={styles.signOutLabel}>Sign out</Text></TouchableOpacity></View>
+      )}
+      </>}
+      {role === "admin" && focused && <NotificationFailures />}
+      <View style={[styles.accountBar, compact && styles.accountCompact, (isAdvisor || workspace) && styles.advisorAccount]}>
+        <View style={styles.accountIdentity}>
+          <View style={styles.accountIcon}><MaterialIcons name="person-outline" size={24} color={isAdvisor ? navy : "#345A76"} /></View>
+          <View>
+            <Text accessibilityRole="header" style={styles.accountTitle}>Your account</Text>
+            {!(isAdvisor || workspace) && <Text style={styles.accountDescription}>Profile details and session settings</Text>}
+          </View>
+        </View>
+        <View style={[styles.accountActions, (isAdvisor || workspace) && styles.advisorAccountActions]}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={[styles.profileButton, (isAdvisor || workspace) && [styles.advisorAccountAction, styles.advisorProfileAction]]}
+            onPress={() => router.push("/profile")}
+          >
+            <Text style={styles.buttonLabel}>My profile</Text>
+            <MaterialIcons name="north-east" size={15} color={navy} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={[styles.signOut, (isAdvisor || workspace) && styles.advisorAccountAction]}
+            onPress={() => { authService.logout().finally(() => router.replace("/login")); }}
+          >
+            {(isAdvisor || workspace) && <MaterialIcons name="logout" size={16} color={navy} />}
+            <Text style={styles.signOutLabel}>Sign out</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       </>}
       </View>
@@ -124,17 +240,15 @@ const styles = StyleSheet.create({
   topline: { flexDirection: "row", gap: 10, alignItems: "center", marginBottom: 10 },
   back: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#244268", alignItems: "center", justifyContent: "center" },
   brand: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 },
-  brandIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: yellow, alignItems: "center", justifyContent: "center" },
-  brandText: { color: "#fff", fontFamily: "Fraunces", fontSize: 24 },
   language: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#FFF1C0", alignItems: "center", justifyContent: "center" },
+  toplineWithContent: { marginBottom: brandHeader.gap - 4 },
   workspace: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" },
   eyebrow: { color: muted, fontFamily: "ManropeExtraBold", fontSize: 10, letterSpacing: 1.3 },
   onNavy: { color: "#E7EDF5" },
   rolePill: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: "#FFF1C0", borderRadius: 20 },
   roleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: navy },
   roleText: { textTransform: "capitalize", color: navy, fontSize: 12, fontFamily: "ManropeBold" },
-  title: { color: "#fff", fontSize: 38, fontFamily: "Fraunces" },
-  titleCompact: { fontSize: 31 },
+  title: { color: "#fff", fontSize: brandHeader.headingSize, lineHeight: brandHeader.headingLineHeight, fontFamily: "Fraunces" },
   subtitle: { color: "#E7EDF5", fontFamily: "Manrope", fontSize: 14, lineHeight: 21, maxWidth: 680 },
   content: { width: "100%", maxWidth: 1200, alignSelf: "center", paddingHorizontal: 32, paddingTop: 20, gap: 18 },
   hero: { borderRadius: 24, backgroundColor: navy, overflow: "hidden" },
@@ -176,4 +290,30 @@ const styles = StyleSheet.create({
   signOut: { paddingHorizontal: 14, minHeight: 44, borderRadius: 24, justifyContent: "center", borderWidth: 1, borderColor: "rgba(20,38,62,0.16)" },
   signOutLabel: { color: navy, fontSize: 13, fontFamily: "ManropeBold" },
   accessPanel: { ...surface, width: "100%", maxWidth: 550, alignSelf: "center", padding: 20, gap: 10 },
+  advisorHeroCopy: { gap: 10 },
+  advisorHeroTitle: { fontSize: 25, lineHeight: 31 },
+  advisorMarketplaceButton: {
+    maxWidth: "100%", flexDirection: "row", alignItems: "center", gap: 7, minHeight: 44,
+    paddingHorizontal: 13, paddingVertical: 8, borderRadius: 22,
+    backgroundColor: "#14263E", borderWidth: 1, borderColor: "#FFFFFF70",
+  },
+  advisorMarketplaceLabel: { color: "#fff" },
+  advisorStatusInset: { backgroundColor: navy },
+  advisorTools: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  advisorTool: { ...surface, flexGrow: 1, flexBasis: 138, minWidth: 0, padding: 14, gap: 7 },
+  advisorReviewTile: { backgroundColor: "#FFF1C0", borderColor: "#E9CB65" },
+  advisorTileTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
+  advisorAccount: { flexDirection: "column", alignItems: "stretch", backgroundColor: "#FFFCF4", gap: 12 },
+  advisorAccountActions: { borderTopWidth: 1, borderTopColor: "rgba(20,38,62,0.12)", paddingTop: 12 },
+  advisorProfileAction: { backgroundColor: "#FFF1C0" },
+  advisorAccountAction: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
+    flexGrow: 1, flexBasis: 108, paddingVertical: 8,
+  },
+  advisorCard: { ...surface, backgroundColor: "#FFFCF4", padding: 16, gap: 12 },
+  advisorCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  advisorCodePanel: { flex: 1, minWidth: 0, gap: 3, borderStartWidth: 2, borderStartColor: yellow, paddingStart: 12 },
+  advisorCodeLabel: { color: muted, fontFamily: "ManropeBold", fontSize: 13 },
+  advisorCodeText: { color: navy, fontFamily: "ManropeExtraBold", fontSize: 23, letterSpacing: 1 },
+  advisorCardDescription: { color: muted, fontFamily: "Manrope", fontSize: 13, lineHeight: 20 },
 });

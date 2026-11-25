@@ -46,6 +46,10 @@ yarn-error.*
 !**/.env.sample
 !**/.env.template
 
+# IDE
+.idea/
+*.iml
+
 # typescript
 *.tsbuildinfo
 
@@ -116,3 +120,5 @@ app/dist-workflow-check/
 /app/tsc_error.txt
 /scratch/
 /MalikSe-Play-Store-Pack.zip
+
+.notification-production-release/

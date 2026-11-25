@@ -42,6 +42,7 @@ export interface IProperty extends Document {
   status: "draft" | "queued" | "pending" | "advisor_verified" | "correction_required" | "rejected" | "verified" | "sold";
   submission?: { id: string; digest: string; attempts: number; nextAttemptAt: Date; leaseUntil?: Date; leaseToken?: string; error?: string; completedAt?: Date };
   requestedAdvisorId?: string;
+  requestedAdvisorCode?: string;
   firstPublishedAt?: Date;
   reservedDealId?: mongoose.Types.ObjectId;
   soldAt?: Date;
@@ -67,7 +68,8 @@ const PropertySchema = new Schema<IProperty>(
     title: { type: String, trim: true, maxlength: 200 },
     description: { type: String, maxlength: 5000 },
     assignedVerifierId: { type: Schema.Types.ObjectId, ref: "User" },
-    requestedAdvisorId: { type: String, trim: true, maxlength: 24 },
+    requestedAdvisorId: { type: String, trim: true, maxlength: 32 },
+    requestedAdvisorCode: { type: String, trim: true, uppercase: true, maxlength: 16 },
     firstPublishedAt: Date,
     reservedDealId: { type: Schema.Types.ObjectId, ref: "Deal" },
     soldAt: Date,

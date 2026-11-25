@@ -13,19 +13,17 @@ const { PasswordReset } = require('../dist/models/PasswordReset.model');
 const { Property } = require('../dist/models/Property.model');
 const { Notification } = require('../dist/models/Notification.model');
 const { Inquiry } = require('../dist/models/Inquiry.model');
-const { PushDevice } = require('../dist/models/PushDevice.model');
-const { PushReceipt } = require('../dist/models/PushReceipt.model');
 const { createRequiredIndexes, verifyRequiredIndexes } = require('../dist/services/requiredIndexes');
 const { generateTokens } = require('../dist/services/security');
 const { authenticateRequest } = require('../dist/middleware/auth.middleware');
-const { deliverNotifications } = require('../dist/services/notificationQueue');
-const { checkPushReceipts } = require('../dist/services/pushNotifications');
 const passwords = require('../dist/services/passwords').default;
 const { validateListing } = require('../dist/services/propertyWorkflow');
 const { stopRegionCounts } = require('../dist/services/regionCountStore');
 (async () => {
  const dbName = 'malikse_remediation_' + randomUUID().replaceAll('-', '');
- await mongoose.connect('mongodb://127.0.0.1:27017/' + dbName, { autoIndex: false });
+ const port = process.env.TEST_MONGO_PORT || '27017';
+ assert.match(port, /^\d{1,5}$/);
+ await mongoose.connect('mongodb://127.0.0.1:' + port + '/' + dbName, { autoIndex: false });
  let server;
  const realFetch = global.fetch;
  try {
@@ -94,30 +92,8 @@ const { stopRegionCounts } = require('../dist/services/regionCountStore');
   const freshToken = generateTokens(await User.findById(owner._id)).accessToken;
   assert.equal((await req('/properties', { ...valid, media: { photos: ['https://tracker.test/pixel'] } }, freshToken)).status, 400);
   assert.equal((await req('/users/contact-change', { email: 'new@example.test', password }, generateTokens(unverified).accessToken)).status, 409);
-  // A 200 provider response can still contain failed tickets; only failed devices retry.
-  await PushDevice.create([{ userId: owner._id, platform: 'android', token: 'ExpoPushToken[good]' }, { userId: owner._id, platform: 'android', token: 'ExpoPushToken[retry]' }]);
-  const job = await Notification.create({ recipient: owner._id, title: 'Fixture', body: 'Test', data: { kind: 'deal', id: 'fixture' } });
-  let sends = 0;
-  global.fetch = async (url, options) => {
-   assert.ok(String(url).startsWith('https://exp.host/'));
-   if (String(url).endsWith('getReceipts')) return Response.json({ data: Object.fromEntries(JSON.parse(options.body).ids.map(id => [id, { status: 'error', details: { error: 'MessageRateExceeded' } }])) });
-   sends++;
-   const batch = JSON.parse(options.body);
-   if (sends > 1) assert.equal(batch.length, 1);
-   return Response.json({ data: batch.map(item => item.to.includes('good') ? { status: 'ok', id: randomUUID() } : { status: 'error', details: { error: 'MessageRateExceeded' } }) });
-  };
-  for (let i = 0; i < 5; i++) { await Notification.updateOne({ _id: job._id }, { $set: { nextAttemptAt: new Date(0) } }); await deliverNotifications(); }
-  const failed = await Notification.findById(job._id); assert.ok(failed.failedAt); assert.equal(failed.deliveredAt, undefined); assert.equal(sends, 5); assert.equal(failed.acceptedTokens.length, 1);
-  await deliverNotifications(); assert.equal(sends, 5);
-  await PushReceipt.updateMany({}, { $set: { createdAt: new Date(Date.now() - 16 * 60000) } });
-  await checkPushReceipts(); assert.equal(await PushReceipt.countDocuments(), 0);
-  await PushReceipt.create({ ticketId: 'missing-receipt', token: 'ExpoPushToken[good]', notificationId: job._id, createdAt: new Date(Date.now() - 25 * 3600000) });
-  global.fetch = async () => Response.json({ data: {} });
-  await checkPushReceipts();
-  assert.equal(await PushReceipt.countDocuments(), 0);
-  assert.equal((await Notification.findById(job._id)).lastError, 'ReceiptTimeout');
-  // The Android banner uses the body sent to Expo, so assert the provider payload.
-  const buyerId = new mongoose.Types.ObjectId();
+  assert.equal((await req('/auth/google', { email: owner.email }, null)).status, 400);
+  const buyerId = unverified._id;
   const chatText = 'Can I visit tomorrow? 🏠';
   const inquiry = await Inquiry.create({
    propertyId: new mongoose.Types.ObjectId(), buyerId, staffId: owner._id,
@@ -128,14 +104,9 @@ const { stopRegionCounts } = require('../dist/services/regionCountStore');
    recipient: owner._id, title: 'New message', body: 'You have a new property message.',
    messageId: inquiry.messages[0]._id, data: { kind: 'inquiry', id: String(inquiry._id) },
   });
-  const pushBodies = [];
-  global.fetch = async (_url, options) => {
-   const batch = JSON.parse(options.body);
-   pushBodies.push(...batch.map(item => item.body));
-   return Response.json({ data: batch.map(() => ({ status: 'ok', id: randomUUID() })) });
-  };
-  await deliverNotifications();
-  assert.deepEqual(pushBodies, [chatText, chatText]);
+  const notifications = await req('/push/notifications', undefined, freshToken, 'GET');
+  assert.equal(notifications.status, 200);
+  assert.equal(notifications.data.items.find(item => item.target?.id === String(inquiry._id))?.body, chatText);
   const { scanDocumentBytes } = require('../dist/services/documentScanner');
   const previousScanner = process.env.DOCUMENT_SCAN_URL;
   try {
@@ -168,8 +139,8 @@ const { stopRegionCounts } = require('../dist/services/regionCountStore');
   assert.equal(await PropertyDocument.findById(orphanDoc._id), null);
   assert.equal(await mongoose.connection.db.collection('documents.files').countDocuments({ _id: orphanFile }), 0);
   assert.equal(await mongoose.connection.db.collection('documents.chunks').countDocuments({ files_id: orphanFile }), 0);
-  console.log('PASS: scanner fails closed, accepts clean verdict, rejects unsafe/unavailable scans; missing receipt retries after 24 hours');
-  console.log('PASS: fresh production indexes/fail-closed constraints; OTP contact change and replay; verified-only recovery; logout/reset access+refresh revocation; direct nested/media validation; partial push retries/dead-letter/receipt handling');
+  console.log('PASS: scanner fails closed, accepts clean verdict, and rejects unsafe/unavailable scans');
+  console.log('PASS: indexes, OTP contact changes, account recovery, session revocation, listing validation, and in-app chat notifications');
  } finally {
   global.fetch = realFetch;
   if (server) await new Promise(r => server.close(r));

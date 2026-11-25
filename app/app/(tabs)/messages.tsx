@@ -1,1 +1,1 @@
-export { ChatsScreen as default } from "../../components/MalikseMarketplace";
+export { WhatsAppChatScreen as default } from "../../src/features/chat";

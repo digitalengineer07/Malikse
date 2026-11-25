@@ -59,6 +59,8 @@ const {processNextSubmission}=require('../dist/services/submissionQueue');
   await req('/admin/users/'+unverified._id+'/identity',admin,{approved:true,notes:'Identity documents reviewed and approved'},200,'PUT');
   await req('/inquiries/'+chat._id,owner,undefined,403);await req('/inquiries/'+chat._id,other,undefined,403);
   await req('/inquiries/'+chat._id+'/message',advisor,{text:'Welcome'});
+  const notifications=await req('/push/notifications',buyer);
+  assert.ok(notifications.items.some(item=>item.target?.id===chat._id && item.title===advisor.name && item.body==='Welcome'));
   await req('/inquiries/'+chat._id,buyer);
   const second=await req('/deals/'+p._id+'/offer',buyer2,{amount:95000},201);
   await req('/deals/'+chat.dealId+'/status',owner,{status:'accepted'},403,'PATCH');

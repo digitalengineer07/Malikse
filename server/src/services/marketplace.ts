@@ -1,4 +1,4 @@
-import { isValidObjectId, type PipelineStage } from "mongoose";
+import { isValidObjectId, type ClientSession, type PipelineStage } from "mongoose";
 import { Property } from "../models/Property.model";
 import { User } from "../models/User.model";
 import { accountEnabled, identityApproved } from "./security";
@@ -14,14 +14,14 @@ export const publishedFilter = {
     { status: "pending" }
   ]
 };
-export function enabledOwnerStages(populateOwner = false): PipelineStage[] {
+export function enabledOwnerStages(populateOwner: boolean | "name" = false): PipelineStage[] {
   return [
     { $lookup: { from: User.collection.name, localField: "ownerId", foreignField: "_id", pipeline: [
       { $match: { isSuspended: { $ne: true }, isActive: { $ne: false } } },
-      { $project: populateOwner ? { _id: 1, name: 1, mobile: 1 } : { _id: 1 } },
+      { $project: populateOwner === "name" ? { name: 1 } : populateOwner ? { _id: 1, name: 1, mobile: 1 } : { _id: 1 } },
     ], as: "availableOwner" } },
     { $match: { "availableOwner.0": { $exists: true } } },
-    ...(populateOwner ? [{ $set: { ownerId: { $arrayElemAt: ["$availableOwner", 0] } } }] : []),
+    ...(populateOwner === "name" ? [{ $set: { sellerName: { $arrayElemAt: ["$availableOwner.name", 0] } } }] : populateOwner ? [{ $set: { ownerId: { $arrayElemAt: ["$availableOwner", 0] } } }] : []),
     { $unset: "availableOwner" },
   ];
 }
@@ -43,10 +43,10 @@ export async function offerProperty(actorId: string, propertyId: string, amount?
   return property;
 }
 
-export async function assignedStaff(property: any) {
+export async function assignedStaff(property: any, session?: ClientSession) {
   const id = property.assignedVerifierId || property.assignedAdvisorId;
   const role = property.assignedVerifierId ? "verifier" : "advisor";
-  const staff = id && await User.findOne({ _id: id, role, isActive: { $ne: false }, isSuspended: { $ne: true } });
+  const staff = id && await User.findOne({ _id: id, role, isActive: { $ne: false }, isSuspended: { $ne: true } }).session(session ?? null);
   if (!staff) throw new OfferError(409, "Assigned staff is unavailable. Please try again after reassignment");
   return staff;
 }

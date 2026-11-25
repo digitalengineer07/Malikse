@@ -12,7 +12,7 @@ class HomeFeedBusy extends Error {
   constructor() { super(homeFeedBusyMessage); }
 }
 
-export function loadHomeRecommendations(path: string, scope: string): Promise<Feed> {
+export function loadHomeRecommendations(path: string, scope: string, forceRefresh = false): Promise<Feed> {
   const key = JSON.stringify([scope, path]);
   const existing = pending.get(key);
   if (existing) return existing;
@@ -21,7 +21,7 @@ export function loadHomeRecommendations(path: string, scope: string): Promise<Fe
     const cached = feeds.get(key);
     const age = cached ? Date.now() - cached.savedAt : Infinity;
     const fallback = cached && age <= 5 * 60_000 ? cached.response : undefined;
-    if (cached && age <= 30_000) return cached.response;
+    if (!forceRefresh && cached && age <= 30_000) return cached.response;
     if (Date.now() < retryAt) {
       if (fallback) return fallback;
       throw new HomeFeedBusy();
@@ -40,7 +40,7 @@ export function loadHomeRecommendations(path: string, scope: string): Promise<Fe
         const retryAfter = error.response.headers?.["retry-after"];
         const delay = retryAfter == null ? NaN : /^\d+$/.test(String(retryAfter))
           ? Number(retryAfter) * 1000 : Date.parse(String(retryAfter)) - Date.now();
-        retryAt = Date.now() + (Number.isFinite(delay) ? Math.max(1000, delay) : 15_000);
+        retryAt = Date.now() + (Number.isFinite(delay) ? Math.min(3000, Math.max(1000, delay)) : 3_000);
         if (fallback) return fallback;
         throw new HomeFeedBusy();
       }

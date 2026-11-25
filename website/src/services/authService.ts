@@ -3,14 +3,20 @@ import { useAuthStore } from "../store/authStore";
 import type { UserProfile } from "../types/auth.types";
 import { invalidatePropertySearch } from "./searchCache";
 
-const configuredApiUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+const configuredApiUrl =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.EXPO_PUBLIC_API_BASE_URL ||
+  import.meta.env.EXPO_PUBLIC_API_URL;
+
+const PRODUCTION_API = "https://malikseserver.devoxa.in";
 
 function resolveApiUrl(): string {
   let cleanUrl = (configuredApiUrl || "").trim().replace(/^["']|["']$/g, "").replace(/\/+$/, "");
 
   // Upgrade http:// to https:// for production API to prevent browser mixed-content errors
   if (/^http:\/\/malikseserver\.devoxa\.in$/i.test(cleanUrl)) {
-    cleanUrl = "https://malikseserver.devoxa.in";
+    cleanUrl = PRODUCTION_API;
   }
 
   // If explicitly configured with a non-localhost remote URL (and not accidentally pointed at the website frontend itself)
@@ -20,16 +26,22 @@ function resolveApiUrl(): string {
 
   // If running in browser and NOT on localhost (e.g. deployed on production domain or preview)
   if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
-    return "https://malikseserver.devoxa.in";
+    return PRODUCTION_API;
   }
 
   // If built for production
   if (import.meta.env.PROD) {
-    return "https://malikseserver.devoxa.in";
+    return PRODUCTION_API;
   }
 
-  // Local development fallback
-  return cleanUrl || "http://localhost:5000";
+  // Local development: if cleanUrl is explicitly set to a local URL by developer, use it.
+  // Otherwise, default to the cloud backend (Bluehost/Hostinger) so local testing works out of the box
+  // without failing with ERR_CONNECTION_REFUSED on localhost:5000.
+  if (cleanUrl && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(?:\/|$)/i.test(cleanUrl)) {
+    return cleanUrl;
+  }
+
+  return cleanUrl || PRODUCTION_API;
 }
 
 const API_URL = resolveApiUrl();
@@ -234,9 +246,8 @@ export const authService = {
     return user;
   },
 
-  async loginWithGoogle(credential: string | { email?: string; name?: string; googleId?: string; credential?: string }): Promise<UserProfile> {
-    const payload = typeof credential === "string" ? { credential } : credential;
-    const res = await api.post("/auth/google", payload);
+  async loginWithGoogle(credential: string): Promise<UserProfile> {
+    const res = await api.post("/auth/google", { credential });
     const { accessToken, refreshToken, user } = res.data;
     if (accessToken && refreshToken) {
       useAuthStore.getState().setTokens({ accessToken, refreshToken });

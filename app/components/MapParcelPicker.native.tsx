@@ -4,7 +4,9 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { isRunningInExpoGo } from "expo";
 import Constants from "expo-constants";
 import { randomUUID } from "expo-crypto";
+import { isAxiosError } from "axios";
 import api from "../src/services/authService";
+import { useAuthStore } from "../src/store/authStore";
 import GoogleParcelMap from "./GoogleParcelMap.native";
 import NativeLeafletMap from "./NativeLeafletMap";
 import { currentMapLocation } from "../src/services/currentMapLocation";
@@ -38,6 +40,7 @@ export default function MapParcelPicker({ initialPoints, onParcelChange, locatio
   const [mode, setMode] = useState<"pin" | "boundary" | null>(null);
   const [zoomRequest, setZoomRequest] = useState<{ delta: number }>();
   const google = Platform.OS === "android" && (isRunningInExpoGo() || Constants.expoConfig?.extra?.androidGoogleMapsConfigured === true);
+  const canSearchGoogleAddresses = useAuthStore(state => state.user?.role === "user");
   const points = initialPoints ?? [];
   const setPin = (point: MapPoint) => {
     onLocationSet?.(point);
@@ -70,13 +73,14 @@ export default function MapParcelPicker({ initialPoints, onParcelChange, locatio
     setBusy(true);
     setError("");
     try {
-      let googleUnavailable = false;
-      if (google && term.length >= 3) {
+      let googleError: "access" | "unavailable" | undefined;
+      if (google && canSearchGoogleAddresses && term.length >= 3) {
         session.current ??= randomUUID();
         const addresses = await api.post<GoogleAddress[]>("/parcel-places/autocomplete", {
           input: term, sessionToken: session.current,
-        }, { signal, timeout: 7000 }).then(response => response.data).catch(() => {
-          googleUnavailable = true;
+        }, { signal, timeout: 7000 }).then(response => response.data).catch((error: unknown) => {
+          const status = isAxiosError(error) ? error.response?.status : undefined;
+          googleError = status === 401 || status === 403 ? "access" : "unavailable";
           return [];
         });
         if (signal.aborted) return;
@@ -88,7 +92,10 @@ export default function MapParcelPicker({ initialPoints, onParcelChange, locatio
       const areas = (await fetchLocationSuggestions(term, undefined, signal, false)).filter(validMapPoint);
       if (signal.aborted) return;
       setResults(areas.map(area => ({ source: "local", area })));
-      if (googleUnavailable) {
+      if (googleError === "access") {
+        setError(areas.length ? "Street address search requires a buyer/seller account. Showing MalikSe areas."
+          : "Street address search requires a buyer/seller account. Try a district, pincode, or GPS.");
+      } else if (googleError === "unavailable") {
         setError(areas.length ? "Google address search is unavailable. Showing nearby MalikSe areas."
           : "Google address search is unavailable. Try a district, pincode, or GPS.");
       } else if (!areas.length) {

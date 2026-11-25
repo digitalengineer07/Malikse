@@ -1,19 +1,22 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User.model";
+import { performanceMetrics } from "../services/performanceMetrics";
 
 export interface AuthRequest extends Request {
   user?: { id: string; role: string };
   account?: ReturnType<typeof publicUser>;
+  sessionVersion?: number;
 }
 
 import { ACCESS_SECRET, publicUser } from "../services/security";
+import { generateUniqueAdvisorCode } from "../services/advisorCodeService";
 
 /**
  * Verifies the Bearer JWT in the Authorization header.
  * Attaches `req.user` on success.
  */
-export async function authenticateRequest(header: string | undefined) {
+export async function authenticateRequest(header: string | undefined, requestId?: string) {
   if (!header || !header.startsWith("Bearer ")) {
     return { status: 401, message: "Authentication required. Please sign in as a verified owner to continue." };
   }
@@ -29,7 +32,7 @@ export async function authenticateRequest(header: string | undefined) {
     return { status: 401, message: "Session expired or invalid. Please sign in again." };
   }
   try {
-    const user = await User.findById(decoded.id).select("sessionVersion role passwordHash googleId isSuspended isActive name mobile email isVerifiedIdentity demoKycComplete createdAt").lean();
+    const user = await User.findById(decoded.id).select("sessionVersion role passwordHash googleId isSuspended isActive name mobile email advisorCode assignedDistricts isVerifiedIdentity demoKycComplete createdAt").lean();
     if (!user) {
       return { status: 401, message: "Account session not found. Please sign in again." };
     }
@@ -43,17 +46,33 @@ export async function authenticateRequest(header: string | undefined) {
     if (user.isActive === false) {
       return { status: 403, message: "Your staff account has been deactivated." };
     }
-    return { user: { id: user._id.toString(), role: user.role }, account: publicUser(user) };
-  } catch {
+    if (user.role === "advisor" && !user.advisorCode) {
+      try {
+        const code = await generateUniqueAdvisorCode();
+        await User.updateOne({ _id: user._id }, { $set: { advisorCode: code } });
+        (user as any).advisorCode = code;
+      } catch (err: any) {
+        console.warn("[auth.middleware] Auto-generating advisor code warning:", err?.message);
+      }
+    }
+    return { user: { id: user._id.toString(), role: user.role }, account: publicUser(user), sessionVersion: user.sessionVersion ?? 0 };
+  } catch (error) {
+    const cause = error as { name?: string; code?: string | number };
+    console.warn(JSON.stringify({
+      event: "account_lookup_failed", requestId, errorName: cause?.name, code: cause?.code,
+      poolCheckedOut: performanceMetrics.poolCheckedOut, poolFailures: performanceMetrics.poolFailures,
+    }));
     return { status: 503, message: "Account service is temporarily unavailable. Please try again." };
   }
 }
 
 export async function authGuard(req: AuthRequest, res: Response, next: NextFunction) {
-  const result = await authenticateRequest(req.headers.authorization);
+  const result = await authenticateRequest(req.headers.authorization, res.locals.requestId);
+  if (result.status === 503) res.setHeader("Retry-After", "2");
   if (result.status) return res.status(result.status).json({ message: result.message });
   req.user = result.user;
   req.account = result.account;
+  req.sessionVersion = result.sessionVersion;
   next();
 }
 

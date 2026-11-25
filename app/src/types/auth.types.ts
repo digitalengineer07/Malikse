@@ -10,6 +10,8 @@ export interface UserProfile {
   mobile: string;
   email?: string;
   role: UserRole;
+  advisorCode?: string;
+  assignedDistricts?: string[];
   isVerifiedIdentity: boolean;
   demoKycComplete?: boolean;
   identityVerificationMode?: "staff" | "demo";

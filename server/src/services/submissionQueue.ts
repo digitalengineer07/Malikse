@@ -1,8 +1,10 @@
-import { identityApproved } from "./security";
 import { createHash, randomUUID } from "crypto";
-import { Property, IProperty } from "../models/Property.model";
+import { IProperty, Property } from "../models/Property.model";
 import { User } from "../models/User.model";
-import { availableStaff, historyEvent, listingFields, transition, validateListing } from "./propertyWorkflow";
+import { Notification } from "../models/Notification.model";
+import { deliverNotifications } from "./notificationQueue";
+import { historyEvent, listingFields, resolvePropertyStaff, transition, validateListing } from "./propertyWorkflow";
+import { identityApproved } from "./security";
 
 const maxAttempts = 5;
 const leaseMs = 60_000;
@@ -38,26 +40,68 @@ export async function processNextSubmission(): Promise<boolean> {
     if (!seller || seller.isActive === false || seller.isSuspended || !identityApproved(seller)) throw new Error("Your account must be active with identity verification complete before submitting.");
     const invalid = validateListing(property);
     if (invalid) throw new Error(invalid);
-    const requested = property.requestedAdvisorId || property.assignedAdvisorId;
-    const advisorId = requested ? (await User.findOne({ _id: requested, role: "advisor", isActive: { $ne: false }, isSuspended: { $ne: true }, passwordHash: { $exists: true } }))?._id : undefined;
-    if (property.requestedAdvisorId && !advisorId) throw new Error("Requested Advisor is unavailable");
-    const verifierId = advisorId ? undefined : await availableStaff("verifier", property.assignedVerifierId);
+    const { advisorId, verifierId } = await resolvePropertyStaff(property);
+    if (!advisorId && !verifierId) throw new Error("No verification staff currently available");
     await Property.updateOne(filter, {
-      $set: { status: "pending", assignedAdvisorId: advisorId || null, assignedVerifierId: verifierId || null,
+      $set: {
+        status: "pending", assignedAdvisorId: advisorId || null, assignedVerifierId: verifierId || null,
         advisorReview: null, verifierReview: null, rejectionReason: "",
         badges: { identityVerified: false, documentsChecked: false, siteVisited: false, lawyerReviewed: false, fullyVerified: false },
-        "submission.completedAt": new Date(), "submission.error": "" },
+        "submission.completedAt": new Date(), "submission.error": ""
+      },
       $unset: { "submission.leaseToken": 1, "submission.leaseUntil": 1 },
       $inc: { __v: 1 },
       $push: { verificationHistory: historyEvent({ id: property.ownerId.toString(), role: "user" }, "queued", "pending", "submitted", { assignedAdvisorId: advisorId, consent: true, submissionId: property.submission!.id }) },
     });
+
+    // Notify both Seller (User) and Assigned Staff (Advisor / Verifier)
+    try {
+      const targetStaffId = advisorId || verifierId;
+      const isAdvisor = Boolean(advisorId);
+      const advisor = isAdvisor ? await User.findById(advisorId).select("name mobile advisorCode").lean() : null;
+      const propertyTitle = Array.from(property.title || "Your Property").slice(0, 100).join("");
+
+      const advisorLabel = advisor?.advisorCode
+        ? `Advisor ${advisor.name || ""} (${advisor.advisorCode})`.trim()
+        : (isAdvisor ? "an Advisor" : "a Verification Officer");
+
+      const sellerTitle = "Property Assigned for Verification";
+      const sellerBody = property.requestedAdvisorCode
+        ? `Your listing "${propertyTitle}" has been submitted and assigned to your requested ${advisorLabel}.`
+        : `Your listing "${propertyTitle}" has been submitted and assigned to ${advisorLabel} for verification.`;
+
+      const staffTitle = "New Property Assigned";
+      const staffBody = property.requestedAdvisorCode
+        ? `A client entered your Advisor ID for listing "${propertyTitle}". Review and verify this property.`
+        : `New listing "${propertyTitle}" (${property.location?.district || "Area"}) has been assigned to you for verification.`;
+
+      await Notification.create([
+        {
+          recipient: property.ownerId,
+          title: sellerTitle,
+          body: sellerBody,
+          data: { kind: "listings", id: property._id.toString() },
+        },
+        ...(targetStaffId ? [{
+          recipient: targetStaffId,
+          title: staffTitle,
+          body: staffBody,
+          data: { kind: "property", id: property._id.toString() },
+        }] : []),
+      ]);
+      void deliverNotifications().catch(() => {});
+    } catch (notifErr: any) {
+      console.warn("[submission-worker] Could not queue assignment notifications:", notifErr?.message || notifErr);
+    }
   } catch (error) {
     const exhausted = property.submission!.attempts >= maxAttempts;
     const message = "Submission could not be processed. Check your account and listing, then submit again.";
     await Property.updateOne(filter, {
-      $set: { ...(exhausted ? { status: "correction_required", rejectionReason: message } : {}),
+      $set: {
+        ...(exhausted ? { status: "correction_required", rejectionReason: message } : {}),
         "submission.error": message,
-        "submission.nextAttemptAt": new Date(Date.now() + 1000 * 2 ** property.submission!.attempts + Math.floor(Math.random() * 1000)) },
+        "submission.nextAttemptAt": new Date(Date.now() + 1000 * 2 ** property.submission!.attempts + Math.floor(Math.random() * 1000))
+      },
       $unset: { "submission.leaseToken": 1, "submission.leaseUntil": 1 },
       $inc: { __v: 1 },
       ...(exhausted ? { $push: { verificationHistory: historyEvent({ id: property.ownerId.toString(), role: "user" }, "queued", "correction_required", "submission_failed") } } : {}),

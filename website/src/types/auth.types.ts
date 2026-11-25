@@ -17,6 +17,8 @@ export interface UserProfile {
   createdAt: string;
   hasPassword?: boolean;
   isGoogleUser?: boolean;
+  advisorCode?: string;
+  assignedDistricts?: string[];
 }
 
 export interface AuthTokens {

@@ -9,7 +9,7 @@ Draft based on source inspection, not an importable Play Console CSV. Complete t
 | Does the app collect user data? | Yes. Account, KYC, listing, chat and activity data leave the device. |
 | Is all user data encrypted in transit? | Unconfirmed. Verify API, media/document links, maps, email/auth and SDK endpoints in the production build. HTTPS in the EAS API setting alone is insufficient. |
 | Can users request account deletion? | Not ready to claim. Implement and test the in-app and public web routes first. |
-| Account creation methods | Email/mobile identifier and password are present; verification challenges exist. Verify which Google/Firebase login options are actually enabled before selecting additional methods. |
+| Account creation methods | Email/mobile identifier and password are present; verification challenges exist. Verify which Google sign-in options are actually enabled before selecting additional methods. |
 | Independent security review | No review established; do not claim certification. |
 
 ## Data types and purposes
@@ -35,7 +35,6 @@ Draft based on source inspection, not an importable Play Console CSV. Complete t
 | Financial info: purchase history | Completed Deal records | App functionality | Confirm actual completed-transaction records and category applicability |
 | Location: precise location | Foreground location acquisition and persisted property latitude/longitude | App functionality | Device permission optional; determine personal location versus non-personal property coordinates and all map transmissions |
 | Location: approximate location | Search areas, address and possible provider IP-derived location | App functionality; personalization where used | Confirm provider behavior; do not assume IP always means collected location |
-| Device or other IDs | Expo push tokens linked to account/platform | Developer communications; app functionality | Notification registration path must be checked, including denied permission |
 | App info/performance: diagnostics/crash logs | No complete telemetry audit performed | Select only purposes actually used | Confirm SDK and infrastructure telemetry; do not mark “not collected” from absence of explicit app calls alone |
 
 No evidence was established for contacts, microphone/audio recordings, health data, payment-card/bank details, advertising IDs, SMS inbox access or installed-app inventory. Confirm the merged Android manifest and SDK behavior before marking those absent.
@@ -46,7 +45,7 @@ No evidence was established for contacts, microphone/audio recordings, health da
 - Offers and messages are routed to assigned Advisors or Verifiers. Determine whether each recipient acts solely on behalf of the operator under appropriate terms; independent recipients may require a sharing declaration.
 - Authorized administrators review KYC. Do not describe KYC as visible to every advisor or buyer.
 - Expo push, hosting/database, email/authentication and map services may qualify as service providers only where they process solely on your behalf under the applicable arrangement. A third party's independent use may require “shared”.
-- Firebase is installed, but configuration/installation alone does not prove active collection. Inventory its enabled products and data disclosures in the shipped app.
+- Version 3.1.2 removes Firebase SDKs and device push alerts. The in-app notification bell uses the MalikSe API.
 - Map-related code references Google Maps/Places, Indian Open Maps and unpkg; authentication UI references Unsplash. Verify network requests, recipients, SDK policies and transmitted identifiers. Third-party asset fetches can expose network metadata.
 - Do not answer “No data shared” until these recipient relationships and exemptions are resolved for each data type.
 

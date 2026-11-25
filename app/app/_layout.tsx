@@ -1,7 +1,7 @@
 import { renderAppScreen } from "../components/AppScreen";
 import React, { useState, useEffect } from "react";
 import { useFonts } from "expo-font";
-import { Stack, useRouter, type Href } from "expo-router";
+import { Stack, useRootNavigationState, useRouter, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { AppState, LogBox, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -15,8 +15,9 @@ import { marketplaceBackground } from "../constants/theme";
 import { hydrateResume } from "../src/store/resumeStore";
 import { preloadStartupResources } from "../src/services/startupPreload";
 import { cachedMapAssets, preloadMapAssets } from "../src/services/mapAssets";
+import { refreshNotificationCount, scheduleNotificationCount } from "../src/store/notificationStore";
 import { observePushOpens, registerPushDevice } from "../src/services/pushNotifications";
-import { refreshNotificationCount, useNotificationStore } from "../src/store/notificationStore";
+import { resumeChatDelivery } from "../src/features/chat/chatDelivery";
 
 LogBox.ignoreLogs([
   '"shadow*" style props are deprecated. Use "boxShadow".',
@@ -71,19 +72,23 @@ export default function RootLayout() {
   const [showOpeningScreen, setShowOpeningScreen] = useState(!openingCompleted);
   const hydrated = useAuthStore(state => state.hydrated);
   const userId = useAuthStore(state => state.user?.id);
-  const accessToken = useAuthStore(state => state.accessToken);
+  const authenticated = useAuthStore(state => Boolean(state.accessToken));
   const router = useRouter();
+  const navigationReady = Boolean(useRootNavigationState()?.key);
   const [resumeReady, setResumeReady] = useState(Platform.OS === "web");
   useEffect(() => { hydrateResume().finally(() => setResumeReady(true)); }, []);
   useEffect(() => {
     if (!hydrated) return;
     void refreshNotificationCount();
-    if (!userId || !accessToken) return;
+    if (!userId || !authenticated) return;
     const subscription = AppState.addEventListener("change", state => {
       if (state === "active") void refreshNotificationCount();
     });
-    return () => subscription.remove();
-  }, [hydrated, userId, accessToken]);
+    const timer = setInterval(() => {
+      if (AppState.currentState === "active") void refreshNotificationCount();
+    }, 30000);
+    return () => { subscription.remove(); clearInterval(timer); };
+  }, [hydrated, userId, authenticated]);
 
   useEffect(() => {
     if (Platform.OS === "web") return;
@@ -101,25 +106,36 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || !userId || !accessToken || Platform.OS === "web") return;
-    void registerPushDevice(userId);
+    if (hydrated && userId) return resumeChatDelivery(userId);
+  }, [hydrated, userId]);
+
+  useEffect(() => {
+    if (!hydrated || !userId || !authenticated || !navigationReady || showOpeningScreen || Platform.OS !== "android") return;
     let active = true;
     let dispose: (() => void) | undefined;
+    let nextRegistration = 0;
+    const isCurrent = () => active && useAuthStore.getState().user?.id === userId
+      && Boolean(useAuthStore.getState().accessToken);
+    const register = () => {
+      if (!isCurrent() || Date.now() < nextRegistration) return;
+      nextRegistration = Date.now() + 5 * 60_000;
+      void registerPushDevice(userId);
+    };
+    register();
+    const foreground = AppState.addEventListener("change", state => {
+      if (state === "active") register();
+    });
     void observePushOpens((kind, id) => {
-      if (kind === "inquiry") router.push({ pathname: "/(tabs)/messages", params: { inquiryId: id } });
-      else if (kind === "deal") router.push(`/deal/${id}` as Href);
-      else if (kind === "property") router.push(`/property/${id}` as Href);
-      else router.push("/my-properties" as Href);
-    }, kind => {
-      if (!active) return;
-      void refreshNotificationCount();
-      if (kind === "inquiry" || kind === "deal") {
-        useNotificationStore.setState(state => ({ chatRevision: state.chatRevision + 1 }));
-      }
-    }).then(stop => { if (active) dispose = stop; else stop(); })
-      .catch(error => console.warn("Could not observe push notifications", error));
-    return () => { active = false; dispose?.(); };
-  }, [hydrated, userId, accessToken, router]);
+      if (!isCurrent()) return;
+      if (kind === "inquiry") router.navigate({ pathname: "/(tabs)/messages", params: { inquiryId: id } });
+      else if (kind === "deal") router.navigate(`/deal/${id}` as Href);
+      else if (kind === "property") router.navigate(`/property/${id}` as Href);
+      else router.navigate("/my-properties" as Href);
+    }, () => { if (isCurrent()) scheduleNotificationCount(); })
+      .then(stop => { if (active) dispose = stop; else stop(); })
+      .catch(() => console.warn("[Device alerts] Notification listener unavailable"));
+    return () => { active = false; foreground.remove(); dispose?.(); };
+  }, [hydrated, userId, authenticated, navigationReady, showOpeningScreen, router]);
 
   useEffect(() => {
     if ((fontsLoaded || fontError) && resumeReady) SplashScreen.hideAsync().catch(() => {});

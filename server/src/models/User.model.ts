@@ -7,6 +7,8 @@ export interface IUser extends Document {
   name: string;
   mobile?: string;
   email?: string;
+  advisorCode?: string;
+  assignedDistricts?: string[];
   passwordHash?: string;
   googleId?: string;
   sessionVersion: number;
@@ -38,6 +40,8 @@ const UserSchema = new Schema<IUser>(
     name: { type: String, required: true, trim: true },
     mobile: { type: String, required: false, unique: true, sparse: true, trim: true },
     email: { type: String, trim: true, lowercase: true, unique: true, sparse: true },
+    advisorCode: { type: String, trim: true, uppercase: true, unique: true, sparse: true },
+    assignedDistricts: { type: [String], default: [] },
     passwordHash: { type: String },
     googleId: { type: String, sparse: true, unique: true },
     sessionVersion: { type: Number, default: 0 },
@@ -62,6 +66,7 @@ const UserSchema = new Schema<IUser>(
 );
 
 UserSchema.index({ role: 1, createdAt: -1 }, { name: "user_role_newest" });
+UserSchema.index({ role: 1, assignedDistricts: 1 }, { name: "user_role_districts" });
 UserSchema.index({ isSuspended: 1 }, { name: "user_suspension" });
 UserSchema.index({ isActive: 1 }, { name: "user_active" });
 UserSchema.index({ role: 1, createdAt: -1, _id: -1 }, { name: "user_role_cursor" });
@@ -72,6 +77,9 @@ UserSchema.pre("save", function (this: any, next: (err?: any) => void) {
   }
   if (this.email === "" || this.email === null) {
     this.email = undefined;
+  }
+  if (this.advisorCode === "" || this.advisorCode === null) {
+    this.advisorCode = undefined;
   }
   next();
 });

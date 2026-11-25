@@ -7199,6 +7199,44 @@ export function PostScreen() {
     }
   }, []);
 
+  const [advisorStatus, setAdvisorStatus] = useState<{ loading: boolean; valid?: boolean; name?: string; message?: string }>({ loading: false });
+
+  useEffect(() => {
+    const raw = form.requestedAdvisorId?.trim();
+    if (!raw) {
+      setAdvisorStatus({ loading: false });
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setAdvisorStatus({ loading: true });
+      try {
+        const res = await api.get(`/properties/advisor-lookup/${encodeURIComponent(raw)}`);
+        if (res.data?.valid) {
+          setAdvisorStatus({ loading: false, valid: true, name: res.data.advisor?.name });
+        } else {
+          setAdvisorStatus({ loading: false, valid: false, message: res.data?.message || "Advisor not found." });
+        }
+      } catch (err: any) {
+        setAdvisorStatus({
+          loading: false,
+          valid: false,
+          message: err?.response?.data?.message || "Advisor not found. Leave blank to auto-assign.",
+        });
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [form.requestedAdvisorId]);
+
+  const onAdvisorIdChange = (text: string) => {
+    let clean = text.trim().toUpperCase();
+    if (/^[1-9][0-9]{5}$/.test(clean)) {
+      clean = `ADV-${clean}`;
+    } else if (/^ADV[1-9][0-9]{5}$/.test(clean)) {
+      clean = `ADV-${clean.slice(3)}`;
+    }
+    setForm((f: any) => ({ ...f, requestedAdvisorId: clean }));
+  };
+
   const handlePincodeChange = (text: string) => {
     const clean = text.replace(/[^0-9]/g, "").slice(0, 6);
     setForm((f: any) => ({ ...f, pincode: clean }));
@@ -7405,6 +7443,7 @@ export function PostScreen() {
         roadWidth: form.roadWidth ? Number(form.roadWidth) : undefined,
         parcelPoints: points.length ? points : undefined,
         requestedAdvisorId: form.requestedAdvisorId ? form.requestedAdvisorId.trim() : undefined,
+        requestedAdvisorCode: form.requestedAdvisorId ? form.requestedAdvisorId.trim() : undefined,
         negotiable: Boolean(form.negotiable),
         disclosures: {
           hasLoan: Boolean(form.hasLoan),
@@ -8329,14 +8368,38 @@ export function PostScreen() {
                   <Text style={postStyles.inputLabel}>Advisor ID (Optional)</Text>
                   <TextInput
                     style={postStyles.customInput}
-                    placeholder="Leave blank to automatically assign the next available staff"
+                    placeholder="e.g. ADV-482910"
                     placeholderTextColor="#94A3B8"
                     value={form.requestedAdvisorId}
-                    onChangeText={set("requestedAdvisorId")}
+                    onChangeText={onAdvisorIdChange}
                   />
-                  <Text style={postStyles.inputHelperText}>
-                    If an Advisor helped you prepare this listing, enter their ID here. Otherwise an eligible staff member will be assigned automatically.
-                  </Text>
+                  {advisorStatus.loading ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <ActivityIndicator size="small" color="#1E3A5F" />
+                      <Text style={{ fontSize: 13, color: "#64748B" }}>Verifying Advisor ID...</Text>
+                    </View>
+                  ) : advisorStatus.valid ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, padding: 10, backgroundColor: "#EBF7EE", borderRadius: 8 }}>
+                      <MaterialIcons name="check-circle" color="#16A34A" size={18} />
+                      <Text style={{ fontSize: 13, color: "#16A34A", fontWeight: "600" }}>
+                        ✓ Verified Advisor: {advisorStatus.name}
+                      </Text>
+                    </View>
+                  ) : form.requestedAdvisorId?.trim() ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, padding: 10, backgroundColor: "#FDF4E7", borderRadius: 8 }}>
+                      <MaterialIcons name="error-outline" color="#B45309" size={18} />
+                      <Text style={{ fontSize: 13, color: "#B45309" }}>
+                        {advisorStatus.message || "Advisor not found. Leave blank to auto-assign."}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, padding: 10, backgroundColor: "#F0F5FA", borderRadius: 8 }}>
+                      <MaterialIcons name="bolt" color="#1E3A5F" size={18} />
+                      <Text style={{ fontSize: 13, color: "#1E3A5F" }}>
+                        Auto-Assignment: Leave blank to automatically match with an active advisor covering {form.district || "your district"}.
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
                 {/* Identity Verification Status */}

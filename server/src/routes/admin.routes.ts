@@ -12,6 +12,7 @@ import { User } from "../models/User.model";
 import { activeStaffFilter, historyEvent, transition } from "../services/propertyWorkflow";
 import { performanceMetrics } from "../services/performanceMetrics";
 import { AccountDeletion } from "../models/AccountDeletion.model";
+import { generateUniqueAdvisorCode } from "../services/advisorCodeService";
 
 const router = Router();
 router.get("/notification-failures", authGuard, roleGuard("admin"), async (req, res) => {
@@ -41,28 +42,83 @@ router.post("/properties/:id/assign", authGuard, roleGuard("admin"), async (req:
     const field = staff.role === "advisor" ? "assignedAdvisorId" : "assignedVerifierId";
     const updated = await transition(property, { assignedAdvisorId: null, assignedVerifierId: null, [field]: staff._id, ...(property.status === "advisor_verified" ? { status: "pending" } : {}) }, historyEvent(req.user, property.status, property.status, "assigned", { staffId: staff._id, assignedRole: staff.role }));
     if (!updated) return res.status(409).json({ message: "Property changed. Refresh and try again" });
+
+    // Notify both the seller and the assigned staff member
+    try {
+      const propertyTitle = Array.from(property.title || "Your Property").slice(0, 100).join("");
+      const staffLabel = staff.role === "advisor"
+        ? `Advisor ${staff.name || ""} (${staff.advisorCode || ""})`.trim()
+        : `Verifier ${staff.name || ""}`.trim();
+      void Notification.create([
+        {
+          recipient: property.ownerId,
+          title: "Property Assigned for Verification",
+          body: `Your listing "${propertyTitle}" has been assigned to ${staffLabel}.`,
+          data: { kind: "listings", id: property._id.toString() },
+        },
+        {
+          recipient: staff._id,
+          title: "New Property Assigned",
+          body: `Listing "${propertyTitle}" (${property.location?.district || "Area"}) has been assigned to you.`,
+          data: { kind: "property", id: property._id.toString() },
+        },
+      ]).catch(() => {});
+    } catch {}
+
     res.json(updated);
   } catch (error: any) { res.status(400).json({ message: error.message }); }
 });
 
-// Staff accounts are created only by a signed-in Admin.
+const staffAccountFilter = { role: { $in: ["advisor", "verifier"] }, passwordHash: { $exists: true, $ne: "" } };
+const staffAccountFields = "name mobile email role advisorCode assignedDistricts isActive createdAt";
+function staffAccountDto(person: any) {
+  return {
+    id: person._id.toString(), name: person.name, mobile: person.mobile,
+    email: person.email, role: person.role, advisorCode: person.advisorCode,
+    assignedDistricts: person.assignedDistricts || [], isActive: person.isActive, createdAt: person.createdAt,
+  };
+}
+
 router.get("/staff", authGuard, roleGuard("admin"), async (req, res) => {
   try {
-    const staff = await readPage(User.find({ role: { $in: ["advisor", "verifier"] }, passwordHash: { $exists: true, $ne: "" } })
-      .select("name mobile email role isActive createdAt")
-      .sort({ createdAt: -1 }), req, res);
-    res.json(staff.map((person) => ({
-      id: person._id.toString(), name: person.name, mobile: person.mobile,
-      email: person.email, role: person.role, isActive: person.isActive, createdAt: person.createdAt,
-    })));
+    const search = req.query.search;
+    if (search !== undefined && (typeof search !== "string" || search.length > 100)) {
+      return res.status(400).json({ message: "Enter a search of up to 100 characters." });
+    }
+    const term = typeof search === "string" ? search.trim() : "";
+    const filter: Record<string, unknown> = { ...staffAccountFilter };
+    if (term) {
+      const escaped = term.replace(/[.*+?^$\{\}()|[\]\\]/g, "\\$&");
+      const prefix = new RegExp("^" + escaped, "i");
+      const digits = term.replace(/[\s()+-]/g, "").replace(/^91(?=\d{10}$)/, "");
+      filter.$or = [
+        { name: new RegExp("(?:^|\\s)" + escaped, "i") },
+        { email: prefix },
+        { advisorCode: prefix },
+        ...(/^\d+$/.test(digits) ? [{ mobile: new RegExp("^" + digits) }] : []),
+        ...(/^[a-f\d]{24}$/i.test(term) ? [{ _id: term }] : []),
+      ];
+    }
+    const staff = await readPage(User.find(filter).select(staffAccountFields), req, res);
+    return res.json(staff.map(staffAccountDto));
   } catch (error: any) {
-    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
+    return res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "Could not load staff accounts." });
   }
 });
 
+router.get("/staff/:staffId", authGuard, roleGuard("admin"), async (req, res, next) => {
+  try {
+    const id = req.params.staffId;
+    if (typeof id !== "string" || !/^[a-f\d]{24}$/i.test(id)) return res.status(404).json({ message: "Staff member not found." });
+    const person = await User.findOne({ _id: id, ...staffAccountFilter }).select(staffAccountFields).lean();
+    return person ? res.json(staffAccountDto(person)) : res.status(404).json({ message: "Staff member not found." });
+  } catch (error) { next(error); }
+});
+
+// Staff accounts are created only by a signed-in Admin.
 router.post("/staff", authGuard, roleGuard("admin"), async (req, res) => {
   try {
-    const { role, name, mobile, email, password } = req.body;
+    const { role, name, mobile, email, password, assignedDistricts } = req.body;
     const cleanName = typeof name === "string" ? name.trim() : "";
     const cleanMobile = typeof mobile === "string" ? mobile.trim() : "";
     const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
@@ -81,16 +137,47 @@ router.post("/staff", authGuard, roleGuard("admin"), async (req, res) => {
     if (await User.exists({ mobile: cleanMobile })) {
       return res.status(409).json({ message: "Mobile number already registered" });
     }
+
+    const districts = Array.isArray(assignedDistricts)
+      ? assignedDistricts.map(d => typeof d === "string" ? d.trim() : "").filter(Boolean)
+      : [];
+
+    let advisorCode: string | undefined;
+    if (role === "advisor") {
+      advisorCode = await generateUniqueAdvisorCode();
+    }
+
     const person = await User.create({
       role, name: cleanName, mobile: cleanMobile, email: cleanEmail || undefined,
+      advisorCode, assignedDistricts: districts,
       passwordHash: await bcrypt.hash(password, 10),
     });
     res.status(201).json({
       id: person._id.toString(), name: person.name, mobile: person.mobile,
-      email: person.email, role: person.role, isActive: person.isActive, createdAt: person.createdAt,
+      email: person.email, role: person.role, advisorCode: person.advisorCode,
+      assignedDistricts: person.assignedDistricts || [],
+      isActive: person.isActive, createdAt: person.createdAt,
     });
   } catch (error: any) {
     if (error.code === 11000) return res.status(409).json({ message: "Mobile number already registered" });
+    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
+  }
+});
+
+// Update staff districts
+router.put("/staff/:staffId/districts", authGuard, roleGuard("admin"), async (req: any, res) => {
+  try {
+    const districts = Array.isArray(req.body.assignedDistricts)
+      ? req.body.assignedDistricts.map((d: any) => typeof d === "string" ? d.trim() : "").filter(Boolean)
+      : [];
+    const staff = await User.findById(req.params.staffId);
+    if (!staff || !["advisor", "verifier"].includes(staff.role)) {
+      return res.status(404).json({ message: "Staff member not found" });
+    }
+    staff.assignedDistricts = districts;
+    await staff.save();
+    res.json({ id: staff._id, name: staff.name, advisorCode: staff.advisorCode, assignedDistricts: staff.assignedDistricts });
+  } catch (error: any) {
     res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
   }
 });

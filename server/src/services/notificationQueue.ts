@@ -3,8 +3,7 @@ import { Notification } from "../models/Notification.model";
 import { Property } from "../models/Property.model";
 import { User } from "../models/User.model";
 import { publishedFilter } from "./marketplace";
-import { notifyUser } from "./pushNotifications";
-import { chatNotificationTitle, findNotificationMessage, genericChatTitle } from "./notificationMessage";
+import { deliverDeviceAlert } from "./deviceAlerts";
 
 async function expandListingBroadcast(job: InstanceType<typeof Notification>) {
   const session = await mongoose.startSession();
@@ -29,7 +28,7 @@ async function expandListingBroadcast(job: InstanceType<typeof Notification>) {
       }, { session });
       if (!progress.modifiedCount || !recipients.length) return;
       await Notification.insertMany(recipients.map(({ _id }) => ({
-        recipient: _id, title: job.title, body: job.body, data: job.data,
+        recipient: _id, title: job.title, body: job.body, data: { ...job.data, listingAnnouncement: true },
       })), { session });
     });
   } finally {
@@ -38,7 +37,8 @@ async function expandListingBroadcast(job: InstanceType<typeof Notification>) {
 }
 
 export async function deliverNotifications() {
-  for (let i = 0; i < 20; i++) {
+  const deadline = Date.now() + 5000;
+  for (let i = 0; i < 128 && Date.now() < deadline; i++) {
     const now = new Date();
     const job = await Notification.findOneAndUpdate(
       {
@@ -59,33 +59,15 @@ export async function deliverNotifications() {
         await expandListingBroadcast(job);
         continue;
       }
-      const message = await findNotificationMessage(String(job.recipient), job.data, job.messageId);
-      const sender = job.title === genericChatTitle && message?.senderId
-        ? await User.findOne({ _id: message.senderId, deletionRequestedAt: { $exists: false } })
-          .select("name").maxTimeMS(2000).lean().catch(() => null)
-        : null;
-      const title = job.messageId && !message ? genericChatTitle
-        : sender ? chatNotificationTitle(sender.name) : job.title!;
-      // Bound the push payload while keeping complete Unicode code points.
-      const characters = message ? Array.from(message.text) : [];
-      const body = characters.length > 240 ? characters.slice(0, 240).join("") + "…" : message?.text ?? job.body!;
-      await notifyUser(
-        String(job.recipient),
-        title,
-        body,
-        job.data as any,
-        job,
-      );
-      const updated = await Notification.findById(job._id).select("permanentTokens");
-      if (updated?.permanentTokens.length) throw new Error("Permanent device failure");
+      if (process.env.DEVICE_ALERTS_ENABLED === "true") await deliverDeviceAlert(job);
       await Notification.updateOne(
         { _id: job._id, leaseUntil: job.leaseUntil },
         { $set: { deliveredAt: new Date() }, $unset: { leaseUntil: 1 } },
       );
     } catch {
-      if (job.attempts >= 5) {
-        await Notification.updateOne({ _id: job._id, leaseUntil: job.leaseUntil }, { $set: { failedAt: new Date(), lastError: "Delivery failed after five attempts; check provider credentials and device outcomes" }, $unset: { leaseUntil: 1 } });
-        console.error("[Push] ACTION REQUIRED: notification retries exhausted", { notificationId: job._id });
+      if (job.attempts >= 3) {
+        await Notification.updateOne({ _id: job._id, leaseUntil: job.leaseUntil }, { $set: { failedAt: new Date(), lastError: "Delivery failed after retries" }, $unset: { leaseUntil: 1 } });
+        console.error("[Push] Notification retries exhausted", { notificationId: job._id });
         continue;
       }
       await Notification.updateOne(
@@ -93,8 +75,7 @@ export async function deliverNotifications() {
         {
           $set: {
             nextAttemptAt: new Date(
-              Date.now() +
-                Math.min(3600000, 1000 * 2 ** Math.min(job.attempts, 12)),
+              Date.now() + Math.min(120000, 5000 * 2 ** job.attempts) + Math.random() * 2000,
             ),
           },
           $unset: { leaseUntil: 1 },

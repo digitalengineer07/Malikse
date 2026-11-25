@@ -5,12 +5,14 @@ export interface IPushDevice {
   token: string;
   platform: "android" | "ios";
   updatedAt: Date;
+  sessionVersion?: number;
 }
 
 const PushDeviceSchema = new Schema<IPushDevice>({
   userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
   token: { type: String, required: true, unique: true },
   platform: { type: String, enum: ["android", "ios"], required: true },
+  sessionVersion: Number,
 }, { timestamps: true });
 
 export const PushDevice = mongoose.model<IPushDevice>("PushDevice", PushDeviceSchema);

@@ -1,0 +1,473 @@
+import React, { useEffect, useState, useSyncExternalStore } from "react";
+import {
+  ActivityIndicator,
+  AppState,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useIsFocused } from "expo-router";
+import { useAuthStore } from "../../store/authStore";
+import { chatApi } from "./chatApi";
+import { InboxFeed } from "./inboxFeed";
+import { chatRetryDelay } from "./chatWire";
+
+let inbox: { owner: string; feed: InboxFeed } | undefined;
+useAuthStore.subscribe((state, previous) => {
+  if (state.user?.id !== previous.user?.id) inbox = undefined;
+});
+function inboxFor(owner: string) {
+  if (inbox?.owner !== owner) inbox = { owner, feed: new InboxFeed(() => chatApi.getConversations()) };
+  return inbox.feed;
+}
+
+interface ChatListScreenProps {
+  onSelectConversation: (inquiryId: string) => void;
+  searchQuery: string;
+  emptyArtwork: React.ReactNode;
+}
+
+const C = {
+  ink: "#14263E",
+  sun: "#FCC61C",
+  sunSoft: "#FBF2C0",
+  blue: "#0A45B5",
+  bg: "#F7F4EC",
+  line: "rgba(20, 38, 62, 0.12)",
+  muted: "#536174",
+  green: "#12964C",
+};
+
+function getParticipantId(party: any): string {
+  if (!party) return "";
+  return typeof party === "object" ? String(party._id || "") : String(party);
+}
+
+function formatLocationPart(value: unknown): string {
+  return typeof value === "string" && value.trim()
+    ? value.trim().toLocaleLowerCase().replace(/(^|[\s-])\p{L}/gu, (start) => start.toLocaleUpperCase())
+    : "";
+}
+
+function formatThreadDate(dateString?: string): string {
+  if (!dateString) return "";
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  } catch {
+    return "";
+  }
+}
+
+export const ChatListScreen: React.FC<ChatListScreenProps> = ({ onSelectConversation, searchQuery, emptyArtwork }) => {
+
+  const user = useAuthStore((s) => s.user);
+  const currentUserId = user?.id || "";
+
+  const feed = inboxFor(currentUserId);
+  const { rows, failures } = useSyncExternalStore(feed.subscribe, feed.snapshot, feed.snapshot);
+  const focused = useIsFocused();
+  const loading = !rows && !failures;
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [filterUnread, setFilterUnread] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!focused || !currentUserId) return;
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
+    let eligibleAt = 0;
+    const active = () => alive && (AppState.currentState == null || AppState.currentState === "active");
+    const schedule = (delay: number) => {
+      clearTimeout(timer);
+      if (active()) timer = setTimeout(refresh, Math.max(delay, eligibleAt - Date.now()));
+    };
+    async function refresh() {
+      if (!active()) return;
+      await feed.refresh();
+      const state = feed.snapshot();
+      const delay = state.failures ? chatRetryDelay(state.failures - 1, state.status, state.retryAfter) : 30000 + Math.random() * 4000;
+      eligibleAt = state.failures ? Date.now() + delay : 0;
+      schedule(delay);
+    }
+    schedule(0);
+    const app = AppState.addEventListener("change", () => schedule(0));
+    return () => { alive = false; clearTimeout(timer); app.remove(); };
+  }, [currentUserId, feed, focused]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    void feed.refresh().finally(() => setRefreshing(false));
+  };
+
+  // Filter threads
+  const filtered = (rows ?? []).filter((c) => {
+    if (filterUnread && !c.unread && (!c.unreadCount || c.unreadCount <= 0)) return false;
+
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.trim().toLowerCase();
+
+    const isBuyer = getParticipantId(c.buyerId) === currentUserId;
+    const other = isBuyer ? c.staffId : c.buyerId;
+    const otherName = (typeof other === "object" && other?.name) || "";
+    const propertyTitle = c.propertyId?.title || "";
+    const lastMsg = c.messages?.at(-1)?.text || c.message || "";
+
+    return (
+      otherName.toLowerCase().includes(query) ||
+      propertyTitle.toLowerCase().includes(query) ||
+      lastMsg.toLowerCase().includes(query)
+    );
+  });
+
+  const showEmptyArtwork = rows?.length === 0 && !searchQuery.trim() && !filterUnread;
+
+  return (
+    <View style={styles.screen}>
+      {/* Filter Tabs: All vs Unread */}
+      <View style={styles.filterWrap}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setFilterUnread(false)}
+          style={[styles.filterButton, !filterUnread && styles.filterButtonActive]}
+        >
+          <Text style={[styles.filterButtonText, !filterUnread && styles.filterButtonTextActive]}>
+            All
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setFilterUnread(true)}
+          style={[styles.filterButton, filterUnread && styles.filterButtonActive]}
+        >
+          <Text style={[styles.filterButtonText, filterUnread && styles.filterButtonTextActive]}>
+            Unread
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* Conversation Thread Feed */}
+      {loading && !refreshing ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={C.blue} />
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[C.blue]} />
+          }
+          renderItem={({ item }) => {
+            const isBuyer = getParticipantId(item.buyerId) === currentUserId;
+            const other = isBuyer ? item.staffId : item.buyerId;
+            const participantName =
+              (typeof other === "object" && other?.name?.trim()) ||
+              (isBuyer ? "Property Advisor" : "Buyer");
+            const role =
+              !isBuyer
+                ? "Buyer"
+                : typeof other === "object" && other?.role === "advisor"
+                ? "Advisor"
+                : typeof other === "object" && other?.role === "verifier"
+                ? "Verifier"
+                : "Property team";
+
+            const lastMessage = item.messages?.at(-1);
+            const previewText = lastMessage?.text || item.message;
+            const timestamp = lastMessage?.createdAt || item.updatedAt || item.createdAt;
+            const timeFormatted = formatThreadDate(timestamp);
+
+            const location = item.propertyId?.location;
+            const address = [location?.block, location?.district].map(formatLocationPart);
+            const listing = [formatLocationPart(item.propertyId?.title), ...new Set(address)]
+              .filter(Boolean)
+              .join(" · ");
+
+            const unreadCount = item.unreadCount || (item.unread ? 1 : 0);
+
+            return (
+              <Pressable
+                key={item._id}
+                accessibilityRole="button"
+                onPress={() => onSelectConversation(item._id)}
+                style={({ pressed }) => [styles.threadCard, pressed && { opacity: 0.78 }]}
+              >
+                {/* Left Column Avatar with Initials */}
+                <View style={styles.threadAvatarColumn}>
+                  <View style={styles.threadAvatar}>
+                    <Text style={styles.threadAvatarText}>
+                      {Array.from(participantName)[0]?.toLocaleUpperCase()}
+                    </Text>
+                    {item.unread && <View style={styles.threadUnreadDot} />}
+                  </View>
+                </View>
+
+                {/* Center Content Column */}
+                <View style={styles.threadCopy}>
+                  <View style={styles.threadNameRow}>
+                    <Text style={styles.threadName} numberOfLines={1}>
+                      {participantName}
+                    </Text>
+                    <View style={styles.threadRole}>
+                      <Text style={styles.threadRoleText}>{role}</Text>
+                    </View>
+                  </View>
+
+                  {listing ? (
+                    <View style={styles.threadListing}>
+                      <MaterialIcons name="home" size={15} color={C.muted} />
+                      <Text style={styles.threadListingText} numberOfLines={1}>
+                        {listing}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  <Text style={styles.threadPreview} numberOfLines={1}>
+                    {previewText}
+                  </Text>
+                </View>
+
+                {/* Right Meta Column */}
+                <View style={styles.threadMeta}>
+                  {timeFormatted ? (
+                    <Text style={styles.threadTime}>{timeFormatted}</Text>
+                  ) : null}
+
+                  {item.unread && (
+                    <View style={unreadCount > 0 ? styles.threadCount : styles.threadCountDot}>
+                      {unreadCount > 0 && (
+                        <Text style={styles.threadCountText}>
+                          {unreadCount > 99 ? "99+" : unreadCount}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </View>
+
+                <MaterialIcons name="chevron-right" size={19} color={C.ink} />
+              </Pressable>
+            );
+          }}
+          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+          ListEmptyComponent={
+            <View style={[styles.emptyContainer, showEmptyArtwork && styles.illustratedEmpty]}>
+              {showEmptyArtwork ? emptyArtwork : <MaterialIcons name="chat-bubble-outline" size={56} color="#B0BEC5" />}
+              <Text style={styles.emptyTitle}>
+                {!rows ? "Reconnecting to your chats" : searchQuery ? "No matching conversations" : filterUnread ? "No unread conversations" : user?.role === "admin" ? "No conversations yet" : "Start a conversation"}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {!rows ? "Your inbox will refresh automatically." : searchQuery || filterUnread
+                  ? "Try another search or filter."
+                  : user?.role === "admin"
+                    ? "Property enquiries you can access will appear in this inbox."
+                    : "Open a verified property and contact its assigned team."}
+              </Text>
+              {!rows && <Pressable accessibilityRole="button" onPress={handleRefresh}><Text style={styles.emptySubtitle}>Retry now</Text></Pressable>}
+            </View>
+          }
+        />
+      )}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: C.bg,
+  },
+  filterWrap: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: C.line,
+  },
+  filterButtonActive: {
+    backgroundColor: C.ink,
+    borderColor: C.ink,
+  },
+  filterButtonText: {
+    fontFamily: "ManropeBold",
+    fontSize: 13,
+    color: C.ink,
+    fontWeight: "700",
+  },
+  filterButtonTextActive: {
+    color: "#FFFFFF",
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+  threadCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: C.line,
+    paddingLeft: 13,
+    paddingRight: 9,
+    paddingVertical: 12,
+    shadowColor: C.ink,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  threadAvatarColumn: {
+    alignSelf: "stretch",
+    justifyContent: "center",
+    paddingRight: 11,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderColor: C.line,
+  },
+  threadAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: C.sunSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  threadAvatarText: {
+    fontFamily: "ManropeExtraBold",
+    fontSize: 20,
+    color: C.ink,
+    fontWeight: "800",
+  },
+  threadUnreadDot: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    width: 11,
+    height: 11,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    borderRadius: 6,
+    backgroundColor: C.green,
+  },
+  threadCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  threadNameRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 5,
+  },
+  threadName: {
+    flexShrink: 1,
+    fontFamily: "ManropeExtraBold",
+    fontSize: 15,
+    color: C.ink,
+    fontWeight: "800",
+  },
+  threadRole: {
+    borderRadius: 12,
+    backgroundColor: "#E3F5E9",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  threadRoleText: {
+    color: C.green,
+    fontFamily: "ManropeBold",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  threadListing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  threadListingText: {
+    flexShrink: 1,
+    fontFamily: "ManropeBold",
+    fontSize: 12,
+    color: C.muted,
+  },
+  threadPreview: {
+    fontFamily: "Manrope_400Regular",
+    fontSize: 12,
+    color: C.ink,
+  },
+  threadMeta: {
+    flexDirection: "column",
+    alignItems: "flex-end",
+    gap: 6,
+  },
+  threadTime: {
+    fontFamily: "Manrope_400Regular",
+    fontSize: 10,
+    color: C.muted,
+  },
+  threadCount: {
+    minHeight: 20,
+    minWidth: 20,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.sun,
+  },
+  threadCountText: {
+    fontFamily: "ManropeExtraBold",
+    fontSize: 11,
+    lineHeight: 14,
+    includeFontPadding: false,
+    textAlign: "center",
+    color: C.ink,
+    fontWeight: "800",
+  },
+  threadCountDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: C.sun,
+  },
+  centerContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyContainer: {
+    paddingVertical: 60,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 30,
+  },
+  illustratedEmpty: { paddingVertical: 20 },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: C.ink,
+    fontFamily: "ManropeBold",
+    marginTop: 14,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: C.muted,
+    textAlign: "center",
+    marginTop: 6,
+    lineHeight: 20,
+    fontFamily: "Manrope_400Regular",
+  },
+});

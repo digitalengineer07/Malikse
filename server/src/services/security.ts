@@ -37,6 +37,8 @@ export const publicUser = (user: any) => {
     identityVerificationMode: kycDemoMode() || process.env.NODE_ENV !== "production" ? "demo" : "staff", createdAt: user.createdAt,
     hasPassword: hasRealPassword,
     isGoogleUser: Boolean(user.googleId),
+    advisorCode: user.advisorCode,
+    assignedDistricts: user.assignedDistricts || [],
   };
 };
 export function generateTokens(user: any) {

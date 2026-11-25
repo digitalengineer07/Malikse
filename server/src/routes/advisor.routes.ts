@@ -4,6 +4,7 @@ import { Router } from "express";
 import mongoose, { isValidObjectId, Types } from "mongoose";
 import { Notification } from "../models/Notification.model";
 import { Property } from "../models/Property.model";
+import { User } from "../models/User.model";
 import { authGuard, roleGuard } from "../middleware/auth.middleware";
 import { availableStaff, historyEvent, transition } from "../services/propertyWorkflow";
 
@@ -17,11 +18,19 @@ router.get("/my-tasks", async (req: any, res) => {
     const field = advisor ? "assignedAdvisorId" : "assignedVerifierId";
     const pending = "pending";
 
+    const status = advisor ? req.query.status : undefined;
+    if (status !== undefined && !["pending", "correction_required", "verified", "rejected", "sold"].includes(status)) {
+      return res.status(400).json({ message: "Invalid review status" });
+    }
+    const statusFilter = status === "pending" ? { status: { $in: ["pending", "advisor_verified"] } } :
+      status ? { status } : {};
+    const fields = advisor ? `${listFields} sellerName streetAddress` : listFields;
+
     // Join only owners of matching queue items; never materialize all suspended IDs.
     const rows = await readAggregatePage(Property, [
-      { $match: { $or: [{ [field]: new Types.ObjectId(req.user.id) }, { assignedAdvisorId: null, assignedVerifierId: null, status: pending, ...(advisor ? { requestedAdvisorId: req.user.id } : { requestedAdvisorId: { $in: [null, ""] } }) }] } },
-      ...enabledOwnerStages(),
-      { $project: Object.fromEntries(listFields.split(" ").map(field => [field, 1])) },
+      { $match: { ...statusFilter, $or: [{ [field]: new Types.ObjectId(req.user.id) }, { assignedAdvisorId: null, assignedVerifierId: null, status: pending, ...(advisor ? { requestedAdvisorId: req.user.id } : { requestedAdvisorId: { $in: [null, ""] } }) }] } },
+      ...enabledOwnerStages(advisor ? "name" : false),
+      { $project: Object.fromEntries(fields.split(" ").map(field => [field, 1])) },
     ], req, res);
     for (const row of rows) if (!row[field]) {
       for (const key of Object.keys(row)) if (!["_id", "title", "type", "location", "status", "totalArea", "price", "createdAt"].includes(key)) delete row[key];
@@ -37,6 +46,24 @@ router.post("/:propertyId/claim", async (req: any, res) => {
     const status = "pending";
     const property = await Property.findOneAndUpdate({ _id: req.params.propertyId, status, assignedAdvisorId: null, assignedVerifierId: null, ...(advisor ? { requestedAdvisorId: req.user.id } : { requestedAdvisorId: { $in: [null, ""] } }) }, { $set: { [field]: req.user.id }, $inc: { __v: 1 }, $push: { verificationHistory: historyEvent(req.user, status, status, "claimed") } }, { new: true });
     if (!property) return res.status(409).json({ message: "This property was assigned or has moved to another stage. Refresh the queue" });
+
+    // Notify seller that their property has been assigned/claimed by staff
+    try {
+      const propertyTitle = Array.from(property.title || "Your Property").slice(0, 100).join("");
+      const advisorUser = await User.findById(req.user.id).select("name advisorCode").lean();
+      const staffLabel = advisorUser?.advisorCode
+        ? `Advisor ${advisorUser.name || ""} (${advisorUser.advisorCode})`.trim()
+        : (advisor ? "an Advisor" : "a Verifier");
+      void Notification.create([
+        {
+          recipient: property.ownerId,
+          title: "Advisor Assigned to Your Property",
+          body: `Your listing "${propertyTitle}" is being verified by ${staffLabel}.`,
+          data: { kind: "listings", id: property._id.toString() },
+        },
+      ]).catch(() => {});
+    } catch {}
+
     res.json(property);
   } catch (error: any) { res.status(400).json({ message: error.message }); }
 });

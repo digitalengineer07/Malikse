@@ -1,8 +1,10 @@
-import { Property, IProperty } from "../models/Property.model";
-import { User } from "../models/User.model";
+import { isValidObjectId, Types } from "mongoose";
 import { AssignmentCursor } from "../models/AssignmentCursor.model";
+import { IProperty, Property } from "../models/Property.model";
+import { User } from "../models/User.model";
+import { normalizeAdvisorCode } from "./advisorCodeService";
 
-export const editableFields = ["requestedAdvisorId", "title", "description", "bedrooms", "bathrooms", "furnishing", "streetAddress", "type", "location", "parcelPoints", "khata", "khesra", "holdingNumber", "totalArea", "sellableArea", "boundary", "roadWidth", "price", "negotiable", "media", "disclosures"];
+export const editableFields = ["requestedAdvisorId", "requestedAdvisorCode", "title", "description", "bedrooms", "bathrooms", "furnishing", "streetAddress", "type", "location", "parcelPoints", "khata", "khesra", "holdingNumber", "totalArea", "sellableArea", "boundary", "roadWidth", "price", "negotiable", "media", "disclosures"];
 export const listingFields = (body: Record<string, unknown>) => Object.fromEntries(Object.entries(body).filter(([key]) => editableFields.includes(key) && key !== "media"));
 export const canReadProperty = (property: IProperty, actor: { id: string; role: string }) =>
   actor.role === "admin" || property.ownerId.toString() === actor.id ||
@@ -71,6 +73,75 @@ export async function availableStaff(role: "advisor" | "verifier", preferred?: u
   catch (error: any) { if (error.code !== 11000) throw error; }
   const cursor = await AssignmentCursor.findOneAndUpdate({ _id: role }, { $inc: { sequence: 1 } }, { new: true });
   return people[(cursor!.sequence! - 1) % people.length]._id;
+}
+
+export async function resolvePropertyStaff(
+  property: IProperty
+): Promise<{ advisorId?: Types.ObjectId; verifierId?: Types.ObjectId }> {
+  // Step 1: Check Manual Request (either ADV-XXXXXX code or ObjectId)
+  const requested = property.requestedAdvisorCode || property.requestedAdvisorId || property.assignedAdvisorId;
+  if (requested) {
+    const raw = typeof requested === "string" ? requested : String(requested);
+    const normalized = normalizeAdvisorCode(raw);
+    const isObjectId = isValidObjectId(raw);
+
+    const advisor = await User.findOne({
+      $or: [
+        ...(normalized ? [{ advisorCode: normalized }] : []),
+        ...(isObjectId ? [{ _id: raw }] : []),
+      ],
+      role: "advisor",
+      ...activeStaffFilter,
+    });
+
+    if (advisor) {
+      return { advisorId: advisor._id as Types.ObjectId };
+    }
+    // If a specific advisor was explicitly requested by user but is unavailable, fail fast
+    if (property.requestedAdvisorCode || property.requestedAdvisorId) {
+      throw new Error("Requested Advisor is unavailable");
+    }
+  }
+
+  // Step 2: Auto-Assignment Tier 1 — District Match
+  const district = property.location?.district?.trim();
+  if (district) {
+    const districtRegex = new RegExp(`^${district}$`, "i");
+    const districtAdvisors = await User.find({
+      role: "advisor",
+      ...activeStaffFilter,
+      $or: [
+        { assignedDistricts: districtRegex },
+        { assignedDistricts: "*" },
+      ],
+    }).select("_id").sort({ _id: 1 });
+
+    if (districtAdvisors.length > 0) {
+      const cursorKey = `advisor_district_${district.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+      try {
+        await AssignmentCursor.updateOne({ _id: cursorKey }, { $setOnInsert: { sequence: 0 } }, { upsert: true });
+      } catch (error: any) {
+        if (error.code !== 11000) throw error;
+      }
+      const cursor = await AssignmentCursor.findOneAndUpdate({ _id: cursorKey }, { $inc: { sequence: 1 } }, { new: true });
+      const selected = districtAdvisors[(cursor!.sequence! - 1) % districtAdvisors.length]._id;
+      return { advisorId: selected as Types.ObjectId };
+    }
+  }
+
+  // Step 3: Auto-Assignment Tier 2 — Global Round-Robin across all active advisors
+  const globalAdvisorId = await availableStaff("advisor");
+  if (globalAdvisorId) {
+    return { advisorId: globalAdvisorId as Types.ObjectId };
+  }
+
+  // Step 4: Auto-Assignment Tier 3 — Fallback to active Verifier
+  const fallbackVerifierId = await availableStaff("verifier", property.assignedVerifierId);
+  if (fallbackVerifierId) {
+    return { verifierId: fallbackVerifierId as Types.ObjectId };
+  }
+
+  return {};
 }
 
 export function historyEvent(actor: { id: string; role: string }, from: string, to: string, action: string, extra: object = {}) {

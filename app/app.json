@@ -3,7 +3,7 @@
     "name": "MalikSe App",
     "slug": "malikse-app",
     "owner": "nikhilkr0035",
-    "version": "3.1.0",
+    "version": "3.1.2",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "malikse",
@@ -13,7 +13,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FEC81E",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
@@ -30,26 +30,18 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "imageWidth": 136,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#F7F4EC",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#14263E"
           }
         }
       ],
       "expo-secure-store",
       "expo-web-browser",
       "expo-font",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/notification-icon.png",
-          "largeIcon": "./assets/images/notification-badge.png",
-          "color": "#FCC61C",
-          "defaultChannel": "updates"
-        }
-      ],
+      ["expo-notifications", { "icon": "./assets/images/notification-icon.png", "largeIcon": "./assets/images/notification-badge.png", "color": "#FCC61C", "defaultChannel": "updates" }],
       "./plugins/withSmallAndroidBuild"
     ],
     "experiments": {

@@ -4,7 +4,6 @@ import { Platform } from "react-native";
 import { useAuthStore } from "../store/authStore";
 import type { UserProfile } from "../types/auth.types";
 import { invalidatePropertySearch } from "./searchCache";
-import { unregisterPushDevice } from "./pushNotifications";
 
 const configuredApiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
 function resolveApiUrl() {
@@ -93,6 +92,10 @@ api.interceptors.response.use(
       try {
         const { data } = await axios.post(`${API_URL}/auth/refresh`, Platform.OS === "web" ? {} : { refreshToken }, { timeout: 10000, ...(Platform.OS === "web" ? { withCredentials: true, headers: { "X-Session-Mode": "cookie" } } : {}) });
         if (useAuthStore.getState().refreshToken !== refreshToken || useAuthStore.getState().accessToken !== previousAccess) throw new Error("Session changed during refresh");
+        if (typeof data?.accessToken !== "string" || !data.accessToken ||
+            (Platform.OS !== "web" && (typeof data.refreshToken !== "string" || !data.refreshToken))) {
+          throw new axios.AxiosError("Invalid session renewal response", "ERR_BAD_RESPONSE");
+        }
         
         useAuthStore.getState().setTokens({ 
           accessToken: data.accessToken, 
@@ -173,22 +176,30 @@ export const authService = {
   },
 
   async getMe() {
-    try {
-      const res = await api.get("/auth/me");
-      useAuthStore.getState().setUser(res.data);
-      useAuthStore.getState().setAuthState("AUTHENTICATED");
-      return res.data;
-    } catch (e) { throw e; }
+    const actor = useAuthStore.getState().user?.id;
+    const res = await api.get("/auth/me");
+    if (typeof res.data?.id !== "string" || (actor && res.data.id !== actor) || useAuthStore.getState().user?.id !== actor) {
+      throw new Error("Invalid account response or session changed");
+    }
+    useAuthStore.getState().setUser(res.data);
+    useAuthStore.getState().setAuthState("AUTHENTICATED");
+    return res.data;
   },
 
   async logout() {
+    const actor = useAuthStore.getState().user?.id;
     try {
-      await unregisterPushDevice().catch(() => {});
+      if (actor) await import("./pushNotifications").then(({ unregisterPushDevice }) => unregisterPushDevice(actor))
+        .catch(() => console.warn("[Device alerts] Device removal deferred"));
       // Best effort backend logout to invalidate refresh token
       await api.post("/auth/logout", undefined, { timeout: 10000 });
     } catch {
       console.warn("Backend logout failed, clearing local session anyway.");
     } finally {
+      if (actor) {
+        await import("../features/chat/chatDelivery").then(({ discardChatOutbox }) => discardChatOutbox(actor))
+          .catch(() => console.warn("Could not clear queued messages on logout."));
+      }
       useAuthStore.getState().clearSession();
     }
   }

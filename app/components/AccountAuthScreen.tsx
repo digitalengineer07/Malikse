@@ -1,5 +1,7 @@
+import { AccountHeaderBackdrop, accountHeaderStyle } from "./AccountHeaderBackdrop";
+import { BrandLockup, brandHeader } from "./BrandLockup";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { Redirect, useRouter, useLocalSearchParams, useIsFocused } from "expo-router";
 import AccountArtworkFooter from "./AccountArtworkFooter";
 import { StatusBar } from "expo-status-bar";
@@ -45,12 +47,15 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
   const [otp, setOtp] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [retryAt, setRetryAt] = useState(0);
+  const [loginRetryAt, setLoginRetryAt] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
   const expiresIn = Math.max(0, Math.ceil(((challenge?.expiresAt || 0) - now) / 1000));
   const resendIn = Math.max(0, Math.ceil((Math.max(challenge?.resendAt || 0, retryAt) - now) / 1000));
+  const loginRetryIn = Math.max(0, Math.ceil((loginRetryAt - now) / 1000));
+  const submitDisabled = loading || (register ? (challenge ? expiresIn === 0 : resendIn > 0) : loginRetryIn > 0);
   const sendCode = async () => {
     const cleanMobile = mobile.trim();
     const cleanEmail = email.trim().toLowerCase();
@@ -84,7 +89,7 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
   };
 
   const submit = async () => {
-    if (submitting.current) return;
+    if (submitting.current || (!register && Date.now() < loginRetryAt)) return;
     setError("");
     if (register && name.trim().length < 2) {
       setError(label("Enter your full name (at least 2 characters).", "अपना पूरा नाम दर्ज करें (कम से कम 2 अक्षर)।"));
@@ -115,6 +120,20 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
       } else { await authService.login(loginMethod === "email" ? loginEmail.trim().toLowerCase() : mobile.trim(), password); }
       router.replace(destination as any);
     } catch (cause: any) {
+      if (!register && cause?.response?.status === 429) {
+        const headers = cause.response.headers;
+        const raw = String(headers?.["retry-after"] ?? "");
+        const currentTime = Date.now();
+        const delay = /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - currentTime;
+        setNow(currentTime);
+        setLoginRetryAt(currentTime + (Number.isFinite(delay) && delay > 0 ? delay : 30_000));
+        console.warn("[Login] Rate limited", {
+          requestId: headers?.["x-request-id"],
+          edgeRequestId: headers?.["x-hcdn-request-id"],
+          retryAfter: headers?.["retry-after"],
+        });
+        return;
+      }
       if (cause?.response?.data?.retryAfterSeconds) {
         setRetryAt(Date.now() + cause.response.data.retryAfterSeconds * 1000);
         if (register && !challenge && cause.response.status === 429) return;
@@ -134,9 +153,13 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
       {focused && <StatusBar style="light" />}
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
         <View style={[styles.hero, { paddingTop: insets.top + 14 }]}>
-          <View pointerEvents="none" style={[styles.heroSun, { top: insets.top + 4 }]} />
-          <View pointerEvents="none" style={styles.heroRay} />
-          <View style={[styles.heroInner, compactLogin && styles.compactHero]}>
+          {register ? (
+            <>
+              <View pointerEvents="none" style={[styles.heroSun, { top: insets.top + 4 }]} />
+              <View pointerEvents="none" style={styles.heroRay} />
+            </>
+          ) : <AccountHeaderBackdrop top={insets.top + 4} />}
+          <View style={[styles.heroInner, !register && styles.signInHeroInner]}>
             <View style={styles.topBar}>
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={label("Back", "वापस")} style={styles.heroIcon} disabled={loading}
                 onPress={() => {
@@ -146,16 +169,13 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
                 }}>
                 <MaterialIcons name="arrow-back" size={22} color="#fff" />
               </TouchableOpacity>
-              <View style={styles.brandLockup}>
-                <Image source={require("../assets/images/icon.png")} style={styles.brandLogo} resizeMode="contain" accessible={false} />
-                <Text style={styles.brand}>MalikSe<Text style={{ color: sun }}>.</Text></Text>
-              </View>
+              <BrandLockup style={styles.brandLockup} />
               <TouchableOpacity accessibilityRole="button" style={styles.language} onPress={toggleLanguage}>
                 <Text style={styles.languageText}>{label("हिन्दी", "English")}</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.titleGroup}>
-              <Text accessibilityRole="header" style={styles.heading}>
+            <View style={[styles.titleGroup, !register && accountHeaderStyle.titleGroup]}>
+              <Text accessibilityRole="header" style={[styles.heading, !register && accountHeaderStyle.heading]}>
                 {register ? label("Create your account", "अपना खाता बनाएं") : label("Sign in", "साइन इन करें")}
               </Text>
               {!register && <Text style={styles.heroHint}>{label("Use your registered mobile number or email.", "अपना पंजीकृत मोबाइल नंबर या ईमेल इस्तेमाल करें।")}</Text>}
@@ -221,7 +241,8 @@ export default function AccountAuthScreen({ mode }: { mode: "login" | "register"
           {register && !challenge && resendIn > 0 && <Text style={styles.description}>{label(`You can request another OTP in ${resendIn}s.`, `${resendIn} सेकंड में नया OTP मांग सकते हैं।`)}</Text>}
           {!!notice && register && <Text accessibilityLiveRegion="polite" style={styles.description}>{notice}</Text>}
           {!!error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
-          <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: loading, busy: loading }} style={[styles.button, loading && styles.disabled]} onPress={submit} disabled={loading || (register && (challenge ? expiresIn === 0 : resendIn > 0))}>
+          {!register && loginRetryIn > 0 && <Text style={styles.error}>{label(`Sign-in is temporarily limited. Try again in ${loginRetryIn}s.`, `साइन इन अस्थायी रूप से सीमित है। ${loginRetryIn} सेकंड में फिर से कोशिश करें।`)}</Text>}
+          <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: submitDisabled, busy: loading }} style={[styles.button, submitDisabled && styles.disabled]} onPress={submit} disabled={submitDisabled}>
             {loading && <ActivityIndicator color={navy} />}
             <Text style={styles.buttonText}>{loading ? label("Please wait…", "कृपया प्रतीक्षा करें…") : register ? (challenge ? label("Verify & create account", "सत्यापित करें और खाता बनाएं") : registerMethod === "email" ? label("Send email OTP", "ईमेल OTP भेजें") : label("Send OTP", "OTP भेजें")) : label("Sign in", "साइन इन करें")}</Text>
           </TouchableOpacity>
@@ -245,19 +266,18 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1 },
   screen: { flex: 1, backgroundColor: cream },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: cream },
-  hero: { backgroundColor: navy, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden", paddingHorizontal: 20, paddingBottom: 36 },
-  heroInner: { width: "100%", maxWidth: 440, alignSelf: "center", gap: 20 },
+  hero: { backgroundColor: navy, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden", paddingHorizontal: 20, paddingBottom: 28 },
+  heroInner: { width: "100%", maxWidth: 440, alignSelf: "center", gap: brandHeader.gap },
   heroSun: { position: "absolute", width: 138, height: 138, borderRadius: 69, right: -66, backgroundColor: sun },
   heroRay: { position: "absolute", width: 74, height: 210, borderRadius: 40, right: 62, top: 70, backgroundColor: "#1C3556", transform: [{ rotate: "-30deg" }] },
   topBar: { flexDirection: "row", alignItems: "center", gap: 12 },
   heroIcon: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: "#244268" },
   language: { minHeight: 44, justifyContent: "center", paddingHorizontal: 14, borderRadius: 22, backgroundColor: navy, borderColor: "#536174", borderWidth: 1 },
   languageText: { color: "#fff", fontFamily: "ManropeBold", fontSize: 14 },
-  brandLockup: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
-  brandLogo: { width: 32, height: 32 },
-  brand: { color: "#fff", fontSize: 24, fontFamily: "Fraunces" },
+  brandLockup: { flex: 1 },
   titleGroup: { gap: 4 },
-  heading: { fontSize: 32, lineHeight: 40, fontFamily: "Fraunces", color: "#fff" },
+  heading: { fontSize: brandHeader.headingSize, lineHeight: brandHeader.headingLineHeight, fontFamily: "Fraunces", color: "#fff" },
+  signInHeroInner: { gap: 16 },
   heroHint: { color: "#F7F4EC", fontFamily: "Manrope", fontSize: 13, lineHeight: 19, maxWidth: "88%" },
   card: {
     width: "90%", maxWidth: 440, alignSelf: "center", marginTop: -14, padding: 20,
@@ -288,7 +308,6 @@ const styles = StyleSheet.create({
   buttonText: { color: navy, fontFamily: "ManropeExtraBold", fontSize: 15, textAlign: "center" },
   secondary: { alignItems: "center", justifyContent: "center", minHeight: 44, paddingVertical: 8 },
   accountSwitch: { borderTopWidth: 1, borderColor: line, marginTop: 4, paddingTop: 12 },
-  compactHero: { gap: 12 },
   compactCard: { padding: 16 },
   compactMethodRow: { marginBottom: 12 },
   compactField: { marginBottom: 10 },

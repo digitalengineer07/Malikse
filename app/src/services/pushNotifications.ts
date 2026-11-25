@@ -2,11 +2,12 @@ import { isRunningInExpoGo } from "expo";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
-let registeredToken: string | null = null;
+let registration: { userId: string; token: string } | undefined;
 let handlerInstalled = false;
 
 async function notificationsModule() {
-  if (Platform.OS === "web" || isRunningInExpoGo()) return null;
+  if (Platform.OS !== "android" || isRunningInExpoGo()
+    || !Constants.expoConfig?.extra?.androidDeviceAlertsConfigured) return null;
   const Notifications = await import("expo-notifications");
   if (!handlerInstalled) {
     Notifications.setNotificationHandler({
@@ -43,32 +44,34 @@ export async function registerPushDevice(userId: string) {
     if (session.user?.id !== userId || !session.accessToken) return;
     const authorization = { Authorization: `Bearer ${session.accessToken}` };
     const { default: api } = await import("./authService");
-    await api.post("/push/devices", { token, platform: Platform.OS }, { headers: authorization });
+    await api.post("/push/devices", { token, platform: Platform.OS }, { headers: authorization, timeout: 5000 });
     if (useAuthStore.getState().user?.id !== userId) {
-      await api.delete("/push/devices", { data: { token }, headers: authorization });
+      await api.delete("/push/devices", { data: { token }, headers: authorization, timeout: 3000 });
       return;
     }
-    registeredToken = token;
-  } catch (error) {
-    console.warn("Could not register push notifications", error);
+    registration = { userId, token };
+  } catch {
+    console.warn("[Device alerts] Registration deferred");
   }
 }
 
-export async function unregisterPushDevice() {
-  if (!registeredToken) return;
-  const token = registeredToken;
-  registeredToken = null;
+export async function unregisterPushDevice(userId: string) {
+  if (registration?.userId !== userId) return;
+  const { token } = registration;
+  registration = undefined;
   const { default: api } = await import("./authService");
-  await api.delete("/push/devices", { data: { token } });
+  await api.delete("/push/devices", { data: { token }, timeout: 3000 });
 }
 
 export async function observePushOpens(onOpen: (kind: "inquiry" | "deal" | "property" | "listings", id: string) => void, onReceipt: (kind: unknown) => void) {
   const Notifications = await notificationsModule();
   if (!Notifications) return () => {};
   const open = (response: import("expo-notifications").NotificationResponse) => {
+    if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
     const { kind, id } = response.notification.request.content.data || {};
     onReceipt(kind);
-    if ((kind === "inquiry" || kind === "deal" || kind === "property" || kind === "listings") && typeof id === "string") onOpen(kind, id);
+    if ((kind === "inquiry" || kind === "deal" || kind === "property" || kind === "listings")
+      && typeof id === "string" && /^[0-9a-f]{24}$/i.test(id)) onOpen(kind, id);
   };
   const subscription = Notifications.addNotificationResponseReceivedListener(open);
   const receipts = Notifications.addNotificationReceivedListener(notification => onReceipt(notification.request.content.data?.kind));

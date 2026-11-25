@@ -1,3 +1,5 @@
+import { AccountHeaderBackdrop, accountHeaderStyle } from "./AccountHeaderBackdrop";
+import { BrandLockup, brandHeader } from "./BrandLockup";
 import { randomUUID } from "expo-crypto";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -5,14 +7,13 @@ import { isRunningInExpoGo } from "expo";
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
   Linking,
-  AppState,
-  Keyboard,
   KeyboardAvoidingView,
   ActivityIndicator,
   BackHandler,
   Image,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   type ScrollViewInstance,
   type ScrollViewProps,
@@ -30,6 +31,7 @@ import {
   useLocalSearchParams,
   usePathname,
   useRouter,
+  useSegments,
 } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import AccountArtworkFooter from "./AccountArtworkFooter";
@@ -43,8 +45,6 @@ import { homeFeedBusyMessage, loadHomeRecommendations } from "../src/services/ho
 import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
 import NotificationBell from "./NotificationBell";
-import { chatBusyMessage, readChat } from "../src/services/chatRequests";
-import { useNotificationStore } from "../src/store/notificationStore";
 import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
 import EmailChangeForm from "./EmailChangeForm";
@@ -88,6 +88,7 @@ function Button({
   title,
   onPress,
   secondary = false,
+  danger = false,
   disabled = false,
   icon,
 }: any) {
@@ -97,10 +98,10 @@ function Button({
       accessibilityLabel={title}
       disabled={disabled}
       onPress={onPress}
-      style={[s.button, secondary && s.secondary, disabled && { opacity: 0.5 }]}
+      style={[s.button, secondary && s.secondary, danger && s.dangerButton, disabled && { opacity: 0.5 }]}
     >
-      {icon && <Icon name={icon} size={17} />}
-      <Text style={[s.buttonText, secondary && { color: C.blue }]}>
+      {icon && <Icon name={icon} size={17} color={danger ? "#A52239" : undefined} />}
+      <Text style={[s.buttonText, secondary && { color: C.blue }, danger && s.dangerButtonText]}>
         {title}
       </Text>
     </Pressable>
@@ -164,6 +165,47 @@ function Field({
     </View>
   );
 }
+let searchRetryAt = 0;
+const searchBusy = "Search is temporarily limited. Tap Retry search to try again.";
+const isPropertySearch = (path: string | null) => Boolean(path?.startsWith("/properties/search?"));
+
+async function waitForSearch(delay: number, signal?: AbortSignal) {
+  if (signal?.aborted) throw new Error("Search canceled");
+  if (delay <= 0) return;
+  await new Promise<void>((resolve, reject) => {
+    const stop = () => { clearTimeout(timer); reject(new Error("Search canceled")); };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", stop);
+      resolve();
+    }, delay);
+    signal?.addEventListener("abort", stop, { once: true });
+  });
+}
+
+async function getData(path: string, signal?: AbortSignal) {
+  if (!isPropertySearch(path)) return api.get(path);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const remaining = searchRetryAt - Date.now();
+    if (remaining > 60_000) break;
+    await waitForSearch(remaining, signal);
+    try {
+      return await api.get(path, { signal });
+    } catch (error: any) {
+      if (error.response?.status !== 429) throw error;
+      const headers = error.response.headers;
+      const raw = String(headers?.["retry-after"] ?? "");
+      const now = Date.now();
+      const delay = /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - now;
+      searchRetryAt = Math.max(searchRetryAt, now + (Number.isFinite(delay) && delay > 0 ? delay : 15_000));
+      console.warn("[Property search] Rate limited", {
+        requestId: headers?.["x-request-id"], edgeRequestId: headers?.["x-hcdn-request-id"],
+        server: headers?.server, retryAfter: headers?.["retry-after"],
+      });
+    }
+  }
+  throw new Error(searchBusy);
+}
+
 function useData(path: string | null, deps: any[] = [], homeScope?: string, keepLoadedPages = false) {
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
@@ -173,18 +215,24 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
   const latestRequest = useRef(requestKey);
   const refreshSequence = useRef(0);
   const loadedPagesKey = useRef<string | null>(null);
+  const pagingRequest = useRef<{ key: string; signal?: AbortSignal } | null>(null);
+  const searchScope = useRef<AbortController | null>(null);
+  const searchRefresh = useRef<AbortSignal | null>(null);
   useEffect(() => { latestRequest.current = requestKey; }, [requestKey]);
   const [resultKey, setResultKey] = useState(requestKey);
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (forceHomeRefresh = false) => {
     const [path, , homeScope] = JSON.parse(requestKey);
     if (!path) return;
+    const signal = isPropertySearch(path) ? searchScope.current?.signal : undefined;
+    if (signal && (searchRefresh.current === signal || pagingRequest.current?.signal === signal)) return;
+    if (signal) searchRefresh.current = signal;
     const sequence = ++refreshSequence.current;
     setLoading(true);
-    setError("");
+    if (!path.startsWith("/inquiries")) setError("");
     try {
-      const response = homeScope ? await loadHomeRecommendations(path, homeScope)
-        : path.startsWith("/inquiries") ? await readChat(path) : await api.get(path);
-      if (latestRequest.current !== requestKey || sequence !== refreshSequence.current) return;
+      const response = homeScope ? await loadHomeRecommendations(path, homeScope, forceHomeRefresh) : await getData(path, signal);
+      if (signal?.aborted || latestRequest.current !== requestKey || sequence !== refreshSequence.current) return;
+      setError("");
       setResultKey(requestKey);
       if (keepLoadedPages && loadedPagesKey.current === requestKey) {
         setData((previous: any[]) => {
@@ -197,20 +245,29 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
         setNextCursor(response.headers["x-next-cursor"] || null);
       }
     } catch (e) {
-      if (latestRequest.current === requestKey && sequence === refreshSequence.current) setError(errorText(e));
+      if (!signal?.aborted && latestRequest.current === requestKey && sequence === refreshSequence.current) setError(errorText(e));
     } finally {
+      if (signal && searchRefresh.current === signal) searchRefresh.current = null;
       if (latestRequest.current === requestKey && sequence === refreshSequence.current) setLoading(false);
     }
   }, [requestKey, keepLoadedPages]);
   useFocusEffect(
     useCallback(() => {
+      const scope = isPropertySearch(path) ? new AbortController() : null;
+      searchScope.current = scope;
       void refresh();
-    }, [refresh]),
+      return () => scope?.abort();
+    }, [path, refresh]),
   );
 
   const loadPages = async (all: boolean) => {
-    if (!path || !nextCursor || loading || resultKey !== requestKey) return;
+    const signal = isPropertySearch(path) ? searchScope.current?.signal : undefined;
+    if (!path || !nextCursor || loading || resultKey !== requestKey ||
+        (pagingRequest.current?.key === requestKey && !pagingRequest.current.signal?.aborted)) return;
+    const request = { key: requestKey, signal };
+    pagingRequest.current = request;
     setLoading(true);
+    setError("");
     try {
       let cursor: string | null = nextCursor;
       const items = new Map<string, any>(data.map((item: any) => [item._id, item]));
@@ -218,10 +275,15 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
       while (cursor && !visited.has(cursor)) {
         visited.add(cursor);
         const pagePath: string = path + (path.includes("?") ? "&" : "?") + "cursor=" + encodeURIComponent(cursor);
-        const response = pagePath.startsWith("/inquiries") ? await readChat(pagePath) : await api.get(pagePath);
-        if (latestRequest.current !== requestKey) return;
+        if (signal && visited.size > 1) await waitForSearch(300, signal);
+        const response = await getData(pagePath, signal);
+        if (signal?.aborted || latestRequest.current !== requestKey) return;
         for (const item of response.data) items.set(item._id, item);
         cursor = response.headers["x-next-cursor"] || null;
+        if (path.startsWith("/properties/search?")) {
+          setData([...items.values()]);
+          setNextCursor(cursor);
+        }
         if (!all) break;
       }
       if (keepLoadedPages) {
@@ -235,13 +297,16 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
       } else setData([...items.values()]);
       setNextCursor(cursor);
     } catch (e) {
-      if (latestRequest.current === requestKey) setError(errorText(e));
+      if (!signal?.aborted && latestRequest.current === requestKey) setError(errorText(e));
     } finally {
-      if (latestRequest.current === requestKey) setLoading(false);
+      if (pagingRequest.current === request) pagingRequest.current = null;
+      if (!signal?.aborted && latestRequest.current === requestKey) setLoading(false);
     }
   };
-  return { data: resultKey === requestKey ? data : null, error, loading, refresh, setData, nextCursor,
-    loadMore: () => loadPages(false), loadAll: () => loadPages(true) };
+  return {
+    data: resultKey === requestKey ? data : null, error, loading, refresh, setData, nextCursor,
+    loadMore: () => loadPages(false), loadAll: () => loadPages(true)
+  };
 }
 function useAction() {
   const [busy, setBusy] = useState(false),
@@ -286,12 +351,13 @@ export function MarketplaceShell({
   title,
   subtitle,
   compactHeader = false,
-  matchedHero = false,
   children,
   back = false,
   onBack,
   headerContent,
   headerAction,
+  heroIllustration,
+  listBody = false,
   backgroundArtwork,
   fixedHeader,
   transcriptRef,
@@ -303,17 +369,19 @@ export function MarketplaceShell({
   scrollFooter,
   dockArtwork = false,
   scrollEnabled = true,
+  refreshControl,
   step,
 }: {
   title?: React.ReactNode;
   subtitle?: string;
   compactHeader?: boolean;
-  matchedHero?: boolean;
   children: React.ReactNode;
   back?: boolean;
   onBack?: () => void;
   headerContent?: React.ReactNode;
   headerAction?: React.ReactNode;
+  heroIllustration?: React.ReactNode;
+  listBody?: boolean;
   backgroundArtwork?: React.ReactNode;
   fixedHeader?: React.ReactNode;
   transcriptRef?: React.RefObject<ScrollViewInstance | null>;
@@ -325,11 +393,11 @@ export function MarketplaceShell({
   scrollFooter?: (dockClearance: number) => React.ReactElement;
   dockArtwork?: boolean;
   scrollEnabled?: boolean;
+  refreshControl?: ScrollViewProps["refreshControl"];
   step?: number;
 }) {
   const insets = useSafeAreaInsets();
-  const { width, height, fontScale } = useWindowDimensions();
-  const sharedHeroHeight = insets.top + (width < 376 ? 252 : 232) + Math.ceil(145 * Math.max(0, fontScale - 1));
+  const { width, height } = useWindowDimensions();
   const smallHeader = compactHeader && (width < 370 || height - insets.top - insets.bottom < 620);
   const dockBottom = Math.max(insets.bottom, 8);
   const dockClearance = dockBottom - insets.bottom + dockHeight;
@@ -337,15 +405,76 @@ export function MarketplaceShell({
     path = usePathname(),
     user = useAuthStore((x) => x.user);
   const focused = useIsFocused();
+  const [routeGroup] = useSegments();
   const contextualTab =
     path === "/saved" ? ["/saved", "favorite-border", "Wishlist"] :
-    path === "/my-properties" ? ["/my-properties", "apartment", "Listings"] :
-    path.startsWith("/deal/") ? [path, "handshake", "Deal"] :
-    ["/messages", "chat-bubble-outline", "Chats"];
+      path === "/my-properties" ? ["/my-properties", "apartment", "Listings"] :
+        path.startsWith("/deal/") ? [path, "handshake", "Deal"] :
+          ["/messages", "chat-bubble-outline", "Chats"];
   const scroll = useRef<ScrollViewInstance>(null);
   useEffect(() => {
     if (step !== undefined) scroll.current?.scrollTo({ y: 0, animated: false });
   }, [step]);
+  const isProfile = path === "/profile" || Boolean(profileHeader);
+  const hero = !fixedHeader && (
+    <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
+      smallHeader && s.smallHero, isProfile && !profileHeader && s.guestProfileHero, profileHeader && s.profileHero]}>
+      {isProfile ? <AccountHeaderBackdrop top={insets.top + 4} /> : (
+        <>
+          <View pointerEvents="none" style={s.heroSun} />
+          <View pointerEvents="none" style={s.heroRay} />
+        </>
+      )}
+      <View style={[s.heroInner, compactHeader && s.compactHeroInner]}>
+        {profileHeader || <>
+          <View style={[s.heroBrandGroup, (isProfile || path === "/saved") && s.spacedBrandGroup]}>
+            <View style={[s.header, Boolean(user) && width < 390 && { gap: 6 }]}>
+              <View style={[s.row, { flex: 1, minWidth: 0 }]}>
+                {back ? (
+                  <Pressable
+                    accessibilityLabel="Back"
+                    accessibilityRole="button"
+                    style={s.heroIcon}
+                    onPress={onBack ?? (() =>
+                      router.canGoBack() ? router.back() : router.replace("/home")
+                    )}
+                  >
+                    <Icon name="arrow-back" color="white" size={20} />
+                  </Pressable>
+                ) : null}
+                <Pressable style={[s.row, { flexShrink: 1, minWidth: 0, gap: 6 }]} onPress={() => router.push("/home")}>
+                  <BrandLockup />
+                </Pressable>
+              </View>
+              {headerAction ?? (
+                <Pressable
+                  accessibilityLabel="Wishlist"
+                  accessibilityRole="button"
+                  style={s.heroIcon}
+                  onPress={() => router.push("/saved")}
+                >
+                  <Icon name="favorite-border" color="white" size={20} />
+                </Pressable>
+              )}
+              <NotificationBell />
+            </View>
+            {Boolean(title) && (
+              <View style={[heroIllustration ? s.illustratedHeroTitle : undefined, isProfile && accountHeaderStyle.titleGroup]}>
+                <View style={heroIllustration ? { flex: 1, minWidth: 0, gap: 2 } : { gap: 4 }}>
+                  <Text accessibilityRole="header" style={[s.heroTitle, isProfile && accountHeaderStyle.heading]}>{title}</Text>
+                  {Boolean(subtitle) && <Text numberOfLines={compactHeader || heroIllustration ? 1 : undefined}
+                  adjustsFontSizeToFit={compactHeader || Boolean(heroIllustration)} minimumFontScale={heroIllustration ? 0.9 : 0.85}
+                  style={[s.heroSubtitle, (smallHeader || Boolean(heroIllustration)) && s.smallHeroSubtitle]}>{subtitle}</Text>}
+                </View>
+                {heroIllustration}
+              </View>
+            )}
+          </View>
+          {headerContent}
+        </>}
+      </View>
+    </View>
+  );
   return (
     <KeyboardAvoidingView
       style={s.root}
@@ -354,78 +483,29 @@ export function MarketplaceShell({
       {focused && <StatusBar style="light" />}
       {fixedHeader}
       <View style={s.scrollViewport}>
-      {backgroundArtwork}
-      <ScrollView
-        ref={transcriptRef ?? scroll}
-        {...transcriptEvents}
-        scrollEventThrottle={transcriptEvents ? 16 : undefined}
-        scrollEnabled={scrollEnabled}
-        style={{ flex: 1 }}
-        contentContainerStyle={[s.scroll, !showDock && { paddingBottom: 12 }, scrollFooter && s.scrollWithArtwork,
+        {backgroundArtwork}
+        {listBody ? <>
+          {hero}
+          <View style={{ flex: 1, paddingBottom: showDock ? dockBottom + dockHeight + 12 : 0 }}>{children}</View>
+        </> : <ScrollView
+          ref={transcriptRef ?? scroll}
+          {...transcriptEvents}
+          scrollEventThrottle={transcriptEvents ? 16 : undefined}
+          scrollEnabled={scrollEnabled}
+          refreshControl={refreshControl}
+          style={{ flex: 1 }}
+          contentContainerStyle={[s.scroll, !showDock && { paddingBottom: 12 }, scrollFooter && s.scrollWithArtwork,
           !scrollEnabled && scrollFooter && s.fitArtworkToViewport,
           !scrollEnabled && scrollFooter && showDock && !dockArtwork && { paddingBottom: dockBottom + dockHeight + 16 },
           showDock && dockArtwork && { paddingBottom: dockBottom + dockHeight + 54 }]}
-        keyboardShouldPersistTaps="handled"
-      >
-      {!fixedHeader && <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
-        smallHeader && s.smallHero, profileHeader && s.profileHero, matchedHero && { height: sharedHeroHeight }]}>
-        <View pointerEvents="none" style={s.heroSun} />
-        <View pointerEvents="none" style={s.heroRay} />
-        <View style={[s.heroInner, compactHeader && s.compactHeroInner, matchedHero && s.matchedHeroInner]}>
-        {profileHeader || <>
-        <View style={[s.header, Boolean(user) && width < 390 && { gap: 6 }]}>
-        <View style={[s.row, { flex: 1, minWidth: 0 }]}>
-          {back ? (
-            <Pressable
-              accessibilityLabel="Back"
-              accessibilityRole="button"
-              style={s.heroIcon}
-              onPress={onBack ?? (() =>
-                router.canGoBack() ? router.back() : router.replace("/home")
-              )}
-            >
-              <Icon name="arrow-back" color="white" size={20} />
-            </Pressable>
-          ) : (
-            <View style={s.logoIcon}>
-              <Icon name="roofing" size={18} />
-            </View>
-          )}
-          <Pressable style={{ flexShrink: 1 }} onPress={() => router.push("/home")}>
-            <Text style={s.logo} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-              MalikSe<Text style={{ color: C.sun }}>.</Text>
-            </Text>
-          </Pressable>
-        </View>
-        {headerAction || (
-        <Pressable
-          accessibilityLabel="Wishlist"
-          accessibilityRole="button"
-          style={s.heroIcon}
-          onPress={() => router.push("/saved")}
+          keyboardShouldPersistTaps="handled"
         >
-          <Icon name="favorite-border" color="white" size={20} />
-        </Pressable>
-        )}
-        <NotificationBell />
-        </View>
-          {Boolean(title) && (
-            <View style={{ gap: 4 }}>
-              <Text accessibilityRole="header" style={s.heroTitle}>{title}</Text>
-              {Boolean(subtitle) && <Text numberOfLines={compactHeader ? 1 : undefined}
-                adjustsFontSizeToFit={compactHeader} minimumFontScale={0.85}
-                style={[s.heroSubtitle, smallHeader && s.smallHeroSubtitle]}>{subtitle}</Text>}
-            </View>
-          )}
-          {headerContent}
-        </>}
-        </View>
-      </View>}
-        <View style={[s.content, profileHeader && s.profileContent]}>
-          {children}
-        </View>
-        {scrollFooter?.(showDock ? dockClearance : 0)}
-      </ScrollView>
+          {hero}
+          <View style={[s.content, profileHeader && s.profileContent]}>
+            {children}
+          </View>
+          {scrollFooter?.(showDock ? dockClearance : 0)}
+        </ScrollView>}
       </View>
       {footer && <View style={[s.footer, footerStyle, { paddingBottom: Math.max(insets.bottom, 12) }]}>{footer}</View>}
       {showDock && dockArtwork && <View pointerEvents="none" style={s.dockArtwork}>
@@ -450,7 +530,16 @@ export function MarketplaceShell({
                 accessibilityRole="button"
                 accessibilityLabel={text}
                 onPress={() => {
-                  if (!isActive) router.push(url as any);
+                  if (isActive) return;
+                  if (url === "/post") {
+                    router.push("/post");
+                    return;
+                  }
+                  if (routeGroup === "(tabs)" || Platform.OS === "web") {
+                    router.navigate(url as any);
+                    return;
+                  }
+                  router.dismissTo(url as any);
                 }}
                 accessibilityState={{ selected: isActive }}
                 style={s.navItem}
@@ -533,7 +622,7 @@ function PropertyCard({
         onPress={() => router.push(`/property/${p._id}` as any)}
       >
         {p.media?.photos?.[0] ? (
-          <Image
+          <PropertyImage
             source={{ uri: p.media.photos[0] }}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
@@ -566,7 +655,7 @@ function PropertyCard({
                       .post(`/recommendations/${p._id}/activity`, {
                         kind: "save",
                       })
-                      .catch(() => {});
+                      .catch(() => { });
                   onSaved?.();
                 });
             }}
@@ -613,16 +702,28 @@ export function HomeScreen() {
       scope,
     ),
     { width } = useWindowDimensions();
+  const [refreshingHome, setRefreshingHome] = useState(false);
+  const homeRefreshPending = useRef(false);
+  const refreshHome = async () => {
+    if (homeRefreshPending.current) return;
+    homeRefreshPending.current = true;
+    setRefreshingHome(true);
+    try {
+      await Promise.all([personal.refresh(true), recent.refresh(true), trending.refresh(true)]);
+    } finally {
+      homeRefreshPending.current = false;
+      setRefreshingHome(false);
+    }
+  };
   const homeBusy = [personal, recent, trending].some(feed => feed.error === homeFeedBusyMessage);
   return (
     <MarketplaceShell
-      matchedHero
       title={<>Find your next home.{"\n"}<Text style={{ color: C.sun }}>Direct from owners.</Text></>}
-      headerContent={
-        <View style={s.homeHeroDetails}>
-          <Text style={s.heroSubtitle}>Explore homes and plots by locality, property type, and budget.</Text>
-        </View>
-      }
+      subtitle="Explore homes and plots by locality, property type, and budget."
+      refreshControl={Platform.OS !== "web" ? (
+        <RefreshControl refreshing={refreshingHome} onRefresh={() => void refreshHome()}
+          tintColor={C.sun} colors={[C.ink]} progressBackgroundColor={C.sunSoft} />
+      ) : undefined}
     >
       <View style={s.panel}>
         <View style={s.row}>
@@ -661,30 +762,26 @@ export function HomeScreen() {
             <Icon name="arrow-forward" size={15} color={C.ink} />
           </Pressable>
         ) : null}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8 }}
-      >
-        {types.map(([id, text, icon]) => (
-          <Pressable
-            key={id}
-            onPress={() => setType(type === id ? "" : id)}
-            style={[s.typeChip, type === id && { backgroundColor: C.blue }]}
-          >
-            <Icon name={icon} color={type === id ? C.sun : C.blue} size={16} />
-            <Text style={[s.small, { color: type === id ? C.sun : C.ink }]}>{text}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8 }}
+        >
+          {types.map(([id, text, icon]) => (
+            <Pressable
+              key={id}
+              onPress={() => setType(type === id ? "" : id)}
+              style={[s.typeChip, type === id && { backgroundColor: C.blue }]}
+            >
+              <Icon name={icon} color={type === id ? C.sun : C.blue} size={16} />
+              <Text style={[s.small, { color: type === id ? C.sun : C.ink }]}>{text}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
       </View>
       {homeBusy && <View style={s.panel}>
         <Text accessibilityRole="alert" style={s.body}>{homeFeedBusyMessage}</Text>
-        <Button title="Retry listings" secondary onPress={() => {
-          void personal.refresh();
-          void recent.refresh();
-          void trending.refresh();
-        }} />
+        <Button title="Retry listings" secondary disabled={refreshingHome} onPress={() => void refreshHome()} />
       </View>}
       {[
         [
@@ -702,36 +799,36 @@ export function HomeScreen() {
         const listings = (feed.data || []).filter((p: any) => !type || p.type === type).slice(0, 6);
         const carousel = title === "Recommended for You" && width < 650;
         return (
-        <View key={title} style={{ gap: 14 }}>
-          <View style={s.between}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.h2}>{title}</Text>
-              <Text style={s.small}>{sub}</Text>
+          <View key={title} style={{ gap: 14 }}>
+            <View style={s.between}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.h2}>{title}</Text>
+                <Text style={s.small}>{sub}</Text>
+              </View>
+              <Pressable onPress={() => router.push({ pathname: "/search", params: { type } })}>
+                <Text style={s.link}>View all →</Text>
+              </Pressable>
             </View>
-            <Pressable onPress={() => router.push({ pathname: "/search", params: { type } })}>
-              <Text style={s.link}>View all →</Text>
-            </Pressable>
-          </View>
-          {feed.error === homeFeedBusyMessage && !listings.length ? null : (feed.loading || (feed === personal && storedPrefs?.scope !== scope)) && !listings.length ? (
-            <ActivityIndicator color={C.blue} />
-          ) : feed.error && !listings.length ? (
-            <ErrorBox text={feed.error} />
-          ) : !listings.length ? (
-            <Empty
-              title={type ? "No listings in this category" : "Properties are on their way"}
-              text={type ? "Choose another property type to see more listings." : "Verified listings will appear here as they become available."}
-            />
-          ) : (
-            <ScrollView horizontal={carousel} scrollEnabled={carousel} showsHorizontalScrollIndicator={false}
-              contentContainerStyle={carousel ? { gap: 14 } : s.grid}>
-              {listings.map((p: any) => (
+            {feed.error === homeFeedBusyMessage && !listings.length ? null : (feed.loading || (feed === personal && storedPrefs?.scope !== scope)) && !listings.length ? (
+              <ActivityIndicator color={C.blue} />
+            ) : feed.error && !listings.length ? (
+              <ErrorBox text={feed.error} />
+            ) : !listings.length ? (
+              <Empty
+                title={type ? "No listings in this category" : "Properties are on their way"}
+                text={type ? "Choose another property type to see more listings." : "Verified listings will appear here as they become available."}
+              />
+            ) : (
+              <ScrollView horizontal={carousel} scrollEnabled={carousel} showsHorizontalScrollIndicator={false}
+                contentContainerStyle={carousel ? { gap: 14 } : s.grid}>
+                {listings.map((p: any) => (
                   <View
                     key={p._id}
                     style={{
                       width:
                         width > 1000 ? "31.8%" : width > 650 ? "48.5%" :
                           title === "Recommended for You" ? Math.min(width - 64, 320) :
-                          title === "Trending Properties" && width >= 360 ? "47.5%" : "100%",
+                            title === "Trending Properties" && width >= 360 ? "47.5%" : "100%",
                     }}
                   >
                     <PropertyCard
@@ -740,9 +837,9 @@ export function HomeScreen() {
                     />
                   </View>
                 ))}
-            </ScrollView>
-          )}
-        </View>
+              </ScrollView>
+            )}
+          </View>
         );
       })}
       <View style={[s.panel, { backgroundColor: C.sunSoft }]}>
@@ -776,14 +873,6 @@ export function SearchScreen() {
   const feed = useData(
     `/properties/search?limit=50&location=${encodeURIComponent(nearby ? "" : submitted)}${type ? "&type=" + type : ""}${max ? "&maxPrice=" + max : ""}${nearbyQuery}`,
   );
-  const nearbyLoad = useRef("");
-  const nearbyLoadKey = `${nearbyQuery}:${type}:${max}`;
-  const { data: searchResults, nextCursor: searchCursor, loading: searchLoading, loadAll } = feed;
-  useEffect(() => {
-    if (!nearbyQuery || !searchResults || !searchCursor || searchLoading || nearbyLoad.current === nearbyLoadKey) return;
-    nearbyLoad.current = nearbyLoadKey;
-    void loadAll();
-  }, [nearbyQuery, nearbyLoadKey, searchResults, searchCursor, searchLoading, loadAll]);
   const select = useCallback((p: any) => setSelected(p), []);
   const [mapGestureActive, setMapGestureActive] = useState(false);
   const [mapFitVersion, setMapFitVersion] = useState(0);
@@ -815,14 +904,19 @@ export function SearchScreen() {
   const directionsUrl = validMapPoint(destination)
     ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${destination.lat},${destination.lng}`)}&dir_action=navigate`
     : null;
+  const recordedSearch = useRef("");
   useEffect(() => {
-    if (submitted && feed.data)
-      for (const property of feed.data.slice(0, 5))
-        void api
-          .post(`/recommendations/${property._id}/activity`, { kind: "search" })
-          .catch(() => {});
-  }, [feed.data, submitted]);
+    const activityKey = JSON.stringify([user?.id, submitted]);
+    if (!user?.id || !submitted || !feed.data?.length || recordedSearch.current === activityKey) return;
+    recordedSearch.current = activityKey;
+    for (const property of feed.data.slice(0, 5))
+      void api.post(`/recommendations/${property._id}/activity`, { kind: "search" }).catch(() => {});
+  }, [feed.data, submitted, user?.id]);
   const search = () => {
+    if (!nearby && query === submitted) {
+      void feed.refresh();
+      return;
+    }
     setNearby(undefined);
     setSelected(null);
     setSubmitted(query);
@@ -833,7 +927,7 @@ export function SearchScreen() {
           type,
           ...(max ? { maxPrice: Number(max) } : {}),
         })
-        .catch(() => {});
+        .catch(() => { });
     void AsyncStorage.setItem(
       `marketplace_preferences_${user?.id || "guest"}`,
       JSON.stringify({ district: query, type, maxPrice: max }),
@@ -845,29 +939,29 @@ export function SearchScreen() {
       subtitle="Search by area or explore listings on the map."
       scrollEnabled={!mapGestureActive}
       headerContent={
-      <View style={s.searchControls}>
-        <View style={s.searchInputRow}>
-          <TextInput
-            accessibilityLabel="Search properties"
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Locality, project or city"
-            placeholderTextColor="#6f82a8"
-            onSubmitEditing={search}
-            returnKeyType="search"
-            style={s.searchInputText}
+        <View style={s.searchControls}>
+          <View style={s.searchInputRow}>
+            <TextInput
+              accessibilityLabel="Search properties"
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Locality, project or city"
+              placeholderTextColor="#6f82a8"
+              onSubmitEditing={search}
+              returnKeyType="search"
+              style={s.searchInputText}
+            />
+            <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={search} style={s.searchSubmit}>
+              <Icon name="search" size={21} />
+            </Pressable>
+          </View>
+          <Button
+            title="Filters"
+            secondary
+            icon="tune"
+            onPress={() => setFilter(!filter)}
           />
-          <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={search} style={s.searchSubmit}>
-            <Icon name="search" size={21} />
-          </Pressable>
         </View>
-        <Button
-          title="Filters"
-          secondary
-          icon="tune"
-          onPress={() => setFilter(!filter)}
-        />
-      </View>
       }
     >
       {filter && (
@@ -925,6 +1019,7 @@ export function SearchScreen() {
         <Button title="Clear nearby" secondary onPress={() => { setNearby(undefined); setSelected(null); }} />
       </View>}
       <ErrorBox text={feed.error} />
+      {!!feed.error && <Button title="Retry search" secondary disabled={feed.loading} onPress={() => void feed.refresh()} />}
       <ErrorBox text={locationAction.error} />
       {locationPermissionBlocked && locationAction.error && <Button title="Open app settings" icon="settings" secondary
         onPress={() => void locationAction.run(() => Linking.openSettings())} />}
@@ -948,7 +1043,6 @@ export function SearchScreen() {
                 setLocationPermissionBlocked(error instanceof LocationPermissionBlocked);
                 throw error;
               }
-              nearbyLoad.current = "";
               setSelected(null);
               setNearby({ ...point, zoom: 9 });
             })}>
@@ -1027,7 +1121,6 @@ export function WishlistScreen() {
   return (
     <MarketplaceShell
       title="Wishlist"
-      compactHeader
       dockArtwork
       scrollEnabled={rows.length > 0}
       scrollFooter={showArtwork ? () => (
@@ -1039,10 +1132,53 @@ export function WishlistScreen() {
           </View>
         </View>
       ) : undefined}
-      subtitle={rows.length
-        ? `Revisit ${savedCount} saved ${rows.length === 1 && !feed.nextCursor ? "property" : "properties"} anytime.`
-        : "Save your favourites and revisit them anytime."}
-      headerAction={user ? <Button secondary icon="sort" title={sort ? "Newest saved" : "Sort by price"} onPress={() => setSort(!sort)} /> : undefined}
+      subtitle="Keep a shortlist of properties to revisit."
+      headerAction={false}
+      headerContent={user ? (
+        <View style={s.wishlistToolbar}>
+          <View style={s.wishlistSummary}>
+            <Icon name="favorite" size={16} color={C.sun} />
+            <Text style={s.wishlistSummaryText}>
+              {user && feed.data
+                ? `${savedCount} saved ${rows.length === 1 && !feed.nextCursor ? "property" : "properties"}`
+                : "Tap the heart on a listing to save it."}
+            </Text>
+          </View>
+          {rows.length > 1 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={sort ? "Show newest saved first" : "Sort by lowest price"}
+              onPress={() => setSort(current => !current)}
+              style={({ pressed }) => [s.wishlistSort, pressed && { opacity: 0.8 }]}
+            >
+              <Icon name="sort" size={17} />
+              <Text style={s.wishlistSortText}>{sort ? "Newest saved" : "Sort by price"}</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.navigate("/(tabs)/search")}
+              style={({ pressed }) => [s.wishlistSort, s.wishlistBrowse, pressed && { opacity: 0.8 }]}
+            >
+              <Icon name="search" size={17} />
+              <Text style={s.wishlistSortText}>Browse properties</Text>
+            </Pressable>
+          )}
+        </View>
+      ) : (
+        <View style={s.wishlistGuestToolbar}>
+          <Pressable accessibilityRole="button" onPress={() => router.navigate("/(tabs)/search")}
+            style={({ pressed }) => [s.wishlistHeaderBrowse, pressed && { opacity: 0.8 }]}>
+            <Icon name="search" size={18} />
+            <Text style={s.wishlistSortText}>Browse properties</Text>
+            <Icon name="arrow-forward" size={16} />
+          </Pressable>
+          <View style={s.wishlistSaveTip}>
+            <Icon name="favorite-border" color={C.sun} size={17} />
+            <Text style={s.wishlistSaveTipText}>Tap a heart to save a listing.</Text>
+          </View>
+        </View>
+      )}
       back
       onBack={goToChats}
     >
@@ -1111,16 +1247,19 @@ export function ProfileScreen() {
   const profileHeader = user ? (
     <>
       <View style={s.between}>
-        <Text accessibilityRole="header" style={s.heroTitle}>Profile</Text>
+        <View style={s.profileHeaderCopy}>
+          <Text accessibilityRole="header" style={[s.heroTitle, accountHeaderStyle.heading]}>Profile</Text>
+          <Text numberOfLines={1} style={[s.heroSubtitle, s.profileHeroCaption]}>Your account and activity</Text>
+        </View>
         <View style={s.row}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Edit profile"
-          accessibilityState={{ expanded: editing }} onPress={openEditor} style={s.profileEdit}>
-          <Icon name="edit" color={C.sun} />
-        </Pressable>
-        <NotificationBell />
+          <Pressable accessibilityRole="button" accessibilityLabel="Edit profile"
+            accessibilityState={{ expanded: editing }} onPress={openEditor} style={s.profileEdit}>
+            <Icon name="edit" color={C.sun} />
+          </Pressable>
+          <NotificationBell />
         </View>
       </View>
-      <View style={s.profileIdentity}>
+      <View style={[s.profileIdentity, accountHeaderStyle.divider]}>
         <View style={s.profilePortrait}>
           {initials ? <Text style={s.profileInitials}>{initials}</Text> : <Icon name="person-outline" color={C.sun} size={32} />}
         </View>
@@ -1140,138 +1279,148 @@ export function ProfileScreen() {
     </>
   ) : undefined;
   return (
-    <MarketplaceShell title="Profile" profileHeader={profileHeader}
+    <MarketplaceShell title="Profile" subtitle="Your saved homes and account settings." profileHeader={profileHeader}
       scrollFooter={!user ? bottomExtension => <AccountArtworkFooter bottomExtension={bottomExtension} /> : undefined}>
-      <Protected>
-        {user && (
-          <>
-            <View style={s.profileStats}>
-              {[
-                { label: "Listings", value: listingCount, onPress: user.role === "user" ? () => router.push("/my-properties") : undefined },
-                { label: "Saved", value: savedCount, onPress: () => router.push("/saved") },
-                { label: "Rating", value: null, onPress: undefined },
-              ].map(({ label, value, onPress }) => (
-                <Pressable key={label} disabled={!onPress} accessibilityRole={onPress ? "button" : undefined}
-                  accessibilityLabel={value == null ? `${label} unavailable` : `${value} ${label}`}
-                  style={[s.profileStat, label !== "Listings" && s.profileDivider]} onPress={onPress}>
-                  <Text style={s.profileStatValue}>{value ?? "—"}</Text>
-                  <Text style={s.muted}>{label}</Text>
-                </Pressable>
-              ))}
+      {user ? (
+        <>
+          <View style={s.profileStats}>
+            {[
+              { label: "Listings", value: listingCount, onPress: user.role === "user" ? () => router.push("/my-properties") : undefined },
+              { label: "Saved", value: savedCount, onPress: () => router.push("/saved") },
+              { label: "Rating", value: null, onPress: undefined },
+            ].map(({ label, value, onPress }) => (
+              <Pressable key={label} disabled={!onPress} accessibilityRole={onPress ? "button" : undefined}
+                accessibilityLabel={value == null ? `${label} unavailable` : `${value} ${label}`}
+                style={[s.profileStat, label !== "Listings" && s.profileDivider]} onPress={onPress}>
+                <Text style={s.profileStatValue}>{value ?? "—"}</Text>
+                <Text style={s.muted}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={s.profileMenu}>
+            {[
+              { title: "Profile", icon: "person-outline", sub: "Name, phone and email", onPress: openEditor },
+              ...(user.role === "user" ? [{
+                title: "My listings", icon: "apartment", sub: listingSummary, badge: listingCount,
+                onPress: () => router.push("/my-properties"),
+              }] : []),
+              { title: "KYC verification", icon: "badge", sub: "Identity and documents", badge: kycLabel, onPress: () => router.push("/kyc") },
+              { title: "Wishlist", icon: "favorite-border", sub: savedCount == null ? "Your saved properties" : `${savedCount} saved properties`, badge: savedCount, onPress: () => router.push("/saved") },
+            ].map(({ title, icon, sub, badge, onPress }, index) => (
+              <Pressable key={title} accessibilityRole="button" onPress={onPress}
+                style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
+                <View style={s.preferenceIcon}><Icon name={icon} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.profileMenuTitle}>{title}</Text>
+                  <Text style={s.muted}>{sub}</Text>
+                </View>
+                {badge != null ? (
+                  <View style={[s.profileBadge, title === "KYC verification" && s.profileKycBadge]}>
+                    <Text style={[s.profileBadgeText, title === "KYC verification" && { color: C.ink }]}>{badge}</Text>
+                  </View>
+                ) : (
+                  <View style={s.profileChevron}><Icon name="chevron-right" size={19} /></View>
+                )}
+              </Pressable>
+            ))}
+          </View>
+          {editing && (
+            <View style={s.panel}>
+              <Text style={s.h2}>Edit profile</Text>
+              <Field title="Full name" value={name} onChangeText={setName} />
+              <Field title="New email" value={email} onChangeText={setEmail} />
+              <EmailChangeForm email={email} />
+              <Button
+                title="Save profile"
+                disabled={action.busy}
+                onPress={() =>
+                  action.run(async () => {
+                    await userService.updateProfile({ name });
+                    await authService.getMe();
+                    setEditing(false);
+                  })
+                }
+              />
             </View>
-            <View style={s.profileMenu}>
-              {[
-                { title: "Profile", icon: "person-outline", sub: "Name, phone and email", onPress: openEditor },
-                ...(user.role === "user" ? [{
-                  title: "My listings", icon: "apartment", sub: listingSummary, badge: listingCount,
-                  onPress: () => router.push("/my-properties"),
-                }] : []),
-                { title: "KYC verification", icon: "badge", sub: "Identity and documents", badge: kycLabel, onPress: () => router.push("/kyc") },
-                { title: "Wishlist", icon: "favorite-border", sub: savedCount == null ? "Your saved properties" : `${savedCount} saved properties`, badge: savedCount, onPress: () => router.push("/saved") },
-              ].map(({ title, icon, sub, badge, onPress }, index) => (
-                <Pressable key={title} accessibilityRole="button" onPress={onPress}
-                  style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
+          )}
+          <Text style={s.h2}>Preferences</Text>
+          <View style={s.profileMenu}>
+            {[
+              {
+                title: "Notifications", subtitle: "Advisor replies & deal updates", icon: "notifications-none",
+                expanded: notificationSettingsAvailable ? undefined : openPreference === "notifications",
+                onPress: () => {
+                  if (notificationSettingsAvailable) void action.run(() => Linking.openSettings());
+                  else setOpenPreference(current => current === "notifications" ? null : "notifications");
+                },
+              },
+              {
+                title: "Language", subtitle: "English · हिंदी", icon: "language",
+                expanded: openPreference === "language",
+                onPress: () => setOpenPreference(current => current === "language" ? null : "language"),
+              },
+              {
+                title: "Help & support", subtitle: "Talk to the MalikSe team", icon: "help-outline",
+                onPress: () => void action.run(() => Linking.openURL("mailto:support@malikse.in")),
+              },
+            ].map(({ title, subtitle, icon, expanded, onPress }, index) => (
+              <React.Fragment key={title}>
+                <Pressable accessibilityRole="button" accessibilityState={{ expanded }}
+                  onPress={onPress} style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
                   <View style={s.preferenceIcon}><Icon name={icon} /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.profileMenuTitle}>{title}</Text>
-                    <Text style={s.muted}>{sub}</Text>
+                    <Text style={s.muted}>{subtitle}</Text>
                   </View>
-                  {badge != null ? (
-                    <View style={[s.profileBadge, title === "KYC verification" && s.profileKycBadge]}>
-                      <Text style={[s.profileBadgeText, title === "KYC verification" && { color: C.ink }]}>{badge}</Text>
-                    </View>
-                  ) : (
-                    <View style={s.profileChevron}><Icon name="chevron-right" size={19} /></View>
-                  )}
+                  <View style={s.profileChevron}><Icon name={expanded ? "expand-less" : "chevron-right"} size={19} /></View>
                 </Pressable>
-              ))}
+                {expanded && title === "Notifications" && (
+                  <Text style={[s.muted, s.preferenceDetails]}>Push notifications are available in the installed MalikSe app.</Text>
+                )}
+                {expanded && title === "Language" && (
+                  <View style={[s.wrap, s.preferenceDetails]}>
+                    {([{ id: "en", label: "English" }, { id: "hi", label: "हिंदी" }] as const).map(option => (
+                      <Pressable key={option.id} accessibilityRole="radio" accessibilityState={{ checked: language === option.id }}
+                        onPress={() => { setLanguage(option.id); setOpenPreference(null); }}
+                        style={[s.typeChip, language === option.id && { backgroundColor: C.sunSoft }]}>
+                        <Text style={s.cardTitle}>{option.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </React.Fragment>
+            ))}
+          </View>
+          <Button title="Conversations" icon="chat-bubble-outline" secondary onPress={() => router.push("/messages")} />
+          {user.role !== "user" && <Button title="Staff dashboard" icon="dashboard" secondary onPress={() => router.push(dashboardRoutes[user.role] as any)} />}
+          <Button title={user.role === "admin" ? "Support inbox" : "Contact support"} icon="help-outline" secondary onPress={() => router.navigate("/support")} />
+          <Button title="Privacy policy" secondary onPress={() => action.run(() => Linking.openURL("https://malikse.devoxa.in/privacy-policy"))} />
+          {user.role === "user" && <Button title="Delete account" secondary onPress={() => router.push("/delete-account" as any)} />}
+          <ErrorBox text={action.error} />
+          <Button
+            title="Log out of MalikSe"
+            danger
+            icon="logout"
+            onPress={() =>
+              action.run(async () => {
+                await authService.logout();
+                router.replace("/home");
+              })
+            }
+          />
+        </>
+      ) : (
+        <View style={[s.card, s.guestAccountCard]}>
+          <View style={s.guestAccountHeading}>
+            <Text accessibilityRole="header" style={s.guestAccountTitle}>Make yourself at home</Text>
+            <View style={s.guestAccountIcon} accessible={false}>
+              <Icon name="vpn-key" color={C.ink} size={22} />
             </View>
-            {editing && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Edit profile</Text>
-                <Field title="Full name" value={name} onChangeText={setName} />
-                <Field title="New email" value={email} onChangeText={setEmail} />
-                <EmailChangeForm email={email} />
-                <Button
-                  title="Save profile"
-                  disabled={action.busy}
-                  onPress={() =>
-                    action.run(async () => {
-                      await userService.updateProfile({ name });
-                      await authService.getMe();
-                      setEditing(false);
-                    })
-                  }
-                />
-              </View>
-            )}
-            <Text style={s.h2}>Preferences</Text>
-            <View style={s.profileMenu}>
-              {[
-                {
-                  title: "Notifications", subtitle: "Advisor replies & deal updates", icon: "notifications-none",
-                  expanded: notificationSettingsAvailable ? undefined : openPreference === "notifications",
-                  onPress: () => {
-                    if (notificationSettingsAvailable) void action.run(() => Linking.openSettings());
-                    else setOpenPreference(current => current === "notifications" ? null : "notifications");
-                  },
-                },
-                {
-                  title: "Language", subtitle: "English · हिंदी", icon: "language",
-                  expanded: openPreference === "language",
-                  onPress: () => setOpenPreference(current => current === "language" ? null : "language"),
-                },
-                {
-                  title: "Help & support", subtitle: "Talk to the MalikSe team", icon: "help-outline",
-                  onPress: () => void action.run(() => Linking.openURL("mailto:support@malikse.in")),
-                },
-              ].map(({ title, subtitle, icon, expanded, onPress }, index) => (
-                <React.Fragment key={title}>
-                  <Pressable accessibilityRole="button" accessibilityState={{ expanded }}
-                    onPress={onPress} style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
-                    <View style={s.preferenceIcon}><Icon name={icon} /></View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.profileMenuTitle}>{title}</Text>
-                      <Text style={s.muted}>{subtitle}</Text>
-                    </View>
-                    <View style={s.profileChevron}><Icon name={expanded ? "expand-less" : "chevron-right"} size={19} /></View>
-                  </Pressable>
-                  {expanded && title === "Notifications" && (
-                    <Text style={[s.muted, s.preferenceDetails]}>Push notifications are available in the installed MalikSe app.</Text>
-                  )}
-                  {expanded && title === "Language" && (
-                    <View style={[s.wrap, s.preferenceDetails]}>
-                      {([{ id: "en", label: "English" }, { id: "hi", label: "हिंदी" }] as const).map(option => (
-                        <Pressable key={option.id} accessibilityRole="radio" accessibilityState={{ checked: language === option.id }}
-                          onPress={() => { setLanguage(option.id); setOpenPreference(null); }}
-                          style={[s.typeChip, language === option.id && { backgroundColor: C.sunSoft }]}>
-                          <Text style={s.cardTitle}>{option.label}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  )}
-                </React.Fragment>
-              ))}
-            </View>
-            <Button title="Conversations" icon="chat-bubble-outline" secondary onPress={() => router.push("/messages")} />
-            {user.role !== "user" && <Button title="Staff dashboard" icon="dashboard" secondary onPress={() => router.push(dashboardRoutes[user.role] as any)} />}
-            <Button title="Privacy policy" secondary onPress={() => action.run(() => Linking.openURL("https://malikse.devoxa.in/privacy-policy"))} />
-            {user.role === "user" && <Button title="Delete account" secondary onPress={() => router.push("/delete-account" as any)} />}
-            <ErrorBox text={action.error} />
-            <Button
-              title="Log out of MalikSe"
-              secondary
-              icon="logout"
-              onPress={() =>
-                action.run(async () => {
-                  await authService.logout();
-                  router.replace("/home");
-                })
-              }
-            />
-          </>
-        )}
-      </Protected>
+          </View>
+          <Text style={s.guestAccountDescription}>Sign in to revisit saved listings and manage your enquiries.</Text>
+          <Button title="Sign in / Register" onPress={() => router.push({ pathname: "/login", params: { returnTo: "/profile" } })} />
+        </View>
+      )}
     </MarketplaceShell>
   );
 }
@@ -1419,9 +1568,9 @@ export function KycScreen() {
                 {feed.data?.isVerifiedIdentity
                   ? "Approved"
                   : (feed.data?.kycStatus || "not_submitted").replaceAll(
-                      "_",
-                      " ",
-                    )}
+                    "_",
+                    " ",
+                  )}
               </Tag>
             </View>
           </View>
@@ -1472,8 +1621,8 @@ export function KycScreen() {
               void authService.getMe();
               router.replace(
                 (typeof params.returnTo === "string" &&
-                params.returnTo.startsWith("/") &&
-                !params.returnTo.startsWith("//")
+                  params.returnTo.startsWith("/") &&
+                  !params.returnTo.startsWith("//")
                   ? params.returnTo
                   : "/profile") as any,
               );
@@ -1495,13 +1644,14 @@ export function PropertyDetailScreen() {
     action = useAction(),
     p = feed.data;
   const userId = useAuthStore((state) => state.user?.id);
+  const userRole = useAuthStore(state => state.user?.role);
   const wishlist = useData(userId && id ? `/users/wishlist/${id}` : null, [userId]);
   const saved = Boolean(wishlist.data?.isWishlisted);
   useEffect(() => {
     if (id)
       void api
         .post(`/recommendations/${id}/activity`, { kind: "view" })
-        .catch(() => {});
+        .catch(() => { });
   }, [id]);
   const offerRequest = useRef<{ amount: string; key: string } | null>(null);
   const contact = (offer = false) =>
@@ -1515,9 +1665,9 @@ export function PropertyDetailScreen() {
           message,
           ...(offer
             ? {
-                offerAmount: Number(amount),
-                requestKey: offerRequest.current?.key,
-              }
+              offerAmount: Number(amount),
+              requestKey: offerRequest.current?.key,
+            }
             : {}),
         })
       ).data;
@@ -1536,6 +1686,10 @@ export function PropertyDetailScreen() {
   ].filter(([key]) => p?.badges?.[key]);
   return (
     <MarketplaceShell title="Property details" back showDock={false}
+      headerContent={p && userId && userRole !== "admin" ? (
+        <Button title="Report this listing" icon="flag" secondary
+          onPress={() => router.push({ pathname: "/support", params: { referenceKind: "property", referenceId: String(p._id) } })} />
+      ) : undefined}
       footer={p && (
         <View style={s.between}>
           <Text style={s.price}>{money(p.price)}</Text>
@@ -1554,7 +1708,7 @@ export function PropertyDetailScreen() {
             ]}
           >
             {photos.length ? (
-              <PropertyImage isPublic
+              <PropertyImage
                 source={{ uri: photos[activePhoto] }}
                 style={StyleSheet.absoluteFill}
               />
@@ -1579,7 +1733,7 @@ export function PropertyDetailScreen() {
                   const result = await userService.toggleWishlist(id);
                   wishlist.setData(result);
                   if (result.isWishlisted) {
-                    void api.post(`/recommendations/${id}/activity`, { kind: "save" }).catch(() => {});
+                    void api.post(`/recommendations/${id}/activity`, { kind: "save" }).catch(() => { });
                   }
                 });
               }}
@@ -1594,7 +1748,7 @@ export function PropertyDetailScreen() {
                   accessibilityLabel={`View photo ${index + 1}`}
                   accessibilityState={{ selected: index === activePhoto }}
                   onPress={() => setGalleryIndex(index)} style={[s.galleryThumb, index === activePhoto && { borderColor: C.sun }]}>
-                  <PropertyImage isPublic source={{ uri }} style={StyleSheet.absoluteFill} />
+                  <PropertyImage source={{ uri }} style={StyleSheet.absoluteFill} />
                 </Pressable>
               ))}
             </ScrollView>
@@ -1657,7 +1811,7 @@ export function PropertyDetailScreen() {
           </View>
           <View style={s.panel}>
             <Text style={s.h2}>Location</Text>
-            <View style={s.map}><VerifiedPropertyMap properties={[p]} onSelect={() => {}} /></View>
+            <View style={s.map}><VerifiedPropertyMap properties={[p]} onSelect={() => { }} /></View>
           </View>
           <View style={s.panel}>
             <Text style={s.h2}>Make an offer</Text>
@@ -1688,488 +1842,8 @@ export function PropertyDetailScreen() {
     </MarketplaceShell>
   );
 }
-function formatChatLocationPart(value: unknown) {
-  return typeof value === "string"
-    ? value.trim().toLocaleLowerCase().replace(/(^|[\s-])\p{L}/gu, start => start.toLocaleUpperCase())
-    : "";
-}
 
-function ChatBubble({ mine, text, createdAt, offer, sending, recipientReadAt }: {
-  mine: boolean; text: string; createdAt?: string; offer?: number; sending?: boolean; recipientReadAt?: string;
-}) {
-  const read = Boolean(createdAt && recipientReadAt &&
-    Date.parse(recipientReadAt) >= Date.parse(createdAt));
-  return <View style={[s.bubble, mine ? s.mine : s.theirs]}>
-    <Text style={s.chatMessage} selectable>{text}</Text>
-    {Boolean(offer) && <Text style={s.cardTitle}>Offer: {money(offer!)}</Text>}
-    {(sending || createdAt) && <View style={s.chatMetadata}>
-      <Text style={s.chatTime}>
-        {sending ? "Sending…" : new Date(createdAt!).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
-      </Text>
-      {mine && !sending && <View accessible accessibilityLabel={read ? "Read" : "Sent"}>
-        <Icon name={read ? "done-all" : "done"} size={15} color={read ? "#1766C2" : C.muted} />
-      </View>}
-    </View>}
-  </View>;
-}
 
-export function ChatsScreen() {
-  const { width } = useWindowDimensions();
-  const houseWidth = Math.min(194, Math.max(0, width - 40) * 0.42);
-  const user = useAuthStore((x) => x.user),
-    router = useRouter(),
-    params = useLocalSearchParams(),
-    [selectedInquiry, setSelected] = useState(String(params.inquiryId || "")),
-    selected = user ? selectedInquiry : "",
-    [text, setText] = useState(""),
-    [query, setQuery] = useState(""),
-    [unreadOnly, setUnreadOnly] = useState(false),
-    feed = useData(user ? "/inquiries?sort=activity" : null, [user?.id], undefined, true),
-    chat = useData(user && selected ? `/inquiries/${selected}` : null, [
-      user?.id,
-    ]),
-    messages = useData(
-      user && selected ? `/inquiries/${selected}/messages` : null,
-      [user?.id],
-    ),
-    action = useAction();
-  const insets = useSafeAreaInsets();
-  const transcript = useRef<ScrollViewInstance>(null);
-  const scrollState = useRef({ nearEnd: true, height: 0, viewport: 0, offset: 0, restore: 0, restoring: false, dragging: false });
-  const scrollFrame = useRef<number | null>(null);
-  const userScrolling = useRef(false);
-  const composerFocused = useRef(false);
-  const historyRequest = useRef<string | null>(null);
-  const activeConversation = useRef(selected);
-  const sendLock = useRef(false);
-  const [pending, setPending] = useState<{ conversation: string; text: string }>();
-  const [sent, setSent] = useState<{ conversation: string; messages: any[] }>();
-  const [history, setHistory] = useState<{ conversation: string; messages: any[]; nextBefore: number | null }>();
-  const [sendErrorConversation, setSendErrorConversation] = useState<string>();
-  const scrollToLatest = useCallback(() => {
-    scrollState.current.nearEnd = true;
-    scrollState.current.restoring = false;
-    userScrolling.current = false;
-    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
-    scrollFrame.current = requestAnimationFrame(() => {
-      scrollFrame.current = null;
-      const { height, viewport } = scrollState.current;
-      if (viewport > 0) {
-        transcript.current?.scrollTo({ y: Math.max(0, height - viewport), animated: false });
-      }
-    });
-  }, []);
-  useEffect(() => {
-    activeConversation.current = selected;
-    scrollState.current = { nearEnd: true, height: 0, viewport: 0, offset: 0, restore: 0, restoring: false, dragging: false };
-    composerFocused.current = false;
-    if (selected) scrollToLatest();
-    return () => {
-      if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
-      scrollFrame.current = null;
-    };
-  }, [selected, scrollToLatest]);
-  useEffect(() => {
-    if (!selected) return;
-    const shown = Keyboard.addListener("keyboardDidShow", () => {
-      if (composerFocused.current) scrollToLatest();
-    });
-    return () => shown.remove();
-  }, [selected, scrollToLatest]);
-  const [previousInquiry, setPreviousInquiry] = useState(params.inquiryId);
-  if (params.inquiryId !== previousInquiry) { setPreviousInquiry(params.inquiryId); if (params.inquiryId) setSelected(String(params.inquiryId)); }
-  const refreshMessages = messages.refresh;
-  const refreshFeed = feed.refresh;
-  const userId = user?.id;
-  const chatFocused = useIsFocused();
-  const chatRevision = useNotificationStore(state => state.chatRevision);
-  const handledChatRevision = useRef(chatRevision);
-  const [appActive, setAppActive] = useState(() => AppState.currentState === "active" || AppState.currentState == null);
-  const acknowledgedReceipt = useRef("");
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", state => {
-      setAppActive(state === "active");
-      if (state === "active" && userId && chatFocused && !selected) void refreshFeed();
-    });
-    return () => subscription.remove();
-  }, [userId, chatFocused, selected, refreshFeed]);
-  useEffect(() => {
-    if (handledChatRevision.current === chatRevision) return;
-    handledChatRevision.current = chatRevision;
-    if (!userId || !chatFocused || !appActive) return;
-    const timer = setTimeout(selected ? refreshMessages : refreshFeed, 750);
-    return () => clearTimeout(timer);
-  }, [chatRevision, userId, chatFocused, appActive, selected, refreshMessages, refreshFeed]);
-  useEffect(() => {
-    if (!userId || !chatFocused || !appActive) return;
-    const timer = setInterval(() => {
-      void (selected ? refreshMessages() : refreshFeed());
-    }, (selected ? 15_000 : 30_000) + Math.round(Math.random() * 4_000));
-    return () => clearInterval(timer);
-  }, [selected, userId, chatFocused, appActive, refreshMessages, refreshFeed]);
-  useEffect(() => {
-    if (selected && userId && chatFocused && appActive && chat.data && messages.data) {
-      const viewingAsBuyer = identity(chat.data.buyerId) === userId;
-      const incoming = messages.data.messages?.slice().reverse().find((message: any) => identity(message.senderId) !== userId);
-      const latest = incoming?.createdAt || (!viewingAsBuyer ? chat.data.createdAt : undefined);
-      const ownReadAt = messages.data.ownReadAt;
-      if (!latest || (ownReadAt && Date.parse(ownReadAt) >= Date.parse(latest))) return;
-      const receipt = `${userId}:${selected}:${latest}`;
-      if (acknowledgedReceipt.current === receipt) return;
-      acknowledgedReceipt.current = receipt;
-      void api.post(`/inquiries/${selected}/read`, { through: latest }).catch(() => {
-        if (acknowledgedReceipt.current === receipt) acknowledgedReceipt.current = "";
-      });
-    }
-  }, [messages.data, chat.data, selected, userId, chatFocused, appActive]);
-  const c = chat.data,
-    other = c && (identity(c.buyerId) === user?.id ? c.staffId : c.buyerId);
-  const recipientReadAt = messages.data?.recipientReadAt !== undefined
-    ? messages.data.recipientReadAt : c && (identity(c.buyerId) === userId ? c.staffReadAt : c.buyerReadAt);
-  const visibleChatError = selected
-    ? [chat, messages].find(request => request.error && (request.error !== chatBusyMessage || !request.data))?.error || action.error
-    : feed.error === chatBusyMessage && feed.data ? "" : feed.error;
-  const participantName = other?.name?.trim();
-  const isOffer = Boolean(c?.dealId) || typeof c?.offerAmount === "number";
-  const propertyTitle = formatChatLocationPart(c?.propertyId?.title);
-  const participantInitials = participantName?.split(/\s+/).slice(0, 2)
-    .map((part: string) => Array.from(part)[0]).join("").toLocaleUpperCase();
-  const sending = pending?.conversation === selected;
-  const sendFailed = sendErrorConversation === selected;
-  const cannotSend = Boolean(pending) || !text.trim();
-  const sentInConversation = sent?.conversation === selected ? sent?.messages ?? [] : [];
-  const serverMessages = messages.data?.messages ?? [];
-  const recentMessages = [...serverMessages, ...sentInConversation.filter(message =>
-    !serverMessages.some((row: any) => row._id === message._id) &&
-    (!serverMessages.length || message.createdAt >= serverMessages[serverMessages.length - 1].createdAt))];
-  const loadedHistory = history?.conversation === selected ? history : undefined;
-  const nextBefore = loadedHistory ? loadedHistory.nextBefore : messages.data?.nextBefore;
-  const displayedMessages = loadedHistory
-    ? Array.from(new Map([...loadedHistory.messages, ...recentMessages].map(message => [message._id, message])).values())
-    : recentMessages;
-  async function loadEarlier() {
-    if (!selected || nextBefore == null || historyRequest.current) return;
-    const request = `${selected}:${nextBefore}`;
-    historyRequest.current = request;
-    try {
-      await action.run(async () => {
-        const { data: older } = await readChat(`/inquiries/${selected}/messages?before=${encodeURIComponent(nextBefore)}`);
-        if (activeConversation.current !== selected) return;
-        const state = scrollState.current;
-        if (!state.nearEnd) {
-          state.restore = state.offset;
-          state.restoring = true;
-        }
-        setHistory({
-          conversation: selected,
-          messages: [...older.messages, ...displayedMessages],
-          nextBefore: older.nextBefore === nextBefore ? null : older.nextBefore,
-        });
-      });
-    } finally {
-      if (historyRequest.current === request) historyRequest.current = null;
-    }
-  }
-  function closeConversation() {
-    setSelected("");
-    setText("");
-    setHistory(undefined);
-    setSendErrorConversation(undefined);
-    void feed.refresh();
-  }
-  async function sendMessage() {
-    const draft = text;
-    const content = draft.trim();
-    if (!selected || !content || sendLock.current) return;
-    sendLock.current = true;
-    setSendErrorConversation(undefined);
-    setPending({ conversation: selected, text: content });
-    scrollToLatest();
-    try {
-      const { data } = await api.post(`/inquiries/${selected}/message`, { text: content });
-      if (activeConversation.current !== selected) return;
-      const saved = data.messages?.at(-1);
-      if (saved?._id) {
-        setSent(current => ({ conversation: selected,
-          messages: [...(current?.conversation === selected ? current.messages : []), saved].slice(-6) }));
-      }
-      setText(current => current === draft ? "" : current);
-      void refreshMessages();
-    } catch {
-      if (activeConversation.current === selected) setSendErrorConversation(selected);
-    } finally {
-      sendLock.current = false;
-      setPending(undefined);
-    }
-  }
-  const search = query.trim().toLocaleLowerCase();
-  const threads = (feed.data || []).filter((thread: any) => {
-    if (unreadOnly && !thread.unread) return false;
-    const participant = identity(thread.buyerId) === user?.id ? thread.staffId : thread.buyerId;
-    return !search || [participant?.name, thread.propertyId?.title, thread.messages?.at(-1)?.text || thread.message]
-      .some(value => typeof value === "string" && value.toLocaleLowerCase().includes(search));
-  });
-  return (
-    <MarketplaceShell
-      matchedHero={!selected}
-      back
-      showDock={!selected}
-      dockArtwork={Boolean(user)}
-      fixedHeader={selected ? (
-        <View style={[s.conversationHeader, { paddingTop: insets.top + 6 }]}>
-          <View style={s.conversationHeaderRow}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Back to messages" style={s.conversationBack} onPress={closeConversation}>
-              <Icon name="arrow-back" size={20} color="#fff" />
-            </Pressable>
-            <View style={s.chatIdentityCard}>
-              <View style={s.chatIdentityIcon} accessible={false}>
-                {participantInitials ? <Text style={s.chatIdentityInitials}>{participantInitials}</Text> :
-                  <Icon name="chat-bubble-outline" size={18} color={C.ink} />}
-              </View>
-              <View style={s.chatIdentityDetails}>
-                <View style={s.chatIdentityNameRow}>
-                  <Text accessibilityRole="header" style={s.chatIdentityName} numberOfLines={1} ellipsizeMode="tail">
-                    {participantName || "Property conversation"}
-                  </Text>
-                  {c && <View style={[s.chatCategory, isOffer && s.chatOffer]}>
-                    <Text style={[s.chatCategoryText, isOffer && s.chatOfferText]}>{isOffer ? "Offer" : "Enquiry"}</Text>
-                  </View>}
-                </View>
-                {propertyTitle ? (
-                  <View style={s.chatIdentityListing}>
-                    <Icon name="home-work" size={13} color={C.sun} />
-                    <Text style={s.chatIdentityProperty} numberOfLines={1}>{propertyTitle}</Text>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-            <NotificationBell />
-          </View>
-        </View>
-      ) : undefined}
-      transcriptRef={selected ? transcript : undefined}
-      transcriptEvents={selected ? {
-        onLayout: ({ nativeEvent }) => {
-          const state = scrollState.current;
-          const viewport = nativeEvent.layout.height;
-          const shrankWhileTyping = composerFocused.current && viewport < state.viewport;
-          state.viewport = viewport;
-          if (state.nearEnd || shrankWhileTyping) scrollToLatest();
-          if (state.height > 0 && state.height <= viewport) void loadEarlier();
-        },
-        onScrollBeginDrag: () => {
-          userScrolling.current = true;
-          if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
-          scrollFrame.current = null;
-          scrollState.current.dragging = true;
-          if (scrollState.current.offset < 48) void loadEarlier();
-        },
-        onScroll: ({ nativeEvent }) => {
-          const state = scrollState.current;
-          state.offset = nativeEvent.contentOffset.y;
-          if (userScrolling.current) {
-            state.nearEnd = nativeEvent.contentSize.height - nativeEvent.layoutMeasurement.height - state.offset < 56;
-          }
-          if (state.dragging && state.offset < 48) {
-            state.dragging = false;
-            void loadEarlier();
-          }
-        },
-        onContentSizeChange: (_width, height) => {
-          const state = scrollState.current;
-          const previousHeight = state.height;
-          state.height = height;
-          if (state.restoring) {
-            transcript.current?.scrollTo({ y: state.restore + Math.max(0, height - previousHeight), animated: false });
-            state.restoring = false;
-          } else if (state.nearEnd) scrollToLatest();
-          if (state.viewport > 0 && height <= state.viewport) void loadEarlier();
-        },
-      } : undefined}
-      backgroundArtwork={selected && c ? (
-        <View pointerEvents="none" accessible={false} accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants" style={s.conversationWatermark}>
-          <Image source={require("../assets/images/conversation_watermark.png")}
-            resizeMode="contain" style={s.conversationWatermarkImage} />
-        </View>
-      ) : undefined}
-      scrollFooter={!user ? bottomExtension => (
-        <AccountArtworkFooter wavesOnly bottomExtension={bottomExtension} hideWhileTyping={false}
-          illustration={<View style={s.watermarkFrame} aria-hidden pointerEvents="none">
-            <Image source={require("../assets/images/messages_watermark.png")}
-              style={s.watermarkImage} resizeMode="contain" accessible={false} />
-          </View>}
-        />
-      ) : undefined}
-      footerStyle={selected ? s.chatFooter : undefined}
-      footer={selected && c && c.propertyId?.status !== "sold" ? (
-        <View style={s.chatComposerArea}>
-          {sendFailed && <Text accessibilityRole="alert" style={s.chatSendError}>Couldn’t send your message. Your draft is still here.</Text>}
-          <View style={[s.row, s.chatComposer]}>
-          <TextInput
-            accessibilityLabel="Message"
-            value={text}
-            onChangeText={value => { setText(value); if (sendFailed) setSendErrorConversation(undefined); }}
-            onFocus={() => {
-              composerFocused.current = true;
-              scrollToLatest();
-            }}
-            onBlur={() => {
-              composerFocused.current = false;
-            }}
-            style={s.chatInput}
-            placeholder="Write a message…"
-            placeholderTextColor={C.muted}
-            multiline
-          />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Send message"
-            accessibilityState={{ disabled: cannotSend, busy: sending }}
-            disabled={cannotSend}
-            style={({ pressed }) => [s.chatSend, (cannotSend || pressed) && s.chatSendDimmed]}
-            onPress={() => void sendMessage()}
-          >
-            {sending ? <ActivityIndicator size="small" color={C.ink} /> : <Icon name="send" size={20} color={C.ink} />}
-          </Pressable>
-          </View>
-        </View>
-      ) : undefined}
-      headerContent={!selected ? (
-        <>
-          <View style={s.messagesHeroIntro}>
-            <View style={s.messagesHeroCopy}>
-              <Text accessibilityRole="header" style={s.heroTitle}>Messages</Text>
-              <Text style={s.messagesHeroSubtitle} numberOfLines={2}>Track property enquiries and replies.</Text>
-            </View>
-            <Image source={require("../assets/images/messages_header_house.png")}
-              resizeMode="contain" accessible={false}
-              style={[s.messagesHeroHouse, { width: houseWidth, height: houseWidth * (897 / 1754) }]} />
-          </View>
-          {user && <View style={s.messagesHeroSearch}>
-            <Icon name="search" size={20} color={C.ink} />
-            <TextInput accessibilityLabel="Search chats, people or properties" placeholder="Search chats, people or properties"
-              placeholderTextColor={C.muted} value={query} onChangeText={setQuery}
-              style={s.messagesHeroSearchInput} />
-          </View>}
-        </>
-      ) : undefined}
-    >
-      <Protected guest={{
-        title: "Pick up the conversation",
-        text: "Sign in to read replies and follow up with your property team.",
-        icon: "chat-bubble-outline",
-      }}>
-        <ErrorBox
-          text={visibleChatError}
-        />
-        {selected ? (
-          <>
-            {!c && !chat.error && <ActivityIndicator color={C.ink} />}
-            {c && (
-              <>
-                {c.dealId && (
-                  <Button
-                    title="View offer & deal"
-                    secondary
-                    onPress={() =>
-                      router.push(`/deal/${identity(c.dealId)}` as any)
-                    }
-                  />
-                )}
-                <View style={s.chatArea}>
-                  {messages.data && nextBefore == null && <ChatBubble mine={identity(c.buyerId) === user?.id} text={c.message}
-                    createdAt={c.createdAt} offer={c.offerAmount} recipientReadAt={recipientReadAt} />}
-                  {displayedMessages.map((m: any, i: number) => (
-                    <ChatBubble key={m._id || i} mine={identity(m.senderId) === user?.id}
-                      text={m.text} createdAt={m.createdAt} recipientReadAt={recipientReadAt} />
-                  ))}
-                  {sending && <ChatBubble mine text={pending.text} sending />}
-                </View>
-                {c.propertyId?.status === "sold" && <Tag>This property is sold. Conversation is read-only.</Tag>}
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            {!feed.data && feed.loading && <ActivityIndicator />}
-            <View style={s.wrap}>
-              <Button title="All" secondary={unreadOnly} onPress={() => setUnreadOnly(false)} />
-              <Button title="Unread" secondary={!unreadOnly} onPress={() => setUnreadOnly(true)} />
-            </View>
-            {threads.map((c: any) => {
-              const viewingAsBuyer = identity(c.buyerId) === user?.id;
-              const participant = viewingAsBuyer ? c.staffId : c.buyerId;
-              const role = !viewingAsBuyer ? "Buyer" : participant?.role === "advisor" ? "Advisor"
-                : participant?.role === "verifier" ? "Verifier" : "Property team";
-              const name: string = typeof participant?.name === "string" && participant.name.trim()
-                ? participant.name.trim() : "Property team";
-              const lastMessage = c.messages?.at(-1);
-              const timestamp = lastMessage?.createdAt || c.createdAt;
-              const location = c.propertyId?.location;
-              const address = [location?.block, location?.district].map(formatChatLocationPart);
-              const listing = [formatChatLocationPart(c.propertyId?.title), ...new Set(address)].filter(Boolean).join(" · ");
-              const unreadCount = c.unreadCount;
-              return (
-                <Pressable
-                  key={c._id}
-                  accessibilityRole="button"
-                  accessibilityHint={unreadCount > 0 ? `${unreadCount} unread messages` : c.unread ? "Unread conversation" : undefined}
-                  onPress={() => { setSelected(c._id); setText(""); }}
-                  style={({ pressed }) => [s.threadCard, pressed && { opacity: 0.78 }]}
-                >
-                  <View style={s.threadAvatarColumn}>
-                    <View style={s.threadAvatar}>
-                      <Text style={s.threadAvatarText}>{Array.from(name)[0]?.toLocaleUpperCase()}</Text>
-                      {c.unread && <View style={s.threadUnreadDot} />}
-                    </View>
-                  </View>
-                  <View style={s.threadCopy}>
-                    <View style={s.threadNameRow}>
-                      <Text style={s.threadName} numberOfLines={1}>{name}</Text>
-                      <View style={s.threadRole}><Text style={s.threadRoleText}>{role}</Text></View>
-                    </View>
-                    {listing ? <View style={s.threadListing}>
-                      <Icon name="home" size={15} color={C.muted} />
-                      <Text style={s.threadListingText} numberOfLines={1}>{listing}</Text>
-                    </View> : null}
-                    <Text style={s.threadPreview} numberOfLines={1}>
-                      {lastMessage?.text || c.message}
-                    </Text>
-                  </View>
-                  <View style={s.threadMeta}>
-                      {timestamp ? <Text style={s.threadTime}>
-                        {new Date(timestamp).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
-                      </Text> : null}
-                    {c.unread && <View style={unreadCount > 0 ? s.threadCount : s.threadCountDot}>
-                      {unreadCount > 0 && <Text style={s.threadCountText}>{unreadCount > 99 ? "99+" : unreadCount}</Text>}
-                    </View>}
-                  </View>
-                  <Icon name="chevron-right" size={19} color={C.ink} />
-                </Pressable>
-              );
-            })}
-            {Boolean(feed.nextCursor) && (
-              <Button
-                title="Load more conversations"
-                secondary
-                disabled={feed.loading}
-                onPress={feed.loadMore}
-              />
-            )}
-            {feed.data?.length > 0 && threads.length === 0 && <Empty title="No matching conversations" text="Try another search or filter." />}
-            {feed.data?.length === 0 && (
-              <Empty
-                title="Start a conversation"
-                text="Open a verified property and contact its assigned team."
-              />
-            )}
-          </>
-        )}
-      </Protected>
-    </MarketplaceShell>
-  );
-}
 export function DealScreen() {
   const { id } = useLocalSearchParams(),
     user = useAuthStore((x) => x.user),
@@ -2267,13 +1941,13 @@ export function DealScreen() {
             {["offered", "countered", "accepted", "token_paid"].includes(
               d.status,
             ) && (
-              <Button
-                title="Cancel offer / reservation"
-                secondary
-                disabled={action.busy}
-                onPress={() => update("cancelled")}
-              />
-            )}
+                <Button
+                  title="Cancel offer / reservation"
+                  secondary
+                  disabled={action.busy}
+                  onPress={() => update("cancelled")}
+                />
+              )}
             {staff && ["accepted", "token_paid"].includes(d.status) && (
               <View style={s.panel}>
                 <Text style={s.cardTitle}>Confirm the completed sale</Text>
@@ -2365,6 +2039,46 @@ export function PostScreen() {
       media: { photos: [], videos: [] },
     }),
     action = useAction();
+  const [advisorStatus, setAdvisorStatus] = useState<{ loading: boolean; valid?: boolean; name?: string; message?: string }>({ loading: false });
+  const canPost = user?.role === "user" && approved(user);
+
+  useEffect(() => {
+    if (!canPost) return;
+    const raw = form.requestedAdvisorId?.trim();
+    const timer = setTimeout(async () => {
+      if (!raw) {
+        setAdvisorStatus({ loading: false });
+        return;
+      }
+      setAdvisorStatus({ loading: true });
+      try {
+        const res = await api.get(`/properties/advisor-lookup/${encodeURIComponent(raw)}`);
+        if (res.data?.valid) {
+          setAdvisorStatus({ loading: false, valid: true, name: res.data.advisor?.name });
+        } else {
+          setAdvisorStatus({ loading: false, valid: false, message: res.data?.message || "Advisor not found." });
+        }
+      } catch (err: any) {
+        setAdvisorStatus({
+          loading: false,
+          valid: false,
+          message: err?.response?.data?.message || "Advisor not found. Leave blank to auto-assign.",
+        });
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [canPost, form.requestedAdvisorId]);
+
+  const onAdvisorIdChange = (text: string) => {
+    let clean = text.trim().toUpperCase();
+    if (/^[1-9][0-9]{5}$/.test(clean)) {
+      clean = `ADV-${clean}`;
+    } else if (/^ADV[1-9][0-9]{5}$/.test(clean)) {
+      clean = `ADV-${clean.slice(3)}`;
+    }
+    setForm((f: any) => ({ ...f, requestedAdvisorId: clean }));
+  };
+
   const set = (key: string) => (value: any) =>
     setForm((f: any) => ({ ...f, [key]: value }));
 
@@ -2387,7 +2101,7 @@ export function PostScreen() {
   const runAction = action.run;
   const editorUserId = user?.id;
   useEffect(() => {
-    if (params.id && editorUserId)
+    if (canPost && params.id && editorUserId)
       void runAction(async () => {
         const p = (await api.get(`/properties/${params.id}/workspace`)).data;
         if (p.parcelPoints && Array.isArray(p.parcelPoints)) {
@@ -2407,7 +2121,7 @@ export function PostScreen() {
           requestedAdvisorId: p.requestedAdvisorId || "",
         });
       });
-  }, [params.id, editorUserId, runAction]);
+  }, [canPost, params.id, editorUserId, runAction]);
   const pick = async (documentType?: PostDocumentType) => {
     const result = await DocumentPicker.getDocumentAsync({
       type: documentType
@@ -2436,6 +2150,7 @@ export function PostScreen() {
   };
   const submit = () =>
     action.run(async () => {
+      if (!canPost) throw new Error("A verified buyer/seller account is required to post property.");
       if (!consent)
         throw new Error("Accept the declaration before submitting.");
       if (points.length > 0 && points.length < 3)
@@ -2463,6 +2178,7 @@ export function PostScreen() {
         roadWidth: form.roadWidth ? Number(form.roadWidth) : undefined,
         parcelPoints: points.length ? points : undefined,
         requestedAdvisorId: form.requestedAdvisorId.trim(),
+        requestedAdvisorCode: form.requestedAdvisorId.trim(),
         negotiable: form.negotiable,
         disclosures: {
           hasLoan: form.hasLoan,
@@ -2515,7 +2231,55 @@ export function PostScreen() {
       await api.post(`/properties/${id}/submit`, { consent: true });
       setDone(true);
     });
-  const canPost = Boolean(user && approved(user));
+  if (user?.role === "advisor") {
+    return (
+      <MarketplaceShell
+        title="Post property"
+        subtitle="Review property details and track the status of your assigned listings."
+        headerContent={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open Advisor dashboard"
+            onPress={() => router.push(dashboardRoutes.advisor)}
+            style={({ pressed }) => [s.advisorPostShortcut, pressed && { opacity: 0.8 }]}
+          >
+            <View style={s.advisorPostIcon}>
+              <Icon name="assignment" size={21} color={C.ink} />
+            </View>
+            <View style={s.advisorPostShortcutCopy}>
+              <Text style={s.advisorPostShortcutTitle}>Assigned listings</Text>
+              <Text style={s.advisorPostShortcutHint}>Open Advisor dashboard</Text>
+            </View>
+            <Icon name="arrow-forward" size={21} color={C.ink} />
+          </Pressable>
+        }
+        back
+        dockArtwork
+        scrollFooter={() => (
+          <View style={[s.postWatermarkFrame, s.advisorPostArtwork]} aria-hidden pointerEvents="none">
+            <Image source={require("../assets/images/post_property_watermark.png")}
+              style={s.watermarkImage} resizeMode="contain" accessible={false} />
+          </View>
+        )}
+      >
+        <View style={[s.card, s.advisorPostCard]}>
+          <Text accessibilityRole="header" style={s.advisorPostTitle}>Who can post a property?</Text>
+          <Text style={s.advisorPostDescription}>New listings are created by verified buyer or seller accounts.</Text>
+        </View>
+      </MarketplaceShell>
+    );
+  }
+  if (user && user.role !== "user") {
+    return (
+      <MarketplaceShell title="Post property" back>
+        <Empty
+          title="Posting requires a buyer/seller account"
+          text="Use a verified buyer/seller account to create a listing. Use your staff dashboard to manage assigned listings."
+          action={<Button title="Staff dashboard" onPress={() => router.push(dashboardRoutes[user.role] as any)} />}
+        />
+      </MarketplaceShell>
+    );
+  }
   return (
     <MarketplaceShell
       title="Post property"
@@ -2526,7 +2290,7 @@ export function PostScreen() {
             ? `Step ${step} of 5 · Private until verified`
             : "Create a listing for your property on MalikSe."
       }
-      back
+      back={Boolean(user)}
       showDock={!canPost || done}
       scrollEnabled={canPost}
       scrollFooter={!canPost ? () => (
@@ -2537,25 +2301,25 @@ export function PostScreen() {
       ) : undefined}
       step={step}
       footer={canPost && !done ? (
-      <View style={s.between}>
-        <Button
-          title="Back"
-          secondary
-          disabled={step === 1 || action.busy}
-          onPress={() => setStep(step - 1)}
-        />
-        <Button
-          title={
-            action.busy
-              ? "Submitting…"
-              : step === 5
-                ? "Submit for verification"
-                : "Continue →"
-          }
-          disabled={action.busy || (step === 5 && !consent)}
-          onPress={() => (step === 5 ? submit() : setStep(step + 1))}
-        />
-      </View>
+        <View style={s.between}>
+          <Button
+            title="Back"
+            secondary
+            disabled={step === 1 || action.busy}
+            onPress={() => setStep(step - 1)}
+          />
+          <Button
+            title={
+              action.busy
+                ? "Submitting…"
+                : step === 5
+                  ? "Submit for verification"
+                  : "Continue →"
+            }
+            disabled={action.busy || (step === 5 && !consent)}
+            onPress={() => (step === 5 ? submit() : setStep(step + 1))}
+          />
+        </View>
       ) : undefined}
       headerContent={canPost && !done ? (
         <View style={s.progress}>
@@ -2600,27 +2364,27 @@ export function PostScreen() {
             <ErrorBox text={action.error} />
             {step === 1 && (
               <>
-              <PostSection number={1} title="What are you listing?">
-                <View style={s.postPurpose} accessibilityLabel="Listing purpose">
-                  <View accessible accessibilityLabel="Sell" accessibilityState={{ selected: true }}
-                    style={[s.postPurposeOption, s.postPurposeSelected]}>
-                    <Text style={s.postPurposeText}>Sell</Text>
+                <PostSection number={1} title="What are you listing?">
+                  <View style={s.postPurpose} accessibilityLabel="Listing purpose">
+                    <View accessible accessibilityLabel="Sell" accessibilityState={{ selected: true }}
+                      style={[s.postPurposeOption, s.postPurposeSelected]}>
+                      <Text style={s.postPurposeText}>Sell</Text>
+                    </View>
+                    <View accessible accessibilityLabel="Rent out, unavailable" accessibilityState={{ disabled: true }}
+                      style={s.postPurposeOption}>
+                      <Text style={s.postPurposeUnavailable}>Rent out</Text>
+                      <Text style={s.small}>Unavailable</Text>
+                    </View>
                   </View>
-                  <View accessible accessibilityLabel="Rent out, unavailable" accessibilityState={{ disabled: true }}
-                    style={s.postPurposeOption}>
-                    <Text style={s.postPurposeUnavailable}>Rent out</Text>
-                    <Text style={s.small}>Unavailable</Text>
-                  </View>
-                </View>
-                <View style={s.postTypeGrid}>
-                  {[
-                    { id: "flat", title: "Apartment", icon: "apartment" },
-                    { id: "house", title: "House", icon: "home" },
-                    { id: null, title: "Villa", icon: "park" },
-                    { id: "land", title: "Plot", icon: "map" },
-                    { id: "shop", title: "Commercial", icon: "people-outline" },
-                    { id: null, title: "PG / Room", icon: "hotel" },
-                  ].map(({ id, title, icon }) => {
+                  <View style={s.postTypeGrid}>
+                    {[
+                      { id: "flat", title: "Apartment", icon: "apartment" },
+                      { id: "house", title: "House", icon: "home" },
+                      { id: null, title: "Villa", icon: "park" },
+                      { id: "land", title: "Plot", icon: "map" },
+                      { id: "shop", title: "Commercial", icon: "people-outline" },
+                      { id: null, title: "PG / Room", icon: "hotel" },
+                    ].map(({ id, title, icon }) => {
                       const disabled = id === null;
                       const selected = !disabled && (form.type === id || (id === "shop" && form.type === "office"));
                       return <Pressable
@@ -2638,63 +2402,63 @@ export function PostScreen() {
                         {disabled && <Text style={s.small}>Unavailable</Text>}
                       </Pressable>;
                     })}
-                </View>
-                {["shop", "office"].includes(form.type) && (
-                  <View style={s.wrap} accessibilityLabel="Commercial property type">
-                    <Button title="Shop" secondary={form.type !== "shop"} onPress={() => set("type")("shop")} />
-                    <Button title="Office" secondary={form.type !== "office"} onPress={() => set("type")("office")} />
                   </View>
-                )}
-              </PostSection>
-              <PostSection number={2} title="Property details">
-                <Field
-                  title="Listing title"
-                  uppercaseLabel
-                  value={form.title}
-                  onChangeText={set("title")}
-                />
-                <View style={s.row}>
-                  <Field uppercaseLabel numeric title="Expected price (₹)" value={form.price} onChangeText={set("price")} />
-                  <Field uppercaseLabel numeric title="Area (sq ft)" value={form.totalArea} onChangeText={set("totalArea")} />
-                </View>
-                {["flat", "house"].includes(form.type) && <>
-                  {[["bedrooms", "Bedrooms"], ["bathrooms", "Bathrooms"]].map(([key, title]) => (
-                    <View key={key} style={[s.between, s.postCounter]}>
-                      <Text style={s.cardTitle}>{title}</Text>
-                      <View style={s.row}>
-                        <Pressable accessibilityRole="button" accessibilityLabel={`Decrease ${key}`} disabled={!form[key]}
-                          style={s.postCounterButton} onPress={() => set(key)(Math.max(0, Number(form[key]) - 1))}>
-                          <Icon name="remove" size={18} />
-                        </Pressable>
-                        <Text style={s.postCounterValue}>{form[key] ?? "—"}</Text>
-                        <Pressable accessibilityRole="button" accessibilityLabel={`Increase ${key}`} disabled={form[key] >= 99}
-                          style={[s.postCounterButton, s.postPurposeSelected]} onPress={() => set(key)(Math.min(99, (form[key] ?? 0) + 1))}>
-                          <Icon name="add" color={C.sun} size={18} />
-                        </Pressable>
-                      </View>
+                  {["shop", "office"].includes(form.type) && (
+                    <View style={s.wrap} accessibilityLabel="Commercial property type">
+                      <Button title="Shop" secondary={form.type !== "shop"} onPress={() => set("type")("shop")} />
+                      <Button title="Office" secondary={form.type !== "office"} onPress={() => set("type")("office")} />
                     </View>
-                  ))}
-                  <Text style={[s.fieldLabel, s.postFieldLabel]}>Furnishing</Text>
-                  <View style={s.wrap}>
-                    {["Unfurnished", "Semi-furnished", "Fully furnished"].map(label => {
-                      const value = label.toLowerCase();
-                      const selected = form.furnishing === value;
-                      return <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected }}
-                        onPress={() => set("furnishing")(value)}
-                        style={[s.typeChip, selected && s.postPurposeSelected]}>
-                        <Text style={[s.cardTitle, selected && { color: C.sun }]}>{label}</Text>
-                      </Pressable>;
-                    })}
+                  )}
+                </PostSection>
+                <PostSection number={2} title="Property details">
+                  <Field
+                    title="Listing title"
+                    uppercaseLabel
+                    value={form.title}
+                    onChangeText={set("title")}
+                  />
+                  <View style={s.row}>
+                    <Field uppercaseLabel numeric title="Expected price (₹)" value={form.price} onChangeText={set("price")} />
+                    <Field uppercaseLabel numeric title="Area (sq ft)" value={form.totalArea} onChangeText={set("totalArea")} />
                   </View>
-                </>}
-                <Field
-                  title="Description"
-                  uppercaseLabel
-                  value={form.description}
-                  onChangeText={set("description")}
-                  multiline
-                />
-              </PostSection>
+                  {["flat", "house"].includes(form.type) && <>
+                    {[["bedrooms", "Bedrooms"], ["bathrooms", "Bathrooms"]].map(([key, title]) => (
+                      <View key={key} style={[s.between, s.postCounter]}>
+                        <Text style={s.cardTitle}>{title}</Text>
+                        <View style={s.row}>
+                          <Pressable accessibilityRole="button" accessibilityLabel={`Decrease ${key}`} disabled={!form[key]}
+                            style={s.postCounterButton} onPress={() => set(key)(Math.max(0, Number(form[key]) - 1))}>
+                            <Icon name="remove" size={18} />
+                          </Pressable>
+                          <Text style={s.postCounterValue}>{form[key] ?? "—"}</Text>
+                          <Pressable accessibilityRole="button" accessibilityLabel={`Increase ${key}`} disabled={form[key] >= 99}
+                            style={[s.postCounterButton, s.postPurposeSelected]} onPress={() => set(key)(Math.min(99, (form[key] ?? 0) + 1))}>
+                            <Icon name="add" color={C.sun} size={18} />
+                          </Pressable>
+                        </View>
+                      </View>
+                    ))}
+                    <Text style={[s.fieldLabel, s.postFieldLabel]}>Furnishing</Text>
+                    <View style={s.wrap}>
+                      {["Unfurnished", "Semi-furnished", "Fully furnished"].map(label => {
+                        const value = label.toLowerCase();
+                        const selected = form.furnishing === value;
+                        return <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected }}
+                          onPress={() => set("furnishing")(value)}
+                          style={[s.typeChip, selected && s.postPurposeSelected]}>
+                          <Text style={[s.cardTitle, selected && { color: C.sun }]}>{label}</Text>
+                        </Pressable>;
+                      })}
+                    </View>
+                  </>}
+                  <Field
+                    title="Description"
+                    uppercaseLabel
+                    value={form.description}
+                    onChangeText={set("description")}
+              multiline
+                  />
+                </PostSection>
               </>
             )}
             {step === 2 && (
@@ -2833,15 +2597,38 @@ export function PostScreen() {
               <PostSection title="Review & submit">
                 <Field
                   uppercaseLabel
-                  title="Advisor ID (optional)"
+                  title="Advisor ID (Optional)"
+                  placeholder="e.g. ADV-482910"
                   value={form.requestedAdvisorId}
-                  onChangeText={set("requestedAdvisorId")}
+                  onChangeText={onAdvisorIdChange}
                 />
-                <Text style={s.muted}>
-                  Enter the ID provided by your Advisor. Leave it blank to
-                  assign an eligible Verifier. This person handles verification,
-                  offers, chats and closure.
-                </Text>
+                {advisorStatus.loading ? (
+                  <View style={[s.row, { marginTop: 6, gap: 6 }]}>
+                    <ActivityIndicator size="small" color={C.blue} />
+                    <Text style={[s.small, { color: C.muted }]}>Verifying Advisor ID...</Text>
+                  </View>
+                ) : advisorStatus.valid ? (
+                  <View style={[s.row, { marginTop: 6, padding: 10, backgroundColor: "#EBF7EE", borderRadius: 8, gap: 6 }]}>
+                    <Icon name="check-circle" color={C.green} size={18} />
+                    <Text style={[s.small, { color: C.green, fontWeight: "600", flex: 1 }]}>
+                      ✓ Verified Advisor: {advisorStatus.name}
+                    </Text>
+                  </View>
+                ) : form.requestedAdvisorId?.trim() ? (
+                  <View style={[s.row, { marginTop: 6, padding: 10, backgroundColor: "#FDF4E7", borderRadius: 8, gap: 6 }]}>
+                    <Icon name="error-outline" color="#B45309" size={18} />
+                    <Text style={[s.small, { color: "#B45309", flex: 1 }]}>
+                      {advisorStatus.message || "Advisor not found. Leave blank to auto-assign."}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={[s.row, { marginTop: 6, padding: 10, backgroundColor: "#F0F5FA", borderRadius: 8, gap: 6 }]}>
+                    <Icon name="bolt" color={C.blue} size={18} />
+                    <Text style={[s.small, { color: C.blue, flex: 1 }]}>
+                      Auto-Assignment: Leave blank to automatically match with an active advisor covering {form.district || "your district"}.
+                    </Text>
+                  </View>
+                )}
                 <Text style={s.cardTitle}>{form.title || `${form.type} in ${form.district || ""}`}</Text>
                 <Text style={s.price}>{money(Number(form.price))}</Text>
                 {points.length >= 3 && (
@@ -2902,23 +2689,55 @@ const fontDisplay = "Fraunces";
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   header: { flexDirection: "row", alignItems: "center", gap: 10 },
-  heroInner: { width: "100%", maxWidth: 1140, alignSelf: "center", gap: 18 },
-  matchedHeroInner: { flex: 1, justifyContent: "space-between", gap: 6 },
+  heroInner: { width: "100%", maxWidth: 1140, alignSelf: "center", gap: brandHeader.gap },
+  heroBrandGroup: { gap: brandHeader.gap },
   compactHeroInner: { gap: 10 },
   heroIcon: {
     width: 42, height: 42, borderRadius: 21, alignItems: "center",
     justifyContent: "center", backgroundColor: "rgba(255,255,255,0.15)",
     borderWidth: 1, borderColor: "rgba(255,255,255,0.20)",
   },
-  logo: { fontFamily: fontDisplay, fontSize: 25, color: "#fff", letterSpacing: -0.5 },
-  logoIcon: { backgroundColor: C.sun, padding: 8, borderRadius: 12 },
   scroll: { paddingBottom: 108 },
   scrollWithArtwork: { flexGrow: 1, paddingBottom: 0 },
   fitArtworkToViewport: { flex: 1 },
+  wishlistGuestToolbar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  wishlistHeaderBrowse: {
+    minHeight: 44, maxWidth: "100%", flexDirection: "row", alignItems: "center", gap: 7,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: C.sun,
+  },
+  wishlistSaveTip: { flexGrow: 1, flexBasis: 104, maxWidth: 158, flexDirection: "row", alignItems: "center", gap: 6 },
+  wishlistSaveTipText: { flexShrink: 1, color: "#E7EDF5", fontFamily: font, fontSize: 12, lineHeight: 17 },
+  wishlistToolbar: {
+    flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between",
+    gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#FFFFFF26",
+  },
+  wishlistSummary: { flexDirection: "row", alignItems: "center", gap: 7, maxWidth: "100%" },
+  wishlistSummaryText: { flexShrink: 1, fontFamily: "ManropeBold", fontSize: 13, color: "#fff" },
+  wishlistSort: {
+    minHeight: 44, maxWidth: "100%", paddingHorizontal: 13, paddingVertical: 8,
+    flexDirection: "row", alignItems: "center", gap: 7, borderRadius: 22, backgroundColor: "#fff",
+  },
+  wishlistBrowse: { backgroundColor: C.sunSoft },
+  wishlistSortText: { flexShrink: 1, fontFamily: "ManropeBold", fontSize: 13, color: C.ink },
   wishlistArtwork: { flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" },
   wishlistWatermarkFrame: { width: "86%", maxWidth: 335, height: "95%" },
   watermarkFrame: { width: "72%", maxWidth: 280, aspectRatio: 1.2 },
   watermarkImage: { width: "100%", height: "100%" },
+  advisorPostCard: { padding: 18, gap: 12, backgroundColor: "#FFFDF7" },
+  advisorPostShortcut: {
+    flexDirection: "row", alignItems: "center", gap: 12, padding: 11,
+    borderRadius: 18, backgroundColor: C.sunSoft,
+  },
+  advisorPostShortcutCopy: { flex: 1, minWidth: 0, gap: 2 },
+  advisorPostShortcutTitle: { color: C.ink, fontFamily: "ManropeExtraBold", fontSize: 15 },
+  advisorPostShortcutHint: { color: C.muted, fontFamily: font, fontSize: 12 },
+  advisorPostIcon: {
+    width: 44, height: 44, borderRadius: 14, backgroundColor: C.sun,
+    alignItems: "center", justifyContent: "center",
+  },
+  advisorPostTitle: { fontFamily: fontDisplay, fontSize: 22, lineHeight: 27, color: C.ink },
+  advisorPostDescription: { fontFamily: font, fontSize: 14, lineHeight: 20, color: C.muted },
+  advisorPostArtwork: { minHeight: 152, maxHeight: 265, marginTop: 10 },
   postWatermarkFrame: { flex: 1, minHeight: 0, width: "86%", maxWidth: 420, alignSelf: "center" },
   postPrepIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF1C0" },
   content: { width: "100%", maxWidth: 1180, alignSelf: "center", padding: 20, gap: 18 },
@@ -3001,6 +2820,8 @@ const s = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
+  dangerButton: { backgroundColor: "#FFF0F2", borderWidth: 1, borderColor: "#EAC3CA", shadowOpacity: 0, elevation: 0 },
+  dangerButtonText: { color: "#A52239" },
   buttonText: {
     fontFamily: "ManropeExtraBold",
     fontSize: 14,
@@ -3025,7 +2846,7 @@ const s = StyleSheet.create({
     elevation: 1,
   },
   hero: {
-    paddingHorizontal: 20, paddingBottom: 24, backgroundColor: C.ink,
+    paddingHorizontal: 20, paddingBottom: 16, backgroundColor: C.ink,
     borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden",
   },
   compactHero: { paddingBottom: 13 },
@@ -3039,24 +2860,15 @@ const s = StyleSheet.create({
     position: "absolute", width: 74, height: 210, borderRadius: 40,
     right: 62, top: 70, backgroundColor: "#1C3556", transform: [{ rotate: "-30deg" }],
   },
-  heroTitle: { fontFamily: fontDisplay, fontSize: 32, lineHeight: 38, color: "#fff" },
+  illustratedHeroTitle: { flexDirection: "row", alignItems: "center", gap: 8 },
+  heroTitle: { fontFamily: fontDisplay, fontSize: brandHeader.headingSize, lineHeight: brandHeader.headingLineHeight, color: "#fff" },
   heroSubtitle: { fontFamily: font, fontSize: 14, lineHeight: 20, color: "rgba(255,255,255,0.78)" },
-  homeHeroDetails: { gap: 12, maxWidth: 360 },
   homeDistrict: {
     flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 8,
     minHeight: 44, maxWidth: "100%", paddingHorizontal: 12, paddingVertical: 6,
     backgroundColor: C.sunSoft, borderRadius: 22,
   },
   homeDistrictLabel: { fontFamily: "ManropeBold", fontSize: 13, color: C.ink, flexShrink: 1 },
-  messagesHeroIntro: { flex: 1, minHeight: 0, justifyContent: "center" },
-  messagesHeroCopy: { width: "66%", gap: 4 },
-  messagesHeroSubtitle: { fontFamily: font, fontSize: 13, lineHeight: 18, color: "rgba(255,255,255,0.82)" },
-  messagesHeroHouse: { position: "absolute", bottom: -12, right: -9 },
-  messagesHeroSearch: {
-    minHeight: 44, flexDirection: "row", alignItems: "center", gap: 10, zIndex: 1,
-    paddingHorizontal: 14, borderRadius: 24, backgroundColor: "#fff",
-  },
-  messagesHeroSearchInput: { flex: 1, minWidth: 0, minHeight: 44, fontFamily: font, fontSize: 14, color: C.ink },
   tag: {
     alignSelf: "flex-start",
     paddingHorizontal: 9,
@@ -3129,29 +2941,6 @@ const s = StyleSheet.create({
     letterSpacing: -0.2,
   },
   link: { fontSize: 12.5, fontWeight: "700", color: C.blue },
-  threadCard: {
-    flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: "#fff",
-    borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, borderColor: C.line,
-    paddingLeft: 13, paddingRight: 9, paddingVertical: 12,
-    shadowColor: C.ink, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.10, shadowRadius: 6, elevation: 2,
-  },
-  threadAvatarColumn: { alignSelf: "stretch", justifyContent: "center", paddingRight: 11, borderRightWidth: StyleSheet.hairlineWidth, borderColor: C.line },
-  threadAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.sunSoft, alignItems: "center", justifyContent: "center" },
-  threadAvatarText: { fontFamily: "ManropeExtraBold", fontSize: 20, color: C.ink },
-  threadUnreadDot: { position: "absolute", right: 0, bottom: 0, width: 11, height: 11, borderWidth: 2, borderColor: "#fff", borderRadius: 6, backgroundColor: "#12964C" },
-  threadCopy: { flex: 1, minWidth: 0, gap: 3 },
-  threadNameRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 5 },
-  threadName: { flexShrink: 1, fontFamily: "ManropeExtraBold", fontSize: 15, color: C.ink },
-  threadRole: { borderRadius: 12, backgroundColor: "#E3F5E9", paddingHorizontal: 6, paddingVertical: 2 },
-  threadRoleText: { color: C.green, fontFamily: "ManropeBold", fontSize: 10 },
-  threadListing: { flexDirection: "row", alignItems: "center", gap: 4 },
-  threadListingText: { flexShrink: 1, fontFamily: "ManropeBold", fontSize: 12, color: C.muted },
-  threadPreview: { fontFamily: font, fontSize: 12, color: C.ink },
-  threadMeta: { flexDirection: "row", alignItems: "center", alignSelf: "stretch", gap: 6 },
-  threadTime: { alignSelf: "flex-start", fontFamily: font, fontSize: 10, color: C.muted },
-  threadCount: { minHeight: 20, minWidth: 20, paddingHorizontal: 4, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: C.sun },
-  threadCountText: { fontFamily: "ManropeExtraBold", fontSize: 11, lineHeight: 14, includeFontPadding: false, textAlign: "center", color: C.ink },
-  threadCountDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.sun },
   dockArtwork: { position: "absolute", left: 0, right: 0, bottom: 0 },
   dockWrapper: {
     position: "absolute",
@@ -3253,66 +3042,6 @@ const s = StyleSheet.create({
   galleryThumb: { width: 82, height: 62, borderRadius: 14, borderWidth: 2, borderColor: C.line, overflow: "hidden" },
   gallerySave: { position: "absolute", top: 12, right: 12, width: 42, height: 42, borderRadius: 21 },
   scrollViewport: { flex: 1 },
-  conversationWatermark: {
-    position: "absolute", top: 0, right: 0, bottom: 0, left: 0,
-    alignItems: "flex-end", justifyContent: "flex-end",
-    paddingRight: 8, paddingBottom: 8,
-  },
-  conversationWatermarkImage: { width: "66%", height: "92%", maxWidth: 304, maxHeight: 304, opacity: 0.4 },
-  conversationHeader: {
-    backgroundColor: C.ink, paddingHorizontal: 14, paddingBottom: 12,
-    borderBottomLeftRadius: 12, borderBottomRightRadius: 28,
-  },
-  conversationHeaderRow: { flexDirection: "row", alignItems: "center", gap: 8, width: "100%", maxWidth: 760, alignSelf: "center" },
-  conversationBack: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  chatIdentityCard: {
-    flex: 1, minWidth: 0, minHeight: 54, flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 7, paddingVertical: 6, borderRadius: 16, backgroundColor: "#1C3556",
-    borderWidth: StyleSheet.hairlineWidth, borderColor: "#FFFFFF30",
-  },
-  chatIdentityIcon: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: C.sun },
-  chatIdentityInitials: { color: C.ink, fontFamily: "ManropeExtraBold", fontSize: 14 },
-  chatIdentityDetails: { flex: 1, minWidth: 0, gap: 2 },
-  chatIdentityNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  chatCategory: {
-    flexShrink: 0, borderRadius: 9, borderWidth: StyleSheet.hairlineWidth, borderColor: "#FFFFFF45",
-    backgroundColor: "#FFFFFF12", paddingHorizontal: 7, paddingVertical: 3,
-  },
-  chatCategoryText: { fontFamily: "ManropeBold", fontSize: 10, color: "#E3ECF8" },
-  chatOffer: { borderColor: "#FCC61C66", backgroundColor: "#FCC61C1A" },
-  chatOfferText: { color: C.sunSoft },
-  chatIdentityName: { flex: 1, minWidth: 0, fontFamily: fontDisplay, fontSize: 18, color: "#fff" },
-  chatIdentityListing: { flexDirection: "row", alignItems: "center", gap: 4 },
-  chatIdentityProperty: { flexShrink: 1, fontFamily: font, fontSize: 12, color: "#D4DEEC" },
-  chatArea: { gap: 7 },
-  bubble: { alignItems: "stretch", minWidth: 66, maxWidth: "84%", paddingHorizontal: 11, paddingVertical: 7, borderRadius: 14, gap: 2 },
-  chatMessage: { fontFamily: font, color: C.ink, fontSize: 15, lineHeight: 21 },
-  chatMetadata: { alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: 4 },
-  chatTime: { fontFamily: font, color: C.muted, fontSize: 11, lineHeight: 15 },
-  mine: {
-    alignSelf: "flex-end",
-    backgroundColor: C.sunSoft,
-    borderBottomRightRadius: 4,
-  },
-  theirs: {
-    alignSelf: "flex-start",
-    backgroundColor: "#ffffff",
-    borderBottomLeftRadius: 4,
-  },
-  chatFooter: { backgroundColor: C.bg, borderTopWidth: 0, paddingTop: 8 },
-  chatComposerArea: { gap: 5 },
-  chatSendError: { fontFamily: font, fontSize: 12, color: "#9A2D20" },
-  chatComposer: { alignItems: "flex-end" },
-  chatInput: {
-    flex: 1, minHeight: 44, maxHeight: 116, paddingVertical: 10, paddingHorizontal: 14,
-    borderRadius: 22, borderWidth: 1, borderColor: C.line, backgroundColor: "transparent",
-    fontFamily: font, fontSize: 15, lineHeight: 21, color: C.ink,
-  },
-  chatSend: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: "center", justifyContent: "center", backgroundColor: C.sun,
-  },
-  chatSendDimmed: { opacity: 0.6 },
   history: {
     padding: 10,
     borderLeftWidth: 3,
@@ -3353,6 +3082,15 @@ const s = StyleSheet.create({
   postDocumentIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   footer: { backgroundColor: "#fff", borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 20, paddingTop: 12 },
   profileHero: { paddingBottom: 82 },
+  guestAccountCard: { padding: 20, gap: 14, backgroundColor: "#FFFDF7" },
+  guestAccountHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  guestAccountTitle: { flex: 1, fontFamily: fontDisplay, fontSize: 25, lineHeight: 30, color: C.ink },
+  guestAccountIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.sunSoft, alignItems: "center", justifyContent: "center" },
+  guestAccountDescription: { fontFamily: font, fontSize: 14, lineHeight: 21, color: C.muted },
+  profileHeaderCopy: { flexShrink: 1, minWidth: 0 },
+  guestProfileHero: { paddingBottom: 24 },
+  spacedBrandGroup: { gap: 16 },
+  profileHeroCaption: { fontSize: 13, lineHeight: 15 },
   profileContent: { marginTop: -50 },
   profileEdit: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: C.ink },
   profileIdentity: { flexDirection: "row", alignItems: "center", gap: 14, marginTop: 8 },
