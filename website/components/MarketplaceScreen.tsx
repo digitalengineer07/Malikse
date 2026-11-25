@@ -12,6 +12,7 @@ import {
 import { useFocusEffect, useRouter } from "@/web/navigation";
 import { useSafeAreaInsets } from "@/web/safeArea";
 import { MaterialIcons } from "@/web/icons";
+import { FONT_BODY, FONT_DISPLAY, FONT_MONO } from "../constants/typography";
 
 import AppHeader from "./AppHeader";
 import PropertyTypeTabs from "./PropertyTypeTabs";
@@ -1169,10 +1170,11 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   eyebrow: {
-    fontSize: 11,
-    fontWeight: "800",
+    fontFamily: FONT_MONO,
+    fontSize: 10.5,
+    fontWeight: "700",
     color: "#0284C7",
-    letterSpacing: 1.2,
+    letterSpacing: 1.4,
   },
   eyebrowDash: {
     width: 32,
@@ -1192,12 +1194,14 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   mainTitle: {
-    fontSize: 32,
-    fontWeight: "800",
+    fontFamily: FONT_DISPLAY,
+    fontSize: 31,
+    fontWeight: "600",
     color: "#0A192F",
     letterSpacing: -0.6,
   },
   subTitle: {
+    fontFamily: FONT_BODY,
     fontSize: 14,
     color: "#64748B",
     fontWeight: "500",

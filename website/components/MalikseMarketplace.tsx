@@ -33,24 +33,30 @@ import { useAuthStore } from "../src/store/authStore";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 import AppHeader from "./AppHeader";
 import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
+import PropertyImage from "./PropertyImage";
 import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import WebFooter from "./WebFooter";
+import { FONT_BODY, FONT_DISPLAY, FONT_MONO, FONT_NUMERIC } from "../constants/typography";
+import {
+  PROPERTY_IMAGES,
+  getFallbackPropertyPhotoUrl,
+  resolvePropertyPhotoUrl,
+} from "../src/utils/propertyImages";
 const C = {
-  bg: "#f3f7ff",
-  ink: "#0b1b3f",
-  muted: "#475a82",
-  blue: "#0a45b5",
-  line: "#dce5f5",
-  green: "#0b5a3a",
+  bg: "#F7F4EC",
+  ink: "#14263E",
+  muted: "rgba(20, 38, 62, 0.62)",
+  blue: "#14263E",
+  sun: "#FCC61C",
+  sunSoft: "#FFF1C0",
+  sunDeep: "#E8AE00",
+  line: "rgba(20, 38, 62, 0.08)",
+  green: "#0B8A3E",
 };
-const font =
-  Platform.OS === "web"
-    ? "'Plus Jakarta Sans', Manrope, -apple-system, BlinkMacSystemFont, sans-serif"
-    : "PoppinsRegular";
-const fontDisplay =
-  Platform.OS === "web"
-    ? "'Plus Jakarta Sans', PoppinsBold, Manrope, sans-serif"
-    : "PoppinsBold";
+const font = FONT_BODY;
+const fontDisplay = FONT_DISPLAY;
+const fontNumeric = FONT_NUMERIC;
+const fontMono = FONT_MONO;
 
 const money = (n: number) =>
   `₹${n >= 10000000 ? (n / 10000000).toFixed(2) + " Cr" : n >= 100000 ? (n / 100000).toFixed(1) + " Lakh" : Number(n || 0).toLocaleString("en-IN")}`;
@@ -63,13 +69,6 @@ const errorText = (e: any) =>
   "Please retry.";
 const identity = (v: any) => (typeof v === "string" ? v : v?._id);
 const approved = (u: any) => u?.isVerifiedIdentity || u?.demoKycComplete;
-const getOptimizedPhotoUrl = (url?: string, width = 600) => {
-  if (!url) return "";
-  if (url.includes("/property-photos/") && !url.includes("w=")) {
-    return `${url}${url.includes("?") ? "&" : "?"}w=${width}`;
-  }
-  return url;
-};
 const types = [
   ["", "All", "domain"],
   ["flat", "Apartment", "apartment"],
@@ -298,6 +297,7 @@ export function MarketplaceShell({
   subtitle,
   children,
   back = false,
+  fullBleed = false,
 }: any) {
   const insets = useSafeAreaInsets();
   const router = useRouter(),
@@ -318,17 +318,23 @@ export function MarketplaceShell({
         contentContainerStyle={{ flexGrow: 1 }}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={s.scroll}>
-          <View style={s.content}>
-            {!!title && (
-              <View style={{ gap: 6 }}>
-                <Text style={s.h1}>{title}</Text>
-                {!!subtitle && <Text style={s.muted}>{subtitle}</Text>}
-              </View>
-            )}
+        {fullBleed ? (
+          <View style={{ flex: 1 }}>
             {children}
           </View>
-        </View>
+        ) : (
+          <View style={s.scroll}>
+            <View style={s.content}>
+              {!!title && (
+                <View style={{ gap: 6 }}>
+                  <Text style={s.h1}>{title}</Text>
+                  {!!subtitle && <Text style={s.muted}>{subtitle}</Text>}
+                </View>
+              )}
+              {children}
+            </View>
+          </View>
+        )}
         {isDesktop && <WebFooter />}
       </ScrollView>
 
@@ -351,14 +357,14 @@ export function MarketplaceShell({
                 <Icon
                   name={icon}
                   color={
-                    url === "/post" ? "white" : path === url ? C.blue : C.muted
+                    url === "/post" ? "#14263E" : path === url ? "#14263E" : C.muted
                   }
                 />
               </View>
               <Text
                 style={[
                   s.navText,
-                  path === url && { color: C.blue, fontWeight: "800" },
+                  path === url && { color: "#14263E", fontWeight: "800" },
                 ]}
               >
                 {text}
@@ -399,6 +405,8 @@ function Protected({ children, kyc = false }: any) {
 function PropertyCard({
   property: p,
   compact = false,
+  horizontal = false,
+  freshTag,
   onSaved,
   initiallySaved = false,
   style,
@@ -407,7 +415,8 @@ function PropertyCard({
     user = useAuthStore((x) => x.user),
     gate = useGate(),
     action = useAction(),
-    [saved, setSaved] = useState(initiallySaved);
+    [saved, setSaved] = useState(initiallySaved),
+    [cardHovered, setCardHovered] = useState(false);
 
   const openProperty = () => {
     if (p?._id) {
@@ -438,62 +447,303 @@ function PropertyCard({
     router.push(`/property/${p._id}` as any);
   };
 
-  return (
-    <View style={[s.card, compact && { flexDirection: "row" }, style]}>
+  const toggleSave = (e?: any) => {
+    e?.stopPropagation?.();
+    if (gate()) {
+      void action.run(async () => {
+        const result = await userService.toggleWishlist(p._id);
+        setSaved(result.isWishlisted);
+        if (result.isWishlisted)
+          void api
+            .post(`/recommendations/${p._id}/activity`, {
+              kind: "save",
+            })
+            .catch(() => { });
+        onSaved?.();
+      });
+    }
+  };
+
+  const areaSqFt = Number(p.sellableArea || p.totalArea || 0);
+  const perSqFt = areaSqFt > 0 && p.price > 0 ? Math.round(p.price / areaSqFt) : 0;
+  const typeLabel =
+    p.type === "flat"
+      ? "Apartment"
+      : p.type === "land"
+        ? "Plot / Land"
+        : p.type === "house"
+          ? "House"
+          : p.type === "shop"
+            ? "Commercial"
+            : p.type === "office"
+              ? "Office"
+              : p.type || "Property";
+
+  if (horizontal) {
+    return (
       <Pressable
-        style={compact ? { width: 112, minHeight: 130 } : s.photo}
         onPress={openProperty}
+        style={({ hovered }: any) => [
+          s.card,
+          {
+            flexDirection: "row",
+            padding: 13,
+            gap: 14,
+            alignItems: "stretch",
+            borderRadius: 18,
+          },
+          Platform.OS === "web" && ({
+            transition: "transform 0.22s cubic-bezier(.2,.7,.2,1), box-shadow 0.22s, border-color 0.22s",
+            ...(hovered ? { transform: [{ translateY: -3 }], borderColor: "rgba(252,198,28,0.65)", boxShadow: "0 1px 0 rgba(20,38,62,.05), 0 22px 38px -18px rgba(20,38,62,.32)" } : {}),
+          } as any),
+          style,
+        ]}
       >
-        {p.media?.photos?.[0] ? (
-          <Image
-            source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], compact ? 400 : 600) }}
+        <View
+          style={{
+            width: 138,
+            height: 124,
+            borderRadius: 14,
+            overflow: "hidden",
+            backgroundColor: "#E9E4D5",
+            flexShrink: 0,
+            position: "relative",
+          }}
+        >
+          <PropertyImage
+            source={{ uri: resolvePropertyPhotoUrl(p) }}
+            fallbackUri={getFallbackPropertyPhotoUrl(p)}
+            thumbnailWidth={400}
+            isPublic
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
           />
-        ) : (
-          <View style={[StyleSheet.absoluteFill, s.placeholder]}>
-            <Icon name="home-work" size={48} color="#91a9d4" />
-          </View>
-        )}
-        <View style={s.imageTags}>
-          <Tag green>✓ Verified</Tag>
-        </View>
-      </Pressable>
-      <View style={[s.cardBody, compact && { flex: 1 }]}>
-        <View style={s.between}>
-          <Text style={s.price}>{money(p.price)}</Text>
-          <Pressable
-            accessibilityLabel={
-              saved ? "Remove from wishlist" : "Save property"
-            }
-            disabled={action.busy}
-            onPress={() => {
-              if (gate())
-                void action.run(async () => {
-                  const result = await userService.toggleWishlist(p._id);
-                  setSaved(result.isWishlisted);
-                  if (result.isWishlisted)
-                    void api
-                      .post(`/recommendations/${p._id}/activity`, {
-                        kind: "save",
-                      })
-                      .catch(() => { });
-                  onSaved?.();
-                });
+          <View
+            style={{
+              position: "absolute",
+              top: 8,
+              left: 8,
+              backgroundColor: "#FCC61C",
+              paddingHorizontal: 9,
+              paddingVertical: 3,
+              borderRadius: 999,
             }}
           >
-            <Icon name={saved ? "favorite" : "favorite-border"} />
-          </Pressable>
+            <Text style={{ fontFamily: font, fontSize: 10.5, fontWeight: "800", color: "#14263E" }}>
+              {freshTag || "New"}
+            </Text>
+          </View>
         </View>
+
+        <View style={{ flex: 1, minWidth: 0, justifyContent: "space-between", paddingVertical: 1 }}>
+          <View style={{ gap: 4 }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+              <Text style={{ fontFamily: font, fontSize: 15, fontWeight: "800", color: "#14263E", flex: 1, lineHeight: 20 }} numberOfLines={2}>
+                {label(p)}
+              </Text>
+              <Pressable
+                accessibilityLabel={saved ? "Remove from wishlist" : "Save property"}
+                disabled={action.busy}
+                onPress={toggleSave}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: saved ? "#FCC61C" : "#F7F4EC",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon name={saved ? "favorite" : "favorite-border"} size={16} color="#14263E" />
+              </Pressable>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Icon name="location-on" size={13} color="rgba(20, 38, 62, 0.55)" />
+              <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "600", color: "rgba(20, 38, 62, 0.62)" }} numberOfLines={1}>
+                {p.location?.district}, {p.location?.state || "Bihar"}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ gap: 2, marginTop: 6 }}>
+            <Text style={{ fontFamily: font, fontSize: 19, fontWeight: "800", color: "#14263E", letterSpacing: -0.4 }}>
+              {money(p.price)}
+            </Text>
+            <Text style={{ fontFamily: font, fontSize: 12, fontWeight: "700", color: "rgba(20, 38, 62, 0.58)" }}>
+              {typeLabel}
+              {areaSqFt > 0 ? ` · ${areaSqFt.toLocaleString("en-IN")} sq.ft` : ""}
+              {p.negotiable ? " · Negotiable" : ""}
+            </Text>
+          </View>
+        </View>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View
+      {...(Platform.OS === "web"
+        ? ({ onMouseEnter: () => setCardHovered(true), onMouseLeave: () => setCardHovered(false) } as any)
+        : {})}
+      style={[
+        s.card,
+        compact && { flexDirection: "row" },
+        Platform.OS === "web" && ({
+          transition: "transform 0.22s cubic-bezier(.2,.7,.2,1), box-shadow 0.22s, border-color 0.22s",
+          ...(cardHovered ? { transform: [{ translateY: -4 }], borderColor: "rgba(252,198,28,0.65)", boxShadow: "0 1px 0 rgba(20,38,62,.05), 0 24px 42px -18px rgba(20,38,62,.34)" } : {}),
+        } as any),
+        style,
+      ]}
+    >
+      <Pressable
+        style={compact ? { width: 120, minHeight: 136 } : s.photo}
+        onPress={openProperty}
+      >
+        <PropertyImage
+          source={{ uri: resolvePropertyPhotoUrl(p) }}
+          fallbackUri={getFallbackPropertyPhotoUrl(p)}
+          thumbnailWidth={compact ? 400 : 600}
+          isPublic
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
+        {!compact && (
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              ...(Platform.OS === "web"
+                ? { backgroundImage: "linear-gradient(to top, rgba(20,38,62,0.58) 0%, rgba(20,38,62,0.06) 52%, rgba(20,38,62,0.14) 100%)" }
+                : { backgroundColor: "rgba(20,38,62,0.1)" }),
+            } as any}
+          />
+        )}
+        <View style={s.imageTags}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              backgroundColor: "rgba(255, 255, 255, 0.96)",
+              paddingHorizontal: 9,
+              paddingVertical: 4,
+              borderRadius: 999,
+              ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(20,38,62,0.14)" } }),
+            }}
+          >
+            <Icon name="verified-user" size={13} color="#0B8A3E" />
+            <Text style={{ fontFamily: font, fontSize: 12, fontWeight: "800", color: "#0B8A3E" }}>
+              Verified
+            </Text>
+          </View>
+        </View>
+
+        {!compact && (
+          <>
+            <Pressable
+              accessibilityLabel={saved ? "Remove from wishlist" : "Save property"}
+              disabled={action.busy}
+              onPress={toggleSave}
+              style={{
+                position: "absolute",
+                top: 14,
+                right: 14,
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: saved ? "#FCC61C" : "rgba(255, 255, 255, 0.94)",
+                alignItems: "center",
+                justifyContent: "center",
+                ...Platform.select({ web: { boxShadow: "0 4px 12px rgba(20,38,62,0.2)" } }),
+              }}
+            >
+              <Icon name={saved ? "favorite" : "favorite-border"} size={18} color="#14263E" />
+            </Pressable>
+
+            <View
+              style={{
+                position: "absolute",
+                bottom: 14,
+                left: 14,
+                backgroundColor: "#FCC61C",
+                paddingHorizontal: 12,
+                paddingVertical: 5,
+                borderRadius: 999,
+              }}
+            >
+              <Text style={{ fontFamily: fontMono, fontSize: 12, fontWeight: "800", letterSpacing: 0.1, color: "#14263E" }}>
+                0% Brokerage
+              </Text>
+            </View>
+          </>
+        )}
+      </Pressable>
+
+      <View style={[s.cardBody, compact && { flex: 1 }]}>
+        <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+          <Text style={s.price}>{money(p.price)}</Text>
+          {perSqFt > 0 ? (
+            <Text style={{ fontFamily: fontNumeric, fontSize: 12.5, fontWeight: "600", color: "rgba(20, 38, 62, 0.55)" }}>
+              ₹{perSqFt.toLocaleString("en-IN")}/sq.ft
+            </Text>
+          ) : compact ? (
+            <Pressable
+              accessibilityLabel={saved ? "Remove from wishlist" : "Save property"}
+              disabled={action.busy}
+              onPress={toggleSave}
+            >
+              <Icon name={saved ? "favorite" : "favorite-border"} color="#14263E" />
+            </Pressable>
+          ) : null}
+        </View>
+
         <Pressable onPress={openProperty}>
-          <Text style={s.cardTitle}>{label(p)}</Text>
+          <Text style={s.cardTitle} numberOfLines={1}>{label(p)}</Text>
         </Pressable>
-        <Text style={s.muted}>
-          {p.location?.district}, {p.location?.state}
-        </Text>
-        <View style={s.row}>
-          <Tag>{p.type}</Tag>
-          <Text style={s.small}>{p.sellableArea || p.totalArea} sq ft</Text>
+
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+          <Icon name="location-on" size={14} color="rgba(20, 38, 62, 0.55)" />
+          <Text style={s.muted} numberOfLines={1}>
+            {p.location?.district}, {p.location?.state || "Bihar"}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            marginTop: 4,
+            paddingTop: 10,
+            borderTopWidth: 1,
+            borderTopColor: "rgba(20, 38, 62, 0.08)",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Icon name="category" size={13} color="rgba(20, 38, 62, 0.55)" />
+            <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "700", color: "#14263E" }}>
+              {typeLabel}
+            </Text>
+          </View>
+          {Number(p.bedrooms) > 0 && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Icon name="bed" size={13} color="rgba(20, 38, 62, 0.55)" />
+              <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "700", color: "#14263E" }}>
+                {p.bedrooms} Beds
+              </Text>
+            </View>
+          )}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Icon name="square-foot" size={13} color="rgba(20, 38, 62, 0.55)" />
+            <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "700", color: "#14263E" }}>
+              {areaSqFt > 0 ? `${areaSqFt.toLocaleString("en-IN")} sq.ft` : "Verified"}
+            </Text>
+          </View>
         </View>
         <ErrorBox text={action.error} />
       </View>
@@ -509,8 +759,8 @@ const sSlide = StyleSheet.create({
   },
   scrollContent: {
     flexDirection: "row",
-    gap: 18,
-    paddingVertical: 6,
+    gap: 22,
+    paddingVertical: 8,
     paddingHorizontal: 2,
     alignItems: "stretch",
   },
@@ -523,55 +773,158 @@ const sSlide = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: "#FFFFFF",
     borderWidth: 1.5,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(20, 38, 62, 0.1)",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 40,
-    boxShadow: "0 6px 20px rgba(11, 27, 63, 0.18)",
+    boxShadow: "0 10px 24px rgba(20, 38, 62, 0.16)",
     elevation: 8,
     cursor: "pointer" as any,
   },
   floatingArrowBtnHover: {
-    backgroundColor: "#F8FAFC",
-    borderColor: "#0A45B5",
-    transform: [{ scale: 1.08 }],
+    backgroundColor: "#FCC61C",
+    borderColor: "#FCC61C",
+    transform: [{ scale: 1.06 }],
   },
   headerArrowBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#F1F5F9",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(20, 38, 62, 0.12)",
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer" as any,
   },
   arrowBtnDisabled: {
     opacity: 0.35,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#F7F4EC",
   },
   headerRefreshBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingVertical: 5,
-    paddingHorizontal: 9,
-    borderRadius: 14,
-    backgroundColor: "#EFF6FF",
+    gap: 5,
+    paddingVertical: 7,
+    paddingHorizontal: 13,
+    borderRadius: 999,
+    backgroundColor: "#FFF1C0",
     borderWidth: 1,
-    borderColor: "#DBEAFE",
+    borderColor: "rgba(232, 174, 0, 0.35)",
     cursor: "pointer" as any,
   },
   headerRefreshText: {
     fontFamily: font,
-    fontSize: 12,
-    fontWeight: "700",
-    color: C.blue,
+    fontSize: 12.5,
+    fontWeight: "800",
+    color: "#14263E",
   },
 });
 
+function deduplicateProperties(rawList: any[], typeFilter?: string) {
+  const seenKeys = new Set<string>();
+  const deduplicatedList: any[] = [];
+  for (const p of rawList || []) {
+    if (!p?._id) continue;
+    const key = `${(p.title || "").trim().toLowerCase()}|${(p.location?.district || "").trim().toLowerCase()}|${p.price || 0}`;
+    if (!seenKeys.has(p._id) && !seenKeys.has(key)) {
+      seenKeys.add(p._id);
+      seenKeys.add(key);
+      deduplicatedList.push(p);
+    }
+  }
+  return deduplicatedList.filter((p: any) => !typeFilter || p.type === typeFilter);
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  sub,
+  right,
+}: {
+  eyebrow?: string;
+  title: string;
+  sub?: string;
+  right?: React.ReactNode;
+}) {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 640;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+      <View style={{ flex: 1, minWidth: 220, gap: 4 }}>
+        {!!eyebrow && (
+          <Text
+            style={{
+              fontFamily: fontMono,
+              fontSize: 11.5,
+              fontWeight: "800",
+              letterSpacing: 1.8,
+              color: "rgba(20, 38, 62, 0.5)",
+              textTransform: "uppercase",
+            }}
+          >
+            {eyebrow}
+          </Text>
+        )}
+        <Text
+          style={{
+            fontFamily: fontDisplay,
+            fontSize: isCompact ? 26 : 32,
+            lineHeight: isCompact ? 30 : 37,
+            fontWeight: "600",
+            color: "#14263E",
+            letterSpacing: -0.5,
+          }}
+        >
+          {title}
+        </Text>
+        {!!sub && (
+          <Text
+            style={{
+              fontFamily: font,
+              fontSize: 14.5,
+              lineHeight: 22,
+              fontWeight: "500",
+              color: "rgba(20, 38, 62, 0.6)",
+              maxWidth: 560,
+            }}
+          >
+            {sub}
+          </Text>
+        )}
+      </View>
+      {right}
+    </View>
+  );
+}
+
+function ViewAllPill({ onPress, labelText = "View all" }: { onPress: () => void; labelText?: string }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{ flexDirection: "row", alignItems: "center", gap: 7 }}
+    >
+      <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "800", color: "#14263E" }}>
+        {labelText}
+      </Text>
+      <View
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 14,
+          backgroundColor: "#FCC61C",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Icon name="chevron-right" size={17} color="#14263E" />
+      </View>
+    </Pressable>
+  );
+}
+
 function PropertySlideRow({
+  eyebrow,
   title,
   sub,
   badge,
@@ -582,6 +935,7 @@ function PropertySlideRow({
   emptyTitle = "Properties are on their way",
   emptyText = "Verified listings will appear here as they become available.",
 }: {
+  eyebrow?: string;
   title: string;
   sub: string;
   badge?: string;
@@ -599,27 +953,11 @@ function PropertySlideRow({
   const [containerWidth, setContainerWidth] = useState(0);
   const [contentWidth, setContentWidth] = useState(0);
 
-  const cardWidth = width > 1100 ? 350 : width > 768 ? 310 : 280;
-  const gap = 18;
+  const cardWidth = width > 1100 ? 372 : width > 768 ? 330 : 292;
+  const gap = 22;
   const slideStep = cardWidth + gap;
 
-  const rawList = feed?.data || [];
-  // Deduplicate properties by _id and normalized title + district + price
-  const seenKeys = new Set<string>();
-  const deduplicatedList: any[] = [];
-  for (const p of rawList) {
-    if (!p?._id) continue;
-    const key = `${(p.title || "").trim().toLowerCase()}|${(p.location?.district || "").trim().toLowerCase()}|${p.price || 0}`;
-    if (!seenKeys.has(p._id) && !seenKeys.has(key)) {
-      seenKeys.add(p._id);
-      seenKeys.add(key);
-      deduplicatedList.push(p);
-    }
-  }
-
-  const properties = deduplicatedList
-    .filter((p: any) => !typeFilter || p.type === typeFilter)
-    .slice(0, 24);
+  const properties = deduplicateProperties(feed?.data || [], typeFilter).slice(0, 24);
 
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(properties.length >= 4);
@@ -689,91 +1027,86 @@ function PropertySlideRow({
   const buttonSideOffset = width > 1240 ? -14 : 6;
 
   return (
-    <View style={{ gap: 14, position: "relative" }}>
-      <View style={s.between}>
-        <View style={{ flex: 1, paddingRight: 8 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <Text style={s.h2}>{title}</Text>
+    <View style={{ gap: 22, position: "relative" }}>
+      <SectionHeading
+        eyebrow={eyebrow}
+        title={title}
+        sub={sub}
+        right={
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             {!!badge && (
               <View
                 style={{
-                  backgroundColor: "#EFF6FF",
-                  paddingHorizontal: 10,
-                  paddingVertical: 3,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: "#DBEAFE",
+                  backgroundColor: "#FFF1C0",
+                  paddingHorizontal: 12,
+                  paddingVertical: 5,
+                  borderRadius: 999,
                 }}
               >
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#0A45B5", fontFamily: font }}>
+                <Text style={{ fontSize: 12, fontWeight: "800", color: "#14263E", fontFamily: font }}>
                   {badge}
                 </Text>
               </View>
             )}
+            {properties.length > 0 && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={`Previous ${title}`}
+                  disabled={!canScrollLeft}
+                  onPress={() => slide("left")}
+                  style={[
+                    sSlide.headerArrowBtn,
+                    !canScrollLeft && sSlide.arrowBtnDisabled,
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons
+                    name="chevron-left"
+                    size={20}
+                    color={canScrollLeft ? "#14263E" : "#94a3b8"}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={`Next ${title}`}
+                  disabled={!canScrollRight}
+                  onPress={() => slide("right")}
+                  style={[
+                    sSlide.headerArrowBtn,
+                    !canScrollRight && sSlide.arrowBtnDisabled,
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={20}
+                    color={canScrollRight ? "#14263E" : "#94a3b8"}
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
+            {!!onRefresh && (
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Refresh recommendations"
+                onPress={onRefresh}
+                style={sSlide.headerRefreshBtn}
+                activeOpacity={0.75}
+              >
+                <MaterialIcons name="refresh" size={16} color="#14263E" />
+                <Text style={sSlide.headerRefreshText}>Refresh</Text>
+              </TouchableOpacity>
+            )}
+            {headerRight || (
+              <ViewAllPill onPress={() => router.push("/search")} />
+            )}
           </View>
-          <Text style={s.small}>{sub}</Text>
-        </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          {properties.length > 0 && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel={`Previous ${title}`}
-                disabled={!canScrollLeft}
-                onPress={() => slide("left")}
-                style={[
-                  sSlide.headerArrowBtn,
-                  !canScrollLeft && sSlide.arrowBtnDisabled,
-                ]}
-                activeOpacity={0.7}
-              >
-                <MaterialIcons
-                  name="chevron-left"
-                  size={20}
-                  color={canScrollLeft ? C.blue : "#94a3b8"}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel={`Next ${title}`}
-                disabled={!canScrollRight}
-                onPress={() => slide("right")}
-                style={[
-                  sSlide.headerArrowBtn,
-                  !canScrollRight && sSlide.arrowBtnDisabled,
-                ]}
-                activeOpacity={0.7}
-              >
-                <MaterialIcons
-                  name="chevron-right"
-                  size={20}
-                  color={canScrollRight ? C.blue : "#94a3b8"}
-                />
-              </TouchableOpacity>
-            </View>
-          )}
-          {!!onRefresh && (
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel="Refresh recommendations"
-              onPress={onRefresh}
-              style={sSlide.headerRefreshBtn}
-              activeOpacity={0.7}
-            >
-              <MaterialIcons name="refresh" size={16} color={C.blue} />
-              <Text style={sSlide.headerRefreshText}>Refresh</Text>
-            </TouchableOpacity>
-          )}
-          {headerRight || (
-            <Pressable onPress={() => router.push("/search")}>
-              <Text style={s.link}>View all →</Text>
-            </Pressable>
-          )}
-        </View>
-      </View>
+        }
+      />
 
       {feed?.loading ? (
-        <ActivityIndicator color={C.blue} style={{ padding: 24 }} />
+        <ActivityIndicator color="#14263E" style={{ padding: 28 }} />
       ) : feed?.error ? (
         <ErrorBox text={feed.error} onRetry={feed.refresh} />
       ) : !properties.length ? (
@@ -792,7 +1125,7 @@ function PropertySlideRow({
                 hovered && sSlide.floatingArrowBtnHover,
               ]}
             >
-              <MaterialIcons name="chevron-left" size={28} color="#0A45B5" />
+              <MaterialIcons name="chevron-left" size={28} color="#14263E" />
             </Pressable>
           )}
 
@@ -808,7 +1141,7 @@ function PropertySlideRow({
                 hovered && sSlide.floatingArrowBtnHover,
               ]}
             >
-              <MaterialIcons name="chevron-right" size={28} color="#0A45B5" />
+              <MaterialIcons name="chevron-right" size={28} color="#14263E" />
             </Pressable>
           )}
 
@@ -982,333 +1315,1222 @@ export function HomeScreen() {
     trending = useData("/recommendations?mode=trending"),
     { width } = useWindowDimensions();
 
+  const isMobile = width < 640;
+  const isTablet = width >= 640 && width < 960;
+  const isDesktop = width >= 960;
+  const showHeroShowcase = width >= 1100;
+
+  const recommendedList = deduplicateProperties(personal.data || [], type).slice(0, 6);
+  const newPropertiesList = deduplicateProperties(recent.data || [], type).slice(0, 4);
+
+  const heroPool = deduplicateProperties(
+    [...(personal.data || []), ...(trending.data || []), ...(recent.data || [])]
+  );
+  const showcasePrimary = heroPool[0];
+  const showcaseSecondary = heroPool[1];
+
+  const browseCategories = [
+    { id: "", title: "All Spaces", count: "Verified only", icon: "domain" },
+    { id: "flat", title: "Apartments", count: "Flats & 2/3 BHK", icon: "apartment" },
+    { id: "house", title: "Houses", count: "Homes & Villas", icon: "home" },
+    { id: "land", title: "Plots & Land", count: "Residential & agri", icon: "landscape" },
+    { id: "shop", title: "Commercial", count: "Retail & shops", icon: "storefront" },
+    { id: "office", title: "Offices", count: "Workspaces", icon: "business" },
+  ];
+
+  const wrapContainer = {
+    width: "100%" as const,
+    maxWidth: 1180,
+    alignSelf: "center" as const,
+    paddingHorizontal: isMobile ? 16 : 24,
+  };
+
   return (
-    <MarketplaceShell>
-      <View style={s.heroContainer}>
-        {/* Top Trust Eyebrow */}
-        <View style={s.heroBadgeRow}>
-          <View style={s.heroBadge}>
-            <Icon name="verified" size={14} color={C.blue} />
-            <Text style={s.heroBadgeText}>
-              100% ON-GROUND & DOCUMENT-VERIFIED SPACES
-            </Text>
-          </View>
-        </View>
-
-        {/* Heading & Subtitle */}
-        <View style={{ gap: 6 }}>
-          <Text style={s.heroHeading}>
-            {`Hello, ${user ? user.name.split(" ")[0] : "welcome"} 👋`}
-          </Text>
-          <Text style={s.heroSubheading}>
-            Find verified plots, homes & commercial spaces in Bihar with transparent pricing and legal clarity.
-          </Text>
-        </View>
-
-        {/* Segmented Luxury Search Console */}
+    <MarketplaceShell fullBleed>
+      {/* ═══════════════════════════════════════════════════════════════
+          1. HERO SECTION (Deep Navy #14263E with Sun Orb & Search Console)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View
+        style={{
+          backgroundColor: "#14263E",
+          position: "relative",
+          overflow: "hidden",
+          paddingTop: isMobile ? 28 : 40,
+          paddingBottom: isMobile ? 64 : 78,
+        }}
+      >
+        {/* Signature Geometric Accents */}
         <View
-          style={[
-            s.searchConsole,
-            width < 768 && { flexDirection: "column", alignItems: "stretch", padding: 10 },
-          ]}
-        >
-          <View
-            style={[
-              s.searchSegmentLocation,
-              { flex: 1 },
-              focusedField === "location" && s.searchSegmentFocused,
-            ]}
-          >
-            <View
-              style={[
-                s.searchSegmentIconWrap,
-                focusedField === "location" && { backgroundColor: "#DBEAFE" },
-              ]}
-            >
-              <Icon name="location-on" size={19} color={C.blue} />
-            </View>
-            <View style={{ flex: 1, gap: 1 }}>
-              <Text
-                style={[
-                  s.searchSegmentLabel,
-                  focusedField === "location" && { color: "#0A45B5" },
-                ]}
-              >
-                LOCATION
-              </Text>
-              <TextInput
-                accessibilityLabel="Location or District"
-                placeholder="District (e.g. Patna, Gaya...)"
-                placeholderTextColor="#94a3b8"
-                value={locationInput}
-                onChangeText={setLocationInput}
-                onFocus={() => setFocusedField("location")}
-                onBlur={() => setFocusedField(null)}
-                style={s.searchTextInput}
-                onSubmitEditing={handleSearch}
-              />
-            </View>
-            {!!locationInput && (
-              <TouchableOpacity
-                onPress={() => setLocationInput("")}
-                style={s.searchClearBtn}
-                accessibilityLabel="Clear location"
-              >
-                <Icon name="close" size={14} color="#64748B" />
-              </TouchableOpacity>
-            )}
-          </View>
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            right: isMobile ? -110 : -90,
+            top: isMobile ? -160 : -170,
+            width: isMobile ? 300 : 440,
+            height: isMobile ? 300 : 440,
+            borderRadius: 220,
+            backgroundColor: "#FCC61C",
+          }}
+        />
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            right: isMobile ? 80 : 270,
+            top: isMobile ? 50 : 60,
+            width: isMobile ? 96 : 160,
+            height: isMobile ? 300 : 540,
+            borderRadius: 90,
+            backgroundColor: "#1C3556",
+            transform: [{ rotate: "-30deg" }],
+          }}
+        />
 
-          {width >= 768 ? (
-            <View style={s.searchDivider} />
-          ) : (
-            <View style={{ height: 1, backgroundColor: "#e2e8f0", marginVertical: 6 }} />
-          )}
-
-          <View
-            style={[
-              s.searchSegmentInput,
-              { flex: 1.4 },
-              focusedField === "query" && s.searchSegmentFocused,
-              width < 768 && { paddingHorizontal: 4 },
-            ]}
-          >
-            <View
-              style={[
-                s.searchSegmentIconWrap,
-                focusedField === "query" && { backgroundColor: "#DBEAFE" },
-              ]}
-            >
-              <Icon
-                name="search"
-                size={19}
-                color={focusedField === "query" ? C.blue : "#64748B"}
-              />
-            </View>
-            <View style={{ flex: 1, gap: 1 }}>
-              <Text
-                style={[
-                  s.searchSegmentLabel,
-                  focusedField === "query" && { color: "#0A45B5" },
-                ]}
-              >
-                SEARCH PROPERTY
-              </Text>
-              <TextInput
-                accessibilityLabel="Search property"
-                placeholder="City, locality, road corridor or ID..."
-                placeholderTextColor="#94a3b8"
-                value={query}
-                onChangeText={setQuery}
-                onFocus={() => setFocusedField("query")}
-                onBlur={() => setFocusedField(null)}
-                style={s.searchTextInput}
-                onSubmitEditing={handleSearch}
-              />
-            </View>
-            {!!query && (
-              <TouchableOpacity
-                onPress={() => setQuery("")}
-                style={s.searchClearBtn}
-                accessibilityLabel="Clear query"
-              >
-                <Icon name="close" size={14} color="#64748B" />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Search"
-            onPress={handleSearch}
-            style={[s.searchSubmitBtn, width < 768 && { marginTop: 8, justifyContent: "center" }]}
-            activeOpacity={0.85}
-          >
-            <Icon name="search" size={18} color="white" />
-            <Text style={s.searchSubmitBtnText}>Search</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Quick Popular Districts Selector */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingVertical: 2, alignItems: "center" }}
-        >
-          <Text
-            style={{
-              fontSize: 11,
-              fontWeight: "700",
-              color: "#64748B",
-              marginRight: 4,
-              fontFamily: font,
-            }}
-          >
-            Popular:
-          </Text>
-          {popularDistricts.map((d) => {
-            const isSelected =
-              (d === "All Bihar" && (!locationInput || locationInput.toLowerCase() === "all bihar")) ||
-              locationInput.toLowerCase() === d.toLowerCase();
-            return (
-              <TouchableOpacity
-                key={d}
-                onPress={() => {
-                  const nextVal = d === "All Bihar" ? "" : d;
-                  setLocationInput(nextVal);
-                  if (nextVal) saveInterest(nextVal, type);
-                  setRefreshSeed(Date.now());
-                }}
+        <View style={[wrapContainer, { position: "relative", zIndex: 2 }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 32 }}>
+            {/* Left Editorial + Interactive Search Console */}
+            <View style={{ flex: 1, maxWidth: showHeroShowcase ? 700 : "100%", gap: 18 }}>
+              {/* Trust Badge Pill */}
+              <View
                 style={{
-                  paddingVertical: 5,
-                  paddingHorizontal: 12,
-                  borderRadius: 14,
-                  backgroundColor: isSelected ? "#0A45B5" : "#FFFFFF",
+                  alignSelf: "flex-start",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 7,
+                  backgroundColor: "rgba(255, 255, 255, 0.10)",
                   borderWidth: 1,
-                  borderColor: isSelected ? "#0A45B5" : "#E2E8F0",
+                  borderColor: "rgba(255, 255, 255, 0.16)",
+                  paddingHorizontal: 13,
+                  paddingVertical: 6,
+                  borderRadius: 999,
                 }}
+              >
+                <Icon name="verified-user" size={14} color="#FCC61C" />
+                <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "700", color: "#FCC61C" }}>
+                  {user
+                    ? `Hello, ${user.name.split(" ")[0]} · Verified owner-to-buyer marketplace`
+                    : "India's verified owner-to-buyer marketplace"}
+                </Text>
+              </View>
+
+              {/* Editorial Fraunces Hero Headline */}
+              <View style={{ gap: 10 }}>
+                <Text
+                  style={{
+                    fontFamily: fontDisplay,
+                    fontSize: isMobile ? 34 : 48,
+                    lineHeight: isMobile ? 38 : 52,
+                    fontWeight: "600",
+                    color: "#FFFFFF",
+                    letterSpacing: -1.1,
+                  }}
+                >
+                  {"Find a home,\n"}
+                  <Text style={{ color: "#FCC61C" }}>direct from the owner.</Text>
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: font,
+                    fontSize: isMobile ? 14.5 : 16,
+                    lineHeight: isMobile ? 22 : 25,
+                    fontWeight: "500",
+                    color: "rgba(255, 255, 255, 0.72)",
+                    maxWidth: 500,
+                  }}
+                >
+                  No brokers. No commission. Every owner and every title is verified before you ever see the listing.
+                </Text>
+              </View>
+
+              {/* Interactive Search Console Card */}
+              <View
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 18,
+                  padding: 10,
+                  gap: 8,
+                  marginTop: 2,
+                  maxWidth: 700,
+                  ...Platform.select({
+                    web: {
+                      boxShadow: "0 1px 0 rgba(20,38,62,.05), 0 22px 44px -18px rgba(12,26,44,.52)",
+                    },
+                  }),
+                }}
+              >
+                {/* Segmented Category Quick-Tabs (.seg) */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{
+                    flexDirection: "row",
+                    gap: 3,
+                    backgroundColor: "#F7F4EC",
+                    padding: 3,
+                    borderRadius: 12,
+                  }}
+                >
+                  {[
+                    ["", "All"],
+                    ["flat", "Apartments"],
+                    ["house", "Houses"],
+                    ["land", "Plots"],
+                    ["shop", "Commercial"],
+                  ].map(([id, labelTxt]) => {
+                    const active = type === id;
+                    return (
+                      <Pressable
+                        key={id || "all"}
+                        onPress={() => {
+                          const next = active && id !== "" ? "" : id;
+                          setType(next);
+                          if (next) saveInterest(locationInput, next);
+                          setRefreshSeed(Date.now());
+                        }}
+                        style={{
+                          paddingHorizontal: 14,
+                          paddingVertical: 7,
+                          borderRadius: 9,
+                          backgroundColor: active ? "#14263E" : "transparent",
+                          ...Platform.select({
+                            web: active ? { boxShadow: "0 6px 14px -6px rgba(20,38,62,.55)" } : {},
+                          }),
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontFamily: font,
+                            fontSize: 12.5,
+                            fontWeight: "800",
+                            color: active ? "#FCC61C" : "rgba(20, 38, 62, 0.62)",
+                          }}
+                        >
+                          {labelTxt}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Inputs + Sun Gold Search CTA */}
+                <View
+                  style={{
+                    flexDirection: isMobile ? "column" : "row",
+                    alignItems: isMobile ? "stretch" : "center",
+                    gap: 6,
+                  }}
+                >
+                  <View
+                    style={[
+                      s.searchSegmentLocation,
+                      { flex: 1, minWidth: 150, paddingVertical: 6, paddingHorizontal: 12 },
+                      focusedField === "location" && { backgroundColor: "#F7F4EC" },
+                    ]}
+                  >
+                    <Icon name="location-on" size={19} color="rgba(20, 38, 62, 0.55)" />
+                    <View style={{ flex: 1, gap: 1 }}>
+                      <Text style={{ fontFamily: font, fontSize: 10, fontWeight: "800", letterSpacing: 1.2, color: "rgba(20, 38, 62, 0.45)" }}>
+                        LOCATION
+                      </Text>
+                      <TextInput
+                        accessibilityLabel="Location or District"
+                        placeholder="District (Patna, Gaya...)"
+                        placeholderTextColor="rgba(20, 38, 62, 0.42)"
+                        value={locationInput}
+                        onChangeText={setLocationInput}
+                        onFocus={() => setFocusedField("location")}
+                        onBlur={() => setFocusedField(null)}
+                        style={[s.searchTextInput, { fontSize: 13.5, height: 22 }]}
+                        onSubmitEditing={handleSearch}
+                      />
+                    </View>
+                    {!!locationInput && (
+                      <TouchableOpacity
+                        onPress={() => setLocationInput("")}
+                        style={s.searchClearBtn}
+                        accessibilityLabel="Clear location"
+                      >
+                        <Icon name="close" size={13} color="#14263E" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {!isMobile ? (
+                    <View style={{ width: 1, height: 32, backgroundColor: "rgba(20, 38, 62, 0.12)" }} />
+                  ) : (
+                    <View style={{ height: 1, backgroundColor: "rgba(20, 38, 62, 0.1)" }} />
+                  )}
+
+                  <View
+                    style={[
+                      s.searchSegmentInput,
+                      { flex: 1.3, paddingVertical: 6, paddingHorizontal: 12 },
+                      focusedField === "query" && { backgroundColor: "#F7F4EC" },
+                    ]}
+                  >
+                    <Icon name="search" size={19} color="rgba(20, 38, 62, 0.55)" />
+                    <View style={{ flex: 1, gap: 1 }}>
+                      <Text style={{ fontFamily: font, fontSize: 10, fontWeight: "800", letterSpacing: 1.2, color: "rgba(20, 38, 62, 0.45)" }}>
+                        PROPERTY OR AREA
+                      </Text>
+                      <TextInput
+                        accessibilityLabel="Search property"
+                        placeholder="Locality, road corridor or ID..."
+                        placeholderTextColor="rgba(20, 38, 62, 0.42)"
+                        value={query}
+                        onChangeText={setQuery}
+                        onFocus={() => setFocusedField("query")}
+                        onBlur={() => setFocusedField(null)}
+                        style={[s.searchTextInput, { fontSize: 13.5, height: 22 }]}
+                        onSubmitEditing={handleSearch}
+                      />
+                    </View>
+                    {!!query && (
+                      <TouchableOpacity
+                        onPress={() => setQuery("")}
+                        style={s.searchClearBtn}
+                        accessibilityLabel="Clear query"
+                      >
+                        <Icon name="close" size={13} color="#14263E" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Search"
+                    onPress={handleSearch}
+                    activeOpacity={0.88}
+                    style={{
+                      height: 48,
+                      paddingHorizontal: 22,
+                      borderRadius: 13,
+                      backgroundColor: "#FCC61C",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 7,
+                      ...Platform.select({
+                        web: {
+                          boxShadow: "0 12px 20px -10px rgba(232,174,0,.85), inset 0 1px 0 rgba(255,255,255,.5)",
+                        },
+                      }),
+                    }}
+                  >
+                    <Icon name="search" size={17} color="#14263E" />
+                    <Text style={{ fontFamily: font, fontSize: 14.5, fontWeight: "800", color: "#14263E" }}>
+                      Search
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Quick Popular Bihar Districts Selector */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 7, paddingVertical: 2, alignItems: "center" }}
               >
                 <Text
                   style={{
-                    fontSize: 12,
-                    fontWeight: isSelected ? "700" : "600",
-                    color: isSelected ? "#FFFFFF" : "#475569",
+                    fontSize: 11.5,
+                    fontWeight: "800",
+                    color: "rgba(255, 255, 255, 0.65)",
+                    marginRight: 4,
                     fontFamily: font,
                   }}
                 >
-                  {d}
+                  Popular:
                 </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                {popularDistricts.map((d) => {
+                  const isSelected =
+                    (d === "All Bihar" && (!locationInput || locationInput.toLowerCase() === "all bihar")) ||
+                    locationInput.toLowerCase() === d.toLowerCase();
+                  return (
+                    <TouchableOpacity
+                      key={d}
+                      onPress={() => {
+                        const nextVal = d === "All Bihar" ? "" : d;
+                        setLocationInput(nextVal);
+                        if (nextVal) saveInterest(nextVal, type);
+                        setRefreshSeed(Date.now());
+                      }}
+                      style={{
+                        paddingVertical: 5,
+                        paddingHorizontal: 12,
+                        borderRadius: 999,
+                        backgroundColor: isSelected ? "#FCC61C" : "rgba(255, 255, 255, 0.10)",
+                        borderWidth: 1,
+                        borderColor: isSelected ? "#FCC61C" : "rgba(255, 255, 255, 0.16)",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: isSelected ? "800" : "600",
+                          color: isSelected ? "#14263E" : "rgba(255, 255, 255, 0.85)",
+                          fontFamily: font,
+                        }}
+                      >
+                        {d}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
 
-        {/* Category Filter Pills */}
-        <View style={s.categoryPillsRow}>
-          {types.map(([id, text, icon]) => {
-            const isSelected = type === id;
-            return (
-              <Pressable
-                key={id}
-                onPress={() => {
-                  const nextType = isSelected ? "" : id;
-                  setType(nextType);
-                  if (nextType) saveInterest(locationInput, nextType);
-                  setRefreshSeed(Date.now());
-                }}
-                style={[
-                  s.categoryPill,
-                  isSelected && s.categoryPillActive,
-                ]}
-              >
-                <Icon
-                  name={icon}
-                  color={isSelected ? "white" : "#475569"}
-                  size={15}
-                />
-                <Text
-                  style={[
-                    s.categoryPillText,
-                    isSelected && s.categoryPillTextActive,
-                  ]}
+            {/* Right Desktop Floating Verified Property Cards Cluster */}
+            {showHeroShowcase && (
+              <View style={{ width: 375, height: 375, position: "relative", flexShrink: 0 }}>
+                {/* Top-Right Rotated Card */}
+                <Pressable
+                  onPress={() => showcasePrimary?._id ? router.push(`/property/${showcasePrimary._id}` as any) : router.push("/search")}
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: 2,
+                    width: 238,
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: 18,
+                    overflow: "hidden",
+                    transform: [{ rotate: "3deg" }],
+                    ...Platform.select({
+                      web: { boxShadow: "0 20px 42px -14px rgba(12, 26, 44, 0.5)" },
+                    }),
+                  }}
                 >
-                  {text}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+                  <View style={{ height: 140, backgroundColor: "#E9E4D5", position: "relative" }}>
+                    <PropertyImage
+                      source={{
+                        uri:
+                          showcasePrimary?.media?.photos?.[0] ||
+                          PROPERTY_IMAGES.duplexHouse,
+                      }}
+                      fallbackUri={PROPERTY_IMAGES.duplexHouse}
+                      thumbnailWidth={500}
+                      isPublic
+                      style={StyleSheet.absoluteFill}
+                      resizeMode="cover"
+                    />
+                    <View
+                      style={{
+                        position: "absolute",
+                        top: 10,
+                        left: 10,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                        backgroundColor: "rgba(255,255,255,0.96)",
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 999,
+                      }}
+                    >
+                      <Icon name="verified-user" size={12} color="#0B8A3E" />
+                      <Text style={{ fontFamily: font, fontSize: 11, fontWeight: "800", color: "#0B8A3E" }}>
+                        Verified
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ padding: 12 }}>
+                    <Text style={{ fontFamily: fontNumeric, fontSize: 19, fontWeight: "800", letterSpacing: -0.4, color: "#14263E" }}>
+                      {showcasePrimary ? money(showcasePrimary.price) : "₹65 Lakh"}
+                    </Text>
+                    <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "700", color: "rgba(20,38,62,0.7)", marginTop: 2 }} numberOfLines={1}>
+                      {showcasePrimary
+                        ? `${label(showcasePrimary)} · ${showcasePrimary.location?.district || "Bihar"}`
+                        : "Verified 3 BHK · Patna"}
+                    </Text>
+                  </View>
+                </Pressable>
 
-        {/* Trust Points Strip */}
-        <View style={s.heroTrustStrip}>
-          <View style={s.trustItem}>
-            <Icon name="check-circle" size={15} color="#10b981" />
-            <Text style={s.trustItemText}>Title & Deed Verified</Text>
-          </View>
-          <View style={s.trustDot} />
-          <View style={s.trustItem}>
-            <Icon name="my-location" size={15} color={C.blue} />
-            <Text style={s.trustItemText}>Cadastral Map Boundary</Text>
-          </View>
-          <View style={s.trustDot} />
-          <View style={s.trustItem}>
-            <Icon name="support-agent" size={15} color="#f59e0b" />
-            <Text style={s.trustItemText}>Dedicated Property Verifier</Text>
+                {/* Bottom-Left Rotated Card */}
+                <Pressable
+                  onPress={() => showcaseSecondary?._id ? router.push(`/property/${showcaseSecondary._id}` as any) : router.push("/search")}
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: 192,
+                    width: 214,
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: 18,
+                    overflow: "hidden",
+                    transform: [{ rotate: "-4deg" }],
+                    ...Platform.select({
+                      web: { boxShadow: "0 20px 42px -14px rgba(12, 26, 44, 0.5)" },
+                    }),
+                  }}
+                >
+                  <View style={{ height: 108, backgroundColor: "#E9E4D5", position: "relative" }}>
+                    <PropertyImage
+                      source={{
+                        uri:
+                          showcaseSecondary?.media?.photos?.[0] ||
+                          PROPERTY_IMAGES.plotDanapurField,
+                      }}
+                      fallbackUri={PROPERTY_IMAGES.plotDanapurField}
+                      thumbnailWidth={450}
+                      isPublic
+                      style={StyleSheet.absoluteFill}
+                      resizeMode="cover"
+                    />
+                    <View
+                      style={{
+                        position: "absolute",
+                        top: 8,
+                        left: 8,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 3,
+                        backgroundColor: "rgba(255,255,255,0.96)",
+                        paddingHorizontal: 7,
+                        paddingVertical: 3,
+                        borderRadius: 999,
+                      }}
+                    >
+                      <Icon name="verified-user" size={11} color="#0B8A3E" />
+                      <Text style={{ fontFamily: font, fontSize: 10.5, fontWeight: "800", color: "#0B8A3E" }}>
+                        Verified
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ padding: 11 }}>
+                    <Text style={{ fontFamily: fontNumeric, fontSize: 17, fontWeight: "800", letterSpacing: -0.3, color: "#14263E" }}>
+                      {showcaseSecondary ? money(showcaseSecondary.price) : "₹42 Lakh"}
+                    </Text>
+                    <Text style={{ fontFamily: font, fontSize: 12, fontWeight: "700", color: "rgba(20,38,62,0.7)", marginTop: 1 }} numberOfLines={1}>
+                      {showcaseSecondary
+                        ? `${label(showcaseSecondary)} · ${showcaseSecondary.location?.district || "Bihar"}`
+                        : "Verified Plot · Danapur"}
+                    </Text>
+                  </View>
+                </Pressable>
+
+                {/* Bottom-Right Floating Legal Seal Pill */}
+                <View
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: 256,
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: 16,
+                    paddingHorizontal: 14,
+                    paddingVertical: 11,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                    ...Platform.select({
+                      web: { boxShadow: "0 18px 36px -12px rgba(12, 26, 44, 0.45)" },
+                    }),
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 19,
+                      backgroundColor: "#FCC61C",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Icon name="verified-user" size={19} color="#14263E" />
+                  </View>
+                  <View>
+                    <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "800", color: "#14263E" }}>
+                      Title verified
+                    </Text>
+                    <Text style={{ fontFamily: font, fontSize: 11.5, fontWeight: "600", color: "rgba(20,38,62,0.58)" }}>
+                      by MalikSe legal team
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
           </View>
         </View>
       </View>
 
-      {/* Live Search Results Section (Renders immediately when searching/filtering on Home) */}
-      {hasActiveSearch && (
-        <PropertySlideRow
-          title="Search Results"
-          badge={`${liveSearchResults.data?.length ?? 0} Found`}
-          sub={
-            `${query.trim() ? `Matching "${query.trim()}"` : "All listings"}${activeDistrictParam ? ` in ${activeDistrictParam}` : ""
-            }${type ? ` · ${types.find((t) => t[0] === type)?.[1] || type}` : ""}`
-          }
-          feed={liveSearchResults}
-          emptyTitle="No properties found"
-          emptyText={`No matching verified spaces for "${query || activeDistrictParam}". Try searching by another district or keyword.`}
-          headerRight={
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <TouchableOpacity
-                onPress={() => {
-                  setQuery("");
-                  setLocationInput("");
-                  setType("");
-                }}
+      {/* ═══════════════════════════════════════════════════════════════
+          2. FLOATING 4-COLUMN STATS RIBBON (-mt-9 overlapping hero)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapContainer, { marginTop: -36, position: "relative", zIndex: 10 }]}>
+        <View
+          style={{
+            backgroundColor: "#FFFFFF",
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: "rgba(20, 38, 62, 0.06)",
+            paddingVertical: isMobile ? 14 : 18,
+            paddingHorizontal: isMobile ? 10 : 14,
+            flexDirection: "row",
+            flexWrap: "wrap",
+            ...Platform.select({
+              web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 16px 34px -18px rgba(20,38,62,.3)" },
+            }),
+          }}
+        >
+          {[
+            { icon: "verified-user", stat: "100% KYC", desc: "Verified owners" },
+            { icon: "bolt", stat: "₹0", desc: "Brokerage, always" },
+            { icon: "gavel", stat: "48 hrs", desc: "Legal title check" },
+            { icon: "location-city", stat: "38 Districts", desc: "Serving all Bihar" },
+          ].map((item, idx) => (
+            <View
+              key={item.stat}
+              style={{
+                width: isDesktop ? "25%" : "50%",
+                flexDirection: isMobile ? "column" : "row",
+                alignItems: "center",
+                justifyContent: isDesktop ? "center" : "flex-start",
+                gap: isMobile ? 6 : 12,
+                paddingHorizontal: 14,
+                paddingVertical: isDesktop ? 4 : 10,
+                borderRightWidth: isDesktop && idx < 3 ? 1 : 0,
+                borderRightColor: "rgba(20, 38, 62, 0.08)",
+              }}
+            >
+              <View
                 style={{
-                  paddingVertical: 4,
-                  paddingHorizontal: 10,
-                  backgroundColor: "#F1F5F9",
-                  borderRadius: 10,
+                  width: 38,
+                  height: 38,
+                  borderRadius: 12,
+                  backgroundColor: "#FFF1C0",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                <Text style={{ fontSize: 12, fontWeight: "600", color: "#475569", fontFamily: font }}>
-                  Reset Filters
+                <Icon name={item.icon} size={20} color="#14263E" />
+              </View>
+              <View style={{ alignItems: isMobile ? "center" : "flex-start" }}>
+                <Text
+                  style={{
+                    fontFamily: fontNumeric,
+                    fontSize: isMobile ? 20 : 24,
+                    fontWeight: "800",
+                    color: "#14263E",
+                    letterSpacing: -0.5,
+                  }}
+                >
+                  {item.stat}
                 </Text>
-              </TouchableOpacity>
-              <Pressable onPress={handleSearch}>
-                <Text style={s.link}>Open in Map / Explore →</Text>
+                <Text
+                  style={{
+                    fontFamily: font,
+                    fontSize: 12.5,
+                    fontWeight: "600",
+                    color: "rgba(20, 38, 62, 0.56)",
+                  }}
+                >
+                  {item.desc}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          3. LIVE SEARCH RESULTS (Shown dynamically when filtering)
+      ═══════════════════════════════════════════════════════════════ */}
+      {hasActiveSearch && (
+        <View style={[wrapContainer, { marginTop: 36 }]}>
+          <PropertySlideRow
+            eyebrow="LIVE RESULTS"
+            title="Search Results"
+            badge={`${liveSearchResults.data?.length ?? 0} Found`}
+            sub={
+              `${query.trim() ? `Matching "${query.trim()}"` : "All listings"}${activeDistrictParam ? ` in ${activeDistrictParam}` : ""
+              }${type ? ` · ${types.find((t) => t[0] === type)?.[1] || type}` : ""}`
+            }
+            feed={liveSearchResults}
+            emptyTitle="No properties found"
+            emptyText={`No matching verified spaces for "${query || activeDistrictParam}". Try searching by another district or keyword.`}
+            headerRight={
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setQuery("");
+                    setLocationInput("");
+                    setType("");
+                  }}
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
+                    backgroundColor: "#FFF1C0",
+                    borderRadius: 999,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "800", color: "#14263E", fontFamily: font }}>
+                    Reset Filters
+                  </Text>
+                </TouchableOpacity>
+                <ViewAllPill onPress={handleSearch} labelText="Open in Map" />
+              </View>
+            }
+          />
+        </View>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+          4. BROWSE BY TYPE (6 Interactive Property Cards)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapContainer, { marginTop: isMobile ? 36 : 52, gap: 20 }]}>
+        <SectionHeading
+          eyebrow="BROWSE BY TYPE"
+          title="What are you looking for?"
+          right={<ViewAllPill onPress={() => router.push("/search")} />}
+        />
+
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 14,
+          }}
+        >
+          {browseCategories.map((cat) => {
+            const isSelected = type === cat.id && cat.id !== "";
+            const cardBasis = width >= 1020 ? "15.2%" : isTablet ? "31.2%" : "47%";
+            return (
+              <Pressable
+                key={cat.title}
+                onPress={() => {
+                  const nextType = cat.id === "" ? "" : isSelected ? "" : cat.id;
+                  setType(nextType);
+                  if (nextType) saveInterest(locationInput, nextType);
+                  setRefreshSeed(Date.now());
+                }}
+                style={({ hovered }: any) => [
+                  {
+                    flexGrow: 1,
+                    flexBasis: cardBasis as any,
+                    minWidth: 136,
+                    backgroundColor: isSelected ? "#14263E" : "#FFFFFF",
+                    borderRadius: 18,
+                    paddingVertical: 18,
+                    paddingHorizontal: 12,
+                    alignItems: "center",
+                    gap: 9,
+                    borderWidth: 1,
+                    borderColor: isSelected
+                      ? "#14263E"
+                      : hovered
+                        ? "rgba(252, 198, 28, 0.7)"
+                        : "rgba(20, 38, 62, 0.06)",
+                    ...Platform.select({
+                      web: {
+                        boxShadow: hovered
+                          ? "0 1px 0 rgba(20,38,62,.05), 0 22px 38px -18px rgba(20,38,62,.34)"
+                          : "0 1px 0 rgba(20,38,62,.04), 0 12px 26px -18px rgba(20,38,62,.24)",
+                        transition: "transform 0.22s cubic-bezier(.2,.7,.2,1), box-shadow 0.22s, border-color 0.22s",
+                        ...(hovered ? { transform: [{ translateY: -3 }] } : {}),
+                      } as any,
+                    }),
+                  },
+                ]}
+              >
+                <View
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 15,
+                    backgroundColor: "#FCC61C",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Icon name={cat.icon} size={24} color="#14263E" />
+                </View>
+                <Text
+                  style={{
+                    fontFamily: font,
+                    fontSize: 14.5,
+                    fontWeight: "800",
+                    color: isSelected ? "#FFFFFF" : "#14263E",
+                    textAlign: "center",
+                  }}
+                >
+                  {cat.title}
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: font,
+                    fontSize: 12,
+                    fontWeight: "600",
+                    color: isSelected ? "#FCC61C" : "rgba(20, 38, 62, 0.52)",
+                    textAlign: "center",
+                  }}
+                >
+                  {cat.count}
+                </Text>
               </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          5. RECOMMENDED FOR YOU ("Homes picked for you" 3-Column Grid)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapContainer, { marginTop: isMobile ? 40 : 56, gap: 20 }]}>
+        <SectionHeading
+          eyebrow="RECOMMENDED"
+          title="Homes picked for you"
+          sub={
+            activeDistrictParam || prefs.district
+              ? `Based on what you explored in ${activeDistrictParam || prefs.district} and nearby.`
+              : "Inspired by verified searches and top owner listings."
+          }
+          right={
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Refresh recommendations"
+                onPress={() => setRefreshSeed(Date.now())}
+                style={sSlide.headerRefreshBtn}
+                activeOpacity={0.75}
+              >
+                <MaterialIcons name="refresh" size={15} color="#14263E" />
+                <Text style={sSlide.headerRefreshText}>Refresh</Text>
+              </TouchableOpacity>
+              <ViewAllPill onPress={() => router.push("/search")} />
             </View>
           }
         />
-      )}
 
-      {[
-        [
-          "Recommended for You",
-          "Inspired by your searches and wishlist",
-          personal,
-          true,
-        ],
-        ["New Properties", "Recently verified and published", recent, false],
-        [
-          "Trending Properties",
-          "Popular with property seekers this week",
-          trending,
-          false,
-        ],
-      ].map(([title, sub, feed, isRec]: any) => (
-        <PropertySlideRow
-          key={title}
-          title={title}
-          sub={sub}
-          feed={feed}
-          typeFilter={type}
-          onRefresh={isRec ? () => setRefreshSeed(Date.now()) : undefined}
+        {personal.loading ? (
+          <ActivityIndicator color="#14263E" style={{ padding: 28 }} />
+        ) : personal.error ? (
+          <ErrorBox text={personal.error} onRetry={personal.refresh} />
+        ) : !recommendedList.length ? (
+          <Empty
+            title="Properties are on their way"
+            text="Verified recommendations will appear here as listings match your criteria."
+          />
+        ) : isDesktop ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 20 }}>
+            {recommendedList.map((p: any) => (
+              <View key={p._id} style={{ width: "31.7%", minWidth: 290, flexGrow: 1 }}>
+                <PropertyCard property={p} style={{ flex: 1 }} />
+              </View>
+            ))}
+          </View>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingVertical: 6 }}>
+            {recommendedList.map((p: any) => (
+              <View key={p._id} style={{ width: 284 }}>
+                <PropertyCard property={p} style={{ flex: 1 }} />
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          6. HOW IT WORKS ("Buy direct in three steps")
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapContainer, { marginTop: isMobile ? 44 : 62, gap: 22 }]}>
+        <SectionHeading
+          eyebrow="HOW IT WORKS"
+          title="Buy direct in three steps"
         />
-      ))}
-      <View style={[s.panel, s.row]}>
-        <Icon name="handshake" size={34} />
-        <View style={{ flex: 1 }}>
-          <Text style={s.cardTitle}>Real people, every step of the way</Text>
-          <Text style={s.muted}>
-            Your assigned team helps with questions, offers and deal closure.
-          </Text>
+
+        <View
+          style={{
+            flexDirection: isDesktop ? "row" : "column",
+            gap: 20,
+            paddingTop: 14,
+          }}
+        >
+          {[
+            {
+              step: "1",
+              icon: "search",
+              title: "Search verified homes",
+              desc: "Browse listings posted directly by owners. Each one carries a Verified badge you can trust.",
+            },
+            {
+              step: "2",
+              icon: "chat-bubble-outline",
+              title: "Talk to your advisor",
+              desc: "A dedicated MalikSe advisor handles documents, negotiation, and site visits for every property.",
+            },
+            {
+              step: "3",
+              icon: "verified-user",
+              title: "Close with zero brokerage",
+              desc: "Pay the owner, not a middleman. We check the title and paperwork until the deal is done.",
+            },
+          ].map((item) => (
+            <View
+              key={item.step}
+              style={{
+                flex: 1,
+                backgroundColor: "#FFFFFF",
+                borderRadius: 20,
+                padding: 22,
+                paddingTop: 28,
+                borderWidth: 1,
+                borderColor: "rgba(20, 38, 62, 0.06)",
+                position: "relative",
+                ...Platform.select({
+                  web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 14px 28px -18px rgba(20,38,62,.24)" },
+                }),
+              }}
+            >
+              {/* Numbered Badge Overlapping Top-Left */}
+              <View
+                style={{
+                  position: "absolute",
+                  top: -16,
+                  left: 22,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: "#14263E",
+                  borderWidth: 3,
+                  borderColor: "#F7F4EC",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ fontFamily: fontNumeric, fontSize: 15, fontWeight: "800", color: "#FCC61C" }}>
+                  {item.step}
+                </Text>
+              </View>
+
+              <View
+                style={{
+                  width: 46,
+                  height: 46,
+                  borderRadius: 14,
+                  backgroundColor: "#FFF1C0",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon name={item.icon} size={23} color="#14263E" />
+              </View>
+
+              <Text
+                style={{
+                  fontFamily: fontDisplay,
+                  fontSize: 21,
+                  lineHeight: 26,
+                  fontWeight: "600",
+                  letterSpacing: -0.3,
+                  color: "#14263E",
+                  marginTop: 14,
+                }}
+              >
+                {item.title}
+              </Text>
+              <Text
+                style={{
+                  fontFamily: font,
+                  fontSize: 13.5,
+                  lineHeight: 21,
+                  fontWeight: "500",
+                  color: "rgba(20, 38, 62, 0.65)",
+                  marginTop: 6,
+                }}
+              >
+                {item.desc}
+              </Text>
+            </View>
+          ))}
         </View>
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          7. WHY MALIKSE (Full-Bleed Dark Navy Showcase Section)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View
+        style={{
+          marginTop: isMobile ? 44 : 64,
+          backgroundColor: "#14263E",
+          position: "relative",
+          overflow: "hidden",
+          paddingVertical: isMobile ? 42 : 56,
+        }}
+      >
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: -80,
+            top: -80,
+            width: 300,
+            height: 300,
+            borderRadius: 150,
+            backgroundColor: "#1C3556",
+          }}
+        />
+
+        <View
+          style={[
+            wrapContainer,
+            {
+              flexDirection: isDesktop ? "row" : "column",
+              alignItems: isDesktop ? "center" : "stretch",
+              gap: isDesktop ? 42 : 28,
+              position: "relative",
+              zIndex: 2,
+            },
+          ]}
+        >
+          {/* Left Editorial Column */}
+          <View style={{ flex: 1, gap: 12 }}>
+            <Text style={{ fontFamily: fontMono, fontSize: 11.5, fontWeight: "800", letterSpacing: 1.8, color: "#FCC61C" }}>
+              WHY MALIKSE
+            </Text>
+            <Text
+              style={{
+                fontFamily: fontDisplay,
+                fontSize: isMobile ? 30 : 38,
+                lineHeight: isMobile ? 34 : 43,
+                fontWeight: "600",
+                color: "#FFFFFF",
+                letterSpacing: -0.6,
+              }}
+            >
+              {"Trust is built into\nevery listing."}
+            </Text>
+            <Text
+              style={{
+                fontFamily: font,
+                fontSize: 15,
+                lineHeight: 23,
+                fontWeight: "500",
+                color: "rgba(255, 255, 255, 0.72)",
+                maxWidth: 460,
+              }}
+            >
+              Property fraud is the biggest fear in Indian real estate. We check the person and the paperwork before anything goes live.
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() => router.push("/search")}
+              activeOpacity={0.88}
+              style={{
+                marginTop: 10,
+                alignSelf: "flex-start",
+                height: 46,
+                paddingHorizontal: 24,
+                borderRadius: 999,
+                backgroundColor: "#FCC61C",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                ...Platform.select({
+                  web: { boxShadow: "0 12px 22px -10px rgba(232,174,0,.85), inset 0 1px 0 rgba(255,255,255,.5)" },
+                }),
+              }}
+            >
+              <Text style={{ fontFamily: font, fontSize: 14.5, fontWeight: "800", color: "#14263E" }}>
+                Start exploring
+              </Text>
+              <Icon name="chevron-right" size={18} color="#14263E" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Right 2x2 Glassmorphic Feature Grid */}
+          <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
+            {[
+              { icon: "badge", title: "Owner KYC", desc: "Identity & ownership matched for every seller." },
+              { icon: "description", title: "Title check", desc: "Legal & revenue team verifies deeds in 48 hrs." },
+              { icon: "support-agent", title: "Advisor on call", desc: "One assigned advisor per property, start to finish." },
+              { icon: "bolt", title: "Zero brokerage", desc: "Save lakhs in commission on every direct deal." },
+            ].map((feat) => (
+              <View
+                key={feat.title}
+                style={{
+                  width: isMobile ? "100%" : "47.5%",
+                  flexGrow: 1,
+                  backgroundColor: "rgba(255, 255, 255, 0.07)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255, 255, 255, 0.14)",
+                  borderRadius: 20,
+                  padding: 18,
+                  gap: 8,
+                }}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    backgroundColor: "#FCC61C",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 2,
+                  }}
+                >
+                  <Icon name={feat.icon} size={20} color="#14263E" />
+                </View>
+                <Text style={{ fontFamily: font, fontSize: 15.5, fontWeight: "800", color: "#FFFFFF" }}>
+                  {feat.title}
+                </Text>
+                <Text style={{ fontFamily: font, fontSize: 13, lineHeight: 19, fontWeight: "500", color: "rgba(255, 255, 255, 0.68)" }}>
+                  {feat.desc}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          8. FOR OWNERS CTA BANNER ("List your property free.")
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapContainer, { marginTop: isMobile ? 40 : 56 }]}>
+        <View
+          style={{
+            backgroundColor: "#FCC61C",
+            borderRadius: 26,
+            paddingHorizontal: isMobile ? 22 : 42,
+            paddingVertical: isMobile ? 28 : 38,
+            position: "relative",
+            overflow: "hidden",
+            ...Platform.select({
+              web: { boxShadow: "0 28px 46px -28px rgba(232, 174, 0, 0.9)" },
+            }),
+          }}
+        >
+          {/* Decorative Navy Circle & Capsule */}
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              right: isMobile ? -110 : -50,
+              bottom: isMobile ? -130 : -90,
+              width: isMobile ? 240 : 300,
+              height: isMobile ? 240 : 300,
+              borderRadius: 150,
+              backgroundColor: "#14263E",
+            }}
+          />
+          {!isMobile && (
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                right: 220,
+                top: -54,
+                width: 96,
+                height: 290,
+                borderRadius: 50,
+                backgroundColor: "rgba(20, 38, 62, 0.92)",
+                transform: [{ rotate: "30deg" }],
+              }}
+            />
+          )}
+
+          <View style={{ maxWidth: 520, position: "relative", zIndex: 2, gap: 9 }}>
+            <Text style={{ fontFamily: fontMono, fontSize: 11.5, fontWeight: "800", letterSpacing: 1.8, color: "rgba(20, 38, 62, 0.72)" }}>
+              FOR OWNERS
+            </Text>
+            <Text
+              style={{
+                fontFamily: fontDisplay,
+                fontSize: isMobile ? 30 : 38,
+                lineHeight: isMobile ? 34 : 42,
+                fontWeight: "600",
+                color: "#14263E",
+                letterSpacing: -0.6,
+              }}
+            >
+              List your property free.
+            </Text>
+            <Text
+              style={{
+                fontFamily: font,
+                fontSize: isMobile ? 14.5 : 15.5,
+                lineHeight: 23,
+                fontWeight: "600",
+                color: "rgba(20, 38, 62, 0.78)",
+              }}
+            >
+              Reach verified buyers across Bihar. No brokers, no commission, and an advisor to handle every enquiry.
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() =>
+                router.push(
+                  user
+                    ? "/post"
+                    : ({ pathname: "/login", params: { returnTo: "/post" } } as any)
+                )
+              }
+              activeOpacity={0.88}
+              style={{
+                marginTop: 10,
+                alignSelf: "flex-start",
+                height: 46,
+                paddingHorizontal: 24,
+                borderRadius: 999,
+                backgroundColor: "#14263E",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                ...Platform.select({
+                  web: { boxShadow: "0 12px 22px -10px rgba(20, 38, 62, 0.78)" },
+                }),
+              }}
+            >
+              <Text style={{ fontFamily: font, fontSize: 14.5, fontWeight: "800", color: "#FCC61C" }}>
+                Post your property
+              </Text>
+              <Icon name="chevron-right" size={18} color="#FCC61C" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          9. FRESH ON THE MARKET (2-Column Horizontal Cards Grid)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapContainer, { marginTop: isMobile ? 40 : 56, gap: 20 }]}>
+        <SectionHeading
+          eyebrow={activeDistrictParam ? `NEW IN ${activeDistrictParam.toUpperCase()}` : "NEW LISTINGS"}
+          title="Fresh on the market"
+          sub="Recently verified and published."
+          right={<ViewAllPill onPress={() => router.push("/search")} />}
+        />
+
+        {recent.loading ? (
+          <ActivityIndicator color="#14263E" style={{ padding: 24 }} />
+        ) : recent.error ? (
+          <ErrorBox text={recent.error} onRetry={recent.refresh} />
+        ) : !newPropertiesList.length ? (
+          <Empty
+            title="New listings coming soon"
+            text="Freshly verified properties will appear here as soon as they are published."
+          />
+        ) : (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
+            {newPropertiesList.map((p: any) => (
+              <View key={p._id} style={{ width: isDesktop ? "48.8%" : "100%", flexGrow: 1 }}>
+                <PropertyCard property={p} horizontal freshTag="New" />
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          10. TRENDING PROPERTIES (Horizontal Carousel)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapContainer, { marginTop: isMobile ? 40 : 56 }]}>
+        <PropertySlideRow
+          eyebrow="TRENDING THIS WEEK"
+          title="Popular properties"
+          sub="Most viewed and wishlisted listings right now."
+          feed={trending}
+          typeFilter={type}
+        />
       </View>
     </MarketplaceShell>
   );
@@ -1380,7 +2602,7 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Bailey Road · Patna",
     highlightTag: { label: "Direct Malik", theme: "blue" },
     featureChip: "25ft Road",
-    media: { photos: ["https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=600"] },
+    media: { photos: [PROPERTY_IMAGES.plotPatnaAerial] },
     status: "verified",
     badges: { fullyVerified: true },
   },
@@ -1397,13 +2619,13 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Danapur · Patna",
     highlightTag: { label: "Khata 114", theme: "green" },
     featureChip: "Corner",
-    media: { photos: ["https://images.unsplash.com/photo-1524813686514-a57563d77d66?w=600"] },
+    media: { photos: [PROPERTY_IMAGES.plotDanapurField] },
     status: "verified",
     badges: { fullyVerified: true },
   },
   {
     _id: "demo_beg_194",
-    title: "DEMO · Sample 194 · shop in...",
+    title: "Commercial Showroom · Harrakh",
     price: 28700000,
     type: "shop",
     sellableArea: 2750,
@@ -1413,18 +2635,13 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Harrakh · Begusarai",
     highlightTag: { label: "High ROI", theme: "amber" },
     featureChip: "NH-31 Front",
-    categoryPlaceholder: {
-      icon: "storefront",
-      text: "Commercial Space · Begusarai",
-      color: "#3B82F6",
-      bg: "#EFF6FF",
-    },
+    media: { photos: [PROPERTY_IMAGES.commercialShop] },
     status: "verified",
     badges: { fullyVerified: true },
   },
   {
     _id: "demo_beg_193",
-    title: "DEMO · Sample 193 · house in...",
+    title: "4 BHK Duplex Villa · Ratanpur",
     price: 27900000,
     type: "house",
     sellableArea: 2575,
@@ -1434,18 +2651,13 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Ratanpur · Begusarai",
     highlightTag: { label: "Furnished", theme: "blue" },
     featureChip: "4 BHK",
-    categoryPlaceholder: {
-      icon: "home",
-      text: "Duplex Villa · Begusarai",
-      color: "#6366F1",
-      bg: "#F5F7FF",
-    },
+    media: { photos: [PROPERTY_IMAGES.duplexHouse] },
     status: "verified",
     badges: { fullyVerified: true },
   },
   {
     _id: "demo_beg_192",
-    title: "DEMO · Sample 192 · flat in...",
+    title: "Modern 3 BHK Residence · Vishnupur",
     price: 27100000,
     type: "flat",
     sellableArea: 2100,
@@ -1454,18 +2666,13 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Vishnupur · Begusarai",
     highlightTag: { label: "RERA Registered", theme: "green" },
     featureChip: "Lift + Parking",
-    categoryPlaceholder: {
-      icon: "apartment",
-      text: "Modern 3 BHK · Begusarai",
-      color: "#64748B",
-      bg: "#F8FAFC",
-    },
+    media: { photos: [PROPERTY_IMAGES.savedVillaHouse] },
     status: "verified",
     badges: { fullyVerified: true },
   },
   {
     _id: "demo_beg_191",
-    title: "DEMO · Sample 191 · land in...",
+    title: "Walled Residential Plot · Barauni",
     price: 26400000,
     type: "land",
     sellableArea: 4764,
@@ -1474,13 +2681,13 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Barauni · Begusarai",
     highlightTag: { label: "G+2 Duplex", theme: "blue" },
     featureChip: "Boundary Wall",
-    media: { photos: ["https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=600"] },
+    media: { photos: [PROPERTY_IMAGES.savedPlotLand] },
     status: "verified",
     badges: { fullyVerified: true },
   },
   {
     _id: "demo_beg_190",
-    title: "DEMO · Sample 190 · office in...",
+    title: "Commercial Office Hub · Main Market",
     price: 28800000,
     type: "office",
     sellableArea: 3200,
@@ -1489,13 +2696,13 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Main Market · Begusarai",
     highlightTag: { label: "GPS Demarcated", theme: "green" },
     featureChip: "Main Market",
-    media: { photos: ["https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600"] },
+    media: { photos: [PROPERTY_IMAGES.commercialOffice] },
     status: "verified",
     badges: { fullyVerified: true },
   },
   {
     _id: "demo_beg_189",
-    title: "DEMO · Sample 189 · shop in...",
+    title: "Prime Retail Corner · Karpuri Chowk",
     price: 28100000,
     type: "shop",
     sellableArea: 1950,
@@ -1504,7 +2711,7 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Karpuri Chowk · Begusarai",
     highlightTag: { label: "Prime Commercial", theme: "blue" },
     featureChip: "Two Sides Open",
-    media: { photos: ["https://images.unsplash.com/photo-1448630360428-65456885c650?w=600"] },
+    media: { photos: [PROPERTY_IMAGES.commercialOffice] },
     status: "verified",
     badges: { fullyVerified: true },
   },
@@ -1851,612 +3058,653 @@ export function SearchScreen() {
 
   const activeFiltersCount = (submitted ? 1 : 0) + (district ? 1 : 0) + (type ? 1 : 0) + (max ? 1 : 0) + (directOnly ? 1 : 0) + (cornerPlot ? 1 : 0);
 
+  const isMobile = windowWidth < 680;
+  const wrapExplore = {
+    width: "100%" as const,
+    maxWidth: 1220,
+    alignSelf: "center" as const,
+    paddingHorizontal: isMobile ? 16 : 24,
+  };
+
   return (
-    <MarketplaceShell>
-      {/* Top Header Section */}
-      <View style={exploreStyles.headerRow}>
-        <View style={exploreStyles.headerLeft}>
-          <Text style={exploreStyles.mainTitle}>
-            Explore verified properties in Bihar
-          </Text>
-          <View style={exploreStyles.subtitleRow}>
-            <Text style={exploreStyles.subtitleText}>
-              Find your place on the map. Every listing is geo-tagged and legal title verified.
-            </Text>
-            <View style={exploreStyles.registryPill}>
-              <MaterialIcons name="check" size={13} color="#15803D" />
-              <Text style={exploreStyles.registryPillText}>
-                Bihar Bhumi Registry Synced
+    <MarketplaceShell fullBleed>
+      {/* ═══════════════════════════════════════════════════════════════
+          1. NAVY EXPLORE HERO HEADER (Home-matched Navy + Sun Gold + Capsule)
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={exploreStyles.heroSection}>
+        <View style={exploreStyles.heroSunOrb} pointerEvents="none" />
+        <View style={exploreStyles.heroCapsule} pointerEvents="none" />
+
+        <View style={[wrapExplore, exploreStyles.heroInner]}>
+          <View style={exploreStyles.headerRow}>
+            <View style={exploreStyles.headerLeft}>
+              <View style={exploreStyles.eyebrowRow}>
+                <View style={exploreStyles.eyebrowPill}>
+                  <MaterialIcons name="explore" size={13} color="#FCC61C" />
+                  <Text style={exploreStyles.eyebrowPillText}>MAP &amp; REGISTRY EXPLORER</Text>
+                </View>
+                <View style={exploreStyles.registryPill}>
+                  <MaterialIcons name="check-circle" size={13} color="#0B8A3E" />
+                  <Text style={exploreStyles.registryPillText}>
+                    Bihar Bhumi Registry Synced
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={[exploreStyles.mainTitle, isMobile && { fontSize: 27, lineHeight: 33 }]}>
+                {"Explore verified properties "}
+                <Text style={{ color: "#FCC61C" }}>in Bihar.</Text>
+              </Text>
+              <Text style={exploreStyles.subtitleText}>
+                Find your place on the map. Every listing is geo-tagged and legal title verified before going live.
               </Text>
             </View>
-          </View>
-        </View>
 
-        {/* Top Right Area Unit Segment */}
-        <View style={exploreStyles.areaUnitContainer}>
-          <Text style={exploreStyles.areaUnitLabel}>Area Unit:</Text>
-          <View style={exploreStyles.areaUnitPills}>
-            {(["Kattha", "Sq.Ft.", "Decimal", "Bigha"] as const).map((unit) => (
-              <TouchableOpacity
-                key={unit}
-                style={[
-                  exploreStyles.unitBtn,
-                  areaUnit === unit && exploreStyles.unitBtnActive,
-                ]}
-                onPress={() => setAreaUnit(unit)}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    exploreStyles.unitBtnText,
-                    areaUnit === unit && exploreStyles.unitBtnTextActive,
-                  ]}
-                >
-                  {unit}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {/* Top Right Area Unit Switcher */}
+            <View style={exploreStyles.areaUnitContainer}>
+              <Text style={exploreStyles.areaUnitLabel}>Area Unit</Text>
+              <View style={exploreStyles.areaUnitPills}>
+                {(["Kattha", "Sq.Ft.", "Decimal", "Bigha"] as const).map((unit) => (
+                  <TouchableOpacity
+                    key={unit}
+                    style={[
+                      exploreStyles.unitBtn,
+                      areaUnit === unit && exploreStyles.unitBtnActive,
+                    ]}
+                    onPress={() => setAreaUnit(unit)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        exploreStyles.unitBtnText,
+                        areaUnit === unit && exploreStyles.unitBtnTextActive,
+                      ]}
+                    >
+                      {unit}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
           </View>
         </View>
       </View>
 
-      {/* Search & Filter Unified Card */}
-      <View style={exploreStyles.searchBoxCard}>
-        {/* Top Controls Row */}
-        <View style={exploreStyles.controlsRow}>
-          {/* Input 1: Locality Search */}
-          <View style={exploreStyles.inputFieldWrap}>
-            <MaterialIcons name="search" size={19} color="#0A45B5" />
-            <TextInput
-              accessibilityLabel="Search properties"
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Bailey Road, Saguna More, Patna"
-              placeholderTextColor="#94A3B8"
-              onSubmitEditing={search}
-              style={exploreStyles.textInput}
-            />
-            {!!query ? (
-              <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); }}>
-                <MaterialIcons name="close" size={16} color="#94A3B8" />
-              </TouchableOpacity>
-            ) : (
-              <MaterialIcons name="keyboard-arrow-down" size={18} color="#94A3B8" />
-            )}
+      {/* ═══════════════════════════════════════════════════════════════
+          2. FLOATING SEARCH & FILTER CONSOLE + MAP + VERIFIED INVENTORY
+      ═══════════════════════════════════════════════════════════════ */}
+      <View style={[wrapExplore, exploreStyles.mainContentWrap]}>
+        {/* Floating Unified Search & Filter Card */}
+        <View style={exploreStyles.searchBoxCard}>
+          {/* Top Controls Row */}
+          <View style={exploreStyles.controlsRow}>
+            {/* Input 1: Locality Search */}
+            <View style={exploreStyles.inputFieldWrap}>
+              <MaterialIcons name="search" size={19} color="#14263E" />
+              <TextInput
+                accessibilityLabel="Search properties"
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Bailey Road, Saguna More, Patna"
+                placeholderTextColor="rgba(20, 38, 62, 0.42)"
+                onSubmitEditing={search}
+                style={exploreStyles.textInput}
+              />
+              {!!query ? (
+                <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); }}>
+                  <MaterialIcons name="close" size={16} color="rgba(20, 38, 62, 0.48)" />
+                </TouchableOpacity>
+              ) : (
+                <MaterialIcons name="keyboard-arrow-down" size={18} color="rgba(20, 38, 62, 0.45)" />
+              )}
+            </View>
+
+            {/* Input 2: District Selector */}
+            <View style={exploreStyles.districtFieldWrap}>
+              <MaterialIcons name="place" size={18} color="#14263E" />
+              <TextInput
+                accessibilityLabel="Filter by district"
+                value={district}
+                onChangeText={setDistrict}
+                placeholder="Patna, Begusarai, Bhagalpur"
+                placeholderTextColor="rgba(20, 38, 62, 0.42)"
+                onSubmitEditing={search}
+                style={exploreStyles.textInput}
+              />
+              {!!district ? (
+                <TouchableOpacity onPress={() => setDistrict("")}>
+                  <MaterialIcons name="close" size={16} color="rgba(20, 38, 62, 0.48)" />
+                </TouchableOpacity>
+              ) : (
+                <MaterialIcons name="keyboard-arrow-down" size={18} color="rgba(20, 38, 62, 0.45)" />
+              )}
+            </View>
+
+            {/* Input 3: Budget Range Button */}
+            <TouchableOpacity
+              style={exploreStyles.budgetDropdownBtn}
+              onPress={() => setShowBudgetDropdown(!showBudgetDropdown)}
+              activeOpacity={0.8}
+            >
+              <Text style={exploreStyles.budgetText}>
+                {max ? `Up to ₹${(Number(max) / 100000).toFixed(0)}L` : "₹20L - ₹2.50 Cr"}
+              </Text>
+              <MaterialIcons name="keyboard-arrow-down" size={18} color="rgba(20, 38, 62, 0.55)" />
+            </TouchableOpacity>
+
+            {/* Action 1: Sun Gold Search Button */}
+            <TouchableOpacity
+              style={exploreStyles.searchBtn}
+              onPress={search}
+              activeOpacity={0.85}
+            >
+              <MaterialIcons name="search" size={17} color="#14263E" />
+              <Text style={exploreStyles.searchBtnText}>Search</Text>
+            </TouchableOpacity>
+
+            {/* Action 2: Filters Button */}
+            <TouchableOpacity
+              style={[exploreStyles.filtersBtn, filter && exploreStyles.filtersBtnActive]}
+              onPress={() => setFilter(!filter)}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="tune" size={16} color={filter ? "#FCC61C" : "#14263E"} />
+              <Text style={[exploreStyles.filtersBtnText, filter && exploreStyles.filtersBtnTextActive]}>
+                Filters {activeFiltersCount > 0 ? `(${activeFiltersCount})` : "(4)"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Action 3: List / Map Toggle Button */}
+            <TouchableOpacity
+              style={exploreStyles.viewToggleBtn}
+              onPress={() => setMap(!map)}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name={map ? "view-list" : "map"} size={17} color="#14263E" />
+              <Text style={exploreStyles.viewToggleText}>
+                {map ? "List view" : "Map view"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Input 2: District Selector */}
-          <View style={exploreStyles.districtFieldWrap}>
-            <MaterialIcons name="place" size={18} color="#0A45B5" />
-            <TextInput
-              accessibilityLabel="Filter by district"
-              value={district}
-              onChangeText={setDistrict}
-              placeholder="Patna, Begusarai, Bhagalpur"
-              placeholderTextColor="#94A3B8"
-              onSubmitEditing={search}
-              style={exploreStyles.textInput}
-            />
-            {!!district ? (
-              <TouchableOpacity onPress={() => setDistrict("")}>
-                <MaterialIcons name="close" size={16} color="#94A3B8" />
-              </TouchableOpacity>
-            ) : (
-              <MaterialIcons name="keyboard-arrow-down" size={18} color="#94A3B8" />
-            )}
-          </View>
+          {/* Budget Popover when toggled */}
+          {showBudgetDropdown && (
+            <View style={exploreStyles.budgetPopover}>
+              <Text style={exploreStyles.popoverTitle}>Select Budget Range</Text>
+              <View style={exploreStyles.budgetChipsRow}>
+                {[
+                  { label: "Any Budget", val: "" },
+                  { label: "Under ₹25 Lakh", val: "2500000" },
+                  { label: "₹25L - ₹50 Lakh", val: "5000000" },
+                  { label: "₹50L - ₹1 Crore", val: "10000000" },
+                  { label: "₹1 Cr - ₹2.5 Crore", val: "25000000" },
+                  { label: "₹2.5 Crore+", val: "50000000" },
+                ].map((b) => (
+                  <TouchableOpacity
+                    key={b.label}
+                    style={[
+                      exploreStyles.budgetChip,
+                      max === b.val && exploreStyles.budgetChipActive,
+                    ]}
+                    onPress={() => {
+                      setMax(b.val);
+                      setShowBudgetDropdown(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        exploreStyles.budgetChipText,
+                        max === b.val && exploreStyles.budgetChipTextActive,
+                      ]}
+                    >
+                      {b.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
 
-          {/* Input 3: Budget Range Button */}
-          <TouchableOpacity
-            style={exploreStyles.budgetDropdownBtn}
-            onPress={() => setShowBudgetDropdown(!showBudgetDropdown)}
-            activeOpacity={0.8}
+          {/* Quick Filter Chips Row */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={exploreStyles.quickChipsScroll}
           >
-            <Text style={exploreStyles.budgetText}>
-              {max ? `Up to ₹${(Number(max) / 100000).toFixed(0)}L` : "₹20L - ₹2.50 Cr"}
-            </Text>
-            <MaterialIcons name="keyboard-arrow-down" size={18} color="#64748B" />
-          </TouchableOpacity>
+            {/* Chip 1: Verified properties only (Always Active) */}
+            <TouchableOpacity
+              style={exploreStyles.chipVerified}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="check-circle" size={14} color="#0B8A3E" />
+              <Text style={exploreStyles.chipVerifiedText}>Verified properties only</Text>
+            </TouchableOpacity>
 
-          {/* Action 1: Search Button */}
-          <TouchableOpacity
-            style={exploreStyles.searchBtn}
-            onPress={search}
-            activeOpacity={0.8}
-          >
-            <Text style={exploreStyles.searchBtnText}>Search</Text>
-          </TouchableOpacity>
+            {/* Chip 2: Direct from Malik (No Broker) */}
+            <TouchableOpacity
+              style={[
+                exploreStyles.chipDefault,
+                directOnly && exploreStyles.chipDefaultActive,
+              ]}
+              onPress={() => setDirectOnly(!directOnly)}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  exploreStyles.chipDefaultText,
+                  directOnly && exploreStyles.chipDefaultTextActive,
+                ]}
+              >
+                Direct from Malik (No Broker)
+              </Text>
+            </TouchableOpacity>
 
-          {/* Action 2: Filters Button */}
-          <TouchableOpacity
-            style={[exploreStyles.filtersBtn, filter && exploreStyles.filtersBtnActive]}
-            onPress={() => setFilter(!filter)}
-            activeOpacity={0.8}
-          >
-            <MaterialIcons name="tune" size={16} color="#0A45B5" />
-            <Text style={exploreStyles.filtersBtnText}>
-              Filters {activeFiltersCount > 0 ? `(${activeFiltersCount})` : "(4)"}
-            </Text>
-          </TouchableOpacity>
+            {/* Chip 3: Independent House */}
+            <TouchableOpacity
+              style={[
+                exploreStyles.chipDefault,
+                type === "house" && exploreStyles.chipBlueActive,
+              ]}
+              onPress={() => setType(type === "house" ? "" : "house")}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  exploreStyles.chipDefaultText,
+                  type === "house" && exploreStyles.chipBlueTextActive,
+                ]}
+              >
+                Independent House
+              </Text>
+            </TouchableOpacity>
 
-          {/* Action 3: List / Map Toggle Button */}
-          <TouchableOpacity
-            style={exploreStyles.viewToggleBtn}
-            onPress={() => setMap(!map)}
-            activeOpacity={0.8}
-          >
-            <MaterialIcons name={map ? "view-list" : "map"} size={17} color="#334155" />
-            <Text style={exploreStyles.viewToggleText}>
-              {map ? "List view" : "Map view"}
-            </Text>
-          </TouchableOpacity>
+            {/* Chip 4: Residential Land / Plot */}
+            <TouchableOpacity
+              style={[
+                exploreStyles.chipDefault,
+                type === "land" && exploreStyles.chipBlueActive,
+              ]}
+              onPress={() => setType(type === "land" ? "" : "land")}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  exploreStyles.chipDefaultText,
+                  type === "land" && exploreStyles.chipBlueTextActive,
+                ]}
+              >
+                Residential Land / Plot
+              </Text>
+            </TouchableOpacity>
+
+            {/* Chip 5: Corner Plot (30ft+ Road) */}
+            <TouchableOpacity
+              style={[
+                exploreStyles.chipDefault,
+                cornerPlot && exploreStyles.chipDefaultActive,
+              ]}
+              onPress={() => setCornerPlot(!cornerPlot)}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  exploreStyles.chipDefaultText,
+                  cornerPlot && exploreStyles.chipDefaultTextActive,
+                ]}
+              >
+                Corner Plot (30ft+ Road)
+              </Text>
+            </TouchableOpacity>
+
+            {/* Chip 6: Commercial / Showroom */}
+            <TouchableOpacity
+              style={[
+                exploreStyles.chipDefault,
+                (type === "shop" || type === "commercial") && exploreStyles.chipBlueActive,
+              ]}
+              onPress={() => setType((type === "shop" || type === "commercial") ? "" : "shop")}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  exploreStyles.chipDefaultText,
+                  (type === "shop" || type === "commercial") && exploreStyles.chipBlueTextActive,
+                ]}
+              >
+                Commercial / Showroom
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
 
-        {/* Budget Popover when toggled */}
-        {showBudgetDropdown && (
-          <View style={exploreStyles.budgetPopover}>
-            <Text style={exploreStyles.popoverTitle}>Select Budget Range</Text>
-            <View style={exploreStyles.budgetChipsRow}>
-              {[
-                { label: "Any Budget", val: "" },
-                { label: "Under ₹25 Lakh", val: "2500000" },
-                { label: "₹25L - ₹50 Lakh", val: "5000000" },
-                { label: "₹50L - ₹1 Crore", val: "10000000" },
-                { label: "₹1 Cr - ₹2.5 Crore", val: "25000000" },
-                { label: "₹2.5 Crore+", val: "50000000" },
-              ].map((b) => (
-                <TouchableOpacity
-                  key={b.label}
-                  style={[
-                    exploreStyles.budgetChip,
-                    max === b.val && exploreStyles.budgetChipActive,
-                  ]}
-                  onPress={() => {
-                    setMax(b.val);
-                    setShowBudgetDropdown(false);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text
+        {/* Active Filter Tags */}
+        {(!!submitted || !!district || !!type || !!max || directOnly || cornerPlot) && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", paddingVertical: 2 }}>
+            <Text style={{ fontSize: 12.5, color: "rgba(20, 38, 62, 0.62)", fontWeight: "700", fontFamily: font }}>Active Filters:</Text>
+            {!!submitted && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#FFF1C0", paddingHorizontal: 11, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: "rgba(232, 174, 0, 0.35)" }}>
+                <Text style={{ fontSize: 12, fontWeight: "800", color: "#14263E", fontFamily: font }}>Locality: "{submitted}"</Text>
+                <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); }}>
+                  <MaterialIcons name="close" size={14} color="#14263E" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {!!district && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#ECFDF5", paddingHorizontal: 11, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: "#A7F3D0" }}>
+                <Text style={{ fontSize: 12, fontWeight: "800", color: "#0B8A3E", fontFamily: font }}>District: {district}</Text>
+                <TouchableOpacity onPress={() => setDistrict("")}>
+                  <MaterialIcons name="close" size={14} color="#0B8A3E" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {!!type && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#14263E", paddingHorizontal: 11, paddingVertical: 4, borderRadius: 999 }}>
+                <Text style={{ fontSize: 12, fontWeight: "800", color: "#FCC61C", fontFamily: font }}>Type: {type.toUpperCase()}</Text>
+                <TouchableOpacity onPress={() => setType("")}>
+                  <MaterialIcons name="close" size={14} color="#FCC61C" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {!!max && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#FFFFFF", paddingHorizontal: 11, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: "rgba(20, 38, 62, 0.14)" }}>
+                <Text style={{ fontSize: 12, fontWeight: "800", color: "#14263E", fontFamily: font }}>Max: ₹{(Number(max) / 100000).toFixed(0)}L</Text>
+                <TouchableOpacity onPress={() => setMax("")}>
+                  <MaterialIcons name="close" size={14} color="#14263E" />
+                </TouchableOpacity>
+              </View>
+            )}
+            <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); setDistrict(""); setType(""); setMax(""); setDirectOnly(false); setCornerPlot(false); }}>
+              <Text style={{ fontSize: 12, fontWeight: "800", color: "#DC2626", marginLeft: 4, fontFamily: font, textDecorationLine: "underline" }}>Clear All</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Advanced Filter Drawer */}
+        {filter && (
+          <View style={exploreStyles.advancedFilterCard}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+              <Text style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: "600", color: "#14263E" }}>
+                Refine your search
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setType("");
+                  setMax("");
+                  setDirectOnly(false);
+                  setCornerPlot(false);
+                }}
+                style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FFF1C0" }}
+              >
+                <Text style={{ fontFamily: font, fontSize: 12, fontWeight: "800", color: "#14263E" }}>Reset filters</Text>
+              </TouchableOpacity>
+            </View>
+            <Field
+              title="Maximum price (₹)"
+              value={max}
+              onChangeText={setMax}
+              numeric
+            />
+            <View style={s.wrap}>
+              {types.map(([id, text]) => {
+                const isActive = type === id;
+                return (
+                  <TouchableOpacity
+                    key={id}
+                    onPress={() => setType(type === id ? "" : id)}
                     style={[
-                      exploreStyles.budgetChipText,
-                      max === b.val && exploreStyles.budgetChipTextActive,
+                      exploreStyles.chipDefault,
+                      isActive && exploreStyles.chipBlueActive,
+                      { paddingHorizontal: 14, paddingVertical: 8 },
                     ]}
                   >
-                    {b.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text style={[exploreStyles.chipDefaultText, isActive && exploreStyles.chipBlueTextActive]}>
+                      {text}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         )}
 
-        {/* Quick Filter Chips Row */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={exploreStyles.quickChipsScroll}
-        >
-          {/* Chip 1: Verified properties only (Always Active) */}
-          <TouchableOpacity
-            style={exploreStyles.chipVerified}
-            activeOpacity={0.8}
-          >
-            <MaterialIcons name="check" size={13} color="#059669" />
-            <Text style={exploreStyles.chipVerifiedText}>Verified properties only</Text>
-          </TouchableOpacity>
-
-          {/* Chip 2: Direct from Malik (No Broker) */}
-          <TouchableOpacity
-            style={[
-              exploreStyles.chipDefault,
-              directOnly && exploreStyles.chipDefaultActive,
-            ]}
-            onPress={() => setDirectOnly(!directOnly)}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                exploreStyles.chipDefaultText,
-                directOnly && exploreStyles.chipDefaultTextActive,
-              ]}
-            >
-              Direct from Malik (No Broker)
-            </Text>
-          </TouchableOpacity>
-
-          {/* Chip 3: Independent House */}
-          <TouchableOpacity
-            style={[
-              exploreStyles.chipDefault,
-              type === "house" && exploreStyles.chipBlueActive,
-            ]}
-            onPress={() => setType(type === "house" ? "" : "house")}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                exploreStyles.chipDefaultText,
-                type === "house" && exploreStyles.chipBlueTextActive,
-              ]}
-            >
-              Independent House
-            </Text>
-          </TouchableOpacity>
-
-          {/* Chip 4: Residential Land / Plot */}
-          <TouchableOpacity
-            style={[
-              exploreStyles.chipDefault,
-              type === "land" && exploreStyles.chipBlueActive,
-            ]}
-            onPress={() => setType(type === "land" ? "" : "land")}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                exploreStyles.chipDefaultText,
-                type === "land" && exploreStyles.chipBlueTextActive,
-              ]}
-            >
-              Residential Land / Plot
-            </Text>
-          </TouchableOpacity>
-
-          {/* Chip 5: Corner Plot (30ft+ Road) */}
-          <TouchableOpacity
-            style={[
-              exploreStyles.chipDefault,
-              cornerPlot && exploreStyles.chipDefaultActive,
-            ]}
-            onPress={() => setCornerPlot(!cornerPlot)}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                exploreStyles.chipDefaultText,
-                cornerPlot && exploreStyles.chipDefaultTextActive,
-              ]}
-            >
-              Corner Plot (30ft+ Road)
-            </Text>
-          </TouchableOpacity>
-
-          {/* Chip 6: Commercial / Showroom */}
-          <TouchableOpacity
-            style={[
-              exploreStyles.chipDefault,
-              (type === "shop" || type === "commercial") && exploreStyles.chipBlueActive,
-            ]}
-            onPress={() => setType((type === "shop" || type === "commercial") ? "" : "shop")}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                exploreStyles.chipDefaultText,
-                (type === "shop" || type === "commercial") && exploreStyles.chipBlueTextActive,
-              ]}
-            >
-              Commercial / Showroom
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
-
-      {/* Active Filter Tags */}
-      {(!!submitted || !!district || !!type || !!max || directOnly || cornerPlot) && (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", paddingVertical: 2 }}>
-          <Text style={{ fontSize: 13, color: "#64748B", fontWeight: "600", fontFamily: font }}>Active Filters:</Text>
-          {!!submitted && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#EFF6FF", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#DBEAFE" }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#0A45B5", fontFamily: font }}>Locality: "{submitted}"</Text>
-              <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); }}>
-                <MaterialIcons name="close" size={14} color="#0A45B5" />
-              </TouchableOpacity>
-            </View>
-          )}
-          {!!district && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#ECFDF5", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#A7F3D0" }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#059669", fontFamily: font }}>District: {district}</Text>
-              <TouchableOpacity onPress={() => setDistrict("")}>
-                <MaterialIcons name="close" size={14} color="#059669" />
-              </TouchableOpacity>
-            </View>
-          )}
-          {!!type && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#FFF7ED", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#FFEDD5" }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#EA580C", fontFamily: font }}>Type: {type.toUpperCase()}</Text>
-              <TouchableOpacity onPress={() => setType("")}>
-                <MaterialIcons name="close" size={14} color="#EA580C" />
-              </TouchableOpacity>
-            </View>
-          )}
-          {!!max && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F5F3FF", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 14, borderWidth: 1, borderColor: "#DDD6FE" }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#7C3AED", fontFamily: font }}>Max: ₹{(Number(max) / 100000).toFixed(0)}L</Text>
-              <TouchableOpacity onPress={() => setMax("")}>
-                <MaterialIcons name="close" size={14} color="#7C3AED" />
-              </TouchableOpacity>
-            </View>
-          )}
-          <TouchableOpacity onPress={() => { setQuery(""); setSubmitted(""); setDistrict(""); setType(""); setMax(""); setDirectOnly(false); setCornerPlot(false); }}>
-            <Text style={{ fontSize: 12, fontWeight: "700", color: "#DC2626", marginLeft: 4, fontFamily: font }}>Clear All</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Advanced Filter Drawer */}
-      {filter && (
-        <View style={s.panel}>
-          <Field
-            title="Maximum price (₹)"
-            value={max}
-            onChangeText={setMax}
-            numeric
-          />
-          <View style={s.wrap}>
-            {types.map(([id, text]) => (
-              <Button
-                key={id}
-                secondary={type !== id}
-                title={text}
-                onPress={() => setType(type === id ? "" : id)}
-              />
-            ))}
-          </View>
-          <Button
-            secondary
-            title="Reset filters"
-            onPress={() => {
-              setType("");
-              setMax("");
-            }}
-          />
-        </View>
-      )}
-
-      {/* Showing 38 districts count banner */}
-      <View style={exploreStyles.statusRow}>
-        <Text style={exploreStyles.statusText}>
-          Showing verified plots & houses across <Text style={exploreStyles.statusBold}>38 districts</Text>
-        </Text>
-      </View>
-
-      <ErrorBox text={feed.error} />
-      {feed.loading && <ActivityIndicator color={C.blue} />}
-
-      {/* Map with Overlay Controls */}
-      {map && (
-        <View style={exploreStyles.mapWrapper}>
-          {/* Top-Left Cadastral Grid Badge */}
-          <View style={exploreStyles.mapCadastralBadge}>
+        {/* Showing 38 districts count & map hint bar */}
+        <View style={exploreStyles.statusRow}>
+          <Text style={exploreStyles.statusText}>
+            Showing verified plots &amp; houses across <Text style={exploreStyles.statusBold}>38 districts</Text>
+          </Text>
+          <View style={exploreStyles.statusCountPill}>
             <View style={exploreStyles.pulseGreenDot} />
-            <Text style={exploreStyles.mapCadastralTitle}>
-              Bihar Cadastral Survey & GPS Boundary Grid
-            </Text>
-            <View style={exploreStyles.epsgTag}>
-              <Text style={exploreStyles.epsgTagText}>EPSG:7760</Text>
-            </View>
-          </View>
-
-          {/* Top-Right Map Layer Switcher */}
-          <View style={exploreStyles.mapLayerSwitchPills}>
-            <TouchableOpacity
-              style={[
-                exploreStyles.layerBtn,
-                mapLayer === "standard" && exploreStyles.layerBtnActive,
-              ]}
-              onPress={() => setMapLayer("standard")}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  exploreStyles.layerBtnText,
-                  mapLayer === "standard" && exploreStyles.layerBtnTextActive,
-                ]}
-              >
-                Standard
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                exploreStyles.layerBtn,
-                mapLayer === "satellite" && exploreStyles.layerBtnActive,
-              ]}
-              onPress={() => setMapLayer("satellite")}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  exploreStyles.layerBtnText,
-                  mapLayer === "satellite" && exploreStyles.layerBtnTextActive,
-                ]}
-              >
-                Satellite
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                exploreStyles.layerBtn,
-                mapLayer === "mouza" && exploreStyles.layerBtnActive,
-              ]}
-              onPress={() => setMapLayer("mouza")}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  exploreStyles.layerBtnText,
-                  mapLayer === "mouza" && exploreStyles.layerBtnTextActive,
-                ]}
-              >
-                Revenue Mouza
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <VerifiedPropertyMap
-            properties={feed.data || []}
-            onSelect={select}
-            mapLayer={mapLayer}
-          />
-        </View>
-      )}
-
-      {selected && map && (
-        <View style={s.panel}>
-          <PropertyCard property={selected} compact />
-          <Button
-            title="View full property details"
-            onPress={() => router.push(`/property/${selected._id}` as any)}
-          />
-        </View>
-      )}
-
-      {/* Recommended Properties Grid Section (Matching Visual Design & Location Demand Algo) */}
-      <View style={exploreStyles.bottomSection}>
-        {/* Section Header */}
-        <View style={exploreStyles.sectionHeaderRow}>
-          <View style={exploreStyles.sectionHeaderLeft}>
-            <Text style={exploreStyles.sectionTitle}>{sectionHeading}</Text>
-            <Text style={exploreStyles.sectionSubtitle}>
-              Showing {Math.max(finalProperties.length, 2418).toLocaleString()} verified properties available for immediate possession & registry
+            <Text style={exploreStyles.statusCountText}>
+              {finalProperties.length} matching listings{map ? " · Tap any map pin to preview" : ""}
             </Text>
           </View>
-
-          <View style={exploreStyles.sectionHeaderRight}>
-            {/* Action Bar: Request Field Verification & Compare */}
-            <View style={exploreStyles.actionBar}>
-              <TouchableOpacity
-                style={exploreStyles.btnVerify}
-                onPress={() => {
-                  setVerifySuccess(false);
-                  setShowVerifyModal(true);
-                }}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name="check" size={14} color="#FFFFFF" />
-                <Text style={exploreStyles.btnVerifyText}>Request Field Verification</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={exploreStyles.btnCompare}
-                onPress={() => setShowCompareModal(true)}
-                activeOpacity={0.8}
-              >
-                <Text style={exploreStyles.btnCompareText}>Compare</Text>
-                <View style={exploreStyles.compareBadge}>
-                  <Text style={exploreStyles.compareBadgeText}>{compareProps.length || 2}</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            {/* Sort Dropdown */}
-            <View style={exploreStyles.sortRow}>
-              <Text style={exploreStyles.sortLabel}>Sort By:</Text>
-              <TouchableOpacity
-                style={exploreStyles.sortDropdownBtn}
-                onPress={() => setShowSortDropdown(!showSortDropdown)}
-                activeOpacity={0.8}
-              >
-                <Text style={exploreStyles.sortDropdownText}>
-                  {sortBy === "recommended"
-                    ? "Recommended (Verified First)"
-                    : sortBy === "price_asc"
-                      ? "Price: Low to High"
-                      : sortBy === "price_desc"
-                        ? "Price: High to Low"
-                        : sortBy === "area_desc"
-                          ? "Area: Largest First"
-                          : "Recently Added"}
-                </Text>
-                <MaterialIcons name="keyboard-arrow-down" size={16} color="#64748B" />
-              </TouchableOpacity>
-
-              {showSortDropdown && (
-                <View style={exploreStyles.sortPopover}>
-                  {[
-                    { id: "recommended", label: "Recommended (Verified First)" },
-                    { id: "price_asc", label: "Price: Low to High" },
-                    { id: "price_desc", label: "Price: High to Low" },
-                    { id: "area_desc", label: "Area: Largest First" },
-                    { id: "newest", label: "Recently Added" },
-                  ].map((opt) => (
-                    <TouchableOpacity
-                      key={opt.id}
-                      style={[
-                        exploreStyles.sortOption,
-                        sortBy === opt.id && exploreStyles.sortOptionActive,
-                      ]}
-                      onPress={() => {
-                        setSortBy(opt.id as any);
-                        setShowSortDropdown(false);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Text
-                        style={[
-                          exploreStyles.sortOptionText,
-                          sortBy === opt.id && exploreStyles.sortOptionTextActive,
-                        ]}
-                      >
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-          </View>
         </View>
 
-        {/* 4-Column Card Grid */}
-        <View style={exploreStyles.exploreGrid}>
-          {visibleProperties.map((p: any, idx: number) => {
-            const highlight = getCardHighlight(p, idx);
-            const isSaved = !!savedMap[p._id];
+        <ErrorBox text={feed.error} />
+        {feed.loading && <ActivityIndicator color="#14263E" />}
 
-            return (
-              <View
-                key={p._id || idx}
+        {/* Interactive Map with Home-matched Overlay HUD */}
+        {map && (
+          <View style={exploreStyles.mapWrapper}>
+            {/* Top-Left Cadastral Grid Badge */}
+            <View style={exploreStyles.mapCadastralBadge}>
+              <View style={exploreStyles.pulseGreenDot} />
+              <Text style={exploreStyles.mapCadastralTitle}>
+                Bihar Cadastral Survey &amp; GPS Boundary Grid
+              </Text>
+              <View style={exploreStyles.epsgTag}>
+                <Text style={exploreStyles.epsgTagText}>EPSG:7760</Text>
+              </View>
+            </View>
+
+            {/* Top-Right Map Layer Switcher */}
+            <View style={exploreStyles.mapLayerSwitchPills}>
+              <TouchableOpacity
                 style={[
-                  exploreStyles.cardItem,
-                  Platform.OS === "web"
-                    ? ({ width: cardWidth as any, flexGrow: 0, flexShrink: 0 } as any)
-                    : { width: "100%" },
+                  exploreStyles.layerBtn,
+                  mapLayer === "standard" && exploreStyles.layerBtnActive,
                 ]}
+                onPress={() => setMapLayer("standard")}
+                activeOpacity={0.8}
               >
-                {/* Top Media / Thumbnail Box */}
-                <Pressable
-                  onPress={() => router.push(`/property/${p._id}` as any)}
-                  style={{ position: "relative" }}
+                <Text
+                  style={[
+                    exploreStyles.layerBtnText,
+                    mapLayer === "standard" && exploreStyles.layerBtnTextActive,
+                  ]}
                 >
-                  {p.categoryPlaceholder ? (
-                    <View
-                      style={[
-                        exploreStyles.cardMedia,
-                        {
-                          backgroundColor: p.categoryPlaceholder.bg,
-                          alignItems: "center",
-                          justifyContent: "center",
-                        },
-                      ]}
-                    >
-                      <MaterialIcons
-                        name={p.categoryPlaceholder.icon as any}
-                        size={32}
-                        color={p.categoryPlaceholder.color}
-                      />
-                      <Text style={exploreStyles.cardPlaceholderText}>
-                        {p.categoryPlaceholder.text}
-                      </Text>
-                    </View>
-                  ) : p.media?.photos?.[0] ? (
+                  Standard
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  exploreStyles.layerBtn,
+                  mapLayer === "satellite" && exploreStyles.layerBtnActive,
+                ]}
+                onPress={() => setMapLayer("satellite")}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    exploreStyles.layerBtnText,
+                    mapLayer === "satellite" && exploreStyles.layerBtnTextActive,
+                  ]}
+                >
+                  Satellite
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  exploreStyles.layerBtn,
+                  mapLayer === "mouza" && exploreStyles.layerBtnActive,
+                ]}
+                onPress={() => setMapLayer("mouza")}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    exploreStyles.layerBtnText,
+                    mapLayer === "mouza" && exploreStyles.layerBtnTextActive,
+                  ]}
+                >
+                  Revenue Mouza
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <VerifiedPropertyMap
+              properties={feed.data || []}
+              onSelect={select}
+              mapLayer={mapLayer}
+            />
+          </View>
+        )}
+
+        {selected && map && (
+          <View style={exploreStyles.selectedPreviewCard}>
+            <View style={{ flex: 1 }}>
+              <PropertyCard property={selected} compact />
+            </View>
+            <TouchableOpacity
+              style={exploreStyles.selectedActionBtn}
+              onPress={() => router.push(`/property/${selected._id}` as any)}
+              activeOpacity={0.85}
+            >
+              <Text style={exploreStyles.selectedActionBtnText}>View full property details</Text>
+              <MaterialIcons name="arrow-forward" size={17} color="#14263E" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Recommended Properties Grid Section */}
+        <View style={exploreStyles.bottomSection}>
+          {/* Section Header */}
+          <View style={exploreStyles.sectionHeaderRow}>
+            <View style={exploreStyles.sectionHeaderLeft}>
+              <Text style={exploreStyles.sectionEyebrow}>VERIFIED INVENTORY</Text>
+              <Text style={exploreStyles.sectionTitle}>{sectionHeading}</Text>
+              <Text style={exploreStyles.sectionSubtitle}>
+                Showing {Math.max(finalProperties.length, 2418).toLocaleString()} verified properties available for immediate possession &amp; registry
+              </Text>
+            </View>
+
+            <View style={exploreStyles.sectionHeaderRight}>
+              {/* Action Bar: Request Field Verification & Compare */}
+              <View style={exploreStyles.actionBar}>
+                <TouchableOpacity
+                  style={exploreStyles.btnVerify}
+                  onPress={() => {
+                    setVerifySuccess(false);
+                    setShowVerifyModal(true);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <MaterialIcons name="verified-user" size={14} color="#FCC61C" />
+                  <Text style={exploreStyles.btnVerifyText}>Request Field Verification</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={exploreStyles.btnCompare}
+                  onPress={() => setShowCompareModal(true)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={exploreStyles.btnCompareText}>Compare</Text>
+                  <View style={exploreStyles.compareBadge}>
+                    <Text style={exploreStyles.compareBadgeText}>{compareProps.length || 2}</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Sort Dropdown */}
+              <View style={exploreStyles.sortRow}>
+                <Text style={exploreStyles.sortLabel}>Sort By:</Text>
+                <TouchableOpacity
+                  style={exploreStyles.sortDropdownBtn}
+                  onPress={() => setShowSortDropdown(!showSortDropdown)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={exploreStyles.sortDropdownText}>
+                    {sortBy === "recommended"
+                      ? "Recommended (Verified First)"
+                      : sortBy === "price_asc"
+                        ? "Price: Low to High"
+                        : sortBy === "price_desc"
+                          ? "Price: High to Low"
+                          : sortBy === "area_desc"
+                            ? "Area: Largest First"
+                            : "Recently Added"}
+                  </Text>
+                  <MaterialIcons name="keyboard-arrow-down" size={16} color="rgba(20, 38, 62, 0.58)" />
+                </TouchableOpacity>
+
+                {showSortDropdown && (
+                  <View style={exploreStyles.sortPopover}>
+                    {[
+                      { id: "recommended", label: "Recommended (Verified First)" },
+                      { id: "price_asc", label: "Price: Low to High" },
+                      { id: "price_desc", label: "Price: High to Low" },
+                      { id: "area_desc", label: "Area: Largest First" },
+                      { id: "newest", label: "Recently Added" },
+                    ].map((opt) => (
+                      <TouchableOpacity
+                        key={opt.id}
+                        style={[
+                          exploreStyles.sortOption,
+                          sortBy === opt.id && exploreStyles.sortOptionActive,
+                        ]}
+                        onPress={() => {
+                          setSortBy(opt.id as any);
+                          setShowSortDropdown(false);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            exploreStyles.sortOptionText,
+                            sortBy === opt.id && exploreStyles.sortOptionTextActive,
+                          ]}
+                        >
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+
+          {/* 4-Column Card Grid */}
+          <View style={exploreStyles.exploreGrid}>
+            {visibleProperties.map((p: any, idx: number) => {
+              const highlight = getCardHighlight(p, idx);
+              const isSaved = !!savedMap[p._id];
+
+              return (
+                <View
+                  key={p._id || idx}
+                  style={[
+                    exploreStyles.cardItem,
+                    Platform.OS === "web"
+                      ? ({ width: cardWidth as any, flexGrow: 0, flexShrink: 0 } as any)
+                      : { width: "100%" },
+                  ]}
+                >
+                  {/* Top Media / Thumbnail Box */}
+                  <Pressable
+                    onPress={() => router.push(`/property/${p._id}` as any)}
+                    style={{ position: "relative" }}
+                  >
                     <View style={exploreStyles.cardMedia}>
-                      <Image
-                        source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], 500) }}
-                        style={StyleSheet.absoluteFill}
+                      <PropertyImage
+                        source={{ uri: resolvePropertyPhotoUrl(p, idx) }}
+                        fallbackUri={getFallbackPropertyPhotoUrl(p, idx)}
+                        thumbnailWidth={500}
+                        isPublic
+                        style={{ width: "100%", height: "100%" }}
                         resizeMode="cover"
                       />
                       <View style={exploreStyles.cardCorridorPill}>
@@ -2465,153 +3713,110 @@ export function SearchScreen() {
                         </Text>
                       </View>
                     </View>
-                  ) : (
-                    <View
+
+                    {/* Verified Badge */}
+                    <View style={exploreStyles.cardVerifiedBadge}>
+                      <MaterialIcons name="verified-user" size={11} color="#0B8A3E" />
+                      <Text style={exploreStyles.cardVerifiedText}>Verified</Text>
+                    </View>
+
+                    {/* Wishlist Heart Button */}
+                    <TouchableOpacity
                       style={[
-                        exploreStyles.cardMedia,
-                        {
-                          backgroundColor:
-                            p.type === "shop"
-                              ? "#EFF6FF"
-                              : p.type === "house"
-                                ? "#F5F7FF"
-                                : p.type === "flat"
-                                  ? "#F8FAFC"
-                                  : "#F0FDF4",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        },
+                        exploreStyles.cardHeartBtn,
+                        isSaved && { backgroundColor: "#FCC61C", borderColor: "#FCC61C" },
                       ]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        toggleWishlist(p._id);
+                      }}
+                      activeOpacity={0.8}
                     >
                       <MaterialIcons
-                        name={
-                          p.type === "shop"
-                            ? "storefront"
-                            : p.type === "house"
-                              ? "home"
-                              : p.type === "flat"
-                                ? "apartment"
-                                : "landscape"
-                        }
-                        size={32}
-                        color={
-                          p.type === "shop"
-                            ? "#3B82F6"
-                            : p.type === "house"
-                              ? "#6366F1"
-                              : p.type === "flat"
-                                ? "#64748B"
-                                : "#10B981"
-                        }
+                        name={isSaved ? "favorite" : "favorite-border"}
+                        size={16}
+                        color={isSaved ? "#14263E" : "#14263E"}
                       />
-                      <Text style={exploreStyles.cardPlaceholderText}>
-                        {p.type === "shop"
-                          ? `Commercial Space · ${p.location?.district || "Bihar"}`
-                          : p.type === "house"
-                            ? `Duplex Villa · ${p.location?.district || "Bihar"}`
-                            : p.type === "flat"
-                              ? `Modern 3 BHK · ${p.location?.district || "Bihar"}`
-                              : `Residential Plot · ${p.location?.district || "Bihar"}`}
-                      </Text>
-                    </View>
-                  )}
+                    </TouchableOpacity>
+                  </Pressable>
 
-                  {/* Verified Badge */}
-                  <View style={exploreStyles.cardVerifiedBadge}>
-                    <MaterialIcons name="check" size={11} color="#059669" />
-                    <Text style={exploreStyles.cardVerifiedText}>Verified</Text>
-                  </View>
-
-                  {/* Wishlist Heart Button */}
-                  <TouchableOpacity
-                    style={exploreStyles.cardHeartBtn}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      toggleWishlist(p._id);
-                    }}
-                    activeOpacity={0.8}
+                  {/* Card Body */}
+                  <Pressable
+                    style={exploreStyles.cardBody}
+                    onPress={() => router.push(`/property/${p._id}` as any)}
                   >
-                    <MaterialIcons
-                      name={isSaved ? "favorite" : "favorite-border"}
-                      size={16}
-                      color={isSaved ? "#EF4444" : "#64748B"}
-                    />
-                  </TouchableOpacity>
-                </Pressable>
-
-                {/* Card Body */}
-                <Pressable
-                  style={exploreStyles.cardBody}
-                  onPress={() => router.push(`/property/${p._id}` as any)}
-                >
-                  {/* Price & Highlight Tag */}
-                  <View style={exploreStyles.cardPriceRow}>
-                    <Text style={exploreStyles.cardPriceText}>{money(p.price)}</Text>
-                    <View
-                      style={[
-                        exploreStyles.cardHighlightTag,
-                        highlight.theme === "green"
-                          ? exploreStyles.cardTagGreen
-                          : highlight.theme === "amber"
-                            ? exploreStyles.cardTagAmber
-                            : exploreStyles.cardTagBlue,
-                      ]}
-                    >
-                      <Text
+                    {/* Price & Highlight Tag */}
+                    <View style={exploreStyles.cardPriceRow}>
+                      <Text style={exploreStyles.cardPriceText}>{money(p.price)}</Text>
+                      <View
                         style={[
+                          exploreStyles.cardHighlightTag,
                           highlight.theme === "green"
-                            ? exploreStyles.cardTagGreenText
+                            ? exploreStyles.cardTagGreen
                             : highlight.theme === "amber"
-                              ? exploreStyles.cardTagAmberText
-                              : exploreStyles.cardTagBlueText,
+                              ? exploreStyles.cardTagAmber
+                              : exploreStyles.cardTagBlue,
                         ]}
                       >
-                        {highlight.label}
+                        <Text
+                          style={[
+                            highlight.theme === "green"
+                              ? exploreStyles.cardTagGreenText
+                              : highlight.theme === "amber"
+                                ? exploreStyles.cardTagAmberText
+                                : exploreStyles.cardTagBlueText,
+                          ]}
+                        >
+                          {highlight.label}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Title */}
+                    <Text style={exploreStyles.cardTitleText} numberOfLines={1}>
+                      {p.title || label(p)}
+                    </Text>
+
+                    {/* Location */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <MaterialIcons name="location-on" size={13} color="rgba(20, 38, 62, 0.5)" />
+                      <Text style={exploreStyles.cardLocationText} numberOfLines={1}>
+                        {`${p.location?.district || "Patna"}, ${p.location?.state || "Bihar"}`}
                       </Text>
                     </View>
-                  </View>
 
-                  {/* Title */}
-                  <Text style={exploreStyles.cardTitleText} numberOfLines={1}>
-                    {p.title || label(p)}
-                  </Text>
-
-                  {/* Location */}
-                  <Text style={exploreStyles.cardLocationText}>
-                    {`${p.location?.district || "patna"}, ${p.location?.state || "Bihar"}`}
-                  </Text>
-
-                  {/* Specs Row */}
-                  <View style={exploreStyles.cardSpecsRow}>
-                    <View style={exploreStyles.cardTypePill}>
-                      <Text style={exploreStyles.cardTypeText}>{p.type || "land"}</Text>
+                    {/* Specs Row */}
+                    <View style={exploreStyles.cardSpecsRow}>
+                      <View style={exploreStyles.cardTypePill}>
+                        <Text style={exploreStyles.cardTypeText}>{p.type || "land"}</Text>
+                      </View>
+                      <Text style={exploreStyles.cardSpecText}>
+                        {formatArea(p.sellableArea || p.totalArea, areaUnit, p)}
+                      </Text>
+                      <Text style={exploreStyles.cardSpecDot}>·</Text>
+                      <Text style={exploreStyles.cardSpecText} numberOfLines={1}>
+                        {getCardFeature(p, idx)}
+                      </Text>
                     </View>
-                    <Text style={exploreStyles.cardSpecText}>
-                      {formatArea(p.sellableArea || p.totalArea, areaUnit, p)}
-                    </Text>
-                    <Text style={exploreStyles.cardSpecDot}>·</Text>
-                    <Text style={exploreStyles.cardSpecText}>
-                      {getCardFeature(p, idx)}
-                    </Text>
-                  </View>
-                </Pressable>
-              </View>
-            );
-          })}
-        </View>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
 
-        {/* Load More Button */}
-        {visibleLimit < finalProperties.length && (
-          <TouchableOpacity
-            style={exploreStyles.loadMoreBtn}
-            onPress={() => setVisibleLimit((prev) => prev + 8)}
-            activeOpacity={0.8}
-          >
-            <Text style={exploreStyles.loadMoreBtnText}>
-              Load more properties ▾
-            </Text>
-          </TouchableOpacity>
-        )}
+          {/* Load More Button */}
+          {visibleLimit < finalProperties.length && (
+            <TouchableOpacity
+              style={exploreStyles.loadMoreBtn}
+              onPress={() => setVisibleLimit((prev) => prev + 8)}
+              activeOpacity={0.85}
+            >
+              <Text style={exploreStyles.loadMoreBtnText}>
+                Load more properties ▾
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Compare Modal */}
@@ -2625,21 +3830,21 @@ export function SearchScreen() {
           <View style={exploreStyles.modalContent}>
             <View style={exploreStyles.modalHeader}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <MaterialIcons name="compare-arrows" size={20} color="#0A45B5" />
+                <MaterialIcons name="compare-arrows" size={20} color="#14263E" />
                 <Text style={exploreStyles.modalTitle}>Property Comparison</Text>
               </View>
               <TouchableOpacity onPress={() => setShowCompareModal(false)}>
-                <MaterialIcons name="close" size={20} color="#64748B" />
+                <MaterialIcons name="close" size={20} color="rgba(20, 38, 62, 0.55)" />
               </TouchableOpacity>
             </View>
 
             <View style={exploreStyles.compareTable}>
               {compareProps.map((cp: any, cIdx: number) => (
                 <View key={cp._id || cIdx} style={exploreStyles.compareCol}>
-                  <Text style={{ fontSize: 14, fontWeight: "800", color: "#0F172A", marginBottom: 4 }} numberOfLines={1}>
+                  <Text style={{ fontFamily: font, fontSize: 14, fontWeight: "800", color: "#14263E", marginBottom: 4 }} numberOfLines={1}>
                     {cp.title}
                   </Text>
-                  <Text style={{ fontSize: 18, fontWeight: "900", color: "#0A45B5", marginBottom: 12 }}>
+                  <Text style={{ fontFamily: font, fontSize: 19, fontWeight: "800", color: "#14263E", marginBottom: 12 }}>
                     {money(cp.price)}
                   </Text>
                   <View style={exploreStyles.compareRow}>
@@ -2660,7 +3865,7 @@ export function SearchScreen() {
                   </View>
                   <View style={exploreStyles.compareRow}>
                     <Text style={exploreStyles.compareLabel}>Revenue Record:</Text>
-                    <Text style={[exploreStyles.compareVal, { color: "#059669" }]}>✓ Jamabandi Verified</Text>
+                    <Text style={[exploreStyles.compareVal, { color: "#0B8A3E" }]}>✓ Jamabandi Verified</Text>
                   </View>
 
                   <TouchableOpacity
@@ -2690,23 +3895,23 @@ export function SearchScreen() {
           <View style={[exploreStyles.modalContent, { maxWidth: 520 }]}>
             <View style={exploreStyles.modalHeader}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <MaterialIcons name="verified-user" size={20} color="#059669" />
+                <MaterialIcons name="verified-user" size={20} color="#0B8A3E" />
                 <Text style={exploreStyles.modalTitle}>Request Field Verification</Text>
               </View>
               <TouchableOpacity onPress={() => setShowVerifyModal(false)}>
-                <MaterialIcons name="close" size={20} color="#64748B" />
+                <MaterialIcons name="close" size={20} color="rgba(20, 38, 62, 0.55)" />
               </TouchableOpacity>
             </View>
 
             {verifySuccess ? (
               <View style={{ alignItems: "center", paddingVertical: 24, gap: 12 }}>
                 <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center" }}>
-                  <MaterialIcons name="check" size={32} color="#059669" />
+                  <MaterialIcons name="check" size={32} color="#0B8A3E" />
                 </View>
-                <Text style={{ fontSize: 17, fontWeight: "800", color: "#065F46" }}>
+                <Text style={{ fontFamily: fontDisplay, fontSize: 19, fontWeight: "600", color: "#14263E" }}>
                   Field Verification Request Received!
                 </Text>
-                <Text style={{ fontSize: 13, color: "#475569", textAlign: "center", lineHeight: 20 }}>
+                <Text style={{ fontFamily: font, fontSize: 13.5, color: "rgba(20, 38, 62, 0.68)", textAlign: "center", lineHeight: 20 }}>
                   A MalikSe certified revenue verification officer will physically audit the property boundary, verify circle office Khatiyan records, and issue a digital report.
                 </Text>
                 <TouchableOpacity
@@ -2718,33 +3923,34 @@ export function SearchScreen() {
               </View>
             ) : (
               <View style={{ gap: 14, paddingTop: 4 }}>
-                <Text style={{ fontSize: 13, color: "#475569", lineHeight: 19 }}>
+                <Text style={{ fontFamily: font, fontSize: 13.5, color: "rgba(20, 38, 62, 0.7)", lineHeight: 20 }}>
                   MalikSe field agents conduct on-ground GPS demarcation, measure road frontage, and verify Jamabandi registry numbers directly at the Bihar revenue circle office.
                 </Text>
 
                 <View style={{ gap: 6 }}>
-                  <Text style={{ fontSize: 12.5, fontWeight: "700", color: "#334155" }}>
+                  <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "800", color: "#14263E" }}>
                     Selected Property
                   </Text>
-                  <View style={{ backgroundColor: "#F8FAFC", padding: 10, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0" }}>
-                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#0F172A" }}>
+                  <View style={{ backgroundColor: "#FAF8F2", padding: 11, borderRadius: 12, borderWidth: 1, borderColor: "rgba(20, 38, 62, 0.1)" }}>
+                    <Text style={{ fontFamily: font, fontSize: 13.5, fontWeight: "800", color: "#14263E" }}>
                       {selected?.title || visibleProperties[0]?.title || "Property Field Audit"}
                     </Text>
-                    <Text style={{ fontSize: 12, color: "#64748B" }}>
+                    <Text style={{ fontFamily: font, fontSize: 12, color: "rgba(20, 38, 62, 0.62)", marginTop: 2 }}>
                       {selected?.location?.district || visibleProperties[0]?.location?.district || "Bihar"}, Bihar
                     </Text>
                   </View>
                 </View>
 
                 <View style={{ gap: 6 }}>
-                  <Text style={{ fontSize: 12.5, fontWeight: "700", color: "#334155" }}>
+                  <Text style={{ fontFamily: font, fontSize: 12.5, fontWeight: "800", color: "#14263E" }}>
                     Contact Mobile Number
                   </Text>
                   <TextInput
-                    style={[exploreStyles.textInput, { borderWidth: 1, borderColor: "#CBD5E1", borderRadius: 8, paddingHorizontal: 10, height: 40 }]}
+                    style={[exploreStyles.textInput, { borderWidth: 1.5, borderColor: "rgba(20, 38, 62, 0.14)", backgroundColor: "#FAF8F2", borderRadius: 12, paddingHorizontal: 12, height: 44 }]}
                     value={verifyPhone}
                     onChangeText={setVerifyPhone}
                     placeholder="Enter your 10-digit mobile number"
+                    placeholderTextColor="rgba(20, 38, 62, 0.42)"
                     keyboardType="phone-pad"
                   />
                 </View>
@@ -2765,108 +3971,166 @@ export function SearchScreen() {
 }
 
 const exploreStyles = StyleSheet.create({
+  heroSection: {
+    backgroundColor: "#14263E",
+    position: "relative",
+    overflow: "hidden",
+    paddingTop: 22,
+    paddingBottom: 68,
+  },
+  heroSunOrb: {
+    position: "absolute",
+    right: -110,
+    top: -150,
+    width: 360,
+    height: 360,
+    borderRadius: 180,
+    backgroundColor: "#FCC61C",
+  },
+  heroCapsule: {
+    position: "absolute",
+    right: 210,
+    top: -30,
+    width: 120,
+    height: 340,
+    borderRadius: 60,
+    backgroundColor: "#1C3556",
+    transform: [{ rotate: "-30deg" }],
+  },
+  heroInner: {
+    position: "relative",
+    zIndex: 2,
+  },
   headerRow: {
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
     flexWrap: "wrap",
     gap: 16,
-    marginBottom: 6,
   },
   headerLeft: {
-    gap: 6,
+    gap: 8,
     flex: 1,
     minWidth: 280,
   },
-  mainTitle: {
-    fontSize: 27,
-    fontWeight: "900",
-    color: "#0B1B3F",
-    fontFamily: fontDisplay,
-    letterSpacing: -0.7,
-  },
-  subtitleRow: {
+  eyebrowRow: {
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
     gap: 8,
+    marginBottom: 2,
+  },
+  eyebrowPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.16)",
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  eyebrowPillText: {
+    fontFamily: font,
+    fontSize: 10.5,
+    fontWeight: "800",
+    letterSpacing: 1.0,
+    color: "#FCC61C",
+  },
+  mainTitle: {
+    fontSize: 33,
+    fontWeight: "600",
+    lineHeight: 39,
+    color: "#FFFFFF",
+    fontFamily: fontDisplay,
+    letterSpacing: -0.7,
   },
   subtitleText: {
-    fontSize: 13.5,
-    color: "#64748B",
+    fontSize: 14.5,
+    color: "rgba(255, 255, 255, 0.74)",
     fontFamily: font,
     fontWeight: "500",
+    maxWidth: 600,
+    lineHeight: 21,
   },
   registryPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     backgroundColor: "#ECFDF5",
     borderWidth: 1,
     borderColor: "#A7F3D0",
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
+    borderRadius: 999,
   },
   registryPillText: {
     fontSize: 11,
-    fontWeight: "700",
-    color: "#059669",
+    fontWeight: "800",
+    color: "#0B8A3E",
     fontFamily: font,
   },
   areaUnitContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   areaUnitLabel: {
-    fontSize: 12.5,
-    fontWeight: "600",
-    color: "#64748B",
+    fontSize: 12,
+    fontWeight: "700",
+    color: "rgba(255, 255, 255, 0.72)",
     fontFamily: font,
   },
   areaUnitPills: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "rgba(255, 255, 255, 0.10)",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 20,
-    padding: 3,
+    borderColor: "rgba(255, 255, 255, 0.16)",
+    borderRadius: 999,
+    padding: 3.5,
+    gap: 2,
   },
   unitBtn: {
     paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 16,
+    paddingVertical: 6,
+    borderRadius: 999,
   },
   unitBtnActive: {
-    backgroundColor: "#0A45B5",
+    backgroundColor: "#FCC61C",
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 6px rgba(10, 69, 181, 0.25)",
+        boxShadow: "0 6px 14px -4px rgba(232, 174, 0, 0.6)",
       },
     }),
   },
   unitBtnText: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#475569",
+    fontWeight: "700",
+    color: "rgba(255, 255, 255, 0.78)",
     fontFamily: font,
   },
   unitBtnTextActive: {
-    color: "#FFFFFF",
+    color: "#14263E",
     fontWeight: "800",
+  },
+  mainContentWrap: {
+    marginTop: -44,
+    position: "relative",
+    zIndex: 10,
+    gap: 14,
   },
   searchBoxCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(20, 38, 62, 0.08)",
     padding: 16,
     gap: 14,
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 20px rgba(11, 27, 63, 0.05)",
+        boxShadow: "0 1px 0 rgba(20, 38, 62, 0.05), 0 22px 44px -18px rgba(12, 26, 44, 0.34)",
       },
     }),
   },
@@ -2881,12 +4145,12 @@ const exploreStyles = StyleSheet.create({
     minWidth: 200,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FAF8F2",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
+    borderColor: "rgba(20, 38, 62, 0.12)",
+    borderRadius: 14,
+    paddingHorizontal: 13,
+    height: 46,
     gap: 8,
   },
   districtFieldWrap: {
@@ -2894,18 +4158,19 @@ const exploreStyles = StyleSheet.create({
     minWidth: 170,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FAF8F2",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
+    borderColor: "rgba(20, 38, 62, 0.12)",
+    borderRadius: 14,
+    paddingHorizontal: 13,
+    height: 46,
     gap: 8,
   },
   textInput: {
     flex: 1,
-    fontSize: 13,
-    color: "#0B1B3F",
+    fontSize: 13.5,
+    fontWeight: "600",
+    color: "#14263E",
     fontFamily: font,
     height: "100%",
   },
@@ -2913,77 +4178,82 @@ const exploreStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FAF8F2",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
-    minWidth: 140,
+    borderColor: "rgba(20, 38, 62, 0.12)",
+    borderRadius: 14,
+    paddingHorizontal: 13,
+    height: 46,
+    minWidth: 145,
     gap: 6,
     ...Platform.select({
       web: { cursor: "pointer" },
     }),
   },
   budgetText: {
-    fontSize: 12.5,
-    fontWeight: "600",
-    color: "#0F172A",
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#14263E",
     fontFamily: font,
   },
   searchBtn: {
-    backgroundColor: "#0A45B5",
-    borderRadius: 12,
+    flexDirection: "row",
+    backgroundColor: "#FCC61C",
+    borderRadius: 999,
     paddingHorizontal: 22,
-    height: 44,
+    height: 46,
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
     ...Platform.select({
       web: {
         cursor: "pointer",
-        boxShadow: "0 2px 8px rgba(10, 69, 181, 0.25)",
+        boxShadow: "0 12px 22px -10px rgba(232, 174, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
       },
     }),
   },
   searchBtnText: {
-    fontSize: 13.5,
+    fontSize: 14,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: "#14263E",
     fontFamily: font,
   },
   filtersBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#FFF1C0",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    height: 44,
+    borderColor: "rgba(232, 174, 0, 0.38)",
+    borderRadius: 999,
+    paddingHorizontal: 15,
+    height: 46,
     gap: 6,
     ...Platform.select({
       web: { cursor: "pointer" },
     }),
   },
   filtersBtnActive: {
-    backgroundColor: "#DBEAFE",
-    borderColor: "#93C5FD",
+    backgroundColor: "#14263E",
+    borderColor: "#14263E",
   },
   filtersBtnText: {
     fontSize: 13,
-    fontWeight: "700",
-    color: "#0A45B5",
+    fontWeight: "800",
+    color: "#14263E",
     fontFamily: font,
+  },
+  filtersBtnTextActive: {
+    color: "#FCC61C",
   },
   viewToggleBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FAF8F2",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    height: 44,
+    borderColor: "rgba(20, 38, 62, 0.14)",
+    borderRadius: 999,
+    paddingHorizontal: 15,
+    height: 46,
     gap: 6,
     ...Platform.select({
       web: { cursor: "pointer" },
@@ -2991,8 +4261,8 @@ const exploreStyles = StyleSheet.create({
   },
   viewToggleText: {
     fontSize: 13,
-    fontWeight: "600",
-    color: "#1E293B",
+    fontWeight: "700",
+    color: "#14263E",
     fontFamily: font,
   },
   quickChipsScroll: {
@@ -3009,74 +4279,107 @@ const exploreStyles = StyleSheet.create({
     backgroundColor: "#ECFDF5",
     borderWidth: 1,
     borderColor: "#A7F3D0",
-    borderRadius: 18,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6.5,
   },
   chipVerifiedText: {
     fontSize: 12,
-    fontWeight: "700",
-    color: "#059669",
+    fontWeight: "800",
+    color: "#0B8A3E",
     fontFamily: font,
   },
   chipDefault: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 18,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderColor: "rgba(20, 38, 62, 0.12)",
+    borderRadius: 999,
+    paddingHorizontal: 13,
+    paddingVertical: 6.5,
     ...Platform.select({
       web: { cursor: "pointer" },
     }),
   },
   chipDefaultActive: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#BFDBFE",
+    backgroundColor: "#14263E",
+    borderColor: "#14263E",
   },
   chipDefaultText: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#475569",
+    fontWeight: "700",
+    color: "rgba(20, 38, 62, 0.72)",
     fontFamily: font,
   },
   chipDefaultTextActive: {
-    color: "#0A45B5",
-    fontWeight: "700",
+    color: "#FCC61C",
+    fontWeight: "800",
   },
   chipBlueActive: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#BFDBFE",
+    backgroundColor: "#14263E",
+    borderColor: "#14263E",
   },
   chipBlueTextActive: {
-    color: "#0A45B5",
-    fontWeight: "700",
+    color: "#FCC61C",
+    fontWeight: "800",
+  },
+  advancedFilterCard: {
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(20, 38, 62, 0.08)",
+    backgroundColor: "#FFFFFF",
+    gap: 14,
+    ...Platform.select({
+      web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 16px 34px -20px rgba(20,38,62,.24)" },
+    }),
   },
   statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 10,
     paddingVertical: 2,
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
   },
   statusText: {
-    fontSize: 12.5,
-    color: "#64748B",
+    fontSize: 13,
+    color: "rgba(20, 38, 62, 0.62)",
     fontFamily: font,
     fontWeight: "500",
   },
   statusBold: {
-    color: "#0B1B3F",
+    color: "#14263E",
     fontWeight: "800",
+  },
+  statusCountPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "rgba(20, 38, 62, 0.08)",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  statusCountText: {
+    fontFamily: font,
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#14263E",
   },
   mapWrapper: {
     position: "relative",
-    height: 480,
-    borderRadius: 22,
+    height: 490,
+    borderRadius: 24,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#E9F3FA",
+    borderColor: "rgba(20, 38, 62, 0.12)",
+    backgroundColor: "#E9E4D5",
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 20px rgba(11, 27, 63, 0.06)",
+        boxShadow: "0 1px 0 rgba(20, 38, 62, 0.04), 0 20px 42px -20px rgba(20, 38, 62, 0.28)",
       },
     }),
   },
@@ -3090,14 +4393,14 @@ const exploreStyles = StyleSheet.create({
     gap: 7,
     backgroundColor: "rgba(255, 255, 255, 0.96)",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 20,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+    borderColor: "rgba(20, 38, 62, 0.1)",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6.5,
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 10px rgba(0, 0, 0, 0.08)",
-        backdropFilter: "blur(6px)",
+        boxShadow: "0 8px 20px -6px rgba(12, 26, 44, 0.22)",
+        backdropFilter: "blur(8px)",
       },
     }),
   },
@@ -3105,26 +4408,26 @@ const exploreStyles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#10B981",
+    backgroundColor: "#0B8A3E",
   },
   mapCadastralTitle: {
     fontSize: 11.5,
-    fontWeight: "700",
-    color: "#0B1B3F",
+    fontWeight: "800",
+    color: "#14263E",
     fontFamily: font,
   },
   epsgTag: {
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#FFF1C0",
     borderWidth: 1,
-    borderColor: "#CBD5E1",
-    borderRadius: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+    borderColor: "rgba(232, 174, 0, 0.35)",
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 1.5,
   },
   epsgTagText: {
     fontSize: 9.5,
-    fontWeight: "700",
-    color: "#64748B",
+    fontWeight: "800",
+    color: "#14263E",
     fontFamily: font,
   },
   mapLayerSwitchPills: {
@@ -3136,102 +4439,143 @@ const exploreStyles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(255, 255, 255, 0.96)",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 20,
-    padding: 3,
+    borderColor: "rgba(20, 38, 62, 0.1)",
+    borderRadius: 999,
+    padding: 3.5,
+    gap: 2,
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 10px rgba(0, 0, 0, 0.08)",
-        backdropFilter: "blur(6px)",
+        boxShadow: "0 8px 20px -6px rgba(12, 26, 44, 0.22)",
+        backdropFilter: "blur(8px)",
       },
     }),
   },
   layerBtn: {
-    paddingHorizontal: 11,
-    paddingVertical: 4,
-    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 5.5,
+    borderRadius: 999,
   },
   layerBtnActive: {
-    backgroundColor: "#0A45B5",
+    backgroundColor: "#14263E",
   },
   layerBtnText: {
     fontSize: 11.5,
-    fontWeight: "600",
-    color: "#475569",
+    fontWeight: "700",
+    color: "rgba(20, 38, 62, 0.68)",
     fontFamily: font,
   },
   layerBtnTextActive: {
-    color: "#FFFFFF",
+    color: "#FCC61C",
     fontWeight: "800",
   },
-  budgetPopover: {
-    backgroundColor: "#F8FAFC",
+  selectedPreviewCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    padding: 12,
+    borderColor: "rgba(20, 38, 62, 0.1)",
+    padding: 16,
+    gap: 14,
+    ...Platform.select({
+      web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 18px 34px -18px rgba(20,38,62,.28)" },
+    }),
+  },
+  selectedActionBtn: {
+    height: 46,
+    borderRadius: 999,
+    backgroundColor: "#FCC61C",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
+    paddingHorizontal: 22,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 12px 22px -10px rgba(232, 174, 0, 0.8)",
+      },
+    }),
+  },
+  selectedActionBtnText: {
+    fontFamily: font,
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#14263E",
+  },
+  budgetPopover: {
+    backgroundColor: "#FAF8F2",
+    borderWidth: 1,
+    borderColor: "rgba(20, 38, 62, 0.1)",
+    borderRadius: 14,
+    padding: 13,
+    gap: 9,
   },
   popoverTitle: {
     fontSize: 12,
-    fontWeight: "700",
-    color: "#475569",
+    fontWeight: "800",
+    color: "#14263E",
     fontFamily: font,
   },
   budgetChipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
+    gap: 7,
   },
   budgetChip: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#CBD5E1",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
+    borderColor: "rgba(20, 38, 62, 0.14)",
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 999,
   },
   budgetChipActive: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#0A45B5",
+    backgroundColor: "#14263E",
+    borderColor: "#14263E",
   },
   budgetChipText: {
-    fontSize: 11.5,
-    color: "#334155",
-    fontWeight: "600",
+    fontSize: 12,
+    color: "#14263E",
+    fontWeight: "700",
     fontFamily: font,
   },
   budgetChipTextActive: {
-    color: "#0A45B5",
+    color: "#FCC61C",
     fontWeight: "800",
   },
   bottomSection: {
-    marginTop: 24,
-    marginBottom: 40,
+    marginTop: 18,
+    marginBottom: 42,
   },
   sectionHeaderRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "flex-end",
     justifyContent: "space-between",
     flexWrap: "wrap",
     gap: 16,
-    marginBottom: 16,
+    marginBottom: 18,
   },
   sectionHeaderLeft: {
     flex: 1,
     minWidth: 280,
-    gap: 5,
+    gap: 4,
+  },
+  sectionEyebrow: {
+    fontFamily: font,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.6,
+    color: "rgba(20, 38, 62, 0.52)",
   },
   sectionTitle: {
-    fontSize: 23,
-    fontWeight: "900",
-    color: "#0F172A",
+    fontSize: 27,
+    fontWeight: "600",
+    color: "#14263E",
     fontFamily: fontDisplay,
     letterSpacing: -0.5,
   },
   sectionSubtitle: {
     fontSize: 13.5,
-    color: "#64748B",
+    color: "rgba(20, 38, 62, 0.62)",
     fontFamily: font,
     fontWeight: "500",
   },
@@ -3250,10 +4594,10 @@ const exploreStyles = StyleSheet.create({
     position: "relative",
   },
   sortLabel: {
-    fontSize: 13,
-    color: "#64748B",
+    fontSize: 12.5,
+    color: "rgba(20, 38, 62, 0.58)",
     fontFamily: font,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   sortDropdownBtn: {
     flexDirection: "row",
@@ -3261,58 +4605,58 @@ const exploreStyles = StyleSheet.create({
     gap: 6,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#CBD5E1",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    borderColor: "rgba(20, 38, 62, 0.14)",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     ...Platform.select({
       web: { cursor: "pointer" },
     }),
   },
   sortDropdownText: {
     fontSize: 12.5,
-    fontWeight: "600",
-    color: "#0F172A",
+    fontWeight: "700",
+    color: "#14263E",
     fontFamily: font,
   },
   sortPopover: {
     position: "absolute",
-    top: 40,
+    top: 42,
     right: 0,
     zIndex: 600,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
+    borderColor: "rgba(20, 38, 62, 0.1)",
+    borderRadius: 14,
     padding: 6,
-    minWidth: 220,
+    minWidth: 230,
     gap: 2,
     ...Platform.select({
       web: {
-        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+        boxShadow: "0 16px 34px -10px rgba(12, 26, 44, 0.25)",
       },
     }),
   },
   sortOption: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingVertical: 8.5,
+    borderRadius: 10,
     ...Platform.select({
       web: { cursor: "pointer" },
     }),
   },
   sortOptionActive: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#FFF1C0",
   },
   sortOptionText: {
     fontSize: 12.5,
-    color: "#334155",
+    color: "#14263E",
     fontFamily: font,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   sortOptionTextActive: {
-    color: "#0A45B5",
-    fontWeight: "700",
+    color: "#14263E",
+    fontWeight: "800",
   },
   actionBar: {
     flexDirection: "row",
@@ -3323,33 +4667,33 @@ const exploreStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#0284C7",
-    borderRadius: 20,
-    paddingHorizontal: 13,
-    paddingVertical: 7,
+    backgroundColor: "#14263E",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     ...Platform.select({
       web: {
         cursor: "pointer",
-        boxShadow: "0 2px 8px rgba(2, 132, 199, 0.3)",
+        boxShadow: "0 8px 18px -6px rgba(20, 38, 62, 0.35)",
       },
     }),
   },
   btnVerifyText: {
-    color: "#FFFFFF",
+    color: "#FCC61C",
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
     fontFamily: font,
   },
   btnCompare: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 7,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#CBD5E1",
-    borderRadius: 20,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+    borderColor: "rgba(20, 38, 62, 0.14)",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     ...Platform.select({
       web: {
         cursor: "pointer",
@@ -3358,23 +4702,23 @@ const exploreStyles = StyleSheet.create({
   },
   btnCompareText: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#1E293B",
+    fontWeight: "800",
+    color: "#14263E",
     fontFamily: font,
   },
   compareBadge: {
-    backgroundColor: "#0A45B5",
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
+    backgroundColor: "#FCC61C",
+    borderRadius: 999,
+    minWidth: 20,
+    height: 20,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
   },
   compareBadgeText: {
     fontSize: 10.5,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: "#14263E",
     fontFamily: font,
   },
   exploreGrid: {
@@ -3382,96 +4726,106 @@ const exploreStyles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 16,
     marginTop: 6,
-    marginBottom: 20,
+    marginBottom: 22,
   },
   cardItem: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(20, 38, 62, 0.06)",
     overflow: "hidden",
     position: "relative",
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 10px rgba(0, 0, 0, 0.04)",
-        transition: "transform 0.15s ease, box-shadow 0.15s ease",
+        boxShadow: "0 1px 0 rgba(20, 38, 62, 0.04), 0 16px 34px -20px rgba(20, 38, 62, 0.28)",
+        transition: "transform 0.2s cubic-bezier(.2,.7,.2,1), box-shadow 0.2s",
       },
     }),
   },
   cardMedia: {
-    height: 140,
+    height: 164,
     position: "relative",
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#E9E4D5",
     overflow: "hidden",
+    zIndex: 0,
+  },
+  placeholderIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: "#FFF1C0",
+    alignItems: "center",
+    justifyContent: "center",
   },
   cardVerifiedBadge: {
     position: "absolute",
-    top: 10,
-    left: 10,
+    top: 11,
+    left: 11,
     zIndex: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    backgroundColor: "#ECFDF5",
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    gap: 4,
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    ...Platform.select({
+      web: { boxShadow: "0 4px 10px rgba(12, 26, 44, 0.14)" },
+    }),
   },
   cardVerifiedText: {
-    color: "#059669",
+    color: "#0B8A3E",
     fontSize: 11,
     fontWeight: "800",
     fontFamily: font,
   },
   cardHeartBtn: {
     position: "absolute",
-    top: 10,
-    right: 10,
+    top: 11,
+    right: 11,
     zIndex: 10,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#FFFFFF",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.94)",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(20, 38, 62, 0.1)",
     alignItems: "center",
     justifyContent: "center",
     ...Platform.select({
       web: {
         cursor: "pointer",
-        boxShadow: "0 2px 6px rgba(0, 0, 0, 0.08)",
+        boxShadow: "0 4px 10px rgba(12, 26, 44, 0.14)",
       },
     }),
   },
   cardCorridorPill: {
     position: "absolute",
-    bottom: 8,
-    left: 8,
+    bottom: 10,
+    left: 10,
     zIndex: 10,
-    backgroundColor: "rgba(15, 23, 42, 0.82)",
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    backgroundColor: "rgba(20, 38, 62, 0.88)",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3.5,
   },
   cardCorridorText: {
-    color: "#FFFFFF",
+    color: "#FCC61C",
     fontSize: 10.5,
-    fontWeight: "700",
+    fontWeight: "800",
     fontFamily: font,
   },
   cardPlaceholderText: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: "700",
-    color: "#334155",
+    color: "#14263E",
     fontFamily: font,
-    marginTop: 6,
+    marginTop: 8,
     textAlign: "center",
   },
   cardBody: {
-    padding: 13,
-    gap: 6,
+    padding: 15,
+    gap: 7,
     ...Platform.select({
       web: { cursor: "pointer" },
     }),
@@ -3480,128 +4834,141 @@ const exploreStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 6,
   },
   cardPriceText: {
     fontSize: 20,
-    fontWeight: "900",
-    color: "#0F172A",
-    fontFamily: fontDisplay,
+    fontWeight: "800",
+    color: "#14263E",
+    fontFamily: font,
+    letterSpacing: -0.4,
   },
   cardHighlightTag: {
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2.5,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
   },
   cardTagBlue: {
-    backgroundColor: "#E0F2FE",
+    backgroundColor: "#FFF1C0",
   },
   cardTagBlueText: {
-    color: "#0284C7",
-    fontSize: 11,
-    fontWeight: "700",
+    color: "#14263E",
+    fontSize: 10.5,
+    fontWeight: "800",
     fontFamily: font,
   },
   cardTagGreen: {
-    backgroundColor: "#DCFCE7",
+    backgroundColor: "#ECFDF5",
   },
   cardTagGreenText: {
-    color: "#15803D",
-    fontSize: 11,
-    fontWeight: "700",
+    color: "#0B8A3E",
+    fontSize: 10.5,
+    fontWeight: "800",
     fontFamily: font,
   },
   cardTagAmber: {
-    backgroundColor: "#FEF3C7",
+    backgroundColor: "#14263E",
   },
   cardTagAmberText: {
-    color: "#D97706",
-    fontSize: 11,
-    fontWeight: "700",
+    color: "#FCC61C",
+    fontSize: 10.5,
+    fontWeight: "800",
     fontFamily: font,
   },
   cardTitleText: {
-    fontSize: 13.5,
-    fontWeight: "700",
-    color: "#1E293B",
-    fontFamily: fontDisplay,
+    fontSize: 14.5,
+    fontWeight: "800",
+    color: "#14263E",
+    fontFamily: font,
   },
   cardLocationText: {
-    fontSize: 12,
-    color: "#64748B",
+    fontSize: 12.5,
+    color: "rgba(20, 38, 62, 0.58)",
     fontFamily: font,
+    fontWeight: "500",
+    flex: 1,
   },
   cardSpecsRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    marginTop: 2,
+    marginTop: 4,
+    paddingTop: 9,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(20, 38, 62, 0.08)",
     flexWrap: "wrap",
   },
   cardTypePill: {
-    backgroundColor: "#EFF6FF",
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    backgroundColor: "#F7F4EC",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
   },
   cardTypeText: {
     fontSize: 11,
-    fontWeight: "700",
-    color: "#2563EB",
+    fontWeight: "800",
+    color: "#14263E",
     fontFamily: font,
     textTransform: "lowercase",
   },
   cardSpecText: {
-    fontSize: 11.5,
-    color: "#475569",
+    fontSize: 12,
+    color: "#14263E",
     fontFamily: font,
-    fontWeight: "500",
+    fontWeight: "700",
+    flexShrink: 1,
   },
   cardSpecDot: {
     fontSize: 12,
-    color: "#94A3B8",
-    fontWeight: "700",
+    color: "rgba(20, 38, 62, 0.35)",
+    fontWeight: "800",
   },
   loadMoreBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
+    borderColor: "rgba(20, 38, 62, 0.14)",
+    borderRadius: 999,
     paddingVertical: 12,
     width: "100%",
-    maxWidth: 600,
+    maxWidth: 420,
     alignSelf: "center",
     marginTop: 8,
     ...Platform.select({
-      web: { cursor: "pointer" },
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 4px 12px rgba(20, 38, 62, 0.06)",
+      },
     }),
   },
   loadMoreBtnText: {
-    color: "#0A45B5",
-    fontSize: 13,
-    fontWeight: "700",
+    color: "#14263E",
+    fontSize: 13.5,
+    fontWeight: "800",
     fontFamily: font,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    backgroundColor: "rgba(12, 26, 44, 0.62)",
     justifyContent: "center",
     alignItems: "center",
     padding: 16,
   },
   modalContent: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 20,
+    borderRadius: 22,
+    padding: 22,
     width: "100%",
     maxWidth: 640,
     gap: 14,
+    borderWidth: 1,
+    borderColor: "rgba(20, 38, 62, 0.08)",
     ...Platform.select({
       web: {
-        boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+        boxShadow: "0 24px 48px -18px rgba(12, 26, 44, 0.36)",
       },
     }),
   },
@@ -3610,13 +4977,13 @@ const exploreStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: "rgba(20, 38, 62, 0.08)",
     paddingBottom: 12,
   },
   modalTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#0F172A",
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#14263E",
     fontFamily: fontDisplay,
   },
   compareTable: {
@@ -3627,11 +4994,11 @@ const exploreStyles = StyleSheet.create({
   compareCol: {
     flex: 1,
     minWidth: 240,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 12,
+    backgroundColor: "#FAF8F2",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    padding: 14,
+    borderColor: "rgba(20, 38, 62, 0.08)",
+    padding: 15,
     gap: 8,
   },
   compareRow: {
@@ -3639,34 +5006,37 @@ const exploreStyles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: "rgba(20, 38, 62, 0.08)",
     paddingVertical: 5,
   },
   compareLabel: {
     fontSize: 12,
-    color: "#64748B",
+    color: "rgba(20, 38, 62, 0.6)",
     fontFamily: font,
   },
   compareVal: {
     fontSize: 12,
-    fontWeight: "700",
-    color: "#1E293B",
+    fontWeight: "800",
+    color: "#14263E",
     fontFamily: font,
   },
   compareActionBtn: {
-    backgroundColor: "#0A45B5",
-    borderRadius: 10,
-    paddingVertical: 10,
+    backgroundColor: "#FCC61C",
+    borderRadius: 999,
+    paddingVertical: 11,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 8,
     ...Platform.select({
-      web: { cursor: "pointer" },
+      web: {
+        cursor: "pointer",
+        boxShadow: "0 10px 20px -10px rgba(232, 174, 0, 0.8)",
+      },
     }),
   },
   compareActionBtnText: {
-    color: "#FFFFFF",
-    fontSize: 12.5,
+    color: "#14263E",
+    fontSize: 13,
     fontWeight: "800",
     fontFamily: font,
   },
@@ -3919,7 +5289,7 @@ export function ProfileScreen() {
     mySaved = useData(user ? "/users/wishlist" : null, [user?.id]);
 
   useEffect(() => {
-    void authService.getMe().catch(() => {});
+    void authService.getMe().catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -4499,17 +5869,13 @@ export function ProfileScreen() {
                     <View style={{ gap: 12 }}>
                       {myListings.data.map((p: any) => (
                         <View key={p._id} style={profileStyles.listingCardRow}>
-                          {p.media?.photos?.[0] ? (
-                            <Image
-                              source={{ uri: getOptimizedPhotoUrl(p.media.photos[0], 400) }}
-                              style={profileStyles.listingThumbnail}
-                              resizeMode="cover"
-                            />
-                          ) : (
-                            <View style={[profileStyles.listingThumbnail, { alignItems: "center", justifyContent: "center" }]}>
-                              <MaterialIcons name="home-work" size={28} color="#94A3B8" />
-                            </View>
-                          )}
+                          <PropertyImage
+                            source={{ uri: resolvePropertyPhotoUrl(p) }}
+                            fallbackUri={getFallbackPropertyPhotoUrl(p)}
+                            thumbnailWidth={400}
+                            style={profileStyles.listingThumbnail}
+                            resizeMode="cover"
+                          />
                           <View style={{ flex: 1, minWidth: 200, gap: 3 }}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                               <Text style={{ fontSize: 15, fontWeight: "700", color: "#0B1B3F" }}>
@@ -5029,7 +6395,7 @@ const detailStyles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: "#0A45B5",
-    fontFamily: "PoppinsSemiBold, Manrope, sans-serif",
+    fontFamily: font,
   },
   navRightGroup: {
     flexDirection: "row",
@@ -5089,10 +6455,11 @@ const detailStyles = StyleSheet.create({
   },
   propertyTitle: {
     fontSize: 26,
-    fontWeight: "800",
+    fontWeight: "600",
     color: "#0B1B3F",
     lineHeight: 34,
-    fontFamily: "PoppinsBold, Manrope, sans-serif",
+    letterSpacing: -0.4,
+    fontFamily: fontDisplay,
   },
   headerBadgesRow: {
     flexDirection: "row",
@@ -5280,9 +6647,9 @@ const detailStyles = StyleSheet.create({
   },
   metricValue: {
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "700",
     color: "#0B1B3F",
-    fontFamily: "PoppinsBold, Manrope, sans-serif",
+    fontFamily: fontNumeric,
   },
   metricSub: {
     fontSize: 12,
@@ -5390,10 +6757,11 @@ const detailStyles = StyleSheet.create({
     color: "#1E3A8A",
   },
   sectionHeading: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 19,
+    fontWeight: "600",
     color: "#0B1B3F",
-    fontFamily: "PoppinsBold, Manrope, sans-serif",
+    letterSpacing: -0.25,
+    fontFamily: fontDisplay,
   },
   sectionSub: {
     fontSize: 13,
@@ -5487,9 +6855,10 @@ const detailStyles = StyleSheet.create({
   },
   mainPriceText: {
     fontSize: 34,
-    fontWeight: "800",
+    fontWeight: "700",
     color: "#0A45B5",
-    fontFamily: "PoppinsBold, Manrope, sans-serif",
+    letterSpacing: -0.7,
+    fontFamily: fontNumeric,
   },
   rateText: {
     fontSize: 14,
@@ -5530,7 +6899,7 @@ const detailStyles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
-    fontFamily: "PoppinsSemiBold, Manrope, sans-serif",
+    fontFamily: font,
   },
   offerToggleBtn: {
     backgroundColor: "#F8FAFC",
@@ -5617,10 +6986,11 @@ const detailStyles = StyleSheet.create({
     gap: 10,
   },
   modalHeaderTitle: {
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: 19,
+    fontWeight: "600",
     color: "#0B1B3F",
-    fontFamily: "PoppinsBold, Manrope, sans-serif",
+    letterSpacing: -0.25,
+    fontFamily: fontDisplay,
   },
   modalCloseBtn: {
     width: 36,
@@ -5814,7 +7184,8 @@ export function PropertyDetailScreen() {
     }
   };
 
-  const photos: string[] = Array.isArray(p?.media?.photos) ? p.media.photos : [];
+  const rawPhotos: string[] = Array.isArray(p?.media?.photos) ? p.media.photos.filter(Boolean) : [];
+  const photos: string[] = rawPhotos.length > 0 ? rawPhotos : (p ? [resolvePropertyPhotoUrl(p)] : []);
   const heroPhotoUrl = photos[selectedPhotoIndex] || photos[0];
   const area = Number(p?.sellableArea || p?.totalArea || 0);
   const price = Number(p?.price || 0);
@@ -6057,8 +7428,11 @@ Link: ${url}`;
               ]}
             >
               {heroPhotoUrl ? (
-                <Image
-                  source={{ uri: getOptimizedPhotoUrl(heroPhotoUrl, 1200) }}
+                <PropertyImage
+                  source={{ uri: heroPhotoUrl }}
+                  fallbackUri={getFallbackPropertyPhotoUrl(p, selectedPhotoIndex)}
+                  thumbnailWidth={1200}
+                  isPublic
                   style={StyleSheet.absoluteFill}
                   resizeMode="cover"
                 />
@@ -6117,8 +7491,11 @@ Link: ${url}`;
                         isActive && detailStyles.thumbItemActive,
                       ]}
                     >
-                      <Image
-                        source={{ uri: getOptimizedPhotoUrl(uri, 400) }}
+                      <PropertyImage
+                        source={{ uri }}
+                        fallbackUri={getFallbackPropertyPhotoUrl(p, index)}
+                        thumbnailWidth={400}
+                        isPublic
                         style={StyleSheet.absoluteFill}
                         resizeMode="cover"
                       />
@@ -6531,8 +7908,11 @@ Link: ${url}`;
                 <View style={detailStyles.sharePropertyPreview}>
                   <View style={detailStyles.sharePropertyThumb}>
                     {heroPhotoUrl ? (
-                      <Image
-                        source={{ uri: getOptimizedPhotoUrl(heroPhotoUrl, 160) }}
+                      <PropertyImage
+                        source={{ uri: heroPhotoUrl }}
+                        fallbackUri={getFallbackPropertyPhotoUrl(p)}
+                        thumbnailWidth={160}
+                        isPublic
                         style={StyleSheet.absoluteFill}
                         resizeMode="cover"
                       />
@@ -10373,8 +11753,8 @@ const s = StyleSheet.create({
     backgroundColor: "#cbd5e1",
   },
   scroll: { padding: 20, paddingBottom: 40 },
-  content: { width: "100%", maxWidth: 1240, alignSelf: "center", gap: 26 },
-  row: { flexDirection: "row", alignItems: "center", gap: 12 },
+  content: { width: "100%", maxWidth: 1180, alignSelf: "center", gap: 22 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10 },
   between: {
     flexDirection: "row",
     alignItems: "center",
@@ -10382,12 +11762,12 @@ const s = StyleSheet.create({
     gap: 12,
   },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 18 },
-  h1: { fontFamily: fontDisplay, fontSize: 28, fontWeight: "800", color: C.ink, letterSpacing: -0.7 },
-  h2: { fontFamily: fontDisplay, fontSize: 22, fontWeight: "800", color: C.ink, letterSpacing: -0.5 },
-  muted: { fontFamily: font, fontSize: 14, lineHeight: 22, color: "#64748b", fontWeight: "400" },
-  small: { fontFamily: font, fontSize: 13.5, lineHeight: 20, color: "#64748b", fontWeight: "500" },
-  body: { fontFamily: font, fontSize: 15, lineHeight: 25, color: "#334155", fontWeight: "400" },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
+  h1: { fontFamily: fontDisplay, fontSize: 26, fontWeight: "600", color: C.ink, letterSpacing: -0.45 },
+  h2: { fontFamily: fontDisplay, fontSize: 21, fontWeight: "600", color: C.ink, letterSpacing: -0.35 },
+  muted: { fontFamily: font, fontSize: 13, lineHeight: 19, color: "#64748b", fontWeight: "500" },
+  small: { fontFamily: font, fontSize: 12.5, lineHeight: 18, color: "#64748b", fontWeight: "500" },
+  body: { fontFamily: font, fontSize: 14.5, lineHeight: 23, color: "#334155", fontWeight: "400" },
   fieldLabel: {
     fontFamily: font,
     fontSize: 13,
@@ -10395,33 +11775,33 @@ const s = StyleSheet.create({
     color: C.ink,
   },
   button: {
-    minHeight: 46,
-    paddingHorizontal: 18,
+    minHeight: 48,
+    paddingHorizontal: 22,
     paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: C.blue,
+    borderRadius: 999,
+    backgroundColor: "#14263E",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
   secondary: {
-    backgroundColor: "#eaf1ff",
+    backgroundColor: "#FFF1C0",
     borderWidth: 1,
-    borderColor: C.line,
+    borderColor: "rgba(232, 174, 0, 0.35)",
   },
   buttonText: {
     fontFamily: font,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "white",
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#FCC61C",
   },
   input: {
     fontFamily: font,
     minHeight: 48,
     borderWidth: 1,
     borderColor: C.line,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     backgroundColor: "white",
@@ -10432,75 +11812,82 @@ const s = StyleSheet.create({
     padding: 28,
     gap: 18,
     borderRadius: 24,
-    backgroundColor: "#e5efff",
+    backgroundColor: "#14263E",
     borderWidth: 1,
-    borderColor: "#d0e0ff",
+    borderColor: "rgba(255,255,255,0.1)",
   },
   heroTitle: {
-    fontFamily: Platform.OS === "web" ? "Fraunces, Georgia" : "PoppinsBold",
-    fontSize: 40,
+    fontFamily: fontDisplay,
+    fontSize: 42,
+    fontWeight: "600",
     color: C.ink,
-    letterSpacing: -1,
+    letterSpacing: -0.9,
   },
   tag: {
     alignSelf: "flex-start",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
-    backgroundColor: "#eaf1ff",
+    backgroundColor: "#FFF1C0",
   },
-  tagText: { fontFamily: font, fontSize: 11, fontWeight: "700", color: C.blue },
+  tagText: { fontFamily: fontMono, fontSize: 11.5, fontWeight: "800", letterSpacing: 0.2, color: "#14263E" },
   typeChip: {
     padding: 14,
     borderWidth: 1,
     borderColor: C.line,
-    borderRadius: 14,
+    borderRadius: 16,
     backgroundColor: "white",
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
   panel: {
-    padding: 22,
-    borderRadius: 20,
+    padding: 24,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: C.line,
     backgroundColor: "white",
     gap: 16,
+    ...Platform.select({
+      web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 16px 34px -20px rgba(20,38,62,.24)" },
+    }),
   },
   card: {
     backgroundColor: "white",
     borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 20,
+    borderColor: "rgba(20, 38, 62, 0.06)",
+    borderRadius: 22,
     overflow: "hidden",
+    ...Platform.select({
+      web: { boxShadow: "0 1px 0 rgba(20,38,62,.04), 0 16px 34px -20px rgba(20,38,62,.3)" },
+    }),
   },
-  photo: { height: 220, backgroundColor: "#dce7fa" },
+  photo: { height: 186, backgroundColor: "#E9E4D5" },
   placeholder: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#e0eaff",
+    backgroundColor: "#E9E4D5",
   },
   imageTags: { position: "absolute", top: 12, left: 12 },
-  cardBody: { padding: 18, gap: 9 },
-  price: { fontFamily: font, fontSize: 25, fontWeight: "800", color: C.ink },
+  cardBody: { padding: 15, gap: 6 },
+  price: { fontFamily: fontNumeric, fontSize: 21, fontWeight: "800", color: C.ink, letterSpacing: -0.4 },
   cardTitle: {
     fontFamily: font,
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: 15.5,
+    lineHeight: 21,
     fontWeight: "700",
     color: C.ink,
   },
-  link: { fontSize: 13, fontWeight: "700", color: C.blue },
+  link: { fontSize: 14, fontWeight: "800", color: C.ink },
   avatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#e2ecff",
+    backgroundColor: "#FFF1C0",
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontWeight: "800", color: C.blue, fontSize: 17 },
+  avatarText: { fontWeight: "800", color: "#14263E", fontSize: 17 },
   nav: {
     minHeight: 76,
     paddingBottom: Platform.OS === "web" ? 10 : 22,
@@ -10518,14 +11905,14 @@ const s = StyleSheet.create({
     justifyContent: "center",
     gap: 4,
   },
-  navText: { fontSize: 11, color: C.muted },
+  navText: { fontSize: 11, fontWeight: "700", color: C.muted },
   postCircle: {
-    height: 50,
-    width: 50,
-    borderRadius: 25,
+    height: 52,
+    width: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: C.blue,
+    backgroundColor: "#FCC61C",
     borderWidth: 4,
     borderColor: C.bg,
   },

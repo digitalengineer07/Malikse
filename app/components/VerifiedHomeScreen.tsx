@@ -28,6 +28,7 @@ import CitySkyline from "./CitySkyline";
 import { cachedPropertySearch, propertyService } from "../src/services/propertyService";
 import type { Property, PropertyType } from "../src/types/property.types";
 import { getRecommendedProperties, getUserAffinity, hydrateUserAffinity, setUserCustomPreferences, type RecommendationCategory } from "../src/services/recommendationEngine";
+import { getFallbackPropertyPhotoSource, resolvePropertyPhotoSource } from "../src/utils/propertyImages";
 
 const nameOf = (p: Property) => p.title || `${p.type} in ${p.location.district}`;
 const priceOf = (p: Property) => `₹${p.price.toLocaleString("en-IN")}`;
@@ -323,15 +324,14 @@ export default function VerifiedHomeScreen() {
                     >
                       <BlurView intensity={35} tint="light" style={s.cardInner}>
                         <View style={s.cardImageContainer}>
-                          {property.media?.photos?.[0] ? (
-                            <PropertyImage
-                              source={{ uri: property.media.photos[0] }}
-                              style={StyleSheet.absoluteFill}
-                              resizeMode="cover"
-                            />
-                          ) : (
-                            <View style={s.noPhoto} />
-                          )}
+                          <PropertyImage
+                            source={resolvePropertyPhotoSource(property)}
+                            fallbackSource={getFallbackPropertyPhotoSource(property)}
+                            isPublic
+                            thumbnailWidth={600}
+                            style={StyleSheet.absoluteFill}
+                            resizeMode="cover"
+                          />
                           <View style={s.imageBadge}>
                             <Text style={s.imageBadgeText}>{property.type.toUpperCase()}</Text>
                           </View>

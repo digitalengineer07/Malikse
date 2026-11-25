@@ -20,6 +20,7 @@ import { useLanguageStore } from "../src/store/languageStore";
 import AppHeader from "./AppHeader";
 import WebFooter from "./WebFooter";
 import PasswordStrengthIndicator, { evaluatePasswordStrength } from "./PasswordStrengthIndicator";
+import { FONT_BODY, FONT_DISPLAY } from "../constants/typography";
 
 interface AccountAuthScreenProps {
   mode: "login" | "register";
@@ -666,7 +667,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   if (!hydrated) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0A45B5" />
+        <ActivityIndicator size="large" color="#14263E" />
       </View>
     );
   }
@@ -689,8 +690,33 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={true}
         >
-          {/* Main Website Container - Same width (1340px) as Home & Explore */}
-          <View style={styles.content}>
+          {/* Home-matched Deep Navy Hero Band with Sun Gold & Capsule Accents */}
+          <View style={styles.heroBand}>
+            <View style={styles.heroSunOrb} pointerEvents="none" />
+            <View style={styles.heroCapsule} pointerEvents="none" />
+            {!isDesktop && (
+              <View style={styles.mobileHeroCopy}>
+                <View style={styles.mobileHeroPill}>
+                  <MaterialIcons name="verified-user" size={13} color="#FCC61C" />
+                  <Text style={styles.mobileHeroPillText}>
+                    {isForgot
+                      ? label("SECURE ACCOUNT RECOVERY", "सुरक्षित खाता पुनर्प्राप्ति")
+                      : label("INDIA'S VERIFIED OWNER MARKETPLACE", "सत्यापित मालिक-से-खरीदार पोर्टल")}
+                  </Text>
+                </View>
+                <Text style={styles.mobileHeroTitle}>
+                  {isForgot
+                    ? label("Restore your access.", "अपना खाता पुनः प्राप्त करें।")
+                    : isRegister
+                    ? label("Join MalikSe direct.", "MalikSe से सीधे जुड़ें।")
+                    : label("Welcome back home.", "वापस स्वागत है।")}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Main Website Container floating over Navy Hero Band */}
+          <View style={[styles.content, isDesktop ? styles.contentDesktopOverlap : styles.contentMobileOverlap]}>
             {/* Main Dual-Pane Auth Card */}
             <View style={styles.authCardWrapper}>
               <View style={[styles.authCard, { flexDirection: isDesktop ? "row" : "column" }]}>
@@ -698,23 +724,28 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                 {isDesktop && (
                   <View style={styles.leftPane}>
                     <View style={styles.leftPaneOverlay} />
+                    <View style={styles.leftPaneSunOrb} pointerEvents="none" />
+                    <View style={styles.leftPaneCapsule} pointerEvents="none" />
 
                     {isForgot ? (
                       /* ========================================================================= */
-                      /* 1. FORGOT PASSWORD LEFT PANE (Compact Security & Recovery Focus)          */
+                      /* 1. FORGOT PASSWORD LEFT PANE (Home Hero Navy + Sun Gold Aesthetic)        */
                       /* ========================================================================= */
                       <View style={styles.leftPaneContent}>
                         <View>
                           <View style={styles.leftBadge}>
                             <View style={styles.livePulseDot} />
-                            <MaterialIcons name="security" size={13} color="#0A45B5" />
+                            <MaterialIcons name="security" size={13} color="#FCC61C" />
                             <Text style={styles.leftBadgeText}>
                               {label("ACCOUNT RECOVERY · SECURE ACCESS", "खाता पुनर्प्राप्ति · सुरक्षित पहुंच")}
                             </Text>
                           </View>
 
                           <Text style={styles.leftHeading}>
-                            {label("Restore your\naccount access.", "अपना खाता\nसुरक्षित पुनः प्राप्त करें।")}
+                            {label("Restore your\n", "अपना खाता\n")}
+                            <Text style={styles.leftHeadingAccent}>
+                              {label("account access.", "सुरक्षित पुनः प्राप्त करें।")}
+                            </Text>
                           </Text>
 
                           <Text style={styles.leftSubtext}>
@@ -727,7 +758,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           {/* Quick Recovery Checkpoints Card */}
                           <View style={styles.loginMetricsCard}>
                             <View style={styles.recoveryMetricItem}>
-                              <MaterialIcons name="verified-user" size={20} color="#059669" />
+                              <MaterialIcons name="verified-user" size={20} color="#FCC61C" />
                               <View style={styles.loginMetricTextBox}>
                                 <Text style={styles.recoveryMetricValue}>
                                   {label("Encrypted OTP", "सुरक्षित OTP")}
@@ -741,7 +772,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             <View style={styles.loginMetricDivider} />
 
                             <View style={styles.recoveryMetricItem}>
-                              <MaterialIcons name="lock-reset" size={20} color="#0A45B5" />
+                              <MaterialIcons name="lock-reset" size={20} color="#FCC61C" />
                               <View style={styles.loginMetricTextBox}>
                                 <Text style={styles.recoveryMetricValue}>
                                   {label("Instant Reset", "तुरंत पासवर्ड बदलाव")}
@@ -756,8 +787,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           {/* 2 Focused Highlights */}
                           <View style={styles.pillarsList}>
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
-                                <MaterialIcons name="shield" size={18} color="#0A45B5" />
+                              <View style={styles.pillarIconBox}>
+                                <MaterialIcons name="shield" size={18} color="#14263E" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -770,8 +801,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             </View>
 
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
-                                <MaterialIcons name="headset-mic" size={18} color="#059669" />
+                              <View style={styles.pillarIconBox}>
+                                <MaterialIcons name="headset-mic" size={18} color="#14263E" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -787,7 +818,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                         <View style={styles.leftTrustFooter}>
                           <View style={styles.compactTrustRow}>
-                            <MaterialIcons name="verified" size={16} color="#0A45B5" />
+                            <MaterialIcons name="verified" size={16} color="#FCC61C" />
                             <Text style={styles.compactTrustText}>
                               {label("Bihar's #1 Verified Property Network · 256-Bit SSL", "बिहार का #1 सत्यापित नेटवर्क · 256-बिट SSL")}
                             </Text>
@@ -796,14 +827,14 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                       </View>
                     ) : !isRegister ? (
                       /* ========================================================================= */
-                      /* 2. LOGIN PAGE LEFT PANE (Compact & Calibrated for 2-Input Login Form)       */
+                      /* 2. LOGIN PAGE LEFT PANE (Home Hero Navy + Sun Gold Aesthetic)             */
                       /* ========================================================================= */
                       <View style={styles.leftPaneContent}>
                         <View>
                           {/* Live Returning Member Beacon */}
                           <View style={styles.leftBadge}>
                             <View style={styles.livePulseDot} />
-                            <MaterialIcons name="verified" size={13} color="#0A45B5" />
+                            <MaterialIcons name="verified-user" size={13} color="#FCC61C" />
                             <Text style={styles.leftBadgeText}>
                               {label("SECURE MEMBER ACCESS · BIHAR", "सुरक्षित सदस्य पोर्टल · बिहार")}
                             </Text>
@@ -811,7 +842,10 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                           {/* Welcome Back Headline */}
                           <Text style={styles.leftHeading}>
-                            {label("Welcome back to\nyour verified spaces.", "अपने सत्यापित पोर्टल पर\nवापस स्वागत है।")}
+                            {label("Welcome back to\n", "अपने सत्यापित पोर्टल पर\n")}
+                            <Text style={styles.leftHeadingAccent}>
+                              {label("your verified spaces.", "वापस स्वागत है।")}
+                            </Text>
                           </Text>
 
                           <Text style={styles.leftSubtext}>
@@ -849,11 +883,11 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             </View>
                           </View>
 
-                          {/* 2 Focused Benefit Cards tailored to login height */}
+                          {/* 2 Focused Benefit Cards matching Why MalikSe grid */}
                           <View style={styles.pillarsList}>
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
-                                <MaterialIcons name="account-balance" size={18} color="#0A45B5" />
+                              <View style={styles.pillarIconBox}>
+                                <MaterialIcons name="account-balance" size={18} color="#14263E" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -866,8 +900,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             </View>
 
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
-                                <MaterialIcons name="handshake" size={18} color="#059669" />
+                              <View style={styles.pillarIconBox}>
+                                <MaterialIcons name="handshake" size={18} color="#14263E" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -884,7 +918,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                         {/* Bottom Security Assurance Strip */}
                         <View style={styles.leftTrustFooter}>
                           <View style={styles.compactTrustRow}>
-                            <MaterialIcons name="lock" size={15} color="#0A45B5" />
+                            <MaterialIcons name="lock" size={15} color="#FCC61C" />
                             <Text style={styles.compactTrustText}>
                               {label(
                                 "Bank-grade 256-bit encrypted access · Private member session",
@@ -896,14 +930,14 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                       </View>
                     ) : (
                       /* ========================================================================= */
-                      /* 3. CREATE ACCOUNT LEFT PANE (Rich & Calibrated for Taller Register Form)   */
+                      /* 3. CREATE ACCOUNT LEFT PANE (Home Hero Navy + Sun Gold Aesthetic)         */
                       /* ========================================================================= */
                       <View style={styles.leftPaneContent}>
                         <View>
                           {/* Live Trust Beacon */}
                           <View style={styles.leftBadge}>
                             <View style={styles.livePulseDot} />
-                            <MaterialIcons name="verified" size={13} color="#38BDF8" />
+                            <MaterialIcons name="verified-user" size={13} color="#FCC61C" />
                             <Text style={styles.leftBadgeText}>
                               {label("NEW MEMBER PRIVILEGES · 100% FREE", "नए सदस्य विशेषाधिकार · 100% निःशुल्क")}
                             </Text>
@@ -911,10 +945,10 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                           {/* Dynamic Headline */}
                           <Text style={styles.leftHeading}>
-                            {label(
-                              "Verified spaces.\nZero brokerage.\nStart your journey.",
-                              "सत्यापित ज़मीन।\nशून्य ब्रोकरेज।\nसफर शुरू करें।"
-                            )}
+                            {label("Verified spaces.\nZero brokerage.\n", "सत्यापित ज़मीन।\nशून्य ब्रोकरेज।\n")}
+                            <Text style={styles.leftHeadingAccent}>
+                              {label("Start your journey.", "सफर शुरू करें।")}
+                            </Text>
                           </Text>
 
                           <Text style={styles.leftSubtext}>
@@ -928,13 +962,13 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           <View style={styles.liveAuditCard}>
                             <View style={styles.auditCardHeader}>
                               <View style={styles.auditPropertyInfo}>
-                                <MaterialIcons name="place" size={15} color="#0A45B5" />
+                                <MaterialIcons name="place" size={15} color="#FCC61C" />
                                 <Text style={styles.auditPropertyTitle}>
                                   {label("Danapur - Khagaul, Patna", "दानापुर - खगौल, पटना")}
                                 </Text>
                               </View>
                               <View style={styles.auditStatusBadge}>
-                                <MaterialIcons name="check-circle" size={12} color="#34D399" />
+                                <MaterialIcons name="check-circle" size={12} color="#0B8A3E" />
                                 <Text style={styles.auditStatusText}>
                                   {label("Title Clear", "टाइटल स्वीकृत")}
                                 </Text>
@@ -944,7 +978,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             <View style={styles.auditChecksList}>
                               <View style={styles.auditCheckRow}>
                                 <View style={styles.auditCheckIconWrap}>
-                                  <MaterialIcons name="done" size={12} color="#34D399" />
+                                  <MaterialIcons name="done" size={12} color="#6EE7B7" />
                                 </View>
                                 <Text style={styles.auditCheckText}>
                                   {label("Circle Office Jamabandi & Khatiyan cross-audited", "अंचल कार्यालय से जमाबंदी व खतियान मिलान पूर्ण")}
@@ -953,7 +987,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                               <View style={styles.auditCheckRow}>
                                 <View style={styles.auditCheckIconWrap}>
-                                  <MaterialIcons name="done" size={12} color="#34D399" />
+                                  <MaterialIcons name="done" size={12} color="#6EE7B7" />
                                 </View>
                                 <Text style={styles.auditCheckText}>
                                   {label("On-ground GPS boundary demarcation with pegs", "अमीन द्वारा मौके पर पैमाइश व जीपीएस सीमांकन")}
@@ -962,7 +996,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                               <View style={styles.auditCheckRow}>
                                 <View style={styles.auditCheckIconWrap}>
-                                  <MaterialIcons name="done" size={12} color="#34D399" />
+                                  <MaterialIcons name="done" size={12} color="#6EE7B7" />
                                 </View>
                                 <Text style={styles.auditCheckText}>
                                   {label("Assigned Property Team for direct negotiations", "नियुक्त संपत्ति टीम सीधे बातचीत में मदद करती है")}
@@ -986,8 +1020,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           {/* 3 Pillar Highlights as Glass Micro-Cards */}
                           <View style={styles.pillarsList}>
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
-                                <MaterialIcons name="account-balance" size={18} color="#0A45B5" />
+                              <View style={styles.pillarIconBox}>
+                                <MaterialIcons name="account-balance" size={18} color="#14263E" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -1000,8 +1034,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             </View>
 
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0" }]}>
-                                <MaterialIcons name="gps-fixed" size={18} color="#059669" />
+                              <View style={styles.pillarIconBox}>
+                                <MaterialIcons name="gps-fixed" size={18} color="#14263E" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -1014,8 +1048,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             </View>
 
                             <View style={styles.pillarCard}>
-                              <View style={[styles.pillarIconBox, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
-                                <MaterialIcons name="handshake" size={18} color="#D97706" />
+                              <View style={styles.pillarIconBox}>
+                                <MaterialIcons name="handshake" size={18} color="#14263E" />
                               </View>
                               <View style={styles.pillarTextBox}>
                                 <Text style={styles.pillarTitle}>
@@ -1033,13 +1067,13 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                         <View style={styles.leftTrustFooter}>
                           <View style={styles.socialProofRow}>
                             <View style={styles.avatarStack}>
-                              <View style={[styles.avatarBubble, { backgroundColor: "#0A45B5" }]}>
-                                <Text style={styles.avatarBubbleText}>P</Text>
+                              <View style={[styles.avatarBubble, { backgroundColor: "#FCC61C" }]}>
+                                <Text style={[styles.avatarBubbleText, { color: "#14263E" }]}>P</Text>
                               </View>
-                              <View style={[styles.avatarBubble, { backgroundColor: "#059669", marginLeft: -8 }]}>
+                              <View style={[styles.avatarBubble, { backgroundColor: "#0B8A3E", marginLeft: -8 }]}>
                                 <Text style={styles.avatarBubbleText}>V</Text>
                               </View>
-                              <View style={[styles.avatarBubble, { backgroundColor: "#D97706", marginLeft: -8 }]}>
+                              <View style={[styles.avatarBubble, { backgroundColor: "#1C3556", marginLeft: -8 }]}>
                                 <Text style={styles.avatarBubbleText}>A</Text>
                               </View>
                             </View>
@@ -1060,7 +1094,6 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                 {/* Right Form Pane */}
                 <View style={[styles.rightPane, { width: isDesktop ? "54%" : "100%" }]}>
-                  {/* Segmented Tab Pill Selector */}
                   {/* Segmented Tab Pill Selector OR Forgot Password Header */}
                   {isForgot ? (
                     <View style={styles.forgotHeaderRow}>
@@ -1069,13 +1102,13 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                         onPress={() => handleTabSwitch("login")}
                         activeOpacity={0.75}
                       >
-                        <MaterialIcons name="arrow-back" size={16} color="#0A45B5" />
+                        <MaterialIcons name="arrow-back" size={16} color="#14263E" />
                         <Text style={styles.backToSignInBtnText}>
                           {label("Back to Sign In", "साइन इन पर वापस जाएं")}
                         </Text>
                       </TouchableOpacity>
                       <View style={styles.forgotBadge}>
-                        <MaterialIcons name="lock-reset" size={14} color="#0A45B5" />
+                        <MaterialIcons name="lock-reset" size={14} color="#14263E" />
                         <Text style={styles.forgotBadgeText}>
                           {label("Password Recovery", "पासवर्ड रिकवरी")}
                         </Text>
@@ -1192,7 +1225,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <MaterialIcons
                                 name="phone-iphone"
                                 size={14}
-                                color={forgotMethod === "mobile" ? "#0A45B5" : "#64748B"}
+                                color={forgotMethod === "mobile" ? "#14263E" : "rgba(20, 38, 62, 0.55)"}
                               />
                               <Text style={[styles.methodPillText, forgotMethod === "mobile" && styles.methodPillTextActive]}>
                                 {label("Mobile Number", "मोबाइल नंबर")}
@@ -1210,7 +1243,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <MaterialIcons
                                 name="mail-outline"
                                 size={14}
-                                color={forgotMethod === "email" ? "#0A45B5" : "#64748B"}
+                                color={forgotMethod === "email" ? "#14263E" : "rgba(20, 38, 62, 0.55)"}
                               />
                               <Text style={[styles.methodPillText, forgotMethod === "email" && styles.methodPillTextActive]}>
                                 {label("Email Address", "ईमेल पता")}
@@ -1235,7 +1268,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                                   onChangeText={(t) => setForgotMobile(t.replace(/\D/g, "").slice(0, 10))}
                                   editable={!loading}
                                   placeholder={label("10-digit mobile number", "10 अंकों का मोबाइल नंबर")}
-                                  placeholderTextColor="#94A3B8"
+                                  placeholderTextColor="rgba(20, 38, 62, 0.42)"
                                   keyboardType="phone-pad"
                                   maxLength={10}
                                   autoComplete="tel"
@@ -1255,14 +1288,14 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                                 <Text style={styles.requiredStar}>*</Text>
                               </Text>
                               <View style={styles.inputWrap}>
-                                <MaterialIcons name="mail-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                                <MaterialIcons name="mail-outline" size={20} color="rgba(20, 38, 62, 0.55)" style={styles.inputIcon} />
                                 <TextInput
                                   style={styles.textInput}
                                   value={forgotEmail}
                                   onChangeText={setForgotEmail}
                                   editable={!loading}
                                   placeholder={label("e.g. name@example.com", "उदा. name@example.com")}
-                                  placeholderTextColor="#94A3B8"
+                                  placeholderTextColor="rgba(20, 38, 62, 0.42)"
                                   keyboardType="email-address"
                                   autoCapitalize="none"
                                   autoCorrect={false}
@@ -1285,14 +1318,14 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <Text style={styles.requiredStar}>*</Text>
                             </Text>
                             <View style={styles.inputWrap}>
-                              <MaterialIcons name="vpn-key" size={20} color="#64748B" style={styles.inputIcon} />
+                              <MaterialIcons name="vpn-key" size={20} color="rgba(20, 38, 62, 0.55)" style={styles.inputIcon} />
                               <TextInput
                                 style={[styles.textInput, styles.otpTextInput]}
                                 value={forgotOtp}
                                 onChangeText={(t) => setForgotOtp(t.replace(/\D/g, "").slice(0, 6))}
                                 editable={!loading && forgotExpireSecondsLeft > 0}
                                 placeholder="0 0 0 0 0 0"
-                                placeholderTextColor="#94A3B8"
+                                placeholderTextColor="rgba(20, 38, 62, 0.42)"
                                 keyboardType="number-pad"
                                 maxLength={6}
                                 autoFocus
@@ -1336,7 +1369,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               {label("New Password", "नया पासवर्ड")} <Text style={styles.requiredStar}>*</Text>
                             </Text>
                             <View style={styles.inputWrap}>
-                              <MaterialIcons name="lock-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                              <MaterialIcons name="lock-outline" size={20} color="rgba(20, 38, 62, 0.55)" style={styles.inputIcon} />
                               <TextInput
                                 style={[styles.textInput, { paddingRight: 48 }]}
                                 value={newPassword}
@@ -1344,7 +1377,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                                 editable={!loading}
                                 secureTextEntry={!showNewPassword}
                                 placeholder={label("Minimum 6 characters", "कम से कम 6 अक्षर")}
-                                placeholderTextColor="#94A3B8"
+                                placeholderTextColor="rgba(20, 38, 62, 0.42)"
                                 autoCapitalize="none"
                                 autoCorrect={false}
                               />
@@ -1356,7 +1389,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                                 <MaterialIcons
                                   name={showNewPassword ? "visibility-off" : "visibility"}
                                   size={20}
-                                  color="#64748B"
+                                  color="rgba(20, 38, 62, 0.55)"
                                 />
                               </TouchableOpacity>
                             </View>
@@ -1376,7 +1409,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <Text style={styles.requiredStar}>*</Text>
                             </Text>
                             <View style={styles.inputWrap}>
-                              <MaterialIcons name="lock-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                              <MaterialIcons name="lock-outline" size={20} color="rgba(20, 38, 62, 0.55)" style={styles.inputIcon} />
                               <TextInput
                                 style={[styles.textInput, { paddingRight: 48 }]}
                                 value={confirmPassword}
@@ -1384,7 +1417,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                                 editable={!loading}
                                 secureTextEntry={!showConfirmPassword}
                                 placeholder={label("Re-enter new password", "नया पासवर्ड पुनः दर्ज करें")}
-                                placeholderTextColor="#94A3B8"
+                                placeholderTextColor="rgba(20, 38, 62, 0.42)"
                                 autoCapitalize="none"
                                 autoCorrect={false}
                                 onSubmitEditing={handleSubmit}
@@ -1398,7 +1431,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                                 <MaterialIcons
                                   name={showConfirmPassword ? "visibility-off" : "visibility"}
                                   size={20}
-                                  color="#64748B"
+                                  color="rgba(20, 38, 62, 0.55)"
                                 />
                               </TouchableOpacity>
                             </View>
@@ -1414,7 +1447,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             disabled={loading}
                             activeOpacity={0.75}
                           >
-                            <MaterialIcons name="arrow-back" size={14} color="#0A45B5" />
+                            <MaterialIcons name="arrow-back" size={14} color="#14263E" />
                             <Text style={styles.changeDetailsText}>
                               {label("Change mobile number or email", "मोबाइल नंबर या ईमेल बदलें")}
                             </Text>
@@ -1430,14 +1463,14 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             <Text style={styles.requiredStar}>*</Text>
                           </Text>
                           <View style={styles.inputWrap}>
-                            <MaterialIcons name="vpn-key" size={20} color="#64748B" style={styles.inputIcon} />
+                            <MaterialIcons name="vpn-key" size={20} color="rgba(20, 38, 62, 0.55)" style={styles.inputIcon} />
                             <TextInput
                               style={[styles.textInput, styles.otpTextInput]}
                               value={otp}
                               onChangeText={(t) => setOtp(t.replace(/\D/g, "").slice(0, 6))}
                               editable={!loading && expireSecondsLeft > 0}
                               placeholder="0 0 0 0 0 0"
-                              placeholderTextColor="#94A3B8"
+                              placeholderTextColor="rgba(20, 38, 62, 0.42)"
                               keyboardType="number-pad"
                               maxLength={6}
                               autoFocus
@@ -1484,7 +1517,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           disabled={loading}
                           activeOpacity={0.75}
                         >
-                          <MaterialIcons name="arrow-back" size={14} color="#0A45B5" />
+                          <MaterialIcons name="arrow-back" size={14} color="#14263E" />
                           <Text style={styles.changeDetailsText}>
                             {registerMethod === "email"
                               ? label("Change email address or details", "ईमेल पता या विवरण बदलें")
@@ -1508,7 +1541,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <MaterialIcons
                                 name="phone-iphone"
                                 size={14}
-                                color={registerMethod === "mobile" ? "#0A45B5" : "#64748B"}
+                                color={registerMethod === "mobile" ? "#14263E" : "rgba(20, 38, 62, 0.55)"}
                               />
                               <Text style={[styles.methodPillText, registerMethod === "mobile" && styles.methodPillTextActive]}>
                                 {label("Mobile Number", "मोबाइल नंबर")}
@@ -1526,7 +1559,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <MaterialIcons
                                 name="mail-outline"
                                 size={14}
-                                color={registerMethod === "email" ? "#0A45B5" : "#64748B"}
+                                color={registerMethod === "email" ? "#14263E" : "rgba(20, 38, 62, 0.55)"}
                               />
                               <Text style={[styles.methodPillText, registerMethod === "email" && styles.methodPillTextActive]}>
                                 {label("Email Address", "ईमेल पता")}
@@ -1549,7 +1582,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <MaterialIcons
                                 name="phone-iphone"
                                 size={14}
-                                color={loginMethod === "mobile" ? "#0A45B5" : "#64748B"}
+                                color={loginMethod === "mobile" ? "#14263E" : "rgba(20, 38, 62, 0.55)"}
                               />
                               <Text style={[styles.methodPillText, loginMethod === "mobile" && styles.methodPillTextActive]}>
                                 {label("Mobile Number", "मोबाइल नंबर")}
@@ -1567,7 +1600,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <MaterialIcons
                                 name="mail-outline"
                                 size={14}
-                                color={loginMethod === "email" ? "#0A45B5" : "#64748B"}
+                                color={loginMethod === "email" ? "#14263E" : "rgba(20, 38, 62, 0.55)"}
                               />
                               <Text style={[styles.methodPillText, loginMethod === "email" && styles.methodPillTextActive]}>
                                 {label("Email Address", "ईमेल पता")}
@@ -1583,14 +1616,14 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               {label("Full Name", "पूरा नाम")} <Text style={styles.requiredStar}>*</Text>
                             </Text>
                             <View style={styles.inputWrap}>
-                              <MaterialIcons name="person-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                              <MaterialIcons name="person-outline" size={20} color="rgba(20, 38, 62, 0.55)" style={styles.inputIcon} />
                               <TextInput
                                 style={styles.textInput}
                                 value={name}
                                 onChangeText={setName}
                                 editable={!loading}
                                 placeholder={label("e.g. Ramesh Kumar", "उदा. रमेश कुमार")}
-                                placeholderTextColor="#94A3B8"
+                                placeholderTextColor="rgba(20, 38, 62, 0.42)"
                                 autoCapitalize="words"
                                 autoComplete="name"
                               />
@@ -1605,14 +1638,14 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               {label("Email Address", "ईमेल पता")} <Text style={styles.requiredStar}>*</Text>
                             </Text>
                             <View style={styles.inputWrap}>
-                              <MaterialIcons name="mail-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                              <MaterialIcons name="mail-outline" size={20} color="rgba(20, 38, 62, 0.55)" style={styles.inputIcon} />
                               <TextInput
                                 style={styles.textInput}
                                 value={email}
                                 onChangeText={setEmail}
                                 editable={!loading}
                                 placeholder={label("e.g. name@example.com", "उदा. name@example.com")}
-                                placeholderTextColor="#94A3B8"
+                                placeholderTextColor="rgba(20, 38, 62, 0.42)"
                                 keyboardType="email-address"
                                 autoCapitalize="none"
                                 autoCorrect={false}
@@ -1644,7 +1677,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                                 onChangeText={(t) => setMobile(t.replace(/\D/g, "").slice(0, 10))}
                                 editable={!loading}
                                 placeholder={label("10-digit mobile number", "10 अंकों का मोबाइल नंबर")}
-                                placeholderTextColor="#94A3B8"
+                                placeholderTextColor="rgba(20, 38, 62, 0.42)"
                                 keyboardType="phone-pad"
                                 maxLength={10}
                                 autoComplete="tel"
@@ -1660,14 +1693,14 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               {label("Email Address", "ईमेल पता")} <Text style={styles.requiredStar}>*</Text>
                             </Text>
                             <View style={styles.inputWrap}>
-                              <MaterialIcons name="mail-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                              <MaterialIcons name="mail-outline" size={20} color="rgba(20, 38, 62, 0.55)" style={styles.inputIcon} />
                               <TextInput
                                 style={styles.textInput}
                                 value={loginEmail}
                                 onChangeText={setLoginEmail}
                                 editable={!loading}
                                 placeholder={label("e.g. name@example.com", "उदा. name@example.com")}
-                                placeholderTextColor="#94A3B8"
+                                placeholderTextColor="rgba(20, 38, 62, 0.42)"
                                 keyboardType="email-address"
                                 autoCapitalize="none"
                                 autoCorrect={false}
@@ -1699,7 +1732,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                             )}
                           </View>
                           <View style={styles.inputWrap}>
-                            <MaterialIcons name="lock-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                            <MaterialIcons name="lock-outline" size={20} color="rgba(20, 38, 62, 0.55)" style={styles.inputIcon} />
                             <TextInput
                               style={[styles.textInput, { paddingRight: 48 }]}
                               value={password}
@@ -1711,7 +1744,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                                   ? label("Minimum 6 characters", "कम से कम 6 अक्षर")
                                   : label("Enter your password", "अपना पासवर्ड दर्ज करें")
                               }
-                              placeholderTextColor="#94A3B8"
+                              placeholderTextColor="rgba(20, 38, 62, 0.42)"
                               autoCapitalize="none"
                               autoCorrect={false}
                               onSubmitEditing={handleSubmit}
@@ -1725,7 +1758,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               <MaterialIcons
                                 name={showPassword ? "visibility-off" : "visibility"}
                                 size={20}
-                                color="#64748B"
+                                color="rgba(20, 38, 62, 0.55)"
                               />
                             </TouchableOpacity>
                           </View>
@@ -1744,14 +1777,14 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               {label("Email Address (Optional)", "ईमेल पता (वैकल्पिक)")}
                             </Text>
                             <View style={styles.inputWrap}>
-                              <MaterialIcons name="mail-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                              <MaterialIcons name="mail-outline" size={20} color="rgba(20, 38, 62, 0.55)" style={styles.inputIcon} />
                               <TextInput
                                 style={styles.textInput}
                                 value={email}
                                 onChangeText={setEmail}
                                 editable={!loading}
                                 placeholder="name@example.com"
-                                placeholderTextColor="#94A3B8"
+                                placeholderTextColor="rgba(20, 38, 62, 0.42)"
                                 keyboardType="email-address"
                                 autoCapitalize="none"
                                 autoCorrect={false}
@@ -1775,7 +1808,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                         activeOpacity={0.8}
                       >
                         <View style={[styles.checkboxBox, keepMeSignedIn && styles.checkboxBoxActive]}>
-                          {keepMeSignedIn && <MaterialIcons name="check" size={12} color="#FFFFFF" />}
+                          {keepMeSignedIn && <MaterialIcons name="check" size={12} color="#FCC61C" />}
                         </View>
                         <Text style={styles.keepSignedInText}>
                           {label("Keep me signed in", "मुझे साइन इन रखें")}
@@ -1800,7 +1833,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                     </View>
                   )}
 
-                  {/* Submit Button */}
+                  {/* Submit Button (Home Sun Gold Primary CTA) */}
                   <TouchableOpacity
                     style={[
                       styles.submitBtn,
@@ -1818,7 +1851,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                     activeOpacity={0.88}
                   >
                     {loading ? (
-                      <ActivityIndicator color="#FFFFFF" size="small" />
+                      <ActivityIndicator color="#14263E" size="small" />
                     ) : (
                       <>
                         <Text style={styles.submitBtnText}>
@@ -1832,7 +1865,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                               : label("Continue & Send OTP", "आगे बढ़ें और OTP भेजें")
                             : label("Sign In to MalikSe", "MalikSe में साइन इन करें")}
                         </Text>
-                        <MaterialIcons name="arrow-forward" size={18} color="#FFFFFF" />
+                        <MaterialIcons name="arrow-forward" size={18} color="#14263E" />
                       </>
                     )}
                   </TouchableOpacity>
@@ -1870,7 +1903,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                           }}
                           activeOpacity={0.85}
                         >
-                          <MaterialIcons name="check-circle" size={16} color="#059669" />
+                          <MaterialIcons name="check-circle" size={16} color="#0B8A3E" />
                           <Text style={styles.digiLockerBtnText}>DigiLocker KYC</Text>
                         </TouchableOpacity>
                       </View>
@@ -1907,7 +1940,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                   {/* Security Footnote */}
                   <View style={styles.securityFootnote}>
-                    <MaterialIcons name="security" size={15} color="#059669" />
+                    <MaterialIcons name="verified-user" size={15} color="#0B8A3E" />
                     <Text style={styles.securityText}>
                       {label(
                         "Staff-reviewed listings · 100% Direct Owner Transparency",
@@ -1919,11 +1952,11 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
               </View>
             </View>
 
-            {/* Under-Card Trust Assurance Bar */}
+            {/* Under-Card Trust Assurance Bar (Home Floating Stats Ribbon Pattern) */}
             <View style={styles.authTrustBar}>
               <View style={styles.authTrustItem}>
-                <View style={[styles.authTrustIconWrap, { backgroundColor: "#E0F2FE" }]}>
-                  <MaterialIcons name="gavel" size={18} color="#0A45B5" />
+                <View style={styles.authTrustIconWrap}>
+                  <MaterialIcons name="gavel" size={19} color="#14263E" />
                 </View>
                 <View style={styles.authTrustTextBox}>
                   <Text style={styles.authTrustTitle}>
@@ -1938,8 +1971,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
               {isDesktop && <View style={styles.authTrustDivider} />}
 
               <View style={styles.authTrustItem}>
-                <View style={[styles.authTrustIconWrap, { backgroundColor: "#DCFCE7" }]}>
-                  <MaterialIcons name="gps-fixed" size={18} color="#059669" />
+                <View style={styles.authTrustIconWrap}>
+                  <MaterialIcons name="gps-fixed" size={19} color="#14263E" />
                 </View>
                 <View style={styles.authTrustTextBox}>
                   <Text style={styles.authTrustTitle}>
@@ -1954,8 +1987,8 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
               {isDesktop && <View style={styles.authTrustDivider} />}
 
               <View style={styles.authTrustItem}>
-                <View style={[styles.authTrustIconWrap, { backgroundColor: "#FEF3C7" }]}>
-                  <MaterialIcons name="handshake" size={18} color="#D97706" />
+                <View style={styles.authTrustIconWrap}>
+                  <MaterialIcons name="handshake" size={19} color="#14263E" />
                 </View>
                 <View style={styles.authTrustTextBox}>
                   <Text style={styles.authTrustTitle}>
@@ -1984,7 +2017,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                     <Text style={styles.modalTitle}>Google Sign-In Activation</Text>
                   </View>
                   <TouchableOpacity onPress={() => setShowGoogleSetupModal(false)}>
-                    <MaterialIcons name="close" size={20} color="#64748B" />
+                    <MaterialIcons name="close" size={20} color="rgba(20, 38, 62, 0.55)" />
                   </TouchableOpacity>
                 </View>
 
@@ -2035,24 +2068,19 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
   );
 }
 
-const font =
-  Platform.OS === "web"
-    ? "'Plus Jakarta Sans', Manrope, -apple-system, BlinkMacSystemFont, sans-serif"
-    : "PoppinsRegular";
-const fontDisplay =
-  Platform.OS === "web"
-    ? "'Plus Jakarta Sans', PoppinsBold, Manrope, sans-serif"
-    : "PoppinsBold";
+const font = FONT_BODY;
+const fontDisplay = FONT_DISPLAY;
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#F3F7FF",
+    backgroundColor: "#F7F4EC",
   },
   loadingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#F7F4EC",
   },
   keyboardScreen: {
     flex: 1,
@@ -2062,14 +2090,86 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 
-  /* Matching Content Grid to Modern Website (maxWidth: 1240, paddingHorizontal: 20) */
-  content: {
-    width: "100%",
-    maxWidth: 1240,
-    alignSelf: "center",
+  /* Home-matched Deep Navy Hero Band with Sun Gold & Rotated Capsule Accents */
+  heroBand: {
+    backgroundColor: "#14263E",
+    position: "relative",
+    overflow: "hidden",
+    minHeight: 112,
     paddingHorizontal: 20,
     paddingTop: 18,
-    paddingBottom: 24,
+    paddingBottom: 74,
+  },
+  heroSunOrb: {
+    position: "absolute",
+    right: -84,
+    top: -120,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: "#FCC61C",
+  },
+  heroCapsule: {
+    position: "absolute",
+    right: 140,
+    top: -30,
+    width: 100,
+    height: 260,
+    borderRadius: 50,
+    backgroundColor: "#1C3556",
+    transform: [{ rotate: "-30deg" }],
+  },
+  mobileHeroCopy: {
+    position: "relative",
+    zIndex: 2,
+    maxWidth: 540,
+    alignSelf: "center",
+    width: "100%",
+    gap: 8,
+  },
+  mobileHeroPill: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.16)",
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  mobileHeroPillText: {
+    fontFamily: font,
+    fontSize: 10.5,
+    fontWeight: "800",
+    letterSpacing: 0.9,
+    color: "#FCC61C",
+  },
+  mobileHeroTitle: {
+    fontFamily: fontDisplay,
+    fontSize: 27,
+    fontWeight: "600",
+    lineHeight: 32,
+    letterSpacing: -0.5,
+    color: "#FFFFFF",
+  },
+
+  /* Matching Content Grid to Modern Home Page (maxWidth: 1180) */
+  content: {
+    width: "100%",
+    maxWidth: 1180,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+    position: "relative",
+    zIndex: 10,
+  },
+  contentDesktopOverlap: {
+    marginTop: -66,
+  },
+  contentMobileOverlap: {
+    marginTop: -54,
   },
 
   /* Main Dual-Pane Auth Card */
@@ -2085,39 +2185,51 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(20, 38, 62, 0.08)",
     ...Platform.select({
       web: {
-        boxShadow: "0 12px 36px -4px rgba(11, 27, 63, 0.08), 0 2px 8px rgba(11, 27, 63, 0.04)",
+        boxShadow: "0 1px 0 rgba(20, 38, 62, 0.05), 0 24px 48px -20px rgba(12, 26, 44, 0.36)",
       },
       default: {
-        shadowColor: "#0B1B3F",
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.08,
-        shadowRadius: 20,
-        elevation: 6,
+        shadowColor: "#14263E",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.14,
+        shadowRadius: 24,
+        elevation: 8,
       },
     }),
   },
 
-  /* Left Showcase Pane (Desktop Only) */
+  /* Left Showcase Pane (Home Navy + Sun Gold Aesthetic, Desktop Only) */
   leftPane: {
     width: "46%",
     position: "relative",
     overflow: "hidden",
-    backgroundColor: "#F8FAFC",
-    borderRightWidth: 1,
-    borderRightColor: "#E2E8F0",
+    backgroundColor: "#14263E",
   },
   leftPaneOverlay: {
     ...StyleSheet.absoluteFill as any,
-    backgroundColor: "#F8FAFC",
-    ...Platform.select({
-      web: {
-        backgroundImage:
-          "radial-gradient(circle at 10% 10%, rgba(219, 234, 254, 0.7) 0%, transparent 55%), radial-gradient(circle at 90% 90%, rgba(220, 252, 231, 0.5) 0%, transparent 55%), linear-gradient(155deg, #F0F6FF 0%, #F8FAFC 55%, #F1F5F9 100%)",
-      },
-    }),
+    backgroundColor: "#14263E",
+  },
+  leftPaneSunOrb: {
+    position: "absolute",
+    right: -110,
+    bottom: -110,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: "#FCC61C",
+    opacity: 0.14,
+  },
+  leftPaneCapsule: {
+    position: "absolute",
+    left: -50,
+    top: -70,
+    width: 140,
+    height: 300,
+    borderRadius: 70,
+    backgroundColor: "#1C3556",
+    transform: [{ rotate: "28deg" }],
   },
   leftPaneContent: {
     position: "relative",
@@ -2132,13 +2244,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 7,
     alignSelf: "flex-start",
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "rgba(255, 255, 255, 0.10)",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(255, 255, 255, 0.16)",
     paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingVertical: 5.5,
     borderRadius: 999,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   livePulseDot: {
     width: 7,
@@ -2153,40 +2265,44 @@ const styles = StyleSheet.create({
   },
   leftBadgeText: {
     fontFamily: font,
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: "800",
-    color: "#0A45B5",
-    letterSpacing: 0.6,
+    color: "#FCC61C",
+    letterSpacing: 0.9,
   },
   leftHeading: {
     fontFamily: fontDisplay,
-    fontSize: 27,
-    fontWeight: "800",
-    color: "#0B1B3F",
-    lineHeight: 35,
-    letterSpacing: -0.6,
-    marginBottom: 8,
+    fontSize: 30,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    lineHeight: 36,
+    letterSpacing: -0.65,
+    marginBottom: 10,
+  },
+  leftHeadingAccent: {
+    color: "#FCC61C",
   },
   leftSubtext: {
     fontFamily: font,
     fontSize: 14,
-    color: "#334155",
+    fontWeight: "500",
+    color: "rgba(255, 255, 255, 0.74)",
     lineHeight: 22,
-    marginBottom: 16,
+    marginBottom: 18,
   },
 
-  /* Live Verification Audit Card */
+  /* Live Verification Audit Card (Frosted Glass over Deep Navy) */
   liveAuditCard: {
     backgroundColor: "rgba(255, 255, 255, 0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.16)",
-    borderRadius: 16,
-    padding: 14,
+    borderColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 18,
+    padding: 15,
     marginBottom: 14,
     ...Platform.select({
       web: {
         backdropFilter: "blur(14px)",
-        boxShadow: "0 10px 30px -8px rgba(0, 0, 0, 0.3)",
+        boxShadow: "0 14px 30px -12px rgba(12, 26, 44, 0.45)",
       },
     }),
   },
@@ -2195,9 +2311,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 10,
-    paddingBottom: 8,
+    paddingBottom: 9,
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: "rgba(255, 255, 255, 0.12)",
   },
   auditPropertyInfo: {
     flexDirection: "row",
@@ -2205,28 +2321,26 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   auditPropertyTitle: {
-    fontFamily: fontDisplay,
+    fontFamily: font,
     fontSize: 13,
-    fontWeight: "700",
-    color: "#0B1B3F",
+    fontWeight: "800",
+    color: "#FFFFFF",
     letterSpacing: -0.2,
   },
   auditStatusBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#ECFDF5",
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
     borderRadius: 999,
   },
   auditStatusText: {
     fontFamily: font,
     fontSize: 11,
-    fontWeight: "700",
-    color: "#059669",
+    fontWeight: "800",
+    color: "#0B8A3E",
   },
   auditChecksList: {
     gap: 7,
@@ -2241,17 +2355,17 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: "#ECFDF5",
+    backgroundColor: "rgba(11, 138, 62, 0.25)",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#A7F3D0",
+    borderColor: "rgba(110, 231, 183, 0.35)",
   },
   auditCheckText: {
     fontFamily: font,
     flex: 1,
     fontSize: 12,
-    color: "#334155",
+    color: "rgba(255, 255, 255, 0.86)",
     lineHeight: 17,
     fontWeight: "500",
   },
@@ -2259,24 +2373,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingTop: 8,
+    paddingTop: 9,
     borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
+    borderTopColor: "rgba(255, 255, 255, 0.12)",
   },
   auditPill: {
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#FFF1C0",
     paddingHorizontal: 9,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 999,
   },
   auditPillText: {
     fontFamily: font,
     fontSize: 11,
-    fontWeight: "700",
-    color: "#0A45B5",
+    fontWeight: "800",
+    color: "#14263E",
   },
 
-  /* Login Compact Metrics Card */
+  /* Login Compact Metrics Card (Home Floating Stats Ribbon Look on Navy) */
   loginMetricsCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -2284,14 +2398,14 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.08)",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.15)",
-    borderRadius: 14,
+    borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 10,
     marginBottom: 16,
     ...Platform.select({
       web: {
         backdropFilter: "blur(12px)",
-        boxShadow: "0 6px 20px -4px rgba(0, 0, 0, 0.25)",
+        boxShadow: "0 10px 24px -10px rgba(12, 26, 44, 0.4)",
       },
     }),
   },
@@ -2302,24 +2416,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   loginMetricValue: {
-    fontFamily: fontDisplay,
-    fontSize: 19,
+    fontFamily: font,
+    fontSize: 20,
     fontWeight: "800",
-    color: "#0A45B5",
+    color: "#FCC61C",
     letterSpacing: -0.5,
     marginBottom: 2,
   },
   loginMetricLabel: {
     fontFamily: font,
     fontSize: 11.5,
-    color: "#475569",
+    color: "rgba(255, 255, 255, 0.72)",
     fontWeight: "600",
     textAlign: "center",
   },
   loginMetricDivider: {
     width: 1,
     height: 28,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: "rgba(255, 255, 255, 0.14)",
   },
   recoveryMetricItem: {
     flex: 1,
@@ -2328,10 +2442,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   recoveryMetricValue: {
-    fontFamily: fontDisplay,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0B1B3F",
+    fontFamily: font,
+    fontSize: 13.5,
+    fontWeight: "800",
+    color: "#FFFFFF",
     marginBottom: 1,
   },
   loginMetricTextBox: {
@@ -2345,25 +2459,25 @@ const styles = StyleSheet.create({
   compactTrustText: {
     fontFamily: font,
     fontSize: 12,
-    color: "#0A45B5",
+    color: "#FFFFFF",
     fontWeight: "700",
-    letterSpacing: 0.2,
+    letterSpacing: 0.15,
   },
 
-  /* Pillars List with Frosted Micro-Cards */
+  /* Pillars List (Home Why MalikSe Glass Cards + Sun Gold Icon Squares) */
   pillarsList: {
-    gap: 8,
+    gap: 9,
     marginBottom: 6,
   },
   pillarCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 11,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    gap: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.07)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: 12,
-    padding: 9,
+    borderColor: "rgba(255, 255, 255, 0.14)",
+    borderRadius: 14,
+    padding: 11,
     ...Platform.select({
       web: {
         backdropFilter: "blur(8px)",
@@ -2371,44 +2485,40 @@ const styles = StyleSheet.create({
     }),
   },
   pillarIconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: "#FCC61C",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
   },
   pillarTextBox: {
     flex: 1,
   },
   pillarTitle: {
-    fontFamily: fontDisplay,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0B1B3F",
+    fontFamily: font,
+    fontSize: 13.5,
+    fontWeight: "800",
+    color: "#FFFFFF",
     marginBottom: 1,
   },
   pillarDesc: {
     fontFamily: font,
     fontSize: 12,
-    color: "#475569",
+    fontWeight: "500",
+    color: "rgba(255, 255, 255, 0.68)",
     lineHeight: 17,
   },
 
   /* Left Trust Footer & Social Proof */
   leftTrustFooter: {
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1.5,
-    borderColor: "#BFDBFE",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginTop: 4,
-    ...Platform.select({
-      web: {
-        boxShadow: "0 2px 8px rgba(10, 69, 181, 0.04)",
-      },
-    }),
   },
   socialProofRow: {
     flexDirection: "row",
@@ -2424,11 +2534,12 @@ const styles = StyleSheet.create({
     height: 26,
     borderRadius: 13,
     borderWidth: 1.5,
-    borderColor: "#071A34",
+    borderColor: "#14263E",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarBubbleText: {
+    fontFamily: font,
     fontSize: 11,
     fontWeight: "800",
     color: "#FFFFFF",
@@ -2437,43 +2548,44 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   socialProofTitle: {
-    fontFamily: fontDisplay,
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#0B1B3F",
+    fontFamily: font,
+    fontSize: 12.5,
+    fontWeight: "800",
+    color: "#FFFFFF",
     marginBottom: 1,
   },
   socialProofSub: {
     fontFamily: font,
     fontSize: 11,
-    color: "#64748B",
+    color: "rgba(255, 255, 255, 0.68)",
     fontWeight: "500",
   },
 
-  /* Right Form Pane */
+  /* Right Form Pane (White Home Search-Console Surface) */
   rightPane: {
     paddingHorizontal: 36,
     paddingVertical: 32,
     justifyContent: "center",
+    backgroundColor: "#FFFFFF",
   },
   tabSelector: {
     flexDirection: "row",
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#F7F4EC",
     borderRadius: 14,
     padding: 4,
     marginBottom: 22,
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 9,
+    paddingVertical: 9.5,
     alignItems: "center",
     borderRadius: 10,
   },
   tabButtonActive: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#14263E",
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
+        boxShadow: "0 8px 16px -8px rgba(20, 38, 62, 0.55)",
       },
       default: {
         elevation: 2,
@@ -2483,12 +2595,12 @@ const styles = StyleSheet.create({
   tabButtonText: {
     fontFamily: font,
     fontSize: 13.5,
-    fontWeight: "600",
-    color: "#64748B",
+    fontWeight: "700",
+    color: "rgba(20, 38, 62, 0.58)",
   },
   tabButtonTextActive: {
-    fontFamily: fontDisplay,
-    color: "#0A45B5",
+    fontFamily: font,
+    color: "#FCC61C",
     fontWeight: "800",
   },
 
@@ -2497,37 +2609,41 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 16,
+    marginBottom: 18,
   },
   backToSignInBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: "#F1F5F9",
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+    borderRadius: 999,
+    backgroundColor: "#F7F4EC",
+    borderWidth: 1,
+    borderColor: "rgba(20, 38, 62, 0.08)",
   },
   backToSignInBtnText: {
+    fontFamily: font,
     fontSize: 12,
-    fontWeight: "700",
-    color: "#0A45B5",
+    fontWeight: "800",
+    color: "#14263E",
   },
   forgotBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "#E0F2FE",
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 20,
+    backgroundColor: "#FFF1C0",
+    paddingVertical: 5,
+    paddingHorizontal: 11,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#BAE6FD",
+    borderColor: "rgba(232, 174, 0, 0.35)",
   },
   forgotBadgeText: {
+    fontFamily: font,
     fontSize: 11,
-    fontWeight: "700",
-    color: "#0A45B5",
+    fontWeight: "800",
+    color: "#14263E",
   },
 
   /* Form Header */
@@ -2536,16 +2652,17 @@ const styles = StyleSheet.create({
   },
   formTitle: {
     fontFamily: fontDisplay,
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#0B1B3F",
-    letterSpacing: -0.6,
+    fontSize: 28,
+    fontWeight: "600",
+    color: "#14263E",
+    letterSpacing: -0.5,
     marginBottom: 4,
   },
   formSubtitle: {
     fontFamily: font,
     fontSize: 13.5,
-    color: "#64748B",
+    fontWeight: "500",
+    color: "rgba(20, 38, 62, 0.62)",
     lineHeight: 20,
   },
 
@@ -2554,17 +2671,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#F0FDF4",
+    backgroundColor: "#ECFDF5",
     borderWidth: 1,
-    borderColor: "#BBF7D0",
-    padding: 10,
-    borderRadius: 10,
+    borderColor: "#A7F3D0",
+    padding: 11,
+    borderRadius: 12,
     marginBottom: 16,
   },
   successText: {
+    fontFamily: font,
     flex: 1,
-    fontSize: 12,
-    color: "#166534",
+    fontSize: 12.5,
+    color: "#065F46",
     fontWeight: "600",
   },
   errorBox: {
@@ -2574,15 +2692,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF2F2",
     borderWidth: 1,
     borderColor: "#FECACA",
-    padding: 10,
-    borderRadius: 10,
+    padding: 11,
+    borderRadius: 12,
     marginBottom: 16,
   },
   errorText: {
+    fontFamily: font,
     flex: 1,
-    fontSize: 12,
+    fontSize: 12.5,
     color: "#DC2626",
-    fontWeight: "500",
+    fontWeight: "600",
   },
 
   /* Fields */
@@ -2591,13 +2710,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   fieldGroup: {
-    gap: 5,
+    gap: 6,
   },
   fieldLabel: {
     fontFamily: font,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0B1B3F",
+    fontSize: 12.5,
+    fontWeight: "800",
+    color: "#14263E",
+    letterSpacing: 0.1,
   },
   requiredStar: {
     color: "#DC2626",
@@ -2608,17 +2728,19 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   forgotLink: {
+    fontFamily: font,
     fontSize: 12,
-    fontWeight: "600",
-    color: "#0A45B5",
+    fontWeight: "700",
+    color: "#14263E",
+    textDecorationLine: "underline",
   },
   inputWrap: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    backgroundColor: "#F8FAFC",
+    borderColor: "rgba(20, 38, 62, 0.12)",
+    borderRadius: 14,
+    backgroundColor: "#FAF8F2",
     position: "relative",
     overflow: "hidden",
   },
@@ -2627,25 +2749,26 @@ const styles = StyleSheet.create({
     paddingRight: 6,
   },
   countryCodeBadge: {
-    backgroundColor: "#E2E8F0",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    backgroundColor: "#FFF1C0",
+    paddingHorizontal: 13,
+    paddingVertical: 12.5,
     borderRightWidth: 1,
-    borderRightColor: "#CBD5E1",
+    borderRightColor: "rgba(20, 38, 62, 0.12)",
   },
   countryCodeText: {
     fontFamily: font,
     fontSize: 13.5,
-    fontWeight: "700",
-    color: "#0B1B3F",
+    fontWeight: "800",
+    color: "#14263E",
   },
   textInput: {
     fontFamily: font,
     flex: 1,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 12.5,
     fontSize: 14,
-    color: "#0B1B3F",
+    fontWeight: "600",
+    color: "#14263E",
     outlineStyle: "none" as any,
   },
   phoneInput: {
@@ -2660,11 +2783,13 @@ const styles = StyleSheet.create({
   /* Method Toggle Row (Mobile vs Email) */
   methodToggleRow: {
     flexDirection: "row",
-    backgroundColor: "#F1F5F9",
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 6,
+    backgroundColor: "#F7F4EC",
+    borderRadius: 12,
+    padding: 3.5,
+    marginBottom: 4,
     gap: 4,
+    borderWidth: 1,
+    borderColor: "rgba(20, 38, 62, 0.06)",
   },
   methodPill: {
     flex: 1,
@@ -2673,14 +2798,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 9,
     gap: 6,
   },
   methodPillActive: {
     backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "rgba(20, 38, 62, 0.08)",
     ...Platform.select({
       web: {
-        boxShadow: "0 2px 6px rgba(0, 0, 0, 0.08)",
+        boxShadow: "0 2px 8px rgba(20, 38, 62, 0.08)",
       },
       default: {
         elevation: 2,
@@ -2691,12 +2818,12 @@ const styles = StyleSheet.create({
     fontFamily: font,
     fontSize: 12.5,
     fontWeight: "600",
-    color: "#64748B",
+    color: "rgba(20, 38, 62, 0.58)",
   },
   methodPillTextActive: {
-    fontFamily: fontDisplay,
-    color: "#0A45B5",
-    fontWeight: "700",
+    fontFamily: font,
+    color: "#14263E",
+    fontWeight: "800",
   },
 
   /* OTP Step Styles */
@@ -2707,23 +2834,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#E0F2FE",
+    backgroundColor: "#FFF1C0",
     borderWidth: 1,
-    borderColor: "#BAE6FD",
+    borderColor: "rgba(232, 174, 0, 0.35)",
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
   stubNoticeText: {
+    fontFamily: font,
     flex: 1,
     fontSize: 12,
-    color: "#0369A1",
-    fontWeight: "600",
+    color: "#14263E",
+    fontWeight: "700",
   },
   otpTextInput: {
     letterSpacing: 10,
     fontSize: 22,
-    fontWeight: "700",
+    fontWeight: "800",
     textAlign: "center",
   },
   otpMetaRow: {
@@ -2733,16 +2861,20 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   otpTimerText: {
+    fontFamily: font,
     fontSize: 12,
-    color: "#64748B",
+    color: "rgba(20, 38, 62, 0.6)",
   },
   resendLink: {
+    fontFamily: font,
     fontSize: 12,
-    fontWeight: "700",
-    color: "#0A45B5",
+    fontWeight: "800",
+    color: "#14263E",
+    textDecorationLine: "underline",
   },
   resendLinkDisabled: {
-    color: "#94A3B8",
+    color: "rgba(20, 38, 62, 0.38)",
+    textDecorationLine: "none",
   },
   changeDetailsBtn: {
     flexDirection: "row",
@@ -2753,27 +2885,29 @@ const styles = StyleSheet.create({
     marginTop: -4,
   },
   changeDetailsText: {
+    fontFamily: font,
     fontSize: 12,
-    fontWeight: "600",
-    color: "#0A45B5",
+    fontWeight: "700",
+    color: "#14263E",
     textDecorationLine: "underline",
   },
 
-  /* Submit Button */
+  /* Submit Button (Home Page .btn-sun Sun Gold Pill CTA) */
   submitBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#0A45B5",
-    borderRadius: 12,
-    paddingVertical: 14,
+    backgroundColor: "#FCC61C",
+    borderRadius: 999,
+    minHeight: 50,
+    paddingVertical: 13,
+    paddingHorizontal: 22,
     marginTop: 4,
     marginBottom: 6,
     ...Platform.select({
       web: {
-        backgroundImage: "linear-gradient(135deg, #0A45B5 0%, #0284C7 100%)",
-        boxShadow: "0 6px 20px -2px rgba(10, 69, 181, 0.28)",
+        boxShadow: "0 14px 24px -12px rgba(232, 174, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.5)",
         cursor: "pointer",
       },
       default: {
@@ -2785,10 +2919,10 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   submitBtnText: {
-    fontFamily: fontDisplay,
+    fontFamily: font,
     fontSize: 15,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontWeight: "800",
+    color: "#14263E",
   },
 
   /* Keep Signed In & OTP link */
@@ -2798,6 +2932,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 14,
     marginTop: 2,
+    flexWrap: "wrap",
+    gap: 8,
   },
   keepSignedInWrap: {
     flexDirection: "row",
@@ -2805,30 +2941,30 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   checkboxBox: {
-    width: 17,
-    height: 17,
-    borderRadius: 4,
+    width: 18,
+    height: 18,
+    borderRadius: 5,
     borderWidth: 1.5,
-    borderColor: "#CBD5E1",
-    backgroundColor: "#FFFFFF",
+    borderColor: "rgba(20, 38, 62, 0.25)",
+    backgroundColor: "#FAF8F2",
     alignItems: "center",
     justifyContent: "center",
   },
   checkboxBoxActive: {
-    backgroundColor: "#0A45B5",
-    borderColor: "#0A45B5",
+    backgroundColor: "#14263E",
+    borderColor: "#14263E",
   },
   keepSignedInText: {
     fontFamily: font,
     fontSize: 12.5,
-    color: "#334155",
-    fontWeight: "500",
+    color: "#14263E",
+    fontWeight: "600",
   },
   otpInsteadLink: {
     fontFamily: font,
     fontSize: 12.5,
-    color: "#0A45B5",
-    fontWeight: "600",
+    color: "#14263E",
+    fontWeight: "800",
   },
 
   /* Fast Connect Divider */
@@ -2842,14 +2978,14 @@ const styles = StyleSheet.create({
   fastConnectLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: "rgba(20, 38, 62, 0.1)",
   },
   fastConnectText: {
     fontFamily: font,
     fontSize: 10.5,
     fontWeight: "800",
-    color: "#94A3B8",
-    letterSpacing: 0.8,
+    color: "rgba(20, 38, 62, 0.45)",
+    letterSpacing: 1.2,
   },
 
   /* Fast Connect Buttons */
@@ -2862,9 +2998,9 @@ const styles = StyleSheet.create({
   googleBtn: {
     flex: 1,
     height: 44,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(20, 38, 62, 0.12)",
     backgroundColor: "#FFFFFF",
     flexDirection: "row",
     alignItems: "center",
@@ -2873,23 +3009,23 @@ const styles = StyleSheet.create({
     ...Platform.select({
       web: {
         cursor: "pointer",
-        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
+        boxShadow: "0 1px 0 rgba(20, 38, 62, 0.04)",
       },
     }),
   },
   googleBtnText: {
     fontFamily: font,
     fontSize: 13.5,
-    fontWeight: "600",
-    color: "#1E293B",
+    fontWeight: "700",
+    color: "#14263E",
   },
   digiLockerBtn: {
     flex: 1,
     height: 44,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#A7F3D0",
-    backgroundColor: "#F0FDF4",
+    backgroundColor: "#ECFDF5",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -2903,8 +3039,8 @@ const styles = StyleSheet.create({
   digiLockerBtnText: {
     fontFamily: font,
     fontSize: 13.5,
-    fontWeight: "700",
-    color: "#065F46",
+    fontWeight: "800",
+    color: "#0B8A3E",
   },
 
   /* Switch Row */
@@ -2919,18 +3055,21 @@ const styles = StyleSheet.create({
   switchPromptText: {
     fontFamily: font,
     fontSize: 13,
-    color: "#64748B",
+    color: "rgba(20, 38, 62, 0.62)",
+    fontWeight: "500",
   },
   switchActionText: {
-    fontFamily: fontDisplay,
+    fontFamily: font,
     fontSize: 13,
-    fontWeight: "700",
-    color: "#0A45B5",
+    fontWeight: "800",
+    color: "#14263E",
+    textDecorationLine: "underline",
   },
   switchSecondaryText: {
     fontFamily: font,
     fontSize: 12.5,
-    color: "#94A3B8",
+    color: "rgba(20, 38, 62, 0.48)",
+    fontWeight: "600",
   },
 
   /* Security Footnote */
@@ -2939,10 +3078,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#ECFDF5",
+    backgroundColor: "#F7F4EC",
     borderWidth: 1,
-    borderColor: "#A7F3D0",
-    borderRadius: 20,
+    borderColor: "rgba(20, 38, 62, 0.08)",
+    borderRadius: 999,
     paddingVertical: 10,
     paddingHorizontal: 16,
     marginTop: 4,
@@ -2950,28 +3089,30 @@ const styles = StyleSheet.create({
   securityText: {
     fontFamily: font,
     fontSize: 12,
-    color: "#065F46",
+    color: "#14263E",
     fontWeight: "700",
   },
 
   /* Google Setup Guidance Modal */
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    backgroundColor: "rgba(12, 26, 44, 0.62)",
     justifyContent: "center",
     alignItems: "center",
     padding: 16,
   },
   modalContent: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 22,
+    borderRadius: 22,
+    padding: 24,
     width: "100%",
     maxWidth: 520,
     gap: 12,
+    borderWidth: 1,
+    borderColor: "rgba(20, 38, 62, 0.08)",
     ...Platform.select({
       web: {
-        boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+        boxShadow: "0 24px 48px -18px rgba(12, 26, 44, 0.36)",
       },
     }),
   },
@@ -2980,41 +3121,40 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: "rgba(20, 38, 62, 0.08)",
     paddingBottom: 12,
   },
   modalTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#0F172A",
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#14263E",
     fontFamily: fontDisplay,
   },
   setupStepBox: {
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FAF8F2",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 10,
-    padding: 10,
+    borderColor: "rgba(20, 38, 62, 0.08)",
+    borderRadius: 12,
+    padding: 11,
     gap: 2,
   },
   setupStepTitle: {
     fontSize: 12.5,
-    fontWeight: "700",
-    color: "#0A45B5",
-    fontFamily: fontDisplay,
+    fontWeight: "800",
+    color: "#14263E",
+    fontFamily: font,
   },
   setupStepText: {
     fontSize: 12,
-    color: "#475569",
+    color: "rgba(20, 38, 62, 0.68)",
     fontFamily: font,
     lineHeight: 16,
   },
   closeModalBtn: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingVertical: 11,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
+    borderRadius: 999,
+    backgroundColor: "#14263E",
     alignItems: "center",
     justifyContent: "center",
     ...Platform.select({
@@ -3023,12 +3163,12 @@ const styles = StyleSheet.create({
   },
   closeModalBtnText: {
     fontSize: 12.5,
-    fontWeight: "700",
-    color: "#475569",
+    fontWeight: "800",
+    color: "#FCC61C",
     fontFamily: font,
   },
 
-  /* Under-Card Trust Assurance Bar */
+  /* Under-Card Trust Assurance Bar (Home Floating Stats Ribbon Look) */
   authTrustBar: {
     width: "100%",
     maxWidth: 1060,
@@ -3039,7 +3179,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(20, 38, 62, 0.06)",
     paddingVertical: 18,
     paddingHorizontal: 24,
     marginBottom: 24,
@@ -3047,14 +3187,14 @@ const styles = StyleSheet.create({
     gap: 16,
     ...Platform.select({
       web: {
-        boxShadow: "0 4px 18px rgba(11, 27, 63, 0.04)",
+        boxShadow: "0 1px 0 rgba(20, 38, 62, 0.04), 0 16px 34px -18px rgba(20, 38, 62, 0.24)",
       },
       default: {
-        shadowColor: "#0B1B3F",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.04,
-        shadowRadius: 10,
-        elevation: 2,
+        shadowColor: "#14263E",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.06,
+        shadowRadius: 14,
+        elevation: 3,
       },
     }),
   },
@@ -3066,9 +3206,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   authTrustIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    backgroundColor: "#FFF1C0",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -3076,21 +3217,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   authTrustTitle: {
-    fontFamily: fontDisplay,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0B1B3F",
+    fontFamily: font,
+    fontSize: 13.5,
+    fontWeight: "800",
+    color: "#14263E",
     marginBottom: 2,
   },
   authTrustSub: {
     fontFamily: font,
-    fontSize: 11.5,
-    color: "#64748B",
-    lineHeight: 16,
+    fontSize: 12,
+    fontWeight: "500",
+    color: "rgba(20, 38, 62, 0.58)",
+    lineHeight: 16.5,
   },
   authTrustDivider: {
     width: 1,
-    height: 34,
-    backgroundColor: "#E2E8F0",
+    height: 36,
+    backgroundColor: "rgba(20, 38, 62, 0.08)",
   },
 });

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "crypto";
+import { Notification } from "../models/Notification.model";
 import { IProperty, Property } from "../models/Property.model";
 import { User } from "../models/User.model";
-import { Notification } from "../models/Notification.model";
 import { deliverNotifications } from "./notificationQueue";
 import { historyEvent, listingFields, resolvePropertyStaff, transition, validateListing } from "./propertyWorkflow";
 import { identityApproved } from "./security";
@@ -89,7 +89,7 @@ export async function processNextSubmission(): Promise<boolean> {
           data: { kind: "property", id: property._id.toString() },
         }] : []),
       ]);
-      void deliverNotifications().catch(() => {});
+      void deliverNotifications().catch(() => { });
     } catch (notifErr: any) {
       console.warn("[submission-worker] Could not queue assignment notifications:", notifErr?.message || notifErr);
     }
