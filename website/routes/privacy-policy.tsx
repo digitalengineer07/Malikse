@@ -37,7 +37,7 @@ export default function PrivacyPolicy() {
       title="Your information. Your choices."
       eyebrow="MALIKSE · PRIVACY POLICY"
       lead="This Privacy Policy explains how MalikSe (mobile apps for Android & iOS and our website) collects, uses, protects, and deletes personal data for verified direct property transactions."
-      meta="Effective & Updated: 25 November 2026 · Operator: AgHomesIndia (MalikSe) · Android ID: com.devoxa.malikse"
+      meta="Effective & Updated: 25 November 2026 · Operator: AgHomesIndia (MalikSe)"
     >
       {placeholderContact && (
         <aside className="privacy-notice">
@@ -48,23 +48,7 @@ export default function PrivacyPolicy() {
       {/* Store Reviewer & User At-a-Glance Summary Card */}
       <section className="policy-summary-card" aria-label="App Privacy and Data Safety Summary">
         <div className="policy-summary-top">
-          <h2>App Review &amp; Data Safety Overview</h2>
-          <span className="policy-verified-pill">Google Play &amp; Apple App Store Compliant</span>
-        </div>
-
-        <div className="policy-platform-strip">
-          <span className="policy-platform-chip">
-            Android Package: <code>com.devoxa.malikse</code>
-          </span>
-          <span className="policy-platform-chip">
-            iOS App: <code>MalikSe App</code>
-          </span>
-          <span className="policy-platform-chip">
-            Web Portal: <code>malikse.devoxa.in</code>
-          </span>
-          <span className="policy-platform-chip">
-            Controller: <code>AgHomesIndia</code>
-          </span>
+          <h2>Data Practices Overview</h2>
         </div>
 
         <div className="policy-highlights-grid">
@@ -171,10 +155,9 @@ export default function PrivacyPolicy() {
               <span className="policy-sec-tag">IDENTITY</span>
             </div>
             <p>
-              <strong>MalikSe</strong> (published as <strong>MalikSe App</strong> on Android package{" "}
-              <code>com.devoxa.malikse</code>, iOS, and web) is operated by <strong>AgHomesIndia</strong>. MalikSe is
-              a verified owner-to-buyer real estate marketplace serving buyers, property owners, field verifiers, and
-              advisors across Bihar, India.
+              <strong>MalikSe</strong> (available on Android, iOS, and the web) is operated by{" "}
+              <strong>AgHomesIndia</strong>. MalikSe is a verified owner-to-buyer real estate marketplace serving buyers,
+              property owners, field verifiers, and advisors across Bihar, India.
             </p>
             <p>
               This Privacy Policy applies across the MalikSe Android application, iOS application, and official website,
