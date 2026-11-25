@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "@/web/safeArea";
 import { BlurView } from "@/web/blur";
 
 import AppHeader from "./AppHeader";
+import PropertyImage from "./PropertyImage";
 import PropertyTypeTabs from "./PropertyTypeTabs";
 import HouseIllustration from "./HouseIllustration";
 import CitySkyline from "./CitySkyline";
@@ -35,7 +36,11 @@ import {
   trackPropertyInteraction,
   setUserCustomPreferences,
 } from "../src/services/recommendationEngine";
-import { resolvePropertyPhotoUrl } from "../src/utils/propertyImages";
+import {
+  PROPERTY_IMAGES,
+  getFallbackPropertyPhotoUrl,
+  resolvePropertyPhotoUrl,
+} from "../src/utils/propertyImages";
 
 const nameOf = (p: Property) => p.title || `${p.type} in ${p.location.district}`;
 const priceOf = (p: Property) => `₹${p.price.toLocaleString("en-IN")}`;
@@ -97,12 +102,11 @@ const RecommendationCard = React.memo(function RecommendationCard({
     >
       {/* Card Top: Image & Badges */}
       <View style={s.cardTopImage}>
-        <Image
-          source={{
-            uri: property.media?.photos?.[0]
-              ? `${property.media.photos[0]}${property.media.photos[0].includes("?") ? "&" : "?"}w=600`
-              : resolvePropertyPhotoUrl(property),
-          }}
+        <PropertyImage
+          source={{ uri: resolvePropertyPhotoUrl(property) }}
+          fallbackUri={getFallbackPropertyPhotoUrl(property)}
+          thumbnailWidth={600}
+          isPublic
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
         />
@@ -970,10 +974,12 @@ export default function VerifiedHomeScreen() {
           <View style={[s.adOverlayCard, { flexDirection: isWide ? "row" : "column" }]}>
             {/* Left Photo & Luxury Badges */}
             <View style={[s.adOverlayMedia, { width: isWide ? "46%" : "100%" }]}>
-              <Image
+              <PropertyImage
                 source={{
                   uri: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80",
                 }}
+                fallbackUri={PROPERTY_IMAGES.duplexHouse}
+                isPublic
                 style={StyleSheet.absoluteFill}
                 resizeMode="cover"
               />

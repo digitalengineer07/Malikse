@@ -33,10 +33,15 @@ import { useAuthStore } from "../src/store/authStore";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 import AppHeader from "./AppHeader";
 import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
+import PropertyImage from "./PropertyImage";
 import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import WebFooter from "./WebFooter";
 import { FONT_BODY, FONT_DISPLAY, FONT_MONO, FONT_NUMERIC } from "../constants/typography";
-import { PROPERTY_IMAGES, resolvePropertyPhotoUrl } from "../src/utils/propertyImages";
+import {
+  PROPERTY_IMAGES,
+  getFallbackPropertyPhotoUrl,
+  resolvePropertyPhotoUrl,
+} from "../src/utils/propertyImages";
 const C = {
   bg: "#F7F4EC",
   ink: "#14263E",
@@ -64,13 +69,6 @@ const errorText = (e: any) =>
   "Please retry.";
 const identity = (v: any) => (typeof v === "string" ? v : v?._id);
 const approved = (u: any) => u?.isVerifiedIdentity || u?.demoKycComplete;
-const getOptimizedPhotoUrl = (url?: string, width = 600) => {
-  if (!url) return "";
-  if (url.includes("/property-photos/") && !url.includes("w=")) {
-    return `${url}${url.includes("?") ? "&" : "?"}w=${width}`;
-  }
-  return url;
-};
 const types = [
   ["", "All", "domain"],
   ["flat", "Apartment", "apartment"],
@@ -512,8 +510,11 @@ function PropertyCard({
             position: "relative",
           }}
         >
-          <Image
-            source={{ uri: getOptimizedPhotoUrl(resolvePropertyPhotoUrl(p), 400) }}
+          <PropertyImage
+            source={{ uri: resolvePropertyPhotoUrl(p) }}
+            fallbackUri={getFallbackPropertyPhotoUrl(p)}
+            thumbnailWidth={400}
+            isPublic
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
           />
@@ -598,8 +599,11 @@ function PropertyCard({
         style={compact ? { width: 120, minHeight: 136 } : s.photo}
         onPress={openProperty}
       >
-        <Image
-          source={{ uri: getOptimizedPhotoUrl(resolvePropertyPhotoUrl(p), compact ? 400 : 600) }}
+        <PropertyImage
+          source={{ uri: resolvePropertyPhotoUrl(p) }}
+          fallbackUri={getFallbackPropertyPhotoUrl(p)}
+          thumbnailWidth={compact ? 400 : 600}
+          isPublic
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
         />
@@ -1697,12 +1701,15 @@ export function HomeScreen() {
                   }}
                 >
                   <View style={{ height: 140, backgroundColor: "#E9E4D5", position: "relative" }}>
-                    <Image
+                    <PropertyImage
                       source={{
                         uri:
-                          getOptimizedPhotoUrl(showcasePrimary?.media?.photos?.[0], 500) ||
+                          showcasePrimary?.media?.photos?.[0] ||
                           PROPERTY_IMAGES.duplexHouse,
                       }}
+                      fallbackUri={PROPERTY_IMAGES.duplexHouse}
+                      thumbnailWidth={500}
+                      isPublic
                       style={StyleSheet.absoluteFill}
                       resizeMode="cover"
                     />
@@ -1756,12 +1763,15 @@ export function HomeScreen() {
                   }}
                 >
                   <View style={{ height: 108, backgroundColor: "#E9E4D5", position: "relative" }}>
-                    <Image
+                    <PropertyImage
                       source={{
                         uri:
-                          getOptimizedPhotoUrl(showcaseSecondary?.media?.photos?.[0], 450) ||
+                          showcaseSecondary?.media?.photos?.[0] ||
                           PROPERTY_IMAGES.plotDanapurField,
                       }}
+                      fallbackUri={PROPERTY_IMAGES.plotDanapurField}
+                      thumbnailWidth={450}
+                      isPublic
                       style={StyleSheet.absoluteFill}
                       resizeMode="cover"
                     />
@@ -2701,7 +2711,7 @@ const DEFAULT_EXPLORE_PROPERTIES: any[] = [
     corridor: "Karpuri Chowk · Begusarai",
     highlightTag: { label: "Prime Commercial", theme: "blue" },
     featureChip: "Two Sides Open",
-    media: { photos: [PROPERTY_IMAGES.commercialShop] },
+    media: { photos: [PROPERTY_IMAGES.commercialOffice] },
     status: "verified",
     badges: { fullyVerified: true },
   },
@@ -3689,9 +3699,12 @@ export function SearchScreen() {
                     style={{ position: "relative" }}
                   >
                     <View style={exploreStyles.cardMedia}>
-                      <Image
-                        source={{ uri: getOptimizedPhotoUrl(resolvePropertyPhotoUrl(p, idx), 500) }}
-                        style={StyleSheet.absoluteFill}
+                      <PropertyImage
+                        source={{ uri: resolvePropertyPhotoUrl(p, idx) }}
+                        fallbackUri={getFallbackPropertyPhotoUrl(p, idx)}
+                        thumbnailWidth={500}
+                        isPublic
+                        style={{ width: "100%", height: "100%" }}
                         resizeMode="cover"
                       />
                       <View style={exploreStyles.cardCorridorPill}>
@@ -4734,6 +4747,7 @@ const exploreStyles = StyleSheet.create({
     position: "relative",
     backgroundColor: "#E9E4D5",
     overflow: "hidden",
+    zIndex: 0,
   },
   placeholderIconCircle: {
     width: 52,
@@ -5855,8 +5869,10 @@ export function ProfileScreen() {
                     <View style={{ gap: 12 }}>
                       {myListings.data.map((p: any) => (
                         <View key={p._id} style={profileStyles.listingCardRow}>
-                          <Image
-                            source={{ uri: getOptimizedPhotoUrl(resolvePropertyPhotoUrl(p), 400) }}
+                          <PropertyImage
+                            source={{ uri: resolvePropertyPhotoUrl(p) }}
+                            fallbackUri={getFallbackPropertyPhotoUrl(p)}
+                            thumbnailWidth={400}
                             style={profileStyles.listingThumbnail}
                             resizeMode="cover"
                           />
@@ -7412,8 +7428,11 @@ Link: ${url}`;
               ]}
             >
               {heroPhotoUrl ? (
-                <Image
-                  source={{ uri: getOptimizedPhotoUrl(heroPhotoUrl, 1200) }}
+                <PropertyImage
+                  source={{ uri: heroPhotoUrl }}
+                  fallbackUri={getFallbackPropertyPhotoUrl(p, selectedPhotoIndex)}
+                  thumbnailWidth={1200}
+                  isPublic
                   style={StyleSheet.absoluteFill}
                   resizeMode="cover"
                 />
@@ -7472,8 +7491,11 @@ Link: ${url}`;
                         isActive && detailStyles.thumbItemActive,
                       ]}
                     >
-                      <Image
-                        source={{ uri: getOptimizedPhotoUrl(uri, 400) }}
+                      <PropertyImage
+                        source={{ uri }}
+                        fallbackUri={getFallbackPropertyPhotoUrl(p, index)}
+                        thumbnailWidth={400}
+                        isPublic
                         style={StyleSheet.absoluteFill}
                         resizeMode="cover"
                       />
@@ -7886,8 +7908,11 @@ Link: ${url}`;
                 <View style={detailStyles.sharePropertyPreview}>
                   <View style={detailStyles.sharePropertyThumb}>
                     {heroPhotoUrl ? (
-                      <Image
-                        source={{ uri: getOptimizedPhotoUrl(heroPhotoUrl, 160) }}
+                      <PropertyImage
+                        source={{ uri: heroPhotoUrl }}
+                        fallbackUri={getFallbackPropertyPhotoUrl(p)}
+                        thumbnailWidth={160}
+                        isPublic
                         style={StyleSheet.absoluteFill}
                         resizeMode="cover"
                       />

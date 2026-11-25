@@ -7,7 +7,7 @@ import type { Property } from "../src/types/property.types";
 import { AppTheme } from "../constants/theme";
 import { useLanguageStore } from "../src/store/languageStore";
 import { t } from "../src/i18n/translations";
-import { resolvePropertyPhotoUrl } from "../src/utils/propertyImages";
+import { resolvePropertyPhotoUrl, getFallbackPropertyPhotoUrl } from "../src/utils/propertyImages";
 
 interface PropertyCardProps {
   property: Property | any;
@@ -50,7 +50,7 @@ export default function PropertyCard({ property, onSave, isSaved }: PropertyCard
     >
       {/* Property Image Header */}
       <View style={styles.imageContainer}>
-        <Image source={{ uri: resolvePropertyPhotoUrl(property) }} accessibilityLabel="Property photo" style={styles.image} resizeMode="cover" isPublic thumbnailWidth={600} />
+        <Image source={{ uri: resolvePropertyPhotoUrl(property) }} fallbackUri={getFallbackPropertyPhotoUrl(property)} accessibilityLabel="Property photo" style={styles.image} resizeMode="cover" isPublic thumbnailWidth={600} />
         <View style={styles.imageOverlay} />
 
         {/* Verification Status Badge */}

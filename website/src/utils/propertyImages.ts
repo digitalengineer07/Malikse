@@ -36,15 +36,10 @@ function stableIndex(seed: string | number | undefined, length: number): number 
 }
 
 /**
- * Returns the uploaded primary photo URL when present, or selects a high-resolution
- * local property photograph matching the listing's property type so cards never render empty.
+ * Selects a high-resolution local property photograph matching the listing's
+ * property type so cards can always display or fall back to a proper photo.
  */
-export function resolvePropertyPhotoUrl(property: any, fallbackIndex?: number): string {
-  const uploaded = Array.isArray(property?.media?.photos)
-    ? property.media.photos.find((u: unknown) => typeof u === "string" && u.trim().length > 0)
-    : undefined;
-  if (uploaded) return uploaded;
-
+export function getFallbackPropertyPhotoUrl(property: any, fallbackIndex?: number): string {
   const rawType = String(property?.type || "").toLowerCase();
   const titleLower = String(property?.title || "").toLowerCase();
   const seed = fallbackIndex !== undefined ? fallbackIndex : property?._id || property?.id || property?.title;
@@ -63,4 +58,17 @@ export function resolvePropertyPhotoUrl(property: any, fallbackIndex?: number): 
     return LAND_VARIANTS[stableIndex(seed, LAND_VARIANTS.length)];
   }
   return duplexHouseImg;
+}
+
+/**
+ * Returns the uploaded primary photo URL when present, or selects a high-resolution
+ * local property photograph matching the listing's property type so cards never render empty.
+ */
+export function resolvePropertyPhotoUrl(property: any, fallbackIndex?: number): string {
+  const uploaded = Array.isArray(property?.media?.photos)
+    ? property.media.photos.find((u: unknown) => typeof u === "string" && u.trim().length > 0)
+    : undefined;
+  if (uploaded) return uploaded;
+
+  return getFallbackPropertyPhotoUrl(property, fallbackIndex);
 }

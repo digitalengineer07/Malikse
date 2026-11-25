@@ -14,10 +14,11 @@ import {
 import { MaterialIcons } from "@/web/icons";
 import { useSafeAreaInsets } from "@/web/safeArea";
 import { FONT_BODY, FONT_DISPLAY, FONT_MONO, FONT_NUMERIC } from "../constants/typography";
-import { resolvePropertyPhotoUrl } from "../src/utils/propertyImages";
+import { getFallbackPropertyPhotoUrl, resolvePropertyPhotoUrl } from "../src/utils/propertyImages";
 import { useRouter } from "@/web/navigation";
 import type { Listing } from "../src/services/workflowService";
 import AppHeader from "./AppHeader";
+import PropertyImage from "./PropertyImage";
 import VerifiedPropertyMap from "./VerifiedPropertyMap";
 
 interface PublicPropertyDetailsProps {
@@ -178,8 +179,11 @@ export default function PublicPropertyDetails({
           <View style={styles.heroSection}>
             <View style={[styles.heroMainPhoto, { height: isDesktop ? 450 : 290 }]}>
               {photos[activePhoto] ? (
-                <Image
+                <PropertyImage
                   source={photos[activePhoto]}
+                  fallbackUri={getFallbackPropertyPhotoUrl(p, activePhoto)}
+                  thumbnailWidth={1200}
+                  isPublic
                   style={StyleSheet.absoluteFill}
                   resizeMode="cover"
                   accessibilityLabel={`Property photo ${activePhoto + 1}`}
@@ -263,8 +267,11 @@ export default function PublicPropertyDetails({
                       activePhoto === idx && styles.thumbnailActive,
                     ]}
                   >
-                    <Image
+                    <PropertyImage
                       source={photoItem}
+                      fallbackUri={getFallbackPropertyPhotoUrl(p, idx)}
+                      thumbnailWidth={400}
+                      isPublic
                       style={StyleSheet.absoluteFill}
                       resizeMode="cover"
                     />
@@ -778,8 +785,10 @@ export default function PublicPropertyDetails({
 
           <View style={styles.galleryMainImageContainer}>
             {photos[activePhoto] && (
-              <Image
+              <PropertyImage
                 source={photos[activePhoto]}
+                fallbackUri={getFallbackPropertyPhotoUrl(p, activePhoto)}
+                isPublic
                 style={StyleSheet.absoluteFill}
                 resizeMode="contain"
               />
