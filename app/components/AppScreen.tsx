@@ -4,16 +4,21 @@ import { GlassBackdrop } from "./GlassSurface";
 import { marketplaceBackground } from "../constants/theme";
 
 // Each navigation scene owns an opaque backdrop, including during transitions.
-export default function AppScreen({ children }: { children: ReactNode }) {
+export default function AppScreen({ children, glass = true }: { children: ReactNode; glass?: boolean }) {
+  const content = <View style={styles.content}>{children}</View>;
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "android" ? "height" : undefined}>
-      <GlassBackdrop><View style={styles.content}>{children}</View></GlassBackdrop>
+      {glass ? <GlassBackdrop>{content}</GlassBackdrop> : content}
     </KeyboardAvoidingView>
   );
 }
 
 export function renderAppScreen({ children }: { children: ReactNode }) {
   return <AppScreen>{children}</AppScreen>;
+}
+
+export function renderMarketplaceTab({ children }: { children: ReactNode }) {
+  return <AppScreen glass={false}>{children}</AppScreen>;
 }
 
 const styles = StyleSheet.create({

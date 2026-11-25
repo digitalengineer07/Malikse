@@ -69,23 +69,53 @@ router.post("/properties/:id/assign", authGuard, roleGuard("admin"), async (req:
   } catch (error: any) { res.status(400).json({ message: error.message }); }
 });
 
-// Staff accounts are created only by a signed-in Admin.
+const staffAccountFilter = { role: { $in: ["advisor", "verifier"] }, passwordHash: { $exists: true, $ne: "" } };
+const staffAccountFields = "name mobile email role advisorCode assignedDistricts isActive createdAt";
+function staffAccountDto(person: any) {
+  return {
+    id: person._id.toString(), name: person.name, mobile: person.mobile,
+    email: person.email, role: person.role, advisorCode: person.advisorCode,
+    assignedDistricts: person.assignedDistricts || [], isActive: person.isActive, createdAt: person.createdAt,
+  };
+}
+
 router.get("/staff", authGuard, roleGuard("admin"), async (req, res) => {
   try {
-    const staff = await readPage(User.find({ role: { $in: ["advisor", "verifier"] }, passwordHash: { $exists: true, $ne: "" } })
-      .select("name mobile email role advisorCode assignedDistricts isActive createdAt")
-      .sort({ createdAt: -1 }), req, res);
-    res.json(staff.map((person) => ({
-      id: person._id.toString(), name: person.name, mobile: person.mobile,
-      email: person.email, role: person.role, advisorCode: person.advisorCode,
-      assignedDistricts: person.assignedDistricts || [],
-      isActive: person.isActive, createdAt: person.createdAt,
-    })));
+    const search = req.query.search;
+    if (search !== undefined && (typeof search !== "string" || search.length > 100)) {
+      return res.status(400).json({ message: "Enter a search of up to 100 characters." });
+    }
+    const term = typeof search === "string" ? search.trim() : "";
+    const filter: Record<string, unknown> = { ...staffAccountFilter };
+    if (term) {
+      const escaped = term.replace(/[.*+?^$\{\}()|[\]\\]/g, "\\$&");
+      const prefix = new RegExp("^" + escaped, "i");
+      const digits = term.replace(/[\s()+-]/g, "").replace(/^91(?=\d{10}$)/, "");
+      filter.$or = [
+        { name: new RegExp("(?:^|\\s)" + escaped, "i") },
+        { email: prefix },
+        { advisorCode: prefix },
+        ...(/^\d+$/.test(digits) ? [{ mobile: new RegExp("^" + digits) }] : []),
+        ...(/^[a-f\d]{24}$/i.test(term) ? [{ _id: term }] : []),
+      ];
+    }
+    const staff = await readPage(User.find(filter).select(staffAccountFields), req, res);
+    return res.json(staff.map(staffAccountDto));
   } catch (error: any) {
-    res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "An unexpected server error occurred" });
+    return res.status(error?.status === 503 ? 503 : 500).json({ message: error?.status === 503 ? error.message : "Could not load staff accounts." });
   }
 });
 
+router.get("/staff/:staffId", authGuard, roleGuard("admin"), async (req, res, next) => {
+  try {
+    const id = req.params.staffId;
+    if (typeof id !== "string" || !/^[a-f\d]{24}$/i.test(id)) return res.status(404).json({ message: "Staff member not found." });
+    const person = await User.findOne({ _id: id, ...staffAccountFilter }).select(staffAccountFields).lean();
+    return person ? res.json(staffAccountDto(person)) : res.status(404).json({ message: "Staff member not found." });
+  } catch (error) { next(error); }
+});
+
+// Staff accounts are created only by a signed-in Admin.
 router.post("/staff", authGuard, roleGuard("admin"), async (req, res) => {
   try {
     const { role, name, mobile, email, password, assignedDistricts } = req.body;

@@ -6,12 +6,12 @@ import { AppTheme } from "../constants/theme";
 import { premiumStyles } from "../constants/typography";
 import AppHeader from "./AppHeader";
 
-export function WorkflowScreen({ title, children, contentStyle, titleStyle, backgroundColor = AppTheme.colors.background }: { title: string; children: React.ReactNode; contentStyle?: StyleProp<ViewStyle>; titleStyle?: StyleProp<TextStyle>; backgroundColor?: string }) {
+export function WorkflowScreen({ title, children, header, contentStyle, titleStyle, backgroundColor = AppTheme.colors.background }: { title: string; children: React.ReactNode; header?: React.ReactElement; contentStyle?: StyleProp<ViewStyle>; titleStyle?: StyleProp<TextStyle>; backgroundColor?: string }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  return <View style={{ flex: 1, backgroundColor }}><AppHeader showNavLinks={false} showPostPropertyBtn={false} showHomeButton />
+  return <View style={{ flex: 1, backgroundColor }}>{header ?? <AppHeader showNavLinks={false} showPostPropertyBtn={false} showHomeButton />}
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={Platform.OS === "ios"} contentContainerStyle={[ui.content, { paddingHorizontal: width < 400 ? 16 : 24, paddingBottom: insets.bottom + 32 }, contentStyle]}><Text accessibilityRole="header" style={[ui.title, titleStyle]}>{title}</Text>{children}</ScrollView>
+      <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={Platform.OS === "ios"} contentContainerStyle={[ui.content, { paddingHorizontal: width < 400 ? 16 : 24, paddingBottom: insets.bottom + 32 }, contentStyle]}>{!header && <Text accessibilityRole="header" style={[ui.title, titleStyle]}>{title}</Text>}{children}</ScrollView>
     </KeyboardAvoidingView>
   </View>;
 }

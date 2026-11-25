@@ -2,6 +2,7 @@ import { Router } from "express";
 import { isObjectIdOrHexString, Types, type PipelineStage } from "mongoose";
 import { authGuard, AuthRequest } from "../middleware/auth.middleware";
 import { Notification } from "../models/Notification.model";
+import { PushDevice } from "../models/PushDevice.model";
 import { findNotificationMessage, genericChatTitle } from "../services/notificationMessage";
 
 import { Inquiry } from "../models/Inquiry.model";
@@ -94,4 +95,29 @@ router.patch("/notifications/:id/read", authGuard, async (req: AuthRequest, res,
     next(error);
   }
 });
+const validDeviceToken = (value: unknown): value is string =>
+  typeof value === "string" && /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]{10,200}\]$/.test(value);
+
+router.post("/devices", authGuard, async (req: AuthRequest, res, next) => {
+  const { token, platform } = req.body || {};
+  if (!validDeviceToken(token) || (platform !== "android" && platform !== "ios")) {
+    return res.status(400).json({ message: "Invalid push device" });
+  }
+  try {
+    await PushDevice.updateOne({ token }, {
+      $set: { userId: req.user!.id, platform, sessionVersion: req.sessionVersion },
+    }, { upsert: true });
+    res.sendStatus(204);
+  } catch (error) { next(error); }
+});
+
+router.delete("/devices", authGuard, async (req: AuthRequest, res, next) => {
+  const token = req.body?.token;
+  if (!validDeviceToken(token)) return res.status(400).json({ message: "Invalid push device" });
+  try {
+    await PushDevice.deleteOne({ token, userId: req.user!.id, sessionVersion: req.sessionVersion });
+    res.sendStatus(204);
+  } catch (error) { next(error); }
+});
+
 export default router;

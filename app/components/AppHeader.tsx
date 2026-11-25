@@ -1,5 +1,6 @@
+import { BrandLockup, brandHeader } from "./BrandLockup";
 import React from "react";
-import { View, Text, TouchableOpacity, Platform, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, usePathname } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -47,29 +48,13 @@ export default function AppHeader(props: AppHeaderProps) {
             </TouchableOpacity>
           )}
 
-          {/* Logo with House Roof & Window Squares */}
           <TouchableOpacity
             accessibilityRole="button"
             onPress={() => router.replace("/home")}
             activeOpacity={0.8}
             style={styles.logoRow}
           >
-            {Platform.OS === "web" ? (
-              <svg width="28" height="28" viewBox="0 0 32 32" style={{ display: "block" }}>
-                {/* Roof Gable */}
-                <path d="M4,17 L16,6 L28,17 L25,17 L16,9 L7,17 Z" fill="#034870" />
-                {/* Chimney */}
-                <rect x="21" y="8" width="3" height="6" fill="#034870" />
-                {/* Window Four-Square Grid */}
-                <rect x="9" y="19" width="6" height="6" fill="#0284C7" rx="1" />
-                <rect x="17" y="19" width="6" height="6" fill="#0284C7" rx="1" />
-                <rect x="9" y="26" width="6" height="4" fill="#38BDF8" rx="1" />
-                <rect x="17" y="26" width="6" height="4" fill="#38BDF8" rx="1" />
-              </svg>
-            ) : (
-              <MaterialIcons name="home" size={26} color="#034870" />
-            )}
-            <Text style={styles.brandTitle}>MalikSe</Text>
+            <BrandLockup lightBackground />
           </TouchableOpacity>
         </View>
 
@@ -98,7 +83,7 @@ const styles = StyleSheet.create({
   headerContainer: {
     width: "100%",
     backgroundColor: "transparent",
-    paddingBottom: 10,
+    paddingBottom: brandHeader.gap,
     paddingHorizontal: 28,
     zIndex: 20,
   },
@@ -127,12 +112,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-  },
-  brandTitle: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#0A192F",
-    letterSpacing: -0.5,
   },
   rightContainer: {
     flexDirection: "row",

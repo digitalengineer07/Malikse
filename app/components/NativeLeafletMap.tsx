@@ -95,7 +95,7 @@ function NativeMapContent({ html, options, focus, selectedId, onSelect, onPoints
     return () => clearTimeout(timeout);
   }, []);
   return <View style={styles.container}>
-    <WebView<unknown> ref={webview} source={source} originWhitelist={["*"]} javaScriptEnabled scrollEnabled={false} nestedScrollEnabled={!options.twoFingerPan} style={styles.webview}
+    <WebView<unknown> ref={webview} source={source} originWhitelist={["*"]} javaScriptEnabled scrollEnabled={false} nestedScrollEnabled={!options.twoFingerPan && !options.fixedPreview} pointerEvents={options.fixedPreview ? "none" : "auto"} style={styles.webview}
       onShouldStartLoadWithRequest={request => {
         if (request.url === "about:blank" || request.url === "https://malikse.local/") return true;
         if (request.url.startsWith("https://www.openstreetmap.org/") || request.url.startsWith("https://indianopenmaps.com/") || request.url === "https://maps.google.com/") Linking.openURL(request.url).catch(() => {});

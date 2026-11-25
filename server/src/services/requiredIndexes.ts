@@ -19,8 +19,9 @@ import { RegionCountState } from "../models/RegionCount.model";
 import { Registration } from "../models/Registration.model";
 import { SearchCache } from "../models/SearchCache.model";
 import { SearchPreference } from "../models/SearchPreference.model";
+import { SupportTicket } from "../models/SupportTicket.model";
 import { User } from "../models/User.model";
-export const indexedModels: mongoose.Model<any>[] = [FileCleanup,ContactChange,AccountDeletion,AssignmentCursor,Deal,PropertyDocument,DocumentDownload,Engagement,Inquiry,Notification,PasswordReset,Property,PushDevice,PushReceipt,RegionCount,RegionCountState,Registration,SearchCache,SearchPreference,User];
+export const indexedModels: mongoose.Model<any>[] = [FileCleanup,ContactChange,AccountDeletion,AssignmentCursor,Deal,PropertyDocument,DocumentDownload,Engagement,Inquiry,Notification,PasswordReset,Property,PushDevice,PushReceipt,RegionCount,RegionCountState,Registration,SearchCache,SearchPreference,SupportTicket,User];
 // Earlier releases used seller index names for staff keys. Accept those aliases
 // only when the complete key and constraint definitions match.
 function matchesIndex(model: mongoose.Model<any>, index: any, keys: any, options: any) {

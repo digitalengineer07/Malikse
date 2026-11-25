@@ -4,10 +4,10 @@ import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-nativ
 import type { Property } from "../src/types/property.types";
 import { addParcelBaseLayer, hasParcelBoundary, parcelStyle } from "../src/utils/parcelMap";
 
-export default function MiniMapPreview({ property }: { property: Property }) {
-  return <MiniMapContent key={JSON.stringify(property.parcelPoints)} property={property} />;
+export default function MiniMapPreview({ property, fixedPreview = false }: { property: Property; fixedPreview?: boolean }) {
+  return <MiniMapContent key={JSON.stringify(property.parcelPoints)} property={property} fixedPreview={fixedPreview} />;
 }
-function MiniMapContent({ property }: { property: Property }) {
+function MiniMapContent({ property, fixedPreview = false }: { property: Property; fixedPreview?: boolean }) {
   const container = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -19,16 +19,16 @@ function MiniMapContent({ property }: { property: Property }) {
     import("leaflet").then(module => {
       if (!active || !container.current) return;
       const L = module.default || module;
-      map = L.map(container.current, { zoomControl: false, maxZoom: 20, scrollWheelZoom: true });
+      map = L.map(container.current, { zoomControl: false, maxZoom: 20, scrollWheelZoom: !fixedPreview, ...(fixedPreview ? { dragging: false, touchZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false } : {}) });
       addParcelBaseLayer(L, map);
       if (points && points.length >= 3) {
         const polygon = L.polygon(points.map(point => [point.lat, point.lng]), parcelStyle).addTo(map);
-        map.fitBounds(polygon.getBounds(), { padding: [16, 16], maxZoom: 19 });
+        map.fitBounds(polygon.getBounds(), fixedPreview ? { padding: [38, 38], maxZoom: 17, animate: false } : { padding: [16, 16], maxZoom: 19 });
       }
       setLoading(false);
     }).catch(() => { if (active) { setFailed(true); setLoading(false); } });
     return () => { active = false; removeLeafletMap(map); };
-  }, [points]);
+  }, [fixedPreview, points]);
   if (Platform.OS !== "web") return null;
   if (!hasParcelBoundary(points)) return <Text>No parcel boundary recorded for this property.</Text>;
   return <View style={styles.container}>
