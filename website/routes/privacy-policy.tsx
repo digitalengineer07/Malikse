@@ -1,21 +1,37 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import PrivacyLayout, { privacyContact, placeholderContact } from "../components/PrivacyLayout";
 
 const TOC_ITEMS = [
-  { id: "overview", label: "1. App overview & scope" },
-  { id: "information", label: "2. Information we collect" },
-  { id: "permissions", label: "3. Device permissions (iOS & Android)" },
-  { id: "use", label: "4. How we use information" },
-  { id: "sharing", label: "5. Sharing & third-party services" },
-  { id: "storage", label: "6. Storage, retention & security" },
-  { id: "choices", label: "7. Your rights & choices" },
-  { id: "deletion", label: "8. Account & data deletion" },
-  { id: "children", label: "9. Children's privacy" },
-  { id: "contact", label: "10. Contact & policy updates" },
+  { id: "overview", num: "01", label: "App overview & scope", tag: "IDENTITY" },
+  { id: "information", num: "02", label: "Information we collect", tag: "DATA COLLECTED" },
+  { id: "permissions", num: "03", label: "Device permissions (iOS & Android)", tag: "PERMISSIONS" },
+  { id: "use", num: "04", label: "How we use information", tag: "PURPOSE" },
+  { id: "sharing", num: "05", label: "Sharing & third-party services", tag: "DISCLOSURES" },
+  { id: "storage", num: "06", label: "Storage, retention & security", tag: "SECURITY" },
+  { id: "choices", num: "07", label: "Your rights & choices", tag: "USER RIGHTS" },
+  { id: "deletion", num: "08", label: "Account & data deletion", tag: "DELETION" },
+  { id: "children", num: "09", label: "Children's privacy", tag: "18+ POLICY" },
+  { id: "contact", num: "10", label: "Contact & policy updates", tag: "SUPPORT" },
 ];
 
 export default function PrivacyPolicy() {
+  const [activeId, setActiveId] = useState<string>("overview");
+
+  useEffect(() => {
+    const elements = TOC_ITEMS.map((t) => document.getElementById(t.id)).filter(Boolean) as HTMLElement[];
+    if (!elements.length || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.find((e) => e.isIntersecting);
+        if (visible?.target?.id) setActiveId(visible.target.id);
+      },
+      { rootMargin: "-20% 0px -65% 0px", threshold: 0.05 }
+    );
+    elements.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <PrivacyLayout
       title="Your information. Your choices."
@@ -34,6 +50,21 @@ export default function PrivacyPolicy() {
         <div className="policy-summary-top">
           <h2>App Review &amp; Data Safety Overview</h2>
           <span className="policy-verified-pill">Google Play &amp; Apple App Store Compliant</span>
+        </div>
+
+        <div className="policy-platform-strip">
+          <span className="policy-platform-chip">
+            Android Package: <code>com.devoxa.malikse</code>
+          </span>
+          <span className="policy-platform-chip">
+            iOS App: <code>MalikSe App</code>
+          </span>
+          <span className="policy-platform-chip">
+            Web Portal: <code>malikse.devoxa.in</code>
+          </span>
+          <span className="policy-platform-chip">
+            Controller: <code>AgHomesIndia</code>
+          </span>
         </div>
 
         <div className="policy-highlights-grid">
@@ -109,15 +140,36 @@ export default function PrivacyPolicy() {
         <aside className="privacy-toc" aria-label="On this page">
           <strong>On this page</strong>
           {TOC_ITEMS.map((item) => (
-            <a key={item.id} href={`#${item.id}`}>
-              {item.label}
+            <a
+              key={item.id}
+              href={`#${item.id}`}
+              className={`toc-link ${activeId === item.id ? "is-active" : ""}`}
+              onClick={() => setActiveId(item.id)}
+            >
+              <span className="toc-num">{item.num}</span>
+              <span>{item.label}</span>
             </a>
           ))}
+
+          <div className="policy-toc-actions">
+            <Link to="/delete-account" className="policy-toc-btn">
+              Delete Account &amp; Data →
+            </Link>
+            <a href={`mailto:${privacyContact}`} className="policy-toc-mail">
+              Email {privacyContact}
+            </a>
+          </div>
         </aside>
 
         <article className="privacy-article">
           <section id="overview">
-            <h2>1. App overview &amp; scope</h2>
+            <div className="policy-sec-head">
+              <div className="policy-sec-title-wrap">
+                <span className="policy-sec-num">01</span>
+                <h2>App overview &amp; scope</h2>
+              </div>
+              <span className="policy-sec-tag">IDENTITY</span>
+            </div>
             <p>
               <strong>MalikSe</strong> (published as <strong>MalikSe App</strong> on Android package{" "}
               <code>com.devoxa.malikse</code>, iOS, and web) is operated by <strong>AgHomesIndia</strong>. MalikSe is
@@ -132,7 +184,13 @@ export default function PrivacyPolicy() {
           </section>
 
           <section id="information">
-            <h2>2. Information we collect</h2>
+            <div className="policy-sec-head">
+              <div className="policy-sec-title-wrap">
+                <span className="policy-sec-num">02</span>
+                <h2>Information we collect</h2>
+              </div>
+              <span className="policy-sec-tag">DATA COLLECTED</span>
+            </div>
             <p>
               <strong>Account &amp; profile details:</strong> your full name, 10-digit mobile number, email address
               (optional or primary depending on sign-up method), password hash, account role (user, owner, advisor,
@@ -165,32 +223,53 @@ export default function PrivacyPolicy() {
           </section>
 
           <section id="permissions">
-            <h2>3. Device permissions (iOS &amp; Android)</h2>
+            <div className="policy-sec-head">
+              <div className="policy-sec-title-wrap">
+                <span className="policy-sec-num">03</span>
+                <h2>Device permissions (iOS &amp; Android)</h2>
+              </div>
+              <span className="policy-sec-tag">PERMISSIONS</span>
+            </div>
             <p>
               MalikSe requests system permissions only when needed for an active user feature, and you can revoke any
               permission at any time from your iOS or Android system settings:
             </p>
-            <ul>
-              <li>
-                <strong>Location (When In Use / Approximate &amp; Precise):</strong> optional permission used to show
-                nearby verified listings on the Explore map or help property owners center the map pin during listing
-                creation. You may always decline location access and select districts manually. MalikSe does{" "}
-                <strong>not</strong> track device location in the background when the app is closed.
-              </li>
-              <li>
-                <strong>Photos, Media Library &amp; Files / Documents:</strong> accessed only when you tap to upload
-                property photographs, land ownership PDFs, or KYC verification documents. We do not scan or access other
-                files on your device.
-              </li>
-              <li>
-                <strong>Notifications (Optional):</strong> used exclusively to deliver transactional updates—such as
-                property verification results, new client enquiries, advisor assignments, and chat/offer updates.
-              </li>
-            </ul>
+            <div className="policy-perm-grid">
+              <div className="policy-perm-card">
+                <span>Optional · When In Use</span>
+                <strong>Location Services</strong>
+                <p>
+                  Centers map searches on nearby verified properties and helps owners drop accurate land pins. Never
+                  tracked in the background.
+                </p>
+              </div>
+              <div className="policy-perm-card">
+                <span>Optional · On Action</span>
+                <strong>Photos &amp; Documents</strong>
+                <p>
+                  Used solely when you pick property photos, ownership deeds, or voluntary KYC documents to upload. No
+                  background scanning.
+                </p>
+              </div>
+              <div className="policy-perm-card">
+                <span>Optional · Alerts</span>
+                <strong>Push Notifications</strong>
+                <p>
+                  Sends real-time updates for property approvals, client inquiries, advisor assignments, and deal
+                  messages.
+                </p>
+              </div>
+            </div>
           </section>
 
           <section id="use">
-            <h2>4. How we use information</h2>
+            <div className="policy-sec-head">
+              <div className="policy-sec-title-wrap">
+                <span className="policy-sec-num">04</span>
+                <h2>How we use information</h2>
+              </div>
+              <span className="policy-sec-tag">PURPOSE</span>
+            </div>
             <p>We process your personal information strictly for legitimate service operations:</p>
             <ul>
               <li>Authenticating accounts, issuing OTPs, and preventing unauthorized access or spam accounts.</li>
@@ -207,7 +286,13 @@ export default function PrivacyPolicy() {
           </section>
 
           <section id="sharing">
-            <h2>5. Sharing &amp; third-party services</h2>
+            <div className="policy-sec-head">
+              <div className="policy-sec-title-wrap">
+                <span className="policy-sec-num">05</span>
+                <h2>Sharing &amp; third-party services</h2>
+              </div>
+              <span className="policy-sec-tag">DISCLOSURES</span>
+            </div>
             <p>
               <strong>Public vs. private visibility:</strong> Verified and published property details (photos, price,
               property specs, general district/map pin) are visible to marketplace visitors. Your personal contact
@@ -233,12 +318,18 @@ export default function PrivacyPolicy() {
           </section>
 
           <section id="storage">
-            <h2>6. Storage, retention &amp; security</h2>
+            <div className="policy-sec-head">
+              <div className="policy-sec-title-wrap">
+                <span className="policy-sec-num">06</span>
+                <h2>Storage, retention &amp; security</h2>
+              </div>
+              <span className="policy-sec-tag">SECURITY</span>
+            </div>
             <p>
-              We protect data using HTTPS/TLS encryption in transit, salted bcrypt/cryptographic password hashing, short-lived
-              access tokens, <code>HttpOnly</code> refresh cookies on web, hardware-backed secure storage on mobile, and
-              strict server-side role checks on all private media/document routes. While no internet service can guarantee
-              100% immunity from every risk, we continuously audit access controls and upload limits.
+              We protect data using HTTPS/TLS encryption in transit, salted bcrypt/cryptographic password hashing,
+              short-lived access tokens, <code>HttpOnly</code> refresh cookies on web, hardware-backed secure storage on
+              mobile, and strict server-side role checks on all private media/document routes. While no internet service
+              can guarantee 100% immunity from every risk, we continuously audit access controls and upload limits.
             </p>
             <p>
               <strong>Data retention schedule:</strong>
@@ -268,10 +359,16 @@ export default function PrivacyPolicy() {
           </section>
 
           <section id="choices">
-            <h2>7. Your rights &amp; choices</h2>
+            <div className="policy-sec-head">
+              <div className="policy-sec-title-wrap">
+                <span className="policy-sec-num">07</span>
+                <h2>Your rights &amp; choices</h2>
+              </div>
+              <span className="policy-sec-tag">USER RIGHTS</span>
+            </div>
             <p>
-              Under applicable data-protection principles (including India's Digital Personal Data Protection Act, 2023),
-              you have the right to:
+              Under applicable data-protection principles (including India&apos;s Digital Personal Data Protection Act,
+              2023), you have the right to:
             </p>
             <ul>
               <li>Browse public verified property listings without creating an account.</li>
@@ -283,39 +380,53 @@ export default function PrivacyPolicy() {
           </section>
 
           <section id="deletion">
-            <h2>8. Account &amp; data deletion</h2>
+            <div className="policy-sec-head">
+              <div className="policy-sec-title-wrap">
+                <span className="policy-sec-num">08</span>
+                <h2>Account &amp; data deletion</h2>
+              </div>
+              <span className="policy-sec-tag">SELF-SERVICE DELETION</span>
+            </div>
             <p>
-              You can permanently delete your MalikSe account and associated data directly from two places without
-              needing to contact support:
+              You can permanently delete your MalikSe account and associated data directly from{" "}
+              <strong>Profile → Delete account</strong> inside the mobile app, or anytime from our web{" "}
+              <Link to="/delete-account">Account Deletion Portal</Link> (no app install required).
             </p>
-            <ul>
-              <li>
-                <strong>Inside the mobile app:</strong> Go to <strong>Profile → Delete account</strong>.
-              </li>
-              <li>
-                <strong>On the web (no app required):</strong> Visit our dedicated{" "}
-                <Link to="/delete-account">Account Deletion Portal</Link>, sign in with your registered mobile number or
-                email and password, type <code>DELETE</code>, and submit.
-              </li>
-            </ul>
-            <p>
-              <strong>What gets deleted immediately &amp; automatically:</strong> Upon confirmation, sign-in access is
-              revoked and all owned listings are removed from public discovery. Our automated background cleanup removes
-              your user profile, credentials, KYC identity documents, owned listings and uploaded property photos/PDFs,
-              saved wishlists, search preferences, push notification tokens, pending verification queues, and property
-              conversations. Open, unaccepted offers are cancelled.
-            </p>
-            <p>
-              <strong>Exceptions for active deals &amp; shared records:</strong> If you have an accepted or token-paid
-              deal in progress, your account access stays disabled while assigned staff resolve or close that active
-              obligation. Limited non-personal transaction amounts and dates visible to another deal participant may
-              remain with your personal identifiers stripped and replaced by a deleted-account marker. Staff/advisor
-              accounts are managed administratively for audit reassignment.
-            </p>
+
+            <div className="policy-del-grid">
+              <div className="policy-del-box is-clean">
+                <strong>Permanently Deleted</strong>
+                <ul>
+                  <li>Account profile, mobile/email &amp; password credentials</li>
+                  <li>Submitted KYC identity documents &amp; review history</li>
+                  <li>Owned property listings, photos &amp; PDF files</li>
+                  <li>Saved wishlists, preferences, push tokens &amp; chats</li>
+                  <li>Open, unaccepted buyer/seller offers</li>
+                </ul>
+              </div>
+              <div className="policy-del-box is-retained">
+                <strong>Narrow Statutory / Deal Exceptions</strong>
+                <ul>
+                  <li>Active accepted or token-paid deals wait for staff closure while account login stays disabled</li>
+                  <li>Counterparty deal amounts/dates remain with your identity stripped &amp; anonymized</li>
+                  <li>Encrypted server backups purge automatically on rolling 30–90 day cycle</li>
+                </ul>
+              </div>
+            </div>
+
+            <Link to="/delete-account" className="policy-del-cta">
+              Open Account Deletion Form →
+            </Link>
           </section>
 
           <section id="children">
-            <h2>9. Children&apos;s privacy</h2>
+            <div className="policy-sec-head">
+              <div className="policy-sec-title-wrap">
+                <span className="policy-sec-num">09</span>
+                <h2>Children&apos;s privacy</h2>
+              </div>
+              <span className="policy-sec-tag">18+ POLICY</span>
+            </div>
             <p>
               MalikSe is designed for adults aged <strong>18 years and older</strong> to buy, sell, or enquire about
               real estate properties. We do not knowingly solicit or collect personal information from anyone under 18
@@ -324,21 +435,28 @@ export default function PrivacyPolicy() {
             </p>
           </section>
 
-          <section id="contact">
-            <h2>10. Contact &amp; policy updates</h2>
+          <section id="contact" className="policy-contact-banner">
+            <div className="policy-sec-head">
+              <div className="policy-sec-title-wrap">
+                <span className="policy-sec-num">10</span>
+                <h2>Contact &amp; policy updates</h2>
+              </div>
+              <span className="policy-sec-tag">PRIVACY SUPPORT</span>
+            </div>
             <p>
               <strong>Data Controller / Operator:</strong> MalikSe powered by AgHomesIndia
             </p>
             <p>
-              <strong>Privacy &amp; Grievance Contact:</strong>{" "}
-              <a href={`mailto:${privacyContact}`}>{privacyContact}</a>. For your security, never send passwords,
-              verification OTPs, or identity documents via unencrypted email.
+              For privacy questions, data-access requests, grievance redressal, or app store verification inquiries,
+              contact our dedicated privacy team at <strong>{privacyContact}</strong>. We target initial acknowledgement
+              within 48 hours. Never send passwords, verification OTPs, or KYC files over unencrypted email.
             </p>
             <p>
-              We may update this Privacy Policy from time to time to reflect new features or regulatory updates. When
-              changes are made, the updated revision date at the top of this page will reflect the latest effective
-              version.
+              We update this page whenever platform practices change and display the latest effective date above.
             </p>
+            <a href={`mailto:${privacyContact}`} className="policy-contact-cta">
+              Contact Privacy Team ({privacyContact}) →
+            </a>
           </section>
         </article>
       </div>

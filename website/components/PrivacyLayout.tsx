@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
+import WebFooter from "./WebFooter";
 import "../web/privacy.css";
 
 export const privacyContact = import.meta.env.VITE_PRIVACY_CONTACT_EMAIL || "support@malikse.in";
@@ -88,24 +89,7 @@ export default function PrivacyLayout({
 
       <main className="privacy-main">{children}</main>
 
-      <footer className="privacy-footer-wrap">
-        <div className="privacy-footer">
-          <div className="privacy-footer-left">
-            <strong>
-              Malik<span>Se</span>
-            </strong>
-            <span>Operated by AgHomesIndia · Support: </span>
-            <a href={`mailto:${privacyContact}`}>{privacyContact}</a>
-          </div>
-          <div className="privacy-footer-links">
-            <Link to="/privacy-policy">Privacy Policy</Link>
-            <Link to="/delete-account">Delete Account</Link>
-            <Link to="/home" className="privacy-footer-cta">
-              Back to properties →
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <WebFooter />
     </div>
   );
 }
