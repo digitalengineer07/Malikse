@@ -14,7 +14,7 @@ import AccountArtworkFooter from "../components/AccountArtworkFooter";
 
 type Receipt = { reference: string; receipt: string; status: string };
 const receiptKey = "malikse_deletion_receipt";
-const website = process.env.EXPO_PUBLIC_WEBSITE_URL || "https://malikse.devoxa.in";
+const website = (process.env.EXPO_PUBLIC_WEBSITE_URL || "https://malikse.com").replace(/\/+$/, "");
 export default function DeleteAccount() {
   const router = useRouter();
   const insets = useSafeAreaInsets();

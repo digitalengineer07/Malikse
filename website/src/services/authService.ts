@@ -20,7 +20,7 @@ function resolveApiUrl(): string {
   }
 
   // If explicitly configured with a non-localhost remote URL (and not accidentally pointed at the website frontend itself)
-  if (cleanUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(?:\/|$)/i.test(cleanUrl) && !/^(https?:\/\/)?malikse\.devoxa\.in$/i.test(cleanUrl)) {
+  if (cleanUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(?:\/|$)/i.test(cleanUrl) && !/^(https?:\/\/)?(www\.)?(malikse\.com|malikse\.devoxa\.in)$/i.test(cleanUrl)) {
     return cleanUrl;
   }
 

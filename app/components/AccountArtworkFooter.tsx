@@ -39,8 +39,8 @@ export default function AccountArtworkFooter({
           </View>
           <View style={styles.footerActions}>
             <TouchableOpacity accessibilityRole="link" style={styles.support}
-              onPress={() => void Linking.openURL("mailto:support@malikse.in").catch(() => {
-                setSupportError(label("Email support@malikse.in for help.", "सहायता के लिए support@malikse.in पर ईमेल करें।"));
+              onPress={() => void Linking.openURL(`${(process.env.EXPO_PUBLIC_WEBSITE_URL || "https://malikse.com").replace(/\/+$/, "")}/support`).catch(() => {
+                setSupportError(label("Visit https://malikse.com/support or email support@malikse.in for help.", "सहायता के लिए https://malikse.com/support पर जाएं या support@malikse.in पर ईमेल करें।"));
               })}>
               <View style={[styles.artCrop, styles.supportIcon]}>
                 <Image source={require("../assets/images/sign_in_contact_support_icon.png")} style={styles.supportAsset} resizeMode="stretch" accessible={false} />
