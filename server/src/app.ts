@@ -5,6 +5,7 @@ import recommendationRoutes from "./routes/recommendation.routes";
 import express from "express";
 import parcelPlacesRoutes from "./routes/parcelPlaces.routes";
 import mongoose from "mongoose";
+import supportRoutes from "./routes/support.routes";
 import authRoutes from "./routes/auth.routes";
 import propertyRoutes from "./routes/property.routes";
 import documentRoutes from "./routes/document.routes";
@@ -44,6 +45,7 @@ export function createApp(isReady = () => mongoose.connection.readyState === 1) 
   app.use("/users", userRoutes);
   app.use("/inquiries", inquiryRoutes);
   app.use("/push", pushRoutes);
+  app.use("/support", supportRoutes);
   app.use(notFound);
   app.use(errorHandler);
   return app;

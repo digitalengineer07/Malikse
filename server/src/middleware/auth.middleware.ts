@@ -6,6 +6,7 @@ import { performanceMetrics } from "../services/performanceMetrics";
 export interface AuthRequest extends Request {
   user?: { id: string; role: string };
   account?: ReturnType<typeof publicUser>;
+  sessionVersion?: number;
 }
 
 import { ACCESS_SECRET, publicUser } from "../services/security";
@@ -54,7 +55,7 @@ export async function authenticateRequest(header: string | undefined, requestId?
         console.warn("[auth.middleware] Auto-generating advisor code warning:", err?.message);
       }
     }
-    return { user: { id: user._id.toString(), role: user.role }, account: publicUser(user) };
+    return { user: { id: user._id.toString(), role: user.role }, account: publicUser(user), sessionVersion: user.sessionVersion ?? 0 };
   } catch (error) {
     const cause = error as { name?: string; code?: string | number };
     console.warn(JSON.stringify({
@@ -71,6 +72,7 @@ export async function authGuard(req: AuthRequest, res: Response, next: NextFunct
   if (result.status) return res.status(result.status).json({ message: result.message });
   req.user = result.user;
   req.account = result.account;
+  req.sessionVersion = result.sessionVersion;
   next();
 }
 

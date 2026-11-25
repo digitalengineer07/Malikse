@@ -81,6 +81,9 @@ async function main() {
     assert.equal(unassigned.length, 1); assert.equal(unassigned[0].ownerId, undefined);
     await request(`/verification/${id}/claim`, verifier, {});
     await request(`/admin/properties/${id}/assign`, admin, { staffId: advisorAccount.id });
+    const advisorQueue = await request("/verification/my-tasks?limit=10&status=pending", advisor);
+    assert.equal(advisorQueue.find((row: any) => row._id === id)?.sellerName, "Test Seller");
+    assert.equal((await request("/verification/my-tasks?limit=10", otherAdvisor)).some((row: any) => row._id === id), false);
     await request(`/verification/${id}/claim`, otherAdvisor, {}, 409);
     await request(`/properties/${id}/workspace`, otherAdvisor, undefined, 403);
     const checklist = { ownership: true, location: true, boundaries: true, area: true, disclosures: true, documentsReviewed: true, advisorReport: true };

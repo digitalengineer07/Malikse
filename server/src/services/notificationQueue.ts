@@ -3,6 +3,7 @@ import { Notification } from "../models/Notification.model";
 import { Property } from "../models/Property.model";
 import { User } from "../models/User.model";
 import { publishedFilter } from "./marketplace";
+import { deliverDeviceAlert } from "./deviceAlerts";
 
 async function expandListingBroadcast(job: InstanceType<typeof Notification>) {
   const session = await mongoose.startSession();
@@ -27,7 +28,7 @@ async function expandListingBroadcast(job: InstanceType<typeof Notification>) {
       }, { session });
       if (!progress.modifiedCount || !recipients.length) return;
       await Notification.insertMany(recipients.map(({ _id }) => ({
-        recipient: _id, title: job.title, body: job.body, data: job.data,
+        recipient: _id, title: job.title, body: job.body, data: { ...job.data, listingAnnouncement: true },
       })), { session });
     });
   } finally {
@@ -58,6 +59,7 @@ export async function deliverNotifications() {
         await expandListingBroadcast(job);
         continue;
       }
+      if (process.env.DEVICE_ALERTS_ENABLED === "true") await deliverDeviceAlert(job);
       await Notification.updateOne(
         { _id: job._id, leaseUntil: job.leaseUntil },
         { $set: { deliveredAt: new Date() }, $unset: { leaseUntil: 1 } },
@@ -73,7 +75,7 @@ export async function deliverNotifications() {
         {
           $set: {
             nextAttemptAt: new Date(
-              Date.now() + Math.min(60000, 1000 * 2 ** job.attempts),
+              Date.now() + Math.min(120000, 5000 * 2 ** job.attempts) + Math.random() * 2000,
             ),
           },
           $unset: { leaseUntil: 1 },

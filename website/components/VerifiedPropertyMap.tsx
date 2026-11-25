@@ -65,9 +65,9 @@ export default function VerifiedPropertyMap({
           polyPoints.forEach(p => points.push(p));
         }
         const label = document.createElement("div");
-        label.innerHTML = `<div style="background: #1A365D; color: white; padding: 6px 12px; border-radius: 20px; font-weight: 700; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 2px solid rgba(255,255,255,0.8); font-size: 13px;">₹${(property.price / 100000).toFixed(1)}L</div>
-        <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #1A365D; margin: -2px auto 0 auto; position: relative; z-index: 1;"></div>
-        <div style="width: 8px; height: 8px; border-radius: 4px; background: #1A365D; margin: 2px auto 0 auto; box-shadow: 0 0 0 2px white, 0 2px 4px rgba(0,0,0,0.2);"></div>`;
+        label.innerHTML = `<div style="background: #14263E; color: #FFFFFF; padding: 6px 12px; border-radius: 999px; font-family: Manrope, system-ui, sans-serif; font-weight: 800; white-space: nowrap; box-shadow: 0 8px 18px -4px rgba(12,26,44,0.42); border: 2px solid #FCC61C; font-size: 12.5px; letter-spacing: -0.2px;">₹${(property.price / 100000).toFixed(1)}L</div>
+        <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #14263E; margin: -2px auto 0 auto; position: relative; z-index: 1;"></div>
+        <div style="width: 8px; height: 8px; border-radius: 4px; background: #FCC61C; border: 1.5px solid #14263E; margin: 2px auto 0 auto; box-shadow: 0 2px 4px rgba(12,26,44,0.3);"></div>`;
         const marker = L.marker([lat, lng], { title: property.title || `${property.type} in ${property.location.district}`, icon: L.divIcon({ html: label, className: "", iconSize: [80, 50], iconAnchor: [40, 50] }) }).addTo(map!).on("click", () => onSelect(property));
         marker.getElement()?.addEventListener("keydown", event => {
           if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(property); }
@@ -88,7 +88,7 @@ export default function VerifiedPropertyMap({
 }
 
 const styles = StyleSheet.create({
-  map: { height: "100%", width: "100%", overflow: "hidden", backgroundColor: "#E9F3FA" },
+  map: { height: "100%", width: "100%", overflow: "hidden", backgroundColor: "#E9E4D5" },
   fallback: { flex: 1, justifyContent: "center", padding: 30 },
-  text: { color: "#284B68", fontSize: 16 }
+  text: { color: "#14263E", fontSize: 15, fontWeight: "600" }
 });

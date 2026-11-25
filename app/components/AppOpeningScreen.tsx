@@ -1,6 +1,6 @@
+import { BrandLockup } from "./BrandLockup";
 import React, { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Image, Platform, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLanguageStore } from "../src/store/languageStore";
 
@@ -51,17 +51,14 @@ export default function AppOpeningScreen({ onFinish, ready = true }: { onFinish?
       <View style={[styles.card, { height: Math.min(780, height - insets.top - insets.bottom - 32) }]}>
         <Image source={villaPhoto} resizeMode="cover" style={styles.photo} accessible={false} />
         <View style={[styles.tint, { pointerEvents: "none" }]} />
-        <View style={styles.brandRow}>
-          <View style={styles.brandMark}><MaterialIcons name="roofing" size={18} color="#14263E" /></View>
-          <Text style={styles.brand}>MalikSe<Text style={styles.brandAccent}>.</Text></Text>
-        </View>
+        <BrandLockup style={styles.brandRow} />
         <View style={styles.photoCaption}>
           <Text style={styles.eyebrow}>{hi ? "नई शुरुआत की ओर" : "THE START OF SOMETHING NEW"}</Text>
           <Text style={[styles.photoTitle, compact && styles.photoTitleCompact]}>{hi ? "सपनों का ठिकाना।\nअपना एक आशियाना।" : "Space to dream.\nRoom to grow."}</Text>
         </View>
         <View style={[styles.panel, compact && styles.panelCompact]}>
           <View style={styles.curve} />
-          <View style={styles.smallMark}><MaterialIcons name="home" size={22} color="#14263E" /></View>
+          <Image source={require("../assets/images/icon.png")} style={styles.smallMark} accessible={false} />
           <Text accessibilityRole="header" style={[styles.title, compact && styles.titleCompact]}>{hi ? "आपका अगला अध्याय।" : "Your next chapter."}</Text>
           <Text style={styles.description}>{hi ? "आपकी ज़मीन। सुरक्षित भविष्य।" : "Your land. A safer future."}</Text>
           <View accessibilityRole="progressbar" accessibilityLabel={hi ? "MalikSe लोड हो रहा है" : "Loading MalikSe"} accessibilityState={{ busy: true }} style={styles.track}>
@@ -83,9 +80,6 @@ const styles = StyleSheet.create({
   photo: { position: "absolute", top: 0, left: 0, width: "100%", height: "76%" },
   tint: { position: "absolute", top: 0, left: 0, right: 0, height: "76%", backgroundColor: "rgba(20,38,62,0.30)" },
   brandRow: { position: "absolute", top: 26, left: 25, flexDirection: "row", alignItems: "center", gap: 10 },
-  brandMark: { width: 34, height: 34, borderRadius: 12, backgroundColor: "#FCC61C", alignItems: "center", justifyContent: "center" },
-  brand: { color: "white", fontFamily: "Fraunces", fontSize: 25, letterSpacing: -0.5 },
-  brandAccent: { color: "#FCC61C" },
   photoCaption: { position: "absolute", bottom: "41%", left: 27, right: 20 },
   eyebrow: { color: "#F2F6EC", fontFamily: "PoppinsMedium", fontSize: 9, letterSpacing: 2, marginBottom: 12 },
   photoTitle: {
@@ -103,7 +97,7 @@ const styles = StyleSheet.create({
   panel: { position: "absolute", bottom: 0, left: 0, right: 0, height: "35%", backgroundColor: "#FEFFFC", alignItems: "center", paddingTop: 14, paddingHorizontal: 22 },
   panelCompact: { height: "37%", paddingTop: 4 },
   curve: { position: "absolute", top: -27, left: "-10%", width: "120%", height: 56, borderTopLeftRadius: "50%", borderTopRightRadius: "50%", backgroundColor: "#FEFFFC" },
-  smallMark: { width: 42, height: 42, borderRadius: 21, backgroundColor: "#FFF1C0", alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  smallMark: { width: 42, height: 42, borderRadius: 10, marginBottom: 12 },
   title: { fontFamily: "Fraunces", color: "#14263E", fontSize: 25, letterSpacing: -0.6 },
   titleCompact: { fontSize: 22 },
   description: { color: "#536174", fontFamily: "Manrope", fontSize: 12, marginTop: 5 },

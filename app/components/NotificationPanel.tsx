@@ -1,3 +1,4 @@
+import { brandHeader } from "./BrandLockup";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useIsFocused, useRouter, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -59,6 +60,7 @@ export default function NotificationPanel() {
   const [revision, setRevision] = useState(0);
   const [showAll, setShowAll] = useState(false);
   const insets = useSafeAreaInsets();
+  const accountInitials = initials(user?.name);
   const goBack = () => router.canGoBack() ? router.back() : router.replace("/home");
   const refresh = () => {
     void refreshNotificationCount();
@@ -77,6 +79,15 @@ export default function NotificationPanel() {
               <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={goBack} style={styles.back}>
                 <MaterialIcons name="arrow-back" size={22} color={white} />
               </Pressable>
+              {user && <View style={styles.toolbarActions}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Refresh notifications" onPress={refresh} style={styles.back}>
+                  <MaterialIcons name="refresh" size={21} color={yellow} />
+                </Pressable>
+                <View accessible={false} style={styles.account}>
+                  {accountInitials ? <Text style={styles.accountText}>{accountInitials}</Text> :
+                    <MaterialIcons name="person-outline" size={22} color={navy} />}
+                </View>
+              </View>}
             </View>
             <View style={styles.headingRow}>
               <View style={styles.headingGroup}>
@@ -85,14 +96,14 @@ export default function NotificationPanel() {
                   <Text style={styles.countText}>{unread > 99 ? "99+" : unread}</Text>
                 </View>}
               </View>
-              <Pressable accessibilityRole="button" onPress={() => setShowAll(current => !current)} style={styles.filter}>
+              {user && <Pressable accessibilityRole="button" onPress={() => setShowAll(current => !current)} style={styles.filter}>
                 <Text style={styles.filterText}>{showAll ? "Unread" : "View all"}</Text>
-              </Pressable>
+              </Pressable>}
             </View>
           </View>
         </View>
         <View style={[styles.listSurface, {
-          marginLeft: insets.left + 14,
+          marginLeft: insets.left,
           marginRight: insets.right,
         }]}>
           {user ? <Inbox key={`${user.id}-${showAll}`} userId={user.id} unreadOnly={!showAll} revision={revision}
@@ -182,7 +193,12 @@ function Inbox({ userId, unreadOnly, revision, refresh, bottomInset }: {
       <Text style={styles.body}>{error} Refresh</Text>
     </Pressable> : !page ? <ActivityIndicator style={styles.action} color={navy} accessibilityLabel="Loading notifications" /> : null}
     {page && !page.nextCursor && visibleItems.length === 0 &&
-      <View style={styles.action}><Text style={styles.body}>{unreadOnly ? "You’re all caught up." : "No notifications yet."}</Text></View>}
+      <View style={styles.empty}>
+        <View style={[styles.itemIcon, styles.unreadIcon]}>
+          <MaterialIcons name="notifications-none" size={22} color={navy} accessible={false} />
+        </View>
+        <Text style={styles.title}>{unreadOnly ? "You’re all caught up." : "No notifications yet."}</Text>
+      </View>}
     {visibleItems.map(item => {
       const unread = !item.readAt;
       const senderInitials = initials(item.senderName);
@@ -215,18 +231,20 @@ function Inbox({ userId, unreadOnly, revision, refresh, bottomInset }: {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: navy },
   header: { paddingBottom: 16 },
-  headerContent: { width: "100%", maxWidth: 720, alignSelf: "center", gap: 12 },
+  headerContent: { width: "100%", maxWidth: 720, alignSelf: "center", gap: brandHeader.gap },
   toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  back: { width: 44, height: 44, alignItems: "flex-start", justifyContent: "center" },
+  back: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#FFFFFF24", alignItems: "center", justifyContent: "center" },
+  toolbarActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  account: { width: 42, height: 42, borderRadius: 21, backgroundColor: paleYellow, alignItems: "center", justifyContent: "center" },
   accountText: { fontFamily: "ManropeBold", color: navy, fontSize: 14 },
   headingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   headingGroup: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
-  heading: { color: white, fontFamily: "ManropeExtraBold", fontSize: 27, flexShrink: 1 },
-  count: { minWidth: 22, minHeight: 22, borderRadius: 11, paddingHorizontal: 5, justifyContent: "center", alignItems: "center", backgroundColor: yellow, alignSelf: "flex-start" },
+  heading: { color: white, fontFamily: "Fraunces", fontSize: brandHeader.headingSize, lineHeight: brandHeader.headingLineHeight, flexShrink: 1 },
+  count: { minWidth: 24, minHeight: 24, borderRadius: 12, paddingHorizontal: 5, justifyContent: "center", alignItems: "center", backgroundColor: yellow },
   countText: { fontFamily: "ManropeBold", color: navy, fontSize: 12 },
-  filter: { minHeight: 44, minWidth: 44, alignItems: "flex-end", justifyContent: "center" },
+  filter: { minHeight: 44, paddingHorizontal: 12, borderRadius: 22, backgroundColor: "#FFFFFF24", alignItems: "center", justifyContent: "center" },
   filterText: { color: paleYellow, fontFamily: "ManropeBold", fontSize: 13 },
-  listSurface: { flex: 1, backgroundColor: marketplaceBackground, borderTopLeftRadius: 34, overflow: "hidden" },
+  listSurface: { flex: 1, backgroundColor: marketplaceBackground, borderTopLeftRadius: 34, borderTopRightRadius: 34, overflow: "hidden" },
   scroll: { width: "100%", maxWidth: 760, alignSelf: "center", paddingTop: 12 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingLeft: 24, paddingRight: 20,
     backgroundColor: cardSolid, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: divider },
@@ -241,4 +259,5 @@ const styles = StyleSheet.create({
   body: { fontFamily: "Manrope", color: textSecondary, fontSize: 14 },
   date: { fontFamily: "Manrope", color: textSecondary, fontSize: 12, marginTop: 2 },
   action: { alignItems: "center", padding: 18 },
+  empty: { alignItems: "center", gap: 10, padding: 28 },
 });

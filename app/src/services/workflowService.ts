@@ -4,6 +4,8 @@ import { normalizePropertyMedia } from "../utils/propertyMedia";
 export type Listing = {
   _id: string;
   title?: string;
+  sellerName?: string;
+  streetAddress?: string;
   description?: string;
   type: string;
   status: string;
@@ -33,7 +35,7 @@ export type Review = { actorId: string; role: string; decision: string; notes: s
 export const statusLabels: Record<string, string> = { draft: "Draft", queued: "Submission queued for processing", pending: "Pending assigned staff verification", advisor_verified: "Legacy review pending", correction_required: "Corrections required", rejected: "Rejected", verified: "Fully verified · Published", sold: "Sold" };
 export const actorId = (actor: Listing["assignedAdvisorId"]) => typeof actor === "string" ? actor : actor?._id;
 export const workflowService = {
-  async queue(role: string, cursor?: string): Promise<Listing[]> { return (await api.get(role === "admin" ? "/admin/properties" : role === "user" ? "/properties/mine" : "/verification/my-tasks", { params: { cursor } })).data; },
+  async queue(role: string, cursor?: string, options?: { limit: number; status?: string }): Promise<Listing[] & { nextCursor?: string }> { return (await api.get(role === "admin" ? "/admin/properties" : role === "user" ? "/properties/mine" : "/verification/my-tasks", { params: { cursor, ...options } })).data; },
   async detail(id: string, publicView = false): Promise<Listing> { return normalizePropertyMedia((await api.get(`/properties/${id}${publicView ? "" : "/workspace"}`)).data); },
   async claim(id: string) { return (await api.post(`/verification/${id}/claim`)).data; },
   async review(id: string, body: object) { return (await api.post(`/verification/${id}/report`, body)).data; },

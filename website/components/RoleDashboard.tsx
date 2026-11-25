@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { premiumStyles } from "../constants/typography";
+import { FONT_BODY, FONT_DISPLAY, FONT_MONO, premiumStyles } from "../constants/typography";
 import api, { authService } from "../src/services/authService";
 import { useAuthStore } from "../src/store/authStore";
 import type { UserRole } from "../src/types/auth.types";
@@ -753,10 +753,11 @@ const styles = premiumStyles({
     gap: 7,
   },
   eyebrow: {
+    fontFamily: FONT_MONO,
     color: "#0A45B5",
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: "700",
-    letterSpacing: 1.4,
+    letterSpacing: 1.5,
   },
   toplineRight: {
     flexDirection: "row",
@@ -985,7 +986,7 @@ const styles = premiumStyles({
     justifyContent: "center",
   },
   avatarText: { fontSize: 12.5, color: "#FFFFFF", fontWeight: "800" },
-  welcome: { fontSize: 13, color: "#FFFFFF", fontWeight: "600" },
+  welcome: { fontFamily: FONT_BODY, fontSize: 13, color: "#FFFFFF", fontWeight: "600" },
   verifiedMiniTag: {
     flexDirection: "row",
     alignItems: "center",
@@ -1001,14 +1002,16 @@ const styles = premiumStyles({
     fontWeight: "700",
   },
   heroTitle: {
-    fontSize: 32,
-    lineHeight: 40,
-    fontWeight: "800",
-    letterSpacing: -0.8,
+    fontFamily: FONT_DISPLAY,
+    fontSize: 30,
+    lineHeight: 38,
+    fontWeight: "600",
+    letterSpacing: -0.6,
     color: "#FFFFFF",
   },
   heroTitleCompact: { fontSize: 24, lineHeight: 32 },
   heroDescription: {
+    fontFamily: FONT_BODY,
     color: "#D9EEFC",
     fontSize: 14.5,
     lineHeight: 22,

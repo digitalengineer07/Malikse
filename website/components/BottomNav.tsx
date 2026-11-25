@@ -7,6 +7,7 @@ import { useAuthStore } from "../src/store/authStore";
 import { useLanguageStore } from "../src/store/languageStore";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 import BiharHeritageWatermark from "./BiharHeritageWatermark";
+import { FONT_BODY } from "../constants/typography";
 
 export default function BottomNav() {
   const router = useRouter();
@@ -340,6 +341,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mobileLabel: {
+    fontFamily: FONT_BODY,
     fontSize: 10,
     color: "#64748B",
     marginTop: 2,
@@ -356,6 +358,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   staffLink: {
+    fontFamily: FONT_BODY,
     color: "#0A192F",
     fontWeight: "700",
   },

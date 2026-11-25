@@ -1,5 +1,6 @@
+import { BrandLockup, brandHeader } from "../../components/BrandLockup";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useIsFocused, useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
@@ -92,8 +93,7 @@ export default function ForgotPassword() {
                 <MaterialIcons name="arrow-back" size={22} color="#fff" />
               </TouchableOpacity>
               <View style={styles.brandLockup}>
-                <Image source={require("../../assets/images/icon.png")} style={styles.logo} resizeMode="contain" accessible={false} />
-                <Text style={styles.brand}>MalikSe<Text style={{ color: sun }}>.</Text></Text>
+                <BrandLockup />
               </View>
             </View>
             <Text accessibilityRole="header" style={styles.title}>{done ? "Password updated" : "Reset password"}</Text>
@@ -226,16 +226,14 @@ const border = "rgba(20,38,62,0.16)";
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: cream },
-  hero: { backgroundColor: navy, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden", paddingHorizontal: 20, paddingBottom: 34 },
-  heroInner: { width: "100%", maxWidth: 440, alignSelf: "center", gap: 16 },
+  hero: { backgroundColor: navy, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden", paddingHorizontal: 20, paddingBottom: 28 },
+  heroInner: { width: "100%", maxWidth: 440, alignSelf: "center", gap: brandHeader.gap },
   sun: { position: "absolute", width: 138, height: 138, borderRadius: 69, right: -66, backgroundColor: sun },
   ray: { position: "absolute", width: 74, height: 210, borderRadius: 40, right: 62, top: 70, backgroundColor: "#1C3556", transform: [{ rotate: "-30deg" }] },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   brandLockup: { flexDirection: "row", alignItems: "center", gap: 8 },
-  logo: { width: 36, height: 36 },
   back: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "#244268" },
-  brand: { fontFamily: "Fraunces", fontSize: 25, color: "#fff" },
-  title: { fontFamily: "Fraunces", fontSize: 32, lineHeight: 40, color: "#fff" },
+  title: { fontFamily: "Fraunces", fontSize: brandHeader.headingSize, lineHeight: brandHeader.headingLineHeight, color: "#fff" },
   recoveryProgress: { gap: 8, alignItems: "center", marginTop: -4 },
   progressLabel: { fontFamily: "ManropeBold", fontSize: 13, color: "#F7F4EC", textAlign: "center" },
   progressTrack: { flexDirection: "row", gap: 5, width: 112 },

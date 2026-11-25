@@ -1,4 +1,4 @@
-import { renderAppScreen } from "../../components/AppScreen";
+import { renderMarketplaceTab } from "../../components/AppScreen";
 import { Tabs } from "expo-router";
 import { StyleSheet, View } from "react-native";
 
@@ -6,7 +6,7 @@ import { StyleSheet, View } from "react-native";
 export default function TabLayout() {
   return (
     <View style={styles.bg}>
-      <Tabs screenLayout={renderAppScreen} tabBar={() => null} screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: "transparent" } }}>
+      <Tabs screenLayout={renderMarketplaceTab} tabBar={() => null} screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: "transparent" } }}>
         <Tabs.Screen name="home" />
         <Tabs.Screen name="search" />
         <Tabs.Screen name="my-properties" />

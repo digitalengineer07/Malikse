@@ -27,10 +27,10 @@ export const validatePagination: RequestHandler = (req, res, next) => {
   }
   next();
 };
-export async function readPage(query: any, req: Request, res: Response): Promise<any[]> {
-  const { limit, filter } = pageInput(req.query);
-  const rows = await query.and([filter]).sort({ createdAt: -1, _id: -1 }).limit(limit + 1).maxTimeMS(5000).lean();
-  res.setHeader("X-Next-Cursor", rows.length > limit ? cursorFor(rows[limit - 1]) : "");
+export async function readPage(query: any, req: Request, res: Response, sortField: "createdAt" | "updatedAt" = "createdAt"): Promise<any[]> {
+  const { limit, filter } = pageInput(req.query, sortField);
+  const rows = await query.and([filter]).sort({ [sortField]: -1, _id: -1 }).limit(limit + 1).maxTimeMS(5000).lean();
+  res.setHeader("X-Next-Cursor", rows.length > limit ? cursorFor(rows[limit - 1], sortField) : "");
   return rows.slice(0, limit);
 }
 

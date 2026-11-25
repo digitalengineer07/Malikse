@@ -8,6 +8,7 @@ import { processFileCleanup } from "./services/fileCleanup";
 import { freePort } from "./services/freePort";
 import { mongoPoolOptions } from "./services/mongoPool";
 import { deliverNotifications } from "./services/notificationQueue";
+import { checkDeviceAlertReceipts } from "./services/deviceAlerts";
 import { monitorPool } from "./services/performanceMetrics";
 import { closeRedis } from "./services/redis";
 import { startRegionCounts, stopRegionCounts } from "./services/regionCountStore";
@@ -92,6 +93,8 @@ startListening(PORT).then(() => {
   };
   const stopFileCleanup = startTask(processFileCleanup, 30000);
   const stopNotifications = startTask(deliverNotifications, 10000);
+  const stopAlertReceipts = process.env.DEVICE_ALERTS_ENABLED === "true"
+    ? startTask(checkDeviceAlertReceipts, 60000) : async () => {};
   console.log("[MalikSe] API ready");
   initializeRegions();
   const server = app.server;
@@ -102,7 +105,7 @@ startListening(PORT).then(() => {
 
     const deadline = setTimeout(() => { (server as any).closeAllConnections?.(); process.exit(1); }, 15_000);
     deadline.unref();
-    await Promise.all([app.close(), stopWorker(), stopDeletionWorker(), stopNotifications(), stopFileCleanup()]);
+    await Promise.all([app.close(), stopWorker(), stopDeletionWorker(), stopNotifications(), stopAlertReceipts(), stopFileCleanup()]);
     await regionStartup;
     await stopRegionCounts();
     await mongoose.disconnect();

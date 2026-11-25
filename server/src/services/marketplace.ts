@@ -14,14 +14,14 @@ export const publishedFilter = {
     { status: "pending" }
   ]
 };
-export function enabledOwnerStages(populateOwner = false): PipelineStage[] {
+export function enabledOwnerStages(populateOwner: boolean | "name" = false): PipelineStage[] {
   return [
     { $lookup: { from: User.collection.name, localField: "ownerId", foreignField: "_id", pipeline: [
       { $match: { isSuspended: { $ne: true }, isActive: { $ne: false } } },
-      { $project: populateOwner ? { _id: 1, name: 1, mobile: 1 } : { _id: 1 } },
+      { $project: populateOwner === "name" ? { name: 1 } : populateOwner ? { _id: 1, name: 1, mobile: 1 } : { _id: 1 } },
     ], as: "availableOwner" } },
     { $match: { "availableOwner.0": { $exists: true } } },
-    ...(populateOwner ? [{ $set: { ownerId: { $arrayElemAt: ["$availableOwner", 0] } } }] : []),
+    ...(populateOwner === "name" ? [{ $set: { sellerName: { $arrayElemAt: ["$availableOwner.name", 0] } } }] : populateOwner ? [{ $set: { ownerId: { $arrayElemAt: ["$availableOwner", 0] } } }] : []),
     { $unset: "availableOwner" },
   ];
 }

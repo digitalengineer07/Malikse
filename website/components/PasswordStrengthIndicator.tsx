@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { MaterialIcons } from "@/web/icons";
 import { useLanguageStore } from "../src/store/languageStore";
+import { FONT_BODY } from "../constants/typography";
 
 export interface PasswordEvaluation {
   score: 0 | 1 | 2 | 3 | 4;
@@ -269,6 +270,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   badgeText: {
+    fontFamily: FONT_BODY,
     fontSize: 11,
     fontWeight: "700",
   },
@@ -279,8 +281,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   warningText: {
+    fontFamily: FONT_BODY,
     fontSize: 11,
-    color: "#64748B",
+    color: "rgba(20, 38, 62, 0.62)",
     lineHeight: 15,
   },
   warningTextAlert: {

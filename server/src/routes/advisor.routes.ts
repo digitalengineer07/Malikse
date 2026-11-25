@@ -18,11 +18,19 @@ router.get("/my-tasks", async (req: any, res) => {
     const field = advisor ? "assignedAdvisorId" : "assignedVerifierId";
     const pending = "pending";
 
+    const status = advisor ? req.query.status : undefined;
+    if (status !== undefined && !["pending", "correction_required", "verified", "rejected", "sold"].includes(status)) {
+      return res.status(400).json({ message: "Invalid review status" });
+    }
+    const statusFilter = status === "pending" ? { status: { $in: ["pending", "advisor_verified"] } } :
+      status ? { status } : {};
+    const fields = advisor ? `${listFields} sellerName streetAddress` : listFields;
+
     // Join only owners of matching queue items; never materialize all suspended IDs.
     const rows = await readAggregatePage(Property, [
-      { $match: { $or: [{ [field]: new Types.ObjectId(req.user.id) }, { assignedAdvisorId: null, assignedVerifierId: null, status: pending, ...(advisor ? { requestedAdvisorId: req.user.id } : { requestedAdvisorId: { $in: [null, ""] } }) }] } },
-      ...enabledOwnerStages(),
-      { $project: Object.fromEntries(listFields.split(" ").map(field => [field, 1])) },
+      { $match: { ...statusFilter, $or: [{ [field]: new Types.ObjectId(req.user.id) }, { assignedAdvisorId: null, assignedVerifierId: null, status: pending, ...(advisor ? { requestedAdvisorId: req.user.id } : { requestedAdvisorId: { $in: [null, ""] } }) }] } },
+      ...enabledOwnerStages(advisor ? "name" : false),
+      { $project: Object.fromEntries(fields.split(" ").map(field => [field, 1])) },
     ], req, res);
     for (const row of rows) if (!row[field]) {
       for (const key of Object.keys(row)) if (!["_id", "title", "type", "location", "status", "totalArea", "price", "createdAt"].includes(key)) delete row[key];

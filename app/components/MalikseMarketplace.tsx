@@ -1,3 +1,5 @@
+import { AccountHeaderBackdrop, accountHeaderStyle } from "./AccountHeaderBackdrop";
+import { BrandLockup, brandHeader } from "./BrandLockup";
 import { randomUUID } from "expo-crypto";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -11,6 +13,7 @@ import {
   Image,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   type ScrollViewInstance,
   type ScrollViewProps,
@@ -28,6 +31,7 @@ import {
   useLocalSearchParams,
   usePathname,
   useRouter,
+  useSegments,
 } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import AccountArtworkFooter from "./AccountArtworkFooter";
@@ -44,11 +48,11 @@ import NotificationBell from "./NotificationBell";
 import { userService } from "../src/services/userService";
 import { prepareUpload } from "../src/services/prepareUpload";
 import EmailChangeForm from "./EmailChangeForm";
-import { WhatsAppChatScreen } from "../src/features/chat";
 import VerifiedPropertyMap from "./VerifiedPropertyMap";
 import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
 import PropertyImage from "./PropertyImage";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
+import { getFallbackPropertyPhotoSource, resolvePropertyPhotoSource } from "../src/utils/propertyImages";
 const C = {
   bg: "#F7F4EC",
   ink: "#14263E",
@@ -85,6 +89,7 @@ function Button({
   title,
   onPress,
   secondary = false,
+  danger = false,
   disabled = false,
   icon,
 }: any) {
@@ -94,10 +99,10 @@ function Button({
       accessibilityLabel={title}
       disabled={disabled}
       onPress={onPress}
-      style={[s.button, secondary && s.secondary, disabled && { opacity: 0.5 }]}
+      style={[s.button, secondary && s.secondary, danger && s.dangerButton, disabled && { opacity: 0.5 }]}
     >
-      {icon && <Icon name={icon} size={17} />}
-      <Text style={[s.buttonText, secondary && { color: C.blue }]}>
+      {icon && <Icon name={icon} size={17} color={danger ? "#A52239" : undefined} />}
+      <Text style={[s.buttonText, secondary && { color: C.blue }, danger && s.dangerButtonText]}>
         {title}
       </Text>
     </Pressable>
@@ -216,7 +221,7 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
   const searchRefresh = useRef<AbortSignal | null>(null);
   useEffect(() => { latestRequest.current = requestKey; }, [requestKey]);
   const [resultKey, setResultKey] = useState(requestKey);
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (forceHomeRefresh = false) => {
     const [path, , homeScope] = JSON.parse(requestKey);
     if (!path) return;
     const signal = isPropertySearch(path) ? searchScope.current?.signal : undefined;
@@ -226,7 +231,7 @@ function useData(path: string | null, deps: any[] = [], homeScope?: string, keep
     setLoading(true);
     if (!path.startsWith("/inquiries")) setError("");
     try {
-      const response = homeScope ? await loadHomeRecommendations(path, homeScope) : await getData(path, signal);
+      const response = homeScope ? await loadHomeRecommendations(path, homeScope, forceHomeRefresh) : await getData(path, signal);
       if (signal?.aborted || latestRequest.current !== requestKey || sequence !== refreshSequence.current) return;
       setError("");
       setResultKey(requestKey);
@@ -347,12 +352,13 @@ export function MarketplaceShell({
   title,
   subtitle,
   compactHeader = false,
-  matchedHero = false,
   children,
   back = false,
   onBack,
   headerContent,
   headerAction,
+  heroIllustration,
+  listBody = false,
   backgroundArtwork,
   fixedHeader,
   transcriptRef,
@@ -364,17 +370,19 @@ export function MarketplaceShell({
   scrollFooter,
   dockArtwork = false,
   scrollEnabled = true,
+  refreshControl,
   step,
 }: {
   title?: React.ReactNode;
   subtitle?: string;
   compactHeader?: boolean;
-  matchedHero?: boolean;
   children: React.ReactNode;
   back?: boolean;
   onBack?: () => void;
   headerContent?: React.ReactNode;
   headerAction?: React.ReactNode;
+  heroIllustration?: React.ReactNode;
+  listBody?: boolean;
   backgroundArtwork?: React.ReactNode;
   fixedHeader?: React.ReactNode;
   transcriptRef?: React.RefObject<ScrollViewInstance | null>;
@@ -386,11 +394,11 @@ export function MarketplaceShell({
   scrollFooter?: (dockClearance: number) => React.ReactElement;
   dockArtwork?: boolean;
   scrollEnabled?: boolean;
+  refreshControl?: ScrollViewProps["refreshControl"];
   step?: number;
 }) {
   const insets = useSafeAreaInsets();
-  const { width, height, fontScale } = useWindowDimensions();
-  const sharedHeroHeight = insets.top + (width < 376 ? 252 : 232) + Math.ceil(145 * Math.max(0, fontScale - 1));
+  const { width, height } = useWindowDimensions();
   const smallHeader = compactHeader && (width < 370 || height - insets.top - insets.bottom < 620);
   const dockBottom = Math.max(insets.bottom, 8);
   const dockClearance = dockBottom - insets.bottom + dockHeight;
@@ -398,6 +406,7 @@ export function MarketplaceShell({
     path = usePathname(),
     user = useAuthStore((x) => x.user);
   const focused = useIsFocused();
+  const [routeGroup] = useSegments();
   const contextualTab =
     path === "/saved" ? ["/saved", "favorite-border", "Wishlist"] :
       path === "/my-properties" ? ["/my-properties", "apartment", "Listings"] :
@@ -407,6 +416,66 @@ export function MarketplaceShell({
   useEffect(() => {
     if (step !== undefined) scroll.current?.scrollTo({ y: 0, animated: false });
   }, [step]);
+  const isProfile = path === "/profile" || Boolean(profileHeader);
+  const hero = !fixedHeader && (
+    <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
+      smallHeader && s.smallHero, isProfile && !profileHeader && s.guestProfileHero, profileHeader && s.profileHero]}>
+      {isProfile ? <AccountHeaderBackdrop top={insets.top + 4} /> : (
+        <>
+          <View pointerEvents="none" style={s.heroSun} />
+          <View pointerEvents="none" style={s.heroRay} />
+        </>
+      )}
+      <View style={[s.heroInner, compactHeader && s.compactHeroInner]}>
+        {profileHeader || <>
+          <View style={[s.heroBrandGroup, (isProfile || path === "/saved") && s.spacedBrandGroup]}>
+            <View style={[s.header, Boolean(user) && width < 390 && { gap: 6 }]}>
+              <View style={[s.row, { flex: 1, minWidth: 0 }]}>
+                {back ? (
+                  <Pressable
+                    accessibilityLabel="Back"
+                    accessibilityRole="button"
+                    style={s.heroIcon}
+                    onPress={onBack ?? (() =>
+                      router.canGoBack() ? router.back() : router.replace("/home")
+                    )}
+                  >
+                    <Icon name="arrow-back" color="white" size={20} />
+                  </Pressable>
+                ) : null}
+                <Pressable style={[s.row, { flexShrink: 1, minWidth: 0, gap: 6 }]} onPress={() => router.push("/home")}>
+                  <BrandLockup />
+                </Pressable>
+              </View>
+              {headerAction ?? (
+                <Pressable
+                  accessibilityLabel="Wishlist"
+                  accessibilityRole="button"
+                  style={s.heroIcon}
+                  onPress={() => router.push("/saved")}
+                >
+                  <Icon name="favorite-border" color="white" size={20} />
+                </Pressable>
+              )}
+              <NotificationBell />
+            </View>
+            {Boolean(title) && (
+              <View style={[heroIllustration ? s.illustratedHeroTitle : undefined, isProfile && accountHeaderStyle.titleGroup]}>
+                <View style={heroIllustration ? { flex: 1, minWidth: 0, gap: 2 } : { gap: 4 }}>
+                  <Text accessibilityRole="header" style={[s.heroTitle, isProfile && accountHeaderStyle.heading]}>{title}</Text>
+                  {Boolean(subtitle) && <Text numberOfLines={compactHeader || heroIllustration ? 1 : undefined}
+                  adjustsFontSizeToFit={compactHeader || Boolean(heroIllustration)} minimumFontScale={heroIllustration ? 0.9 : 0.85}
+                  style={[s.heroSubtitle, (smallHeader || Boolean(heroIllustration)) && s.smallHeroSubtitle]}>{subtitle}</Text>}
+                </View>
+                {heroIllustration}
+              </View>
+            )}
+          </View>
+          {headerContent}
+        </>}
+      </View>
+    </View>
+  );
   return (
     <KeyboardAvoidingView
       style={s.root}
@@ -416,11 +485,15 @@ export function MarketplaceShell({
       {fixedHeader}
       <View style={s.scrollViewport}>
         {backgroundArtwork}
-        <ScrollView
+        {listBody ? <>
+          {hero}
+          <View style={{ flex: 1, paddingBottom: showDock ? dockBottom + dockHeight + 12 : 0 }}>{children}</View>
+        </> : <ScrollView
           ref={transcriptRef ?? scroll}
           {...transcriptEvents}
           scrollEventThrottle={transcriptEvents ? 16 : undefined}
           scrollEnabled={scrollEnabled}
+          refreshControl={refreshControl}
           style={{ flex: 1 }}
           contentContainerStyle={[s.scroll, !showDock && { paddingBottom: 12 }, scrollFooter && s.scrollWithArtwork,
           !scrollEnabled && scrollFooter && s.fitArtworkToViewport,
@@ -428,65 +501,12 @@ export function MarketplaceShell({
           showDock && dockArtwork && { paddingBottom: dockBottom + dockHeight + 54 }]}
           keyboardShouldPersistTaps="handled"
         >
-          {!fixedHeader && <View style={[s.hero, { paddingTop: insets.top + (smallHeader ? 8 : 14) }, compactHeader && s.compactHero,
-          smallHeader && s.smallHero, profileHeader && s.profileHero, matchedHero && { height: sharedHeroHeight }]}>
-            <View pointerEvents="none" style={s.heroSun} />
-            <View pointerEvents="none" style={s.heroRay} />
-            <View style={[s.heroInner, compactHeader && s.compactHeroInner, matchedHero && s.matchedHeroInner]}>
-              {profileHeader || <>
-                <View style={[s.header, Boolean(user) && width < 390 && { gap: 6 }]}>
-                  <View style={[s.row, { flex: 1, minWidth: 0 }]}>
-                    {back ? (
-                      <Pressable
-                        accessibilityLabel="Back"
-                        accessibilityRole="button"
-                        style={s.heroIcon}
-                        onPress={onBack ?? (() =>
-                          router.canGoBack() ? router.back() : router.replace("/home")
-                        )}
-                      >
-                        <Icon name="arrow-back" color="white" size={20} />
-                      </Pressable>
-                    ) : (
-                      <View style={s.logoIcon}>
-                        <Icon name="roofing" size={18} />
-                      </View>
-                    )}
-                    <Pressable style={{ flexShrink: 1 }} onPress={() => router.push("/home")}>
-                      <Text style={s.logo} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                        MalikSe<Text style={{ color: C.sun }}>.</Text>
-                      </Text>
-                    </Pressable>
-                  </View>
-                  {headerAction || (
-                    <Pressable
-                      accessibilityLabel="Wishlist"
-                      accessibilityRole="button"
-                      style={s.heroIcon}
-                      onPress={() => router.push("/saved")}
-                    >
-                      <Icon name="favorite-border" color="white" size={20} />
-                    </Pressable>
-                  )}
-                  <NotificationBell />
-                </View>
-                {Boolean(title) && (
-                  <View style={{ gap: 4 }}>
-                    <Text accessibilityRole="header" style={s.heroTitle}>{title}</Text>
-                    {Boolean(subtitle) && <Text numberOfLines={compactHeader ? 1 : undefined}
-                      adjustsFontSizeToFit={compactHeader} minimumFontScale={0.85}
-                      style={[s.heroSubtitle, smallHeader && s.smallHeroSubtitle]}>{subtitle}</Text>}
-                  </View>
-                )}
-                {headerContent}
-              </>}
-            </View>
-          </View>}
+          {hero}
           <View style={[s.content, profileHeader && s.profileContent]}>
             {children}
           </View>
           {scrollFooter?.(showDock ? dockClearance : 0)}
-        </ScrollView>
+        </ScrollView>}
       </View>
       {footer && <View style={[s.footer, footerStyle, { paddingBottom: Math.max(insets.bottom, 12) }]}>{footer}</View>}
       {showDock && dockArtwork && <View pointerEvents="none" style={s.dockArtwork}>
@@ -511,7 +531,16 @@ export function MarketplaceShell({
                 accessibilityRole="button"
                 accessibilityLabel={text}
                 onPress={() => {
-                  if (!isActive) router.push(url as any);
+                  if (isActive) return;
+                  if (url === "/post") {
+                    router.push("/post");
+                    return;
+                  }
+                  if (routeGroup === "(tabs)" || Platform.OS === "web") {
+                    router.navigate(url as any);
+                    return;
+                  }
+                  router.dismissTo(url as any);
                 }}
                 accessibilityState={{ selected: isActive }}
                 style={s.navItem}
@@ -593,17 +622,14 @@ function PropertyCard({
         style={compact ? { width: 112, minHeight: 130 } : s.photo}
         onPress={() => router.push(`/property/${p._id}` as any)}
       >
-        {p.media?.photos?.[0] ? (
-          <PropertyImage
-            source={{ uri: p.media.photos[0] }}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[StyleSheet.absoluteFill, s.placeholder]}>
-            <Icon name="home-work" size={48} color="#91a9d4" />
-          </View>
-        )}
+        <PropertyImage
+          source={resolvePropertyPhotoSource(p)}
+          fallbackSource={getFallbackPropertyPhotoSource(p)}
+          isPublic
+          thumbnailWidth={compact ? 400 : 600}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
         <View style={s.imageTags}>
           <Tag green>✓ Verified Owner</Tag>
         </View>
@@ -674,16 +700,28 @@ export function HomeScreen() {
       scope,
     ),
     { width } = useWindowDimensions();
+  const [refreshingHome, setRefreshingHome] = useState(false);
+  const homeRefreshPending = useRef(false);
+  const refreshHome = async () => {
+    if (homeRefreshPending.current) return;
+    homeRefreshPending.current = true;
+    setRefreshingHome(true);
+    try {
+      await Promise.all([personal.refresh(true), recent.refresh(true), trending.refresh(true)]);
+    } finally {
+      homeRefreshPending.current = false;
+      setRefreshingHome(false);
+    }
+  };
   const homeBusy = [personal, recent, trending].some(feed => feed.error === homeFeedBusyMessage);
   return (
     <MarketplaceShell
-      matchedHero
       title={<>Find your next home.{"\n"}<Text style={{ color: C.sun }}>Direct from owners.</Text></>}
-      headerContent={
-        <View style={s.homeHeroDetails}>
-          <Text style={s.heroSubtitle}>Explore homes and plots by locality, property type, and budget.</Text>
-        </View>
-      }
+      subtitle="Explore homes and plots by locality, property type, and budget."
+      refreshControl={Platform.OS !== "web" ? (
+        <RefreshControl refreshing={refreshingHome} onRefresh={() => void refreshHome()}
+          tintColor={C.sun} colors={[C.ink]} progressBackgroundColor={C.sunSoft} />
+      ) : undefined}
     >
       <View style={s.panel}>
         <View style={s.row}>
@@ -741,11 +779,7 @@ export function HomeScreen() {
       </View>
       {homeBusy && <View style={s.panel}>
         <Text accessibilityRole="alert" style={s.body}>{homeFeedBusyMessage}</Text>
-        <Button title="Retry listings" secondary onPress={() => {
-          void personal.refresh();
-          void recent.refresh();
-          void trending.refresh();
-        }} />
+        <Button title="Retry listings" secondary disabled={refreshingHome} onPress={() => void refreshHome()} />
       </View>}
       {[
         [
@@ -1085,7 +1119,6 @@ export function WishlistScreen() {
   return (
     <MarketplaceShell
       title="Wishlist"
-      compactHeader
       dockArtwork
       scrollEnabled={rows.length > 0}
       scrollFooter={showArtwork ? () => (
@@ -1097,10 +1130,53 @@ export function WishlistScreen() {
           </View>
         </View>
       ) : undefined}
-      subtitle={rows.length
-        ? `Revisit ${savedCount} saved ${rows.length === 1 && !feed.nextCursor ? "property" : "properties"} anytime.`
-        : "Save your favourites and revisit them anytime."}
-      headerAction={user ? <Button secondary icon="sort" title={sort ? "Newest saved" : "Sort by price"} onPress={() => setSort(!sort)} /> : undefined}
+      subtitle="Keep a shortlist of properties to revisit."
+      headerAction={false}
+      headerContent={user ? (
+        <View style={s.wishlistToolbar}>
+          <View style={s.wishlistSummary}>
+            <Icon name="favorite" size={16} color={C.sun} />
+            <Text style={s.wishlistSummaryText}>
+              {user && feed.data
+                ? `${savedCount} saved ${rows.length === 1 && !feed.nextCursor ? "property" : "properties"}`
+                : "Tap the heart on a listing to save it."}
+            </Text>
+          </View>
+          {rows.length > 1 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={sort ? "Show newest saved first" : "Sort by lowest price"}
+              onPress={() => setSort(current => !current)}
+              style={({ pressed }) => [s.wishlistSort, pressed && { opacity: 0.8 }]}
+            >
+              <Icon name="sort" size={17} />
+              <Text style={s.wishlistSortText}>{sort ? "Newest saved" : "Sort by price"}</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.navigate("/(tabs)/search")}
+              style={({ pressed }) => [s.wishlistSort, s.wishlistBrowse, pressed && { opacity: 0.8 }]}
+            >
+              <Icon name="search" size={17} />
+              <Text style={s.wishlistSortText}>Browse properties</Text>
+            </Pressable>
+          )}
+        </View>
+      ) : (
+        <View style={s.wishlistGuestToolbar}>
+          <Pressable accessibilityRole="button" onPress={() => router.navigate("/(tabs)/search")}
+            style={({ pressed }) => [s.wishlistHeaderBrowse, pressed && { opacity: 0.8 }]}>
+            <Icon name="search" size={18} />
+            <Text style={s.wishlistSortText}>Browse properties</Text>
+            <Icon name="arrow-forward" size={16} />
+          </Pressable>
+          <View style={s.wishlistSaveTip}>
+            <Icon name="favorite-border" color={C.sun} size={17} />
+            <Text style={s.wishlistSaveTipText}>Tap a heart to save a listing.</Text>
+          </View>
+        </View>
+      )}
       back
       onBack={goToChats}
     >
@@ -1169,7 +1245,10 @@ export function ProfileScreen() {
   const profileHeader = user ? (
     <>
       <View style={s.between}>
-        <Text accessibilityRole="header" style={s.heroTitle}>Profile</Text>
+        <View style={s.profileHeaderCopy}>
+          <Text accessibilityRole="header" style={[s.heroTitle, accountHeaderStyle.heading]}>Profile</Text>
+          <Text numberOfLines={1} style={[s.heroSubtitle, s.profileHeroCaption]}>Your account and activity</Text>
+        </View>
         <View style={s.row}>
           <Pressable accessibilityRole="button" accessibilityLabel="Edit profile"
             accessibilityState={{ expanded: editing }} onPress={openEditor} style={s.profileEdit}>
@@ -1178,7 +1257,7 @@ export function ProfileScreen() {
           <NotificationBell />
         </View>
       </View>
-      <View style={s.profileIdentity}>
+      <View style={[s.profileIdentity, accountHeaderStyle.divider]}>
         <View style={s.profilePortrait}>
           {initials ? <Text style={s.profileInitials}>{initials}</Text> : <Icon name="person-outline" color={C.sun} size={32} />}
         </View>
@@ -1198,138 +1277,148 @@ export function ProfileScreen() {
     </>
   ) : undefined;
   return (
-    <MarketplaceShell title="Profile" profileHeader={profileHeader}
+    <MarketplaceShell title="Profile" subtitle="Your saved homes and account settings." profileHeader={profileHeader}
       scrollFooter={!user ? bottomExtension => <AccountArtworkFooter bottomExtension={bottomExtension} /> : undefined}>
-      <Protected>
-        {user && (
-          <>
-            <View style={s.profileStats}>
-              {[
-                { label: "Listings", value: listingCount, onPress: user.role === "user" ? () => router.push("/my-properties") : undefined },
-                { label: "Saved", value: savedCount, onPress: () => router.push("/saved") },
-                { label: "Rating", value: null, onPress: undefined },
-              ].map(({ label, value, onPress }) => (
-                <Pressable key={label} disabled={!onPress} accessibilityRole={onPress ? "button" : undefined}
-                  accessibilityLabel={value == null ? `${label} unavailable` : `${value} ${label}`}
-                  style={[s.profileStat, label !== "Listings" && s.profileDivider]} onPress={onPress}>
-                  <Text style={s.profileStatValue}>{value ?? "—"}</Text>
-                  <Text style={s.muted}>{label}</Text>
-                </Pressable>
-              ))}
+      {user ? (
+        <>
+          <View style={s.profileStats}>
+            {[
+              { label: "Listings", value: listingCount, onPress: user.role === "user" ? () => router.push("/my-properties") : undefined },
+              { label: "Saved", value: savedCount, onPress: () => router.push("/saved") },
+              { label: "Rating", value: null, onPress: undefined },
+            ].map(({ label, value, onPress }) => (
+              <Pressable key={label} disabled={!onPress} accessibilityRole={onPress ? "button" : undefined}
+                accessibilityLabel={value == null ? `${label} unavailable` : `${value} ${label}`}
+                style={[s.profileStat, label !== "Listings" && s.profileDivider]} onPress={onPress}>
+                <Text style={s.profileStatValue}>{value ?? "—"}</Text>
+                <Text style={s.muted}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={s.profileMenu}>
+            {[
+              { title: "Profile", icon: "person-outline", sub: "Name, phone and email", onPress: openEditor },
+              ...(user.role === "user" ? [{
+                title: "My listings", icon: "apartment", sub: listingSummary, badge: listingCount,
+                onPress: () => router.push("/my-properties"),
+              }] : []),
+              { title: "KYC verification", icon: "badge", sub: "Identity and documents", badge: kycLabel, onPress: () => router.push("/kyc") },
+              { title: "Wishlist", icon: "favorite-border", sub: savedCount == null ? "Your saved properties" : `${savedCount} saved properties`, badge: savedCount, onPress: () => router.push("/saved") },
+            ].map(({ title, icon, sub, badge, onPress }, index) => (
+              <Pressable key={title} accessibilityRole="button" onPress={onPress}
+                style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
+                <View style={s.preferenceIcon}><Icon name={icon} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.profileMenuTitle}>{title}</Text>
+                  <Text style={s.muted}>{sub}</Text>
+                </View>
+                {badge != null ? (
+                  <View style={[s.profileBadge, title === "KYC verification" && s.profileKycBadge]}>
+                    <Text style={[s.profileBadgeText, title === "KYC verification" && { color: C.ink }]}>{badge}</Text>
+                  </View>
+                ) : (
+                  <View style={s.profileChevron}><Icon name="chevron-right" size={19} /></View>
+                )}
+              </Pressable>
+            ))}
+          </View>
+          {editing && (
+            <View style={s.panel}>
+              <Text style={s.h2}>Edit profile</Text>
+              <Field title="Full name" value={name} onChangeText={setName} />
+              <Field title="New email" value={email} onChangeText={setEmail} />
+              <EmailChangeForm email={email} />
+              <Button
+                title="Save profile"
+                disabled={action.busy}
+                onPress={() =>
+                  action.run(async () => {
+                    await userService.updateProfile({ name });
+                    await authService.getMe();
+                    setEditing(false);
+                  })
+                }
+              />
             </View>
-            <View style={s.profileMenu}>
-              {[
-                { title: "Profile", icon: "person-outline", sub: "Name, phone and email", onPress: openEditor },
-                ...(user.role === "user" ? [{
-                  title: "My listings", icon: "apartment", sub: listingSummary, badge: listingCount,
-                  onPress: () => router.push("/my-properties"),
-                }] : []),
-                { title: "KYC verification", icon: "badge", sub: "Identity and documents", badge: kycLabel, onPress: () => router.push("/kyc") },
-                { title: "Wishlist", icon: "favorite-border", sub: savedCount == null ? "Your saved properties" : `${savedCount} saved properties`, badge: savedCount, onPress: () => router.push("/saved") },
-              ].map(({ title, icon, sub, badge, onPress }, index) => (
-                <Pressable key={title} accessibilityRole="button" onPress={onPress}
-                  style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
+          )}
+          <Text style={s.h2}>Preferences</Text>
+          <View style={s.profileMenu}>
+            {[
+              {
+                title: "Notifications", subtitle: "Advisor replies & deal updates", icon: "notifications-none",
+                expanded: notificationSettingsAvailable ? undefined : openPreference === "notifications",
+                onPress: () => {
+                  if (notificationSettingsAvailable) void action.run(() => Linking.openSettings());
+                  else setOpenPreference(current => current === "notifications" ? null : "notifications");
+                },
+              },
+              {
+                title: "Language", subtitle: "English · हिंदी", icon: "language",
+                expanded: openPreference === "language",
+                onPress: () => setOpenPreference(current => current === "language" ? null : "language"),
+              },
+              {
+                title: "Help & support", subtitle: "Talk to the MalikSe team", icon: "help-outline",
+                onPress: () => void action.run(() => Linking.openURL("mailto:support@malikse.in")),
+              },
+            ].map(({ title, subtitle, icon, expanded, onPress }, index) => (
+              <React.Fragment key={title}>
+                <Pressable accessibilityRole="button" accessibilityState={{ expanded }}
+                  onPress={onPress} style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
                   <View style={s.preferenceIcon}><Icon name={icon} /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.profileMenuTitle}>{title}</Text>
-                    <Text style={s.muted}>{sub}</Text>
+                    <Text style={s.muted}>{subtitle}</Text>
                   </View>
-                  {badge != null ? (
-                    <View style={[s.profileBadge, title === "KYC verification" && s.profileKycBadge]}>
-                      <Text style={[s.profileBadgeText, title === "KYC verification" && { color: C.ink }]}>{badge}</Text>
-                    </View>
-                  ) : (
-                    <View style={s.profileChevron}><Icon name="chevron-right" size={19} /></View>
-                  )}
+                  <View style={s.profileChevron}><Icon name={expanded ? "expand-less" : "chevron-right"} size={19} /></View>
                 </Pressable>
-              ))}
+                {expanded && title === "Notifications" && (
+                  <Text style={[s.muted, s.preferenceDetails]}>Push notifications are available in the installed MalikSe app.</Text>
+                )}
+                {expanded && title === "Language" && (
+                  <View style={[s.wrap, s.preferenceDetails]}>
+                    {([{ id: "en", label: "English" }, { id: "hi", label: "हिंदी" }] as const).map(option => (
+                      <Pressable key={option.id} accessibilityRole="radio" accessibilityState={{ checked: language === option.id }}
+                        onPress={() => { setLanguage(option.id); setOpenPreference(null); }}
+                        style={[s.typeChip, language === option.id && { backgroundColor: C.sunSoft }]}>
+                        <Text style={s.cardTitle}>{option.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </React.Fragment>
+            ))}
+          </View>
+          <Button title="Conversations" icon="chat-bubble-outline" secondary onPress={() => router.push("/messages")} />
+          {user.role !== "user" && <Button title="Staff dashboard" icon="dashboard" secondary onPress={() => router.push(dashboardRoutes[user.role] as any)} />}
+          <Button title={user.role === "admin" ? "Support inbox" : "Contact support"} icon="help-outline" secondary onPress={() => router.navigate("/support")} />
+          <Button title="Privacy policy" secondary onPress={() => action.run(() => Linking.openURL("https://malikse.devoxa.in/privacy-policy"))} />
+          {user.role === "user" && <Button title="Delete account" secondary onPress={() => router.push("/delete-account" as any)} />}
+          <ErrorBox text={action.error} />
+          <Button
+            title="Log out of MalikSe"
+            danger
+            icon="logout"
+            onPress={() =>
+              action.run(async () => {
+                await authService.logout();
+                router.replace("/home");
+              })
+            }
+          />
+        </>
+      ) : (
+        <View style={[s.card, s.guestAccountCard]}>
+          <View style={s.guestAccountHeading}>
+            <Text accessibilityRole="header" style={s.guestAccountTitle}>Make yourself at home</Text>
+            <View style={s.guestAccountIcon} accessible={false}>
+              <Icon name="vpn-key" color={C.ink} size={22} />
             </View>
-            {editing && (
-              <View style={s.panel}>
-                <Text style={s.h2}>Edit profile</Text>
-                <Field title="Full name" value={name} onChangeText={setName} />
-                <Field title="New email" value={email} onChangeText={setEmail} />
-                <EmailChangeForm email={email} />
-                <Button
-                  title="Save profile"
-                  disabled={action.busy}
-                  onPress={() =>
-                    action.run(async () => {
-                      await userService.updateProfile({ name });
-                      await authService.getMe();
-                      setEditing(false);
-                    })
-                  }
-                />
-              </View>
-            )}
-            <Text style={s.h2}>Preferences</Text>
-            <View style={s.profileMenu}>
-              {[
-                {
-                  title: "Notifications", subtitle: "Advisor replies & deal updates", icon: "notifications-none",
-                  expanded: notificationSettingsAvailable ? undefined : openPreference === "notifications",
-                  onPress: () => {
-                    if (notificationSettingsAvailable) void action.run(() => Linking.openSettings());
-                    else setOpenPreference(current => current === "notifications" ? null : "notifications");
-                  },
-                },
-                {
-                  title: "Language", subtitle: "English · हिंदी", icon: "language",
-                  expanded: openPreference === "language",
-                  onPress: () => setOpenPreference(current => current === "language" ? null : "language"),
-                },
-                {
-                  title: "Help & support", subtitle: "Talk to the MalikSe team", icon: "help-outline",
-                  onPress: () => void action.run(() => Linking.openURL("mailto:support@malikse.in")),
-                },
-              ].map(({ title, subtitle, icon, expanded, onPress }, index) => (
-                <React.Fragment key={title}>
-                  <Pressable accessibilityRole="button" accessibilityState={{ expanded }}
-                    onPress={onPress} style={[s.preferenceRow, index > 0 && s.preferenceSeparator]}>
-                    <View style={s.preferenceIcon}><Icon name={icon} /></View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.profileMenuTitle}>{title}</Text>
-                      <Text style={s.muted}>{subtitle}</Text>
-                    </View>
-                    <View style={s.profileChevron}><Icon name={expanded ? "expand-less" : "chevron-right"} size={19} /></View>
-                  </Pressable>
-                  {expanded && title === "Notifications" && (
-                    <Text style={[s.muted, s.preferenceDetails]}>Push notifications are available in the installed MalikSe app.</Text>
-                  )}
-                  {expanded && title === "Language" && (
-                    <View style={[s.wrap, s.preferenceDetails]}>
-                      {([{ id: "en", label: "English" }, { id: "hi", label: "हिंदी" }] as const).map(option => (
-                        <Pressable key={option.id} accessibilityRole="radio" accessibilityState={{ checked: language === option.id }}
-                          onPress={() => { setLanguage(option.id); setOpenPreference(null); }}
-                          style={[s.typeChip, language === option.id && { backgroundColor: C.sunSoft }]}>
-                          <Text style={s.cardTitle}>{option.label}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  )}
-                </React.Fragment>
-              ))}
-            </View>
-            <Button title="Conversations" icon="chat-bubble-outline" secondary onPress={() => router.push("/messages")} />
-            {user.role !== "user" && <Button title="Staff dashboard" icon="dashboard" secondary onPress={() => router.push(dashboardRoutes[user.role] as any)} />}
-            <Button title="Privacy policy" secondary onPress={() => action.run(() => Linking.openURL("https://malikse.devoxa.in/privacy-policy"))} />
-            {user.role === "user" && <Button title="Delete account" secondary onPress={() => router.push("/delete-account" as any)} />}
-            <ErrorBox text={action.error} />
-            <Button
-              title="Log out of MalikSe"
-              secondary
-              icon="logout"
-              onPress={() =>
-                action.run(async () => {
-                  await authService.logout();
-                  router.replace("/home");
-                })
-              }
-            />
-          </>
-        )}
-      </Protected>
+          </View>
+          <Text style={s.guestAccountDescription}>Sign in to revisit saved listings and manage your enquiries.</Text>
+          <Button title="Sign in / Register" onPress={() => router.push({ pathname: "/login", params: { returnTo: "/profile" } })} />
+        </View>
+      )}
     </MarketplaceShell>
   );
 }
@@ -1374,11 +1463,13 @@ export function ListingsScreen() {
         {visible.map((p: any) => (
           <View key={p._id} style={s.panel}>
             <View style={s.row}>
-              {p.media?.photos?.[0] ? (
-                <PropertyImage source={{ uri: p.media.photos[0] }} style={s.listingPhoto} resizeMode="cover" thumbnailWidth={240} />
-              ) : (
-                <View style={[s.listingPhoto, s.placeholder]}><Icon name="home-work" size={30} /></View>
-              )}
+              <PropertyImage
+                source={resolvePropertyPhotoSource(p)}
+                fallbackSource={getFallbackPropertyPhotoSource(p)}
+                style={s.listingPhoto}
+                resizeMode="cover"
+                thumbnailWidth={240}
+              />
               <View style={{ flex: 1, gap: 4 }}>
                 <Tag green={p.status === "verified"}>{p.status.replaceAll("_", " ")}</Tag>
                 <Text style={s.cardTitle}>{label(p)}</Text>
@@ -1553,6 +1644,7 @@ export function PropertyDetailScreen() {
     action = useAction(),
     p = feed.data;
   const userId = useAuthStore((state) => state.user?.id);
+  const userRole = useAuthStore(state => state.user?.role);
   const wishlist = useData(userId && id ? `/users/wishlist/${id}` : null, [userId]);
   const saved = Boolean(wishlist.data?.isWishlisted);
   useEffect(() => {
@@ -1594,6 +1686,10 @@ export function PropertyDetailScreen() {
   ].filter(([key]) => p?.badges?.[key]);
   return (
     <MarketplaceShell title="Property details" back showDock={false}
+      headerContent={p && userId && userRole !== "admin" ? (
+        <Button title="Report this listing" icon="flag" secondary
+          onPress={() => router.push({ pathname: "/support", params: { referenceKind: "property", referenceId: String(p._id) } })} />
+      ) : undefined}
       footer={p && (
         <View style={s.between}>
           <Text style={s.price}>{money(p.price)}</Text>
@@ -1611,16 +1707,13 @@ export function PropertyDetailScreen() {
               { height: 340, borderRadius: 24, overflow: "hidden" },
             ]}
           >
-            {photos.length ? (
-              <PropertyImage
-                source={{ uri: photos[activePhoto] }}
-                style={StyleSheet.absoluteFill}
-              />
-            ) : (
-              <View style={[StyleSheet.absoluteFill, s.placeholder]}>
-                <Icon name="home-work" size={70} />
-              </View>
-            )}
+            <PropertyImage
+              source={photos.length ? { uri: photos[activePhoto] } : resolvePropertyPhotoSource(p)}
+              fallbackSource={getFallbackPropertyPhotoSource(p, activePhoto)}
+              isPublic
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+            />
             {photos.length > 0 && <Text style={s.photoCounter}>{activePhoto + 1} / {photos.length} photos</Text>}
             <View style={s.imageTags}>
               <Tag green>✓ Verified property</Tag>
@@ -1652,7 +1745,12 @@ export function PropertyDetailScreen() {
                   accessibilityLabel={`View photo ${index + 1}`}
                   accessibilityState={{ selected: index === activePhoto }}
                   onPress={() => setGalleryIndex(index)} style={[s.galleryThumb, index === activePhoto && { borderColor: C.sun }]}>
-                  <PropertyImage source={{ uri }} style={StyleSheet.absoluteFill} />
+                  <PropertyImage
+                    source={{ uri }}
+                    fallbackSource={getFallbackPropertyPhotoSource(p, index)}
+                    isPublic
+                    style={StyleSheet.absoluteFill}
+                  />
                 </Pressable>
               ))}
             </ScrollView>
@@ -1747,7 +1845,6 @@ export function PropertyDetailScreen() {
   );
 }
 
-export const ChatsScreen = WhatsAppChatScreen;
 
 export function DealScreen() {
   const { id } = useLocalSearchParams(),
@@ -2136,6 +2233,44 @@ export function PostScreen() {
       await api.post(`/properties/${id}/submit`, { consent: true });
       setDone(true);
     });
+  if (user?.role === "advisor") {
+    return (
+      <MarketplaceShell
+        title="Post property"
+        subtitle="Review property details and track the status of your assigned listings."
+        headerContent={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open Advisor dashboard"
+            onPress={() => router.push(dashboardRoutes.advisor)}
+            style={({ pressed }) => [s.advisorPostShortcut, pressed && { opacity: 0.8 }]}
+          >
+            <View style={s.advisorPostIcon}>
+              <Icon name="assignment" size={21} color={C.ink} />
+            </View>
+            <View style={s.advisorPostShortcutCopy}>
+              <Text style={s.advisorPostShortcutTitle}>Assigned listings</Text>
+              <Text style={s.advisorPostShortcutHint}>Open Advisor dashboard</Text>
+            </View>
+            <Icon name="arrow-forward" size={21} color={C.ink} />
+          </Pressable>
+        }
+        back
+        dockArtwork
+        scrollFooter={() => (
+          <View style={[s.postWatermarkFrame, s.advisorPostArtwork]} aria-hidden pointerEvents="none">
+            <Image source={require("../assets/images/post_property_watermark.png")}
+              style={s.watermarkImage} resizeMode="contain" accessible={false} />
+          </View>
+        )}
+      >
+        <View style={[s.card, s.advisorPostCard]}>
+          <Text accessibilityRole="header" style={s.advisorPostTitle}>Who can post a property?</Text>
+          <Text style={s.advisorPostDescription}>New listings are created by verified buyer or seller accounts.</Text>
+        </View>
+      </MarketplaceShell>
+    );
+  }
   if (user && user.role !== "user") {
     return (
       <MarketplaceShell title="Post property" back>
@@ -2157,7 +2292,7 @@ export function PostScreen() {
             ? `Step ${step} of 5 · Private until verified`
             : "Create a listing for your property on MalikSe."
       }
-      back
+      back={Boolean(user)}
       showDock={!canPost || done}
       scrollEnabled={canPost}
       scrollFooter={!canPost ? () => (
@@ -2416,7 +2551,11 @@ export function PostScreen() {
                     </Pressable>
                     {form.media.photos.map((uri: string, index: number) => (
                       <View key={uri} style={s.postMediaTile}>
-                        <PropertyImage source={{ uri }} style={StyleSheet.absoluteFill} />
+                        <PropertyImage
+                          source={{ uri }}
+                          fallbackSource={getFallbackPropertyPhotoSource(form, index)}
+                          style={StyleSheet.absoluteFill}
+                        />
                         {index === 0 && <Text style={s.postCover}>Cover</Text>}
                       </View>
                     ))}
@@ -2556,23 +2695,55 @@ const fontDisplay = "Fraunces";
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   header: { flexDirection: "row", alignItems: "center", gap: 10 },
-  heroInner: { width: "100%", maxWidth: 1140, alignSelf: "center", gap: 18 },
-  matchedHeroInner: { flex: 1, justifyContent: "space-between", gap: 6 },
+  heroInner: { width: "100%", maxWidth: 1140, alignSelf: "center", gap: brandHeader.gap },
+  heroBrandGroup: { gap: brandHeader.gap },
   compactHeroInner: { gap: 10 },
   heroIcon: {
     width: 42, height: 42, borderRadius: 21, alignItems: "center",
     justifyContent: "center", backgroundColor: "rgba(255,255,255,0.15)",
     borderWidth: 1, borderColor: "rgba(255,255,255,0.20)",
   },
-  logo: { fontFamily: fontDisplay, fontSize: 25, color: "#fff", letterSpacing: -0.5 },
-  logoIcon: { backgroundColor: C.sun, padding: 8, borderRadius: 12 },
   scroll: { paddingBottom: 108 },
   scrollWithArtwork: { flexGrow: 1, paddingBottom: 0 },
   fitArtworkToViewport: { flex: 1 },
+  wishlistGuestToolbar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  wishlistHeaderBrowse: {
+    minHeight: 44, maxWidth: "100%", flexDirection: "row", alignItems: "center", gap: 7,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: C.sun,
+  },
+  wishlistSaveTip: { flexGrow: 1, flexBasis: 104, maxWidth: 158, flexDirection: "row", alignItems: "center", gap: 6 },
+  wishlistSaveTipText: { flexShrink: 1, color: "#E7EDF5", fontFamily: font, fontSize: 12, lineHeight: 17 },
+  wishlistToolbar: {
+    flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between",
+    gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#FFFFFF26",
+  },
+  wishlistSummary: { flexDirection: "row", alignItems: "center", gap: 7, maxWidth: "100%" },
+  wishlistSummaryText: { flexShrink: 1, fontFamily: "ManropeBold", fontSize: 13, color: "#fff" },
+  wishlistSort: {
+    minHeight: 44, maxWidth: "100%", paddingHorizontal: 13, paddingVertical: 8,
+    flexDirection: "row", alignItems: "center", gap: 7, borderRadius: 22, backgroundColor: "#fff",
+  },
+  wishlistBrowse: { backgroundColor: C.sunSoft },
+  wishlistSortText: { flexShrink: 1, fontFamily: "ManropeBold", fontSize: 13, color: C.ink },
   wishlistArtwork: { flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" },
   wishlistWatermarkFrame: { width: "86%", maxWidth: 335, height: "95%" },
   watermarkFrame: { width: "72%", maxWidth: 280, aspectRatio: 1.2 },
   watermarkImage: { width: "100%", height: "100%" },
+  advisorPostCard: { padding: 18, gap: 12, backgroundColor: "#FFFDF7" },
+  advisorPostShortcut: {
+    flexDirection: "row", alignItems: "center", gap: 12, padding: 11,
+    borderRadius: 18, backgroundColor: C.sunSoft,
+  },
+  advisorPostShortcutCopy: { flex: 1, minWidth: 0, gap: 2 },
+  advisorPostShortcutTitle: { color: C.ink, fontFamily: "ManropeExtraBold", fontSize: 15 },
+  advisorPostShortcutHint: { color: C.muted, fontFamily: font, fontSize: 12 },
+  advisorPostIcon: {
+    width: 44, height: 44, borderRadius: 14, backgroundColor: C.sun,
+    alignItems: "center", justifyContent: "center",
+  },
+  advisorPostTitle: { fontFamily: fontDisplay, fontSize: 22, lineHeight: 27, color: C.ink },
+  advisorPostDescription: { fontFamily: font, fontSize: 14, lineHeight: 20, color: C.muted },
+  advisorPostArtwork: { minHeight: 152, maxHeight: 265, marginTop: 10 },
   postWatermarkFrame: { flex: 1, minHeight: 0, width: "86%", maxWidth: 420, alignSelf: "center" },
   postPrepIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF1C0" },
   content: { width: "100%", maxWidth: 1180, alignSelf: "center", padding: 20, gap: 18 },
@@ -2655,6 +2826,8 @@ const s = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
+  dangerButton: { backgroundColor: "#FFF0F2", borderWidth: 1, borderColor: "#EAC3CA", shadowOpacity: 0, elevation: 0 },
+  dangerButtonText: { color: "#A52239" },
   buttonText: {
     fontFamily: "ManropeExtraBold",
     fontSize: 14,
@@ -2679,7 +2852,7 @@ const s = StyleSheet.create({
     elevation: 1,
   },
   hero: {
-    paddingHorizontal: 20, paddingBottom: 24, backgroundColor: C.ink,
+    paddingHorizontal: 20, paddingBottom: 16, backgroundColor: C.ink,
     borderBottomLeftRadius: 34, borderBottomRightRadius: 34, overflow: "hidden",
   },
   compactHero: { paddingBottom: 13 },
@@ -2693,9 +2866,9 @@ const s = StyleSheet.create({
     position: "absolute", width: 74, height: 210, borderRadius: 40,
     right: 62, top: 70, backgroundColor: "#1C3556", transform: [{ rotate: "-30deg" }],
   },
-  heroTitle: { fontFamily: fontDisplay, fontSize: 32, lineHeight: 38, color: "#fff" },
+  illustratedHeroTitle: { flexDirection: "row", alignItems: "center", gap: 8 },
+  heroTitle: { fontFamily: fontDisplay, fontSize: brandHeader.headingSize, lineHeight: brandHeader.headingLineHeight, color: "#fff" },
   heroSubtitle: { fontFamily: font, fontSize: 14, lineHeight: 20, color: "rgba(255,255,255,0.78)" },
-  homeHeroDetails: { gap: 12, maxWidth: 360 },
   homeDistrict: {
     flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 8,
     minHeight: 44, maxWidth: "100%", paddingHorizontal: 12, paddingVertical: 6,
@@ -2915,6 +3088,15 @@ const s = StyleSheet.create({
   postDocumentIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   footer: { backgroundColor: "#fff", borderTopWidth: 1, borderColor: C.line, paddingHorizontal: 20, paddingTop: 12 },
   profileHero: { paddingBottom: 82 },
+  guestAccountCard: { padding: 20, gap: 14, backgroundColor: "#FFFDF7" },
+  guestAccountHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  guestAccountTitle: { flex: 1, fontFamily: fontDisplay, fontSize: 25, lineHeight: 30, color: C.ink },
+  guestAccountIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.sunSoft, alignItems: "center", justifyContent: "center" },
+  guestAccountDescription: { fontFamily: font, fontSize: 14, lineHeight: 21, color: C.muted },
+  profileHeaderCopy: { flexShrink: 1, minWidth: 0 },
+  guestProfileHero: { paddingBottom: 24 },
+  spacedBrandGroup: { gap: 16 },
+  profileHeroCaption: { fontSize: 13, lineHeight: 15 },
   profileContent: { marginTop: -50 },
   profileEdit: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: C.ink },
   profileIdentity: { flexDirection: "row", alignItems: "center", gap: 14, marginTop: 8 },
