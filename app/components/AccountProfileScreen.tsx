@@ -10,6 +10,7 @@ import { useLanguageStore } from "../src/store/languageStore";
 import { authService } from "../src/services/authService";
 import { userService } from "../src/services/userService";
 import { dashboardRoutes, roleLabels } from "../src/utils/accountRoutes";
+import { websiteUrl } from "../src/utils/websiteUrl";
 
 export default function AccountProfileScreen() {
   const router = useRouter();
@@ -134,7 +135,7 @@ export default function AccountProfileScreen() {
       <TouchableOpacity accessibilityRole="button" style={styles.button} onPress={() => router.push(dashboardRoutes[user.role])}>
         <Text style={styles.buttonText}>{label("Open my dashboard", "मेरा डैशबोर्ड खोलें")}</Text>
       </TouchableOpacity>
-      <TouchableOpacity accessibilityRole="link" onPress={() => { void Linking.openURL(`${process.env.EXPO_PUBLIC_WEBSITE_URL || "https://malikse.devoxa.in"}/privacy-policy`).catch(() => setError("Could not open the privacy policy.")); }}><Text style={styles.link}>Privacy policy</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="link" onPress={() => { void Linking.openURL(websiteUrl("/privacy-policy")).catch(() => setError("Could not open the privacy policy.")); }}><Text style={styles.link}>Privacy policy</Text></TouchableOpacity>
       {user.role === "user" && <TouchableOpacity accessibilityRole="button" style={styles.logout} onPress={() => router.push("/delete-account" as never)}><Text style={styles.logoutText}>{label("Delete account", "खाता हटाएं")}</Text></TouchableOpacity>}
     </ScrollView></KeyboardAvoidingView>
   </View>;

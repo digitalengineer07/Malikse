@@ -11,10 +11,10 @@ import api from "../src/services/authService";
 import { useAuthStore } from "../src/store/authStore";
 import { useResumeStore } from "../src/store/resumeStore";
 import AccountArtworkFooter from "../components/AccountArtworkFooter";
+import { websiteUrl } from "../src/utils/websiteUrl";
 
 type Receipt = { reference: string; receipt: string; status: string };
 const receiptKey = "malikse_deletion_receipt";
-const website = process.env.EXPO_PUBLIC_WEBSITE_URL || "https://malikse.devoxa.in";
 export default function DeleteAccount() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -133,7 +133,7 @@ export default function DeleteAccount() {
                 <Text style={styles.body}>Your account will be disabled and your listings hidden. Cleanup removes your profile, identity files, listings, preferences and associated conversations.</Text>
                 <Text style={styles.body}>Accepted or paid deals must be closed by assigned staff before cleanup. Other participants can keep limited deal records with your account link and free-text history removed. Staff accounts require administrator-managed removal.</Text>
                 <TouchableOpacity accessibilityRole="link" style={styles.policy} onPress={() => {
-                  void Linking.openURL(`${website}/privacy-policy`).catch(() => setError("Could not open the privacy policy."));
+                  void Linking.openURL(websiteUrl("/privacy-policy")).catch(() => setError("Could not open the privacy policy."));
                 }}>
                   <Text style={[styles.link, { flex: 1 }]}>Read the privacy and retention policy</Text>
                   <MaterialIcons name="open-in-new" size={17} color={navy} />
