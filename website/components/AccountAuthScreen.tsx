@@ -809,7 +809,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
                                   {label("Need Help?", "सहायता चाहिए?")}
                                 </Text>
                                 <Text style={styles.pillarDesc}>
-                                  {label("Contact support@malikse.in for manual recovery assistance", "मैन्युअल सहायता हेतु support@malikse.in पर संपर्क करें")}
+                                  {label("Contact support@malikse.com for manual recovery assistance", "मैन्युअल सहायता हेतु support@malikse.com पर संपर्क करें")}
                                 </Text>
                               </View>
                             </View>

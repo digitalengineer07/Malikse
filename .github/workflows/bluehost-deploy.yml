@@ -1,0 +1,64 @@
+name: Deploy backend to Bluehost
+
+on:
+  push:
+    branches: [testing]
+    paths:
+      - "server/**"
+      - "deploy/bluehost.sh"
+      - "deploy/test-bluehost.sh"
+      - ".github/workflows/bluehost-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bluehost-api
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/testing'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Verify backend build
+        working-directory: server
+        run: npm ci --include=dev
+      - name: Package the exact pushed commit
+        run: |
+          git archive --format=tar.gz --output=backend.tar.gz HEAD server
+          bash -n deploy/bluehost.sh
+          bash deploy/test-bluehost.sh
+      - name: Configure SSH with a verified host key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.BLUEHOST_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.BLUEHOST_SSH_KNOWN_HOSTS }}
+        run: |
+          test -n "$SSH_PRIVATE_KEY" || { echo 'Missing BLUEHOST_SSH_PRIVATE_KEY'; exit 1; }
+          test -n "$SSH_KNOWN_HOSTS" || { echo 'Missing BLUEHOST_SSH_KNOWN_HOSTS'; exit 1; }
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Upload and deploy
+        env:
+          RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes malikse-deploy@129.121.184.197 'mkdir -p /srv/malikse/deploy/incoming'
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes backend.tar.gz "malikse-deploy@129.121.184.197:/srv/malikse/deploy/incoming/$RELEASE_ID.tar.gz"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes malikse-deploy@129.121.184.197 "bash -s -- $RELEASE_ID" < deploy/bluehost.sh
+      - name: Verify public HTTPS readiness
+        run: curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 --max-time 15 https://server.malikse.com/ready
+      - name: Remove runner SSH key
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519

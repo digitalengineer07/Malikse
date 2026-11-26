@@ -111,6 +111,7 @@ app/dist-workflow-check/
 
 # Uploaded user/property files are runtime data, never source code.
 /server/uploads/
+Project_Files/
 
 # Local build checks, debug output and packaging artifacts.
 /app/dist-*/
