@@ -2038,7 +2038,7 @@ export default function AccountAuthScreen({ mode }: AccountAuthScreenProps) {
 
                   <View style={styles.setupStepBox}>
                     <Text style={styles.setupStepTitle}>3. Create Web OAuth Client ID</Text>
-                    <Text style={styles.setupStepText}>Authorized JavaScript Origins: http://localhost:5173, https://malikse.devoxa.in</Text>
+                    <Text style={styles.setupStepText}>Authorized JavaScript Origins: http://localhost:5173, https://malikse.com</Text>
                   </View>
 
                   <View style={styles.setupStepBox}>

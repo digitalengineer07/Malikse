@@ -53,6 +53,7 @@ import MapParcelPicker, { LatLngPoint } from "./MapParcelPicker";
 import PropertyImage from "./PropertyImage";
 import { dashboardRoutes } from "../src/utils/accountRoutes";
 import { getFallbackPropertyPhotoSource, resolvePropertyPhotoSource } from "../src/utils/propertyImages";
+import { websiteUrl } from "../src/utils/websiteUrl";
 const C = {
   bg: "#F7F4EC",
   ink: "#14263E",
@@ -1359,7 +1360,7 @@ export function ProfileScreen() {
               },
               {
                 title: "Help & support", subtitle: "Talk to the MalikSe team", icon: "help-outline",
-                onPress: () => void action.run(() => Linking.openURL("mailto:support@malikse.in")),
+                onPress: () => void action.run(() => Linking.openURL(websiteUrl("/support"))),
               },
             ].map(({ title, subtitle, icon, expanded, onPress }, index) => (
               <React.Fragment key={title}>
@@ -1391,8 +1392,8 @@ export function ProfileScreen() {
           </View>
           <Button title="Conversations" icon="chat-bubble-outline" secondary onPress={() => router.push("/messages")} />
           {user.role !== "user" && <Button title="Staff dashboard" icon="dashboard" secondary onPress={() => router.push(dashboardRoutes[user.role] as any)} />}
-          <Button title={user.role === "admin" ? "Support inbox" : "Contact support"} icon="help-outline" secondary onPress={() => router.navigate("/support")} />
-          <Button title="Privacy policy" secondary onPress={() => action.run(() => Linking.openURL("https://malikse.devoxa.in/privacy-policy"))} />
+          <Button title={user.role === "admin" ? "Support inbox" : "Contact support"} icon="help-outline" secondary onPress={() => user.role === "admin" ? router.navigate("/support") : action.run(() => Linking.openURL(websiteUrl("/support")))} />
+          <Button title="Privacy policy" secondary onPress={() => action.run(() => Linking.openURL(websiteUrl("/privacy-policy")))} />
           {user.role === "user" && <Button title="Delete account" secondary onPress={() => router.push("/delete-account" as any)} />}
           <ErrorBox text={action.error} />
           <Button

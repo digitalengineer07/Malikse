@@ -3,7 +3,7 @@ import { publicUser } from "./security";
 const cookieName = "malikse_refresh";
 export const cookieSession = (req: Request) => req.get("X-Session-Mode") === "cookie";
 export function trustedCookieOrigin(req: Request) {
-  const allowed = (process.env.CORS_ORIGINS || "https://malikse.devoxa.in").split(",").map(v => v.trim());
+  const allowed = (process.env.CORS_ORIGINS || "https://malikse.com").split(",").map(v => v.trim());
   const origin = req.get("origin");
   if (!origin) return false;
   if (allowed.includes(origin)) return true;

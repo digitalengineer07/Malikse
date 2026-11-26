@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Image, Keyboard, Linking, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLanguageStore } from "../src/store/languageStore";
+import { websiteUrl } from "../src/utils/websiteUrl";
 
 export default function AccountArtworkFooter({
   bottomExtension = 0,
@@ -39,8 +40,8 @@ export default function AccountArtworkFooter({
           </View>
           <View style={styles.footerActions}>
             <TouchableOpacity accessibilityRole="link" style={styles.support}
-              onPress={() => void Linking.openURL("mailto:support@malikse.in").catch(() => {
-                setSupportError(label("Email support@malikse.in for help.", "सहायता के लिए support@malikse.in पर ईमेल करें।"));
+              onPress={() => void Linking.openURL(websiteUrl("/support")).catch(() => {
+                setSupportError(label("Visit https://malikse.com/support or email support@malikse.com for help.", "सहायता के लिए https://malikse.com/support पर जाएं या support@malikse.com पर ईमेल करें।"));
               })}>
               <View style={[styles.artCrop, styles.supportIcon]}>
                 <Image source={require("../assets/images/sign_in_contact_support_icon.png")} style={styles.supportAsset} resizeMode="stretch" accessible={false} />

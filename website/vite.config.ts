@@ -27,7 +27,7 @@ export default defineConfig(({ mode, command }) => {
   }
 
   // If accidentally configured with the frontend website domain or left empty, safely target production API
-  const isFrontendDomain = /^(https?:\/\/)?malikse\.devoxa\.in\/?$/i.test(rawConfigured);
+  const isFrontendDomain = /^(https?:\/\/)?(www\.)?(malikse\.com|malikse\.devoxa\.in)\/?$/i.test(rawConfigured);
   const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(rawConfigured);
 
   let targetApi = productionApi;
