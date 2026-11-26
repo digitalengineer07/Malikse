@@ -6,17 +6,19 @@ import { useAuthStore } from "../src/store/authStore";
 export interface PropertyImageProps extends ImageProps {
   isPublic?: boolean;
   thumbnailWidth?: number;
+  fallbackUri?: string;
 }
 
 // Never send account credentials to externally hosted listing images.
 export default function PropertyImage(props: PropertyImageProps) {
-  const { isPublic, thumbnailWidth, source: rawSource, ...restProps } = props;
+  const { isPublic, thumbnailWidth, fallbackUri, source: rawSource, onError, ...restProps } = props;
   const accessToken = useAuthStore(state => state.accessToken);
   const source = rawSource as ImageURISource | undefined;
   const originalUri = typeof source === "object" && !Array.isArray(source) ? source?.uri : undefined;
+  const [failedUri, setFailedUri] = useState<string | null>(null);
 
   // Append thumbnail width optimization query if applicable
-  const uri = React.useMemo(() => {
+  const optimizedUri = React.useMemo(() => {
     if (!originalUri) return undefined;
     if (thumbnailWidth && originalUri.includes("/property-photos/") && !originalUri.includes("w=")) {
       const sep = originalUri.includes("?") ? "&" : "?";
@@ -24,6 +26,9 @@ export default function PropertyImage(props: PropertyImageProps) {
     }
     return originalUri;
   }, [originalUri, thumbnailWidth]);
+
+  const usingFallback = Boolean(optimizedUri && failedUri === optimizedUri && fallbackUri);
+  const uri = usingFallback ? fallbackUri : (optimizedUri || fallbackUri);
 
   let protectedUri = false;
   try {
@@ -36,7 +41,7 @@ export default function PropertyImage(props: PropertyImageProps) {
 
   useEffect(() => {
     // If it's a public listing image, the browser can fetch directly without auth headers
-    if (isPublic) return;
+    if (isPublic || usingFallback) return;
     if (Platform.OS !== "web" || !protectedUri || !uri || !accessToken) return;
     const controller = new AbortController();
     let objectUrl: string | undefined;
@@ -44,23 +49,47 @@ export default function PropertyImage(props: PropertyImageProps) {
       if (controller.signal.aborted) return;
       objectUrl = URL.createObjectURL(response.data);
       setDownload({ uri, token: accessToken, blob: objectUrl });
-    }).catch(() => {});
+    }).catch(() => {
+      if (!controller.signal.aborted && fallbackUri) {
+        setFailedUri(uri);
+      }
+    });
 
     return () => {
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [uri, protectedUri, accessToken, isPublic]);
+  }, [uri, protectedUri, accessToken, isPublic, usingFallback, fallbackUri]);
 
-  // If public or unauthenticated, let browser render natively and leverage HTTP/disk caching
-  if (isPublic || !protectedUri || !accessToken) {
-    return <Image {...restProps} source={uri ? { ...source, uri } : rawSource} />;
+  const handleError = (event: any) => {
+    if (optimizedUri && fallbackUri && !usingFallback && optimizedUri !== fallbackUri) {
+      setFailedUri(optimizedUri);
+    }
+    onError?.(event);
+  };
+
+  // If public, unauthenticated, or fallen back to local asset, render natively with HTTP/disk caching
+  if (isPublic || usingFallback || !protectedUri || !accessToken) {
+    return (
+      <Image
+        {...restProps}
+        onError={handleError}
+        source={uri ? { ...(typeof source === "object" && !Array.isArray(source) ? source : {}), uri } : rawSource}
+      />
+    );
   }
 
   if (Platform.OS === "web") {
     const activeBlob = download?.uri === uri && download?.token === accessToken ? download?.blob : undefined;
-    return <Image {...restProps} source={activeBlob ? { uri: activeBlob } : undefined} />;
+    const webSource = activeBlob ? { uri: activeBlob } : (fallbackUri ? { uri: fallbackUri } : undefined);
+    return <Image {...restProps} onError={handleError} source={webSource} />;
   }
 
-  return <Image {...restProps} source={{ ...source, uri, headers: { ...source?.headers, Authorization: `Bearer ${accessToken}` } }} />;
+  return (
+    <Image
+      {...restProps}
+      onError={handleError}
+      source={{ ...source, uri, headers: { ...source?.headers, Authorization: `Bearer ${accessToken}` } }}
+    />
+  );
 }

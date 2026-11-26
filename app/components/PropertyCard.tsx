@@ -7,6 +7,7 @@ import type { Property } from "../src/types/property.types";
 import { AppTheme } from "../constants/theme";
 import { useLanguageStore } from "../src/store/languageStore";
 import { t } from "../src/i18n/translations";
+import { getFallbackPropertyPhotoSource, resolvePropertyPhotoSource } from "../src/utils/propertyImages";
 
 interface PropertyCardProps {
   property: Property | any;
@@ -50,7 +51,15 @@ export default function PropertyCard({ property, onSave, isSaved }: PropertyCard
     >
       {/* Property Image Header */}
       <View style={styles.imageContainer}>
-        {property.media?.photos?.[0] ? <Image source={{ uri: property.media.photos[0] }} accessibilityLabel="Property photo" style={styles.image} resizeMode="cover" /> : <Text>No property photo uploaded</Text>}
+        <Image
+          source={resolvePropertyPhotoSource(property)}
+          fallbackSource={getFallbackPropertyPhotoSource(property)}
+          isPublic
+          thumbnailWidth={600}
+          accessibilityLabel="Property photo"
+          style={styles.image}
+          resizeMode="cover"
+        />
         <View style={styles.imageOverlay} />
 
         {/* Verification Status Badge */}

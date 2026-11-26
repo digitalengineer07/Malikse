@@ -3,9 +3,11 @@ import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, Platform
 import { useRouter } from "@/web/navigation";
 import { MaterialIcons } from "@/web/icons";
 import { useAuthStore } from "../src/store/authStore";
+import { FONT_BODY, FONT_DISPLAY, FONT_MONO } from "../constants/typography";
 
-const font = Platform.OS === "web" ? "'Plus Jakarta Sans', Manrope, -apple-system, BlinkMacSystemFont, sans-serif" : "PoppinsRegular";
-const fontDisplay = Platform.OS === "web" ? "'Plus Jakarta Sans', PoppinsBold, Manrope, sans-serif" : "PoppinsBold";
+const font = FONT_BODY;
+const fontDisplay = FONT_DISPLAY;
+const fontMono = FONT_MONO;
 
 export default function WebFooter() {
   const router = useRouter();
@@ -19,104 +21,68 @@ export default function WebFooter() {
   };
 
   return (
-    <View style={styles.footerWrapper}>
-      <View style={styles.footerCard}>
-        {/* Top Institutional Trust Ribbon */}
-        <View style={[styles.trustRibbon, { flexDirection: isDesktop ? "row" : "column" }]}>
-          <View style={styles.trustRibbonLeft}>
-            <View style={styles.trustIconPill}>
-              <MaterialIcons name="verified-user" size={20} color="#0A45B5" />
-            </View>
-            <View style={{ gap: 2 }}>
-              <Text style={styles.trustEyebrow}>BIHAR REVENUE & PROPERTY INTEGRITY ASSURANCE</Text>
-              <Text style={styles.trustTitle}>Building Trust in Every Square Foot</Text>
-            </View>
-          </View>
+    <View style={styles.footerOuter}>
+      {/* Signature Bottom-Right Sun Orb Decoration */}
+      <View style={styles.sunOrb} pointerEvents="none" />
 
-          <View style={styles.trustBadgesRow}>
-            <View style={styles.ribbonBadgeItem}>
-              <MaterialIcons name="gavel" size={13} color="#059669" />
-              <Text style={styles.ribbonBadgeText}>Title & Deed Reviewed</Text>
-            </View>
-            <View style={styles.ribbonBadgeItem}>
-              <MaterialIcons name="gps-fixed" size={13} color="#0A45B5" />
-              <Text style={styles.ribbonBadgeText}>Cadastral GPS Boundaries</Text>
-            </View>
-            <View style={styles.ribbonBadgeItem}>
-              <MaterialIcons name="handshake" size={13} color="#D97706" />
-              <Text style={styles.ribbonBadgeText}>Verified Listings · Assigned Support</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Main Footer Links Columns */}
+      <View style={styles.footerInner}>
+        {/* Main 4-Column Footer Grid */}
         <View style={[styles.columnsGrid, { flexDirection: isDesktop ? "row" : "column" }]}>
           {/* Col 1: Brand Info */}
-          <View style={[styles.brandCol, { width: isDesktop ? "31%" : "100%" }]}>
+          <View style={[styles.brandCol, { width: isDesktop ? "32%" : "100%" }]}>
             <TouchableOpacity
-              activeOpacity={0.8}
+              activeOpacity={0.85}
               onPress={() => router.push("/home")}
               style={styles.brandLockup}
             >
               <View style={styles.logoIcon}>
-                <MaterialIcons name="roofing" size={19} color="white" />
+                <MaterialIcons name="roofing" size={22} color="#14263E" />
               </View>
-              <View style={styles.brandTextCol}>
-                <Text style={styles.brandName}>
-                  MalikSe<Text style={{ color: "#10B981" }}>.</Text>
-                </Text>
-                <Text style={styles.brandTagline}>
-                  Verified spaces · Trusted connections
-                </Text>
-              </View>
+              <Text style={styles.brandName}>
+                Malik<Text style={{ color: "#FCC61C" }}>Se</Text>
+              </Text>
             </TouchableOpacity>
 
             <Text style={styles.brandDesc}>
-              Bihar's premier verified real estate network. Connecting buyers, sellers, and investors through cadastral accuracy, title verification, and dedicated local property advisors.
+              India's verified owner-to-buyer property marketplace. Zero brokerage, legally checked listings, and an advisor on every deal across all 38 districts of Bihar.
             </Text>
 
             <View style={styles.badgesRow}>
               <View style={styles.trustBadge}>
-                <MaterialIcons name="verified" size={13} color="#0A45B5" />
+                <MaterialIcons name="verified" size={13} color="#FCC61C" />
                 <Text style={styles.trustBadgeText}>100% Verified</Text>
               </View>
               <View style={styles.trustBadge}>
-                <MaterialIcons name="gavel" size={13} color="#059669" />
-                <Text style={[styles.trustBadgeText, { color: "#059669" }]}>Legal Checks</Text>
+                <MaterialIcons name="gavel" size={13} color="#FCC61C" />
+                <Text style={styles.trustBadgeText}>Title Checked</Text>
               </View>
               <View style={styles.trustBadge}>
-                <MaterialIcons name="place" size={13} color="#D97706" />
-                <Text style={[styles.trustBadgeText, { color: "#D97706" }]}>GPS Demarcated</Text>
+                <MaterialIcons name="place" size={13} color="#FCC61C" />
+                <Text style={styles.trustBadgeText}>GPS Boundary</Text>
               </View>
             </View>
           </View>
 
-          {/* Col 2: Properties */}
-          <View style={[styles.linkCol, { width: isDesktop ? "19%" : isTablet ? "48%" : "100%" }]}>
-            <Text style={styles.colHeader}>Properties</Text>
-            <TouchableOpacity onPress={() => router.push({ pathname: "/home", params: { type: "land" } })}>
-              <Text style={styles.linkText}>Residential Land & Plots</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push({ pathname: "/home", params: { type: "flat" } })}>
+          {/* Col 2: Explore */}
+          <View style={[styles.linkCol, { width: isDesktop ? "18%" : isTablet ? "48%" : "100%" }]}>
+            <Text style={styles.colHeader}>EXPLORE</Text>
+            <TouchableOpacity onPress={() => router.push({ pathname: "/search", params: { type: "flat" } } as any)}>
               <Text style={styles.linkText}>Flats & Apartments</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push({ pathname: "/home", params: { type: "house" } })}>
-              <Text style={styles.linkText}>Villas & Detached Houses</Text>
+            <TouchableOpacity onPress={() => router.push({ pathname: "/search", params: { type: "house" } } as any)}>
+              <Text style={styles.linkText}>Houses & Villas</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push({ pathname: "/home", params: { type: "shop" } })}>
-              <Text style={styles.linkText}>Commercial Shops</Text>
+            <TouchableOpacity onPress={() => router.push({ pathname: "/search", params: { type: "land" } } as any)}>
+              <Text style={styles.linkText}>Plots & Land</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push({ pathname: "/home", params: { type: "office" } })}>
-              <Text style={styles.linkText}>Executive Offices</Text>
+            <TouchableOpacity onPress={() => router.push({ pathname: "/search", params: { type: "shop" } } as any)}>
+              <Text style={styles.linkText}>Commercial & Offices</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Col 3: Quick Navigation */}
-          <View style={[styles.linkCol, { width: isDesktop ? "19%" : isTablet ? "48%" : "100%" }]}>
-            <Text style={styles.colHeader}>Quick Links</Text>
-            <TouchableOpacity onPress={() => router.push("/search")}>
-              <Text style={styles.linkText}>Explore All Listings</Text>
-            </TouchableOpacity>
+          {/* Col 3: Owners */}
+          <View style={[styles.linkCol, { width: isDesktop ? "18%" : isTablet ? "48%" : "100%" }]}>
+            <Text style={styles.colHeader}>OWNERS</Text>
             <TouchableOpacity
               onPress={() =>
                 router.push(
@@ -126,72 +92,59 @@ export default function WebFooter() {
                 )
               }
             >
-              <Text style={styles.linkText}>Post Your Property</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push("/saved")}>
-              <Text style={styles.linkText}>Saved Properties</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push("/messages")}>
-              <Text style={styles.linkText}>Property Inquiries</Text>
+              <Text style={styles.linkText}>Post a property</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push("/kyc")}>
-              <Text style={styles.linkText}>Identity Verification</Text>
+              <Text style={styles.linkText}>Verify with KYC</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push("/saved")}>
+              <Text style={styles.linkText}>Saved properties</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push("/messages")}>
+              <Text style={styles.linkText}>Property inquiries</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Col 4: Corporate Office */}
-          <View style={[styles.linkCol, { width: isDesktop ? "25%" : "100%" }]}>
-            <View style={styles.officeHeaderRow}>
-              <MaterialIcons name="place" size={17} color="#10B981" />
-              <Text style={styles.colHeader}>Corporate Office</Text>
-            </View>
+          {/* Col 4: Corporate Office & Legal */}
+          <View style={[styles.linkCol, { width: isDesktop ? "24%" : "100%" }]}>
+            <Text style={styles.colHeader}>COMPANY</Text>
+            <Text style={styles.addressBold}>4th Floor, Om Ganga Complex</Text>
+            <Text style={styles.linkTextMuted}>Saguna Danapur Station Road, Patna 801503</Text>
 
-            <View style={styles.addressBlock}>
-              <Text style={styles.addressBold}>4th Floor, Om Ganga Complex</Text>
-              <Text style={styles.contactText}>Saguna Danapur Station Road</Text>
-              <Text style={styles.contactText}>Patna 801503</Text>
-            </View>
-
-            <TouchableOpacity
-              activeOpacity={0.7}
-              style={styles.contactItem}
-              onPress={openEmailSupport}
-            >
-              <MaterialIcons name="email" size={15} color="#64748B" style={{ marginTop: 2 }} />
-              <Text style={styles.contactLinkText}>Direct Support: support@malikse.in</Text>
+            <TouchableOpacity activeOpacity={0.75} style={styles.contactItem} onPress={openEmailSupport}>
+              <MaterialIcons name="email" size={14} color="#FCC61C" style={{ marginTop: 2 }} />
+              <Text style={styles.linkText}>support@malikse.in</Text>
             </TouchableOpacity>
 
             <View style={styles.contactItem}>
-              <MaterialIcons name="schedule" size={15} color="#64748B" style={{ marginTop: 2 }} />
-              <Text style={styles.contactText}>Mon – Sat, 9:00 AM – 7:00 PM IST</Text>
-            </View>
-
-            <View style={styles.patnaPill}>
-              <MaterialIcons name="location-city" size={13} color="#15803D" />
-              <Text style={styles.patnaPillText}>Serving All 38 Districts of Bihar</Text>
+              <MaterialIcons name="schedule" size={14} color="rgba(255,255,255,0.55)" style={{ marginTop: 2 }} />
+              <Text style={styles.linkTextMuted}>Mon – Sat, 9:00 AM – 7:00 PM IST</Text>
             </View>
           </View>
         </View>
+      </View>
 
-        {/* Bottom Copyright and Meta */}
-        <View style={styles.bottomBar}>
-          <Text style={styles.copyrightText}>
-            © {new Date().getFullYear()} Malikse powered by AgHomesIndia. All rights reserved.
-          </Text>
-          <View style={styles.legalLinks}>
-            <TouchableOpacity accessibilityRole="link" onPress={() => router.push("/privacy-policy")}>
-              <Text style={styles.legalLink}>Privacy Policy</Text>
-            </TouchableOpacity>
-            <Text style={styles.legalDot}>•</Text>
-            <TouchableOpacity accessibilityRole="link" onPress={() => router.push("/delete-account")}>
-              <Text style={styles.legalLink}>Delete account</Text>
-            </TouchableOpacity>
-            <Text style={styles.legalDot}>•</Text>
-            <Text style={styles.legalLink}>Terms of Service</Text>
-            <Text style={styles.legalDot}>•</Text>
-            <Text style={styles.legalLink}>Land Law Advisory</Text>
-            <Text style={styles.legalDot}>•</Text>
-            <Text style={styles.legalLink}>Security</Text>
+      {/* Bottom Legal & Legal Assurance Ribbon */}
+      <View style={styles.bottomBorder}>
+        <View style={styles.bottomInner}>
+          <View style={styles.legalRow}>
+            <Text style={styles.copyrightText}>
+              © {new Date().getFullYear()} MalikSe powered by AgHomesIndia. All rights reserved.
+            </Text>
+            <View style={styles.legalLinks}>
+              <TouchableOpacity accessibilityRole="link" onPress={() => router.push("/privacy-policy")}>
+                <Text style={styles.legalLink}>Privacy Policy</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalDot}>•</Text>
+              <TouchableOpacity accessibilityRole="link" onPress={() => router.push("/delete-account")}>
+                <Text style={styles.legalLink}>Delete account</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.legalAssurance}>
+            <MaterialIcons name="verified-user" size={16} color="#FCC61C" />
+            <Text style={styles.legalAssuranceText}>Every listing checked by the MalikSe legal team</Text>
           </View>
         </View>
       </View>
@@ -200,287 +153,181 @@ export default function WebFooter() {
 }
 
 const styles = StyleSheet.create({
-  footerWrapper: {
+  footerOuter: {
     width: "100%",
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 24,
-    backgroundColor: "transparent",
+    backgroundColor: "#14263E",
+    marginTop: 48,
+    position: "relative",
+    overflow: "hidden",
   },
-  footerCard: {
+  sunOrb: {
+    position: "absolute",
+    right: -110,
+    bottom: -150,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: "rgba(252, 198, 28, 0.92)",
+  },
+  footerInner: {
     width: "100%",
-    maxWidth: 1240,
+    maxWidth: 1180,
     alignSelf: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    paddingVertical: 22,
-    paddingHorizontal: 26,
-    gap: 20,
-    ...Platform.select({
-      web: {
-        boxShadow: "0 4px 20px rgba(11, 27, 63, 0.04)",
-      },
-    }),
-  },
-  trustRibbon: {
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  trustRibbonLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  trustIconPill: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#DBEAFE",
-  },
-  trustEyebrow: {
-    fontSize: 9,
-    fontWeight: "800",
-    color: "#0A45B5",
-    letterSpacing: 0.8,
-    fontFamily: font,
-  },
-  trustTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#0B1B3F",
-    fontFamily: fontDisplay,
-    letterSpacing: -0.3,
-  },
-  trustBadgesRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  ribbonBadgeItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 18,
-  },
-  ribbonBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#334155",
-    fontFamily: font,
+    paddingHorizontal: 24,
+    paddingTop: 42,
+    paddingBottom: 34,
+    position: "relative",
+    zIndex: 2,
   },
   columnsGrid: {
     justifyContent: "space-between",
-    gap: 20,
+    gap: 28,
   },
   brandCol: {
-    gap: 10,
+    gap: 12,
   },
   brandLockup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 9,
-    marginBottom: 2,
-    ...Platform.select({
-      web: {
-        cursor: "pointer",
-      },
-    }),
+    gap: 10,
+    ...Platform.select({ web: { cursor: "pointer" } }),
   },
   logoIcon: {
-    backgroundColor: "#0A45B5",
-    width: 34,
-    height: 34,
-    borderRadius: 9,
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: "#FCC61C",
     alignItems: "center",
-    justifyContent: "center",
-    ...Platform.select({
-      web: {
-        boxShadow: "0 2px 6px rgba(10, 69, 181, 0.2)",
-      },
-    }),
-  },
-  brandTextCol: {
     justifyContent: "center",
   },
   brandName: {
-    fontSize: 21,
-    fontWeight: "900",
-    color: "#0B1B3F",
     fontFamily: fontDisplay,
-    letterSpacing: -0.6,
-    lineHeight: 24,
-  },
-  brandTagline: {
-    fontSize: 10,
+    fontSize: 24,
     fontWeight: "600",
-    color: "#64748B",
-    fontFamily: font,
-    letterSpacing: 0.1,
-    lineHeight: 13,
+    color: "#FFFFFF",
+    letterSpacing: -0.25,
   },
   brandDesc: {
-    fontSize: 12.5,
-    color: "#64748B",
     fontFamily: font,
-    lineHeight: 18,
+    fontSize: 13.5,
+    lineHeight: 21,
+    color: "rgba(255, 255, 255, 0.72)",
+    maxWidth: 320,
   },
   badgesRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 7,
-    marginTop: 2,
   },
   trustBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "#EFF6FF",
+    gap: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
     borderWidth: 1,
-    borderColor: "#DBEAFE",
+    borderColor: "rgba(255, 255, 255, 0.14)",
     paddingHorizontal: 9,
     paddingVertical: 4,
-    borderRadius: 16,
+    borderRadius: 999,
   },
   trustBadgeText: {
-    fontSize: 10.5,
+    fontFamily: fontMono,
+    fontSize: 11,
     fontWeight: "700",
-    color: "#0A45B5",
-    fontFamily: font,
+    letterSpacing: 0.2,
+    color: "#FFFFFF",
   },
   linkCol: {
-    gap: 8,
+    gap: 9,
   },
   colHeader: {
-    fontSize: 13.5,
+    fontFamily: fontMono,
+    fontSize: 11.5,
     fontWeight: "800",
-    color: "#0B1B3F",
-    fontFamily: fontDisplay,
-    letterSpacing: 0.1,
+    color: "#FCC61C",
+    letterSpacing: 1.5,
+    marginBottom: 2,
   },
   linkText: {
-    fontSize: 12.5,
-    color: "#475569",
-    fontWeight: "500",
     fontFamily: font,
-    lineHeight: 17,
-    ...Platform.select({
-      web: {
-        cursor: "pointer",
-        transition: "color 0.15s ease",
-      },
-    }),
+    fontSize: 13.5,
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.78)",
+    ...Platform.select({ web: { cursor: "pointer" } }),
   },
-  officeHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginBottom: 2,
-  },
-  addressBlock: {
-    gap: 1,
-    marginBottom: 2,
+  linkTextMuted: {
+    fontFamily: font,
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.62)",
+    lineHeight: 19,
   },
   addressBold: {
-    fontSize: 12.5,
-    fontWeight: "700",
-    color: "#0F172A",
     fontFamily: font,
-    lineHeight: 17,
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   contactItem: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 7,
+    marginTop: 2,
   },
-  contactText: {
-    fontSize: 12.5,
-    color: "#64748B",
-    fontFamily: font,
-    lineHeight: 17,
-    flex: 1,
+  bottomBorder: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.12)",
+    backgroundColor: "rgba(12, 26, 44, 0.45)",
+    position: "relative",
+    zIndex: 2,
   },
-  contactLinkText: {
-    fontSize: 12.5,
-    color: "#64748B",
-    fontFamily: font,
-    lineHeight: 17,
-    flex: 1,
-    ...Platform.select({
-      web: {
-        cursor: "pointer",
-      },
-    }),
-  },
-  patnaPill: {
+  bottomInner: {
+    width: "100%",
+    maxWidth: 1180,
+    alignSelf: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "#F0FDF4",
-    borderWidth: 1,
-    borderColor: "#BBF7D0",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 16,
-    marginTop: 4,
-    alignSelf: "flex-start",
-  },
-  patnaPillText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#15803D",
-    fontFamily: font,
-  },
-  bottomBar: {
-    flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 12,
+  },
+  legalRow: {
+    flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
+    alignItems: "center",
+    gap: 14,
   },
   copyrightText: {
-    fontSize: 11.5,
-    color: "#94A3B8",
     fontFamily: font,
+    fontSize: 12.5,
+    fontWeight: "500",
+    color: "rgba(255, 255, 255, 0.6)",
   },
   legalLinks: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 9,
   },
   legalLink: {
-    fontSize: 11.5,
-    color: "#64748B",
     fontFamily: font,
-    ...Platform.select({
-      web: {
-        cursor: "pointer",
-      },
-    }),
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.8)",
+    ...Platform.select({ web: { cursor: "pointer" } }),
   },
   legalDot: {
-    fontSize: 11,
-    color: "#CBD5E1",
+    color: "rgba(255, 255, 255, 0.35)",
+  },
+  legalAssurance: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  legalAssuranceText: {
+    fontFamily: font,
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.78)",
   },
 });

@@ -13,9 +13,12 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@/web/icons";
 import { useSafeAreaInsets } from "@/web/safeArea";
+import { FONT_BODY, FONT_DISPLAY, FONT_MONO, FONT_NUMERIC } from "../constants/typography";
+import { getFallbackPropertyPhotoUrl, resolvePropertyPhotoUrl } from "../src/utils/propertyImages";
 import { useRouter } from "@/web/navigation";
 import type { Listing } from "../src/services/workflowService";
 import AppHeader from "./AppHeader";
+import PropertyImage from "./PropertyImage";
 import VerifiedPropertyMap from "./VerifiedPropertyMap";
 
 interface PublicPropertyDetailsProps {
@@ -47,8 +50,10 @@ export default function PublicPropertyDetails({
   const [copiedLink, setCopiedLink] = useState(false);
 
   const photos = useMemo(() => {
-    return (p.media?.photos || []).map((uri) => ({ uri }));
-  }, [p.media?.photos]);
+    const list = (p.media?.photos || []).filter(Boolean);
+    if (list.length > 0) return list.map((uri) => ({ uri }));
+    return [{ uri: resolvePropertyPhotoUrl(p) }];
+  }, [p]);
 
   const openLink = (url: string) => {
     Linking.openURL(url).catch(() =>
@@ -174,8 +179,11 @@ export default function PublicPropertyDetails({
           <View style={styles.heroSection}>
             <View style={[styles.heroMainPhoto, { height: isDesktop ? 450 : 290 }]}>
               {photos[activePhoto] ? (
-                <Image
+                <PropertyImage
                   source={photos[activePhoto]}
+                  fallbackUri={getFallbackPropertyPhotoUrl(p, activePhoto)}
+                  thumbnailWidth={1200}
+                  isPublic
                   style={StyleSheet.absoluteFill}
                   resizeMode="cover"
                   accessibilityLabel={`Property photo ${activePhoto + 1}`}
@@ -259,8 +267,11 @@ export default function PublicPropertyDetails({
                       activePhoto === idx && styles.thumbnailActive,
                     ]}
                   >
-                    <Image
+                    <PropertyImage
                       source={photoItem}
+                      fallbackUri={getFallbackPropertyPhotoUrl(p, idx)}
+                      thumbnailWidth={400}
+                      isPublic
                       style={StyleSheet.absoluteFill}
                       resizeMode="cover"
                     />
@@ -774,8 +785,10 @@ export default function PublicPropertyDetails({
 
           <View style={styles.galleryMainImageContainer}>
             {photos[activePhoto] && (
-              <Image
+              <PropertyImage
                 source={photos[activePhoto]}
+                fallbackUri={getFallbackPropertyPhotoUrl(p, activePhoto)}
+                isPublic
                 style={StyleSheet.absoluteFill}
                 resizeMode="contain"
               />
@@ -1202,18 +1215,20 @@ const styles = StyleSheet.create({
     color: "#059669",
   },
   priceHighlight: {
-    fontSize: 24,
+    fontFamily: FONT_NUMERIC,
+    fontSize: 25,
     fontWeight: "800",
     color: "#03456C",
-    letterSpacing: -0.6,
+    letterSpacing: -0.5,
   },
   propertyTitle: {
-    fontSize: 23,
-    fontWeight: "800",
+    fontFamily: FONT_DISPLAY,
+    fontSize: 24,
+    fontWeight: "600",
     color: "#0F172A",
-    lineHeight: 31,
+    lineHeight: 32,
     marginBottom: 8,
-    letterSpacing: -0.4,
+    letterSpacing: -0.35,
   },
   locationRow: {
     flexDirection: "row",
@@ -1255,21 +1270,25 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   statValue: {
+    fontFamily: FONT_NUMERIC,
     fontSize: 16.5,
-    fontWeight: "800",
+    fontWeight: "700",
     color: "#0F172A",
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
     textTransform: "capitalize",
     marginBottom: 2,
   },
   statSub: {
-    fontSize: 11,
+    fontFamily: FONT_MONO,
+    fontSize: 10.5,
     fontWeight: "600",
     color: "#64748B",
+    letterSpacing: 0.2,
   },
 
   /* Description */
   descriptionText: {
+    fontFamily: FONT_BODY,
     fontSize: 14.5,
     lineHeight: 25,
     color: "#334155",

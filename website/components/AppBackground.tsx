@@ -4,14 +4,16 @@ import { Platform, StyleSheet, View } from "react-native";
 export default function AppBackground() {
   if (Platform.OS === "web") {
     return (
-      <div className="ms-bg" aria-hidden="true">
-        <div className="stage" style={{ opacity: 0.4 }}>
-          <b className="a1"><i /></b>
-          <b className="a2"><i /></b>
-          <b className="a3"><i /></b>
-          <b className="a4"><i /></b>
-        </div>
-      </div>
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          backgroundColor: "#F7F4EC",
+          pointerEvents: "none",
+          zIndex: -1,
+        }}
+      />
     );
   }
 
